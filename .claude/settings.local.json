@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"C:\\\\Users\\\\WerkplaatsBoerMetaal\\\\.claude\\\\projects\\\\C--ClaudeProjects-StockManager\\\\memory\" 2>/dev/null; echo \"ok\")",
+      "Bash(npm --version)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(Get-Command node -ErrorAction SilentlyContinue; Get-ChildItem \"C:\\\\Program Files\\\\nodejs\\\\node.exe\" -ErrorAction SilentlyContinue; Get-ChildItem \"$env:APPDATA\\\\nvm\" -ErrorAction SilentlyContinue | Select-Object -First 5; Get-ChildItem \"$env:ProgramFiles\\\\nodejs\" -ErrorAction SilentlyContinue | Select-Object -First 5)",
+      "PowerShell([System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"Machine\"\\) -split \";\" | Where-Object { $_ -match \"node|npm\" })",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\WerkplaatsBoerMetaal\" -ErrorAction SilentlyContinue | Select-Object Name; [System.Environment]::GetEnvironmentVariable\\(\"PATH\", \"User\"\\) -split \";\")",
+      "PowerShell(docker --version)",
+      "PowerShell(cd C:\\\\ClaudeProjects\\\\StockManager\\\\docker; docker compose down; $env:DB_PASSWORD = \"stockmanager\"; docker compose up -d db 2>&1)",
+      "PowerShell(Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"cd 'C:\\\\ClaudeProjects\\\\StockManager'; npm run dev:api\" -WindowStyle Normal; Start-Process powershell -ArgumentList \"-NoExit\", \"-Command\", \"cd 'C:\\\\ClaudeProjects\\\\StockManager'; npm run dev:web\" -WindowStyle Normal)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"const fs=require\\('fs'\\); const c=fs.readFileSync\\('ReserveringenPage.tsx','utf8'\\); fs.writeFileSync\\('ReserveringenPage.tsx', c\\);\")",
+      "Bash(cat /tmp/visio_extract/zaag_contents/visio/pages/page1.xml)",
+      "Bash(node -e ' *)",
+      "Bash(git add *)"
+    ]
+  }
+}

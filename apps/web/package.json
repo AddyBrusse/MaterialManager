@@ -1,0 +1,31 @@
+{
+  "name": "@stockmanager/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mantine/core": "^7.4.2",
+    "@mantine/form": "^7.4.2",
+    "@mantine/hooks": "^7.4.2",
+    "@mantine/notifications": "^7.4.2",
+    "@stockmanager/shared": "*",
+    "@tabler/icons-react": "^2.47.0",
+    "@tanstack/react-query": "^5.17.19",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.3",
+    "zod": "^3.22.4",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11"
+  }
+}

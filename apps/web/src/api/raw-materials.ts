@@ -1,0 +1,204 @@
+import type { CreateRawMaterial, UpdateRawMaterial } from '@stockmanager/shared'
+import { apiFetch } from './client'
+import { MOCK_GRADES } from './grades'
+import { MOCK_PROFILES } from './profiles'
+import { MOCK_LOCATIONS } from './locations'
+
+export type GradeInfo = {
+  id: string
+  name: string
+  densityKgM3: string
+  createdAt: string
+}
+
+export type ProfileInfo = {
+  id: string
+  name: string
+  dimensionSchema: Array<{ key: string; label: string; unit: string }>
+  volumeFormula: 'round' | 'square' | 'flat' | 'tube'
+  createdAt: string
+}
+
+export type LocationSlotWithLocation = {
+  id: string
+  level1: string
+  level2: string | null
+  location: { id: string; kind: string; label: string }
+}
+
+export type RawMaterialRow = {
+  id: string
+  code: string
+  gradeId: string
+  profileId: string
+  dimensions: Record<string, number>
+  lengthMm: string
+  currentStock: string
+  minStock: string | null
+  photoPath: string | null
+  weightKg: number
+  createdAt: string
+  updatedAt: string
+  grade: GradeInfo
+  profile: ProfileInfo
+  locationSlot: LocationSlotWithLocation | null
+}
+
+export function formatDimensions(profile: Pick<ProfileInfo, 'volumeFormula'>, dims: Record<string, number>): string {
+  switch (profile.volumeFormula) {
+    case 'round':  return `Ø${dims.diameter}`
+    case 'square': return `${dims.side}×${dims.side}`
+    case 'flat':   return `${dims.width}×${dims.height}`
+    case 'tube':   return `Ø${dims.outerDiameter}/Ø${dims.innerDiameter}`
+    default:       return Object.values(dims).join('×')
+  }
+}
+
+export function formatLocation(slot: LocationSlotWithLocation | null): string {
+  if (!slot) return '—'
+  const base = `${slot.location.label} · ${slot.level1}`
+  return slot.level2 ? `${base} · ${slot.level2}` : base
+}
+
+// ── mock data ─────────────────────────────────────────────────────────────────
+// currentStock = remaining length of this piece in mm
+// minStock     = minimum usable length threshold in mm
+export const MOCK_MATERIALS: RawMaterialRow[] = [
+  { id: 'm1', code: '#00001', gradeId: 'g3', profileId: 'p1', dimensions: { diameter: 50 },                   lengthMm: '6000', currentStock: '5500', minStock: '500', photoPath: null, weightKg: 92.5,  createdAt: '2026-05-01T08:00:00Z', updatedAt: '2026-05-26T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, locationSlot: { id: 's1a', level1: 'R1', level2: null,  location: { id: 'l1', kind: 'rack', label: 'Hal A · Stelling 01' } } },
+  { id: 'm2', code: '#00002', gradeId: 'g3', profileId: 'p1', dimensions: { diameter: 30 },                   lengthMm: '3000', currentStock: '1200', minStock: '300', photoPath: null, weightKg: 16.6,  createdAt: '2026-05-02T08:00:00Z', updatedAt: '2026-05-24T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, locationSlot: { id: 's2a', level1: 'R1', level2: null,  location: { id: 'l2', kind: 'rack', label: 'Hal A · Stelling 02' } } },
+  { id: 'm3', code: '#00003', gradeId: 'g1', profileId: 'p3', dimensions: { width: 100, height: 10 },         lengthMm: '6000', currentStock: '0',    minStock: '500', photoPath: null, weightKg: 47.1,  createdAt: '2026-05-03T08:00:00Z', updatedAt: '2026-05-20T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p3', name: 'Plat',     dimensionSchema: [{ key: 'width', label: 'Breedte', unit: 'mm' }, { key: 'height', label: 'Hoogte', unit: 'mm' }],                                            volumeFormula: 'flat',   createdAt: '' }, locationSlot: { id: 's5c', level1: 'R3', level2: null,  location: { id: 'l5', kind: 'rack', label: 'Hal B · Vak 14'      } } },
+  { id: 'm4', code: '#00004', gradeId: 'g3', profileId: 'p4', dimensions: { outerDiameter: 60.3, innerDiameter: 51.3 }, lengthMm: '6000', currentStock: '4800', minStock: '500', photoPath: null, weightKg: 40.2, createdAt: '2026-05-04T08:00:00Z', updatedAt: '2026-05-25T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p4', name: 'Buis',     dimensionSchema: [{ key: 'outerDiameter', label: 'Buitendiameter', unit: 'mm' }, { key: 'innerDiameter', label: 'Binnendiameter', unit: 'mm' }], volumeFormula: 'tube',   createdAt: '' }, locationSlot: { id: 's2c', level1: 'R1', level2: 'V2', location: { id: 'l2', kind: 'rack', label: 'Hal A · Stelling 02' } } },
+  { id: 'm5', code: '#00005', gradeId: 'g3', profileId: 'p2', dimensions: { side: 25 },                       lengthMm: '3000', currentStock: '3000', minStock: '300', photoPath: null, weightKg: 14.7,  createdAt: '2026-05-05T08:00:00Z', updatedAt: '2026-05-23T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p2', name: 'Vierkant', dimensionSchema: [{ key: 'side', label: 'Zijde', unit: 'mm' }],                                                                                         volumeFormula: 'square', createdAt: '' }, locationSlot: { id: 's4a', level1: 'R1', level2: null,  location: { id: 'l4', kind: 'rack', label: 'Hal B · Vak 12'      } } },
+  { id: 'm6', code: '#00006', gradeId: 'g1', profileId: 'p1', dimensions: { diameter: 80 },                   lengthMm: '3000', currentStock: '350',  minStock: '500', photoPath: null, weightKg: 118.4, createdAt: '2026-05-06T08:00:00Z', updatedAt: '2026-05-18T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, locationSlot: { id: 's3c', level1: 'R3', level2: null,  location: { id: 'l3', kind: 'rack', label: 'Hal A · Stelling 03' } } },
+  { id: 'm7', code: '#00007', gradeId: 'g1', profileId: 'p3', dimensions: { width: 200, height: 20 },         lengthMm: '6000', currentStock: '5200', minStock: '500', photoPath: null, weightKg: 188.4, createdAt: '2026-05-07T08:00:00Z', updatedAt: '2026-05-22T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p3', name: 'Plat',     dimensionSchema: [{ key: 'width', label: 'Breedte', unit: 'mm' }, { key: 'height', label: 'Hoogte', unit: 'mm' }],                                            volumeFormula: 'flat',   createdAt: '' }, locationSlot: { id: 's6b', level1: 'R2', level2: null,  location: { id: 'l6', kind: 'cabinet', label: 'Hal C · Buitenopslag' } } },
+]
+
+// ── localStorage-backed mock store ────────────────────────────────────────────
+const LS_KEY = 'sm_raw_materials'
+
+function loadStore(): RawMaterialRow[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (raw) return JSON.parse(raw) as RawMaterialRow[]
+  } catch {}
+  return [...MOCK_MATERIALS]
+}
+
+function saveStore(data: RawMaterialRow[]): void {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
+}
+
+let mockStore: RawMaterialRow[] = loadStore()
+
+function buildMockRow(body: CreateRawMaterial): RawMaterialRow {
+  const gradeRaw   = MOCK_GRADES.find(g => g.id === body.gradeId)
+  const profileRaw = MOCK_PROFILES.find(p => p.id === body.profileId)
+  const allSlots   = MOCK_LOCATIONS.flatMap(loc =>
+    loc.slots.map(s => ({ ...s, location: { id: loc.id, kind: loc.kind as string, label: loc.label } }))
+  )
+  const slot = body.locationSlotId ? allSlots.find(s => s.id === body.locationSlotId) ?? null : null
+
+  const grade: GradeInfo = gradeRaw
+    ? { id: gradeRaw.id, name: gradeRaw.name, densityKgM3: String(gradeRaw.densityKgM3), createdAt: gradeRaw.createdAt }
+    : { id: body.gradeId, name: '?', densityKgM3: '7850', createdAt: '' }
+
+  const profile: ProfileInfo = profileRaw
+    ? { id: profileRaw.id, name: profileRaw.name, dimensionSchema: profileRaw.dimensionSchema, volumeFormula: profileRaw.volumeFormula, createdAt: profileRaw.createdAt }
+    : { id: body.profileId, name: '?', dimensionSchema: [], volumeFormula: 'flat', createdAt: '' }
+
+  const locationSlot: LocationSlotWithLocation | null = slot
+    ? { id: slot.id, level1: slot.level1, level2: slot.level2 ?? null, location: slot.location }
+    : null
+
+  return {
+    id: `m${Date.now()}`,
+    code: body.code,
+    gradeId: body.gradeId,
+    profileId: body.profileId,
+    dimensions: body.dimensions as Record<string, number>,
+    lengthMm: String(body.lengthMm),
+    currentStock: String(body.lengthMm), // new piece = full length remaining
+    minStock: body.minStock != null ? String(body.minStock) : null,
+    photoPath: null,
+    weightKg: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    grade,
+    profile,
+    locationSlot,
+  }
+}
+
+export const rawMaterialsApi = {
+  list: () => apiFetch<RawMaterialRow[]>('/raw-materials').catch(() => ({ data: mockStore })),
+  get:  (id: string) => apiFetch<RawMaterialRow>(`/raw-materials/${id}`),
+
+  create: (body: CreateRawMaterial) =>
+    apiFetch<RawMaterialRow>('/raw-materials', { method: 'POST', body: JSON.stringify(body) })
+      .catch(() => {
+        const newItem = buildMockRow(body)
+        mockStore = [...mockStore, newItem]
+        saveStore(mockStore)
+        return { data: newItem }
+      }),
+
+  update: (id: string, body: UpdateRawMaterial) =>
+    apiFetch<RawMaterialRow>(`/raw-materials/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      .catch(() => {
+        const existing = mockStore.find(r => r.id === id)
+        if (!existing) throw new Error('Niet gevonden')
+        const gradeRaw   = body.gradeId   ? MOCK_GRADES.find(g => g.id === body.gradeId)   : null
+        const profileRaw = body.profileId ? MOCK_PROFILES.find(p => p.id === body.profileId) : null
+        const allSlots   = MOCK_LOCATIONS.flatMap(loc =>
+          loc.slots.map(s => ({ ...s, location: { id: loc.id, kind: loc.kind as string, label: loc.label } }))
+        )
+        const slot = body.locationSlotId != null
+          ? (body.locationSlotId ? allSlots.find(s => s.id === body.locationSlotId) ?? null : null)
+          : undefined
+
+        const updated: RawMaterialRow = {
+          ...existing,
+          ...(body.gradeId   ? { gradeId:   body.gradeId }   : {}),
+          ...(body.profileId ? { profileId: body.profileId } : {}),
+          ...(body.dimensions ? { dimensions: body.dimensions as Record<string, number> } : {}),
+          ...(body.lengthMm  != null ? { lengthMm: String(body.lengthMm) }  : {}),
+          ...(body.minStock  != null ? { minStock: String(body.minStock) } : {}),
+          ...(gradeRaw   ? { grade:   { id: gradeRaw.id,   name: gradeRaw.name,   densityKgM3: String(gradeRaw.densityKgM3),   createdAt: gradeRaw.createdAt   } } : {}),
+          ...(profileRaw ? { profile: { id: profileRaw.id, name: profileRaw.name, dimensionSchema: profileRaw.dimensionSchema, volumeFormula: profileRaw.volumeFormula, createdAt: profileRaw.createdAt } } : {}),
+          ...(slot !== undefined ? { locationSlot: slot ? { id: slot.id, level1: slot.level1, level2: slot.level2 ?? null, location: slot.location } : null } : {}),
+          updatedAt: new Date().toISOString(),
+        }
+        mockStore = mockStore.map(r => r.id === id ? updated : r)
+        saveStore(mockStore)
+        return { data: updated }
+      }),
+
+  remove: (id: string) =>
+    apiFetch<void>(`/raw-materials/${id}`, { method: 'DELETE' })
+      .catch(() => {
+        mockStore = mockStore.filter(r => r.id !== id)
+        saveStore(mockStore)
+        return { data: undefined as void }
+      }),
+
+  /** Adjust remaining stock length in mm (used by MutatieModal). */
+  adjustStock: (id: string, newCurrentStockMm: number) =>
+    apiFetch<RawMaterialRow>(`/raw-materials/${id}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify({ currentStock: newCurrentStockMm }),
+    }).catch(() => {
+      const existing = mockStore.find(r => r.id === id)
+      if (!existing) throw new Error('Niet gevonden')
+      const roundedStock = Math.round(newCurrentStockMm)
+      const updated: RawMaterialRow = {
+        ...existing,
+        currentStock: String(roundedStock),
+        // If new stock exceeds the recorded original length, extend it too
+        lengthMm: String(Math.max(roundedStock, Number(existing.lengthMm))),
+        updatedAt: new Date().toISOString(),
+      }
+      mockStore = mockStore.map(r => r.id === id ? updated : r)
+      saveStore(mockStore)
+      return { data: updated }
+    }),
+}

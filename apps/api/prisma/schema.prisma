@@ -1,0 +1,208 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  user
+}
+
+enum LocationKind {
+  rack
+  cabinet
+}
+
+enum ItemType {
+  raw
+  finished
+}
+
+enum MovementKind {
+  delta
+  overwrite
+}
+
+enum MovementReason {
+  received
+  used
+  scrapped
+  correction
+  other
+}
+
+enum LabelStatus {
+  printed_unused
+  consumed
+  voided
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String    @unique
+  role         Role      @default(user)
+  avatarPath   String?   @map("avatar_path")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  movements    StockMovement[]
+  locks        Lock[]
+  lockRequests LockRequest[]
+  labels       Label[]
+
+  @@map("users")
+}
+
+model Location {
+  id        String       @id @default(uuid())
+  kind      LocationKind
+  label     String
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  slots     LocationSlot[]
+
+  @@map("locations")
+}
+
+model LocationSlot {
+  id         String   @id @default(uuid())
+  locationId String   @map("location_id")
+  level1     String
+  level2     String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  location      Location       @relation(fields: [locationId], references: [id])
+  rawMaterials  RawMaterial[]
+  finishedGoods FinishedGood[]
+
+  @@map("location_slots")
+}
+
+model Grade {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  densityKgM3 Decimal     @map("density_kg_m3")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  rawMaterials RawMaterial[]
+
+  @@map("grades")
+}
+
+model Profile {
+  id              String   @id @default(uuid())
+  name            String
+  dimensionSchema Json     @map("dimension_schema")
+  volumeFormula   String   @map("volume_formula")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  rawMaterials RawMaterial[]
+
+  @@map("profiles")
+}
+
+model RawMaterial {
+  id             String       @id @default(uuid())
+  code           String       @unique
+  gradeId        String       @map("grade_id")
+  profileId      String       @map("profile_id")
+  dimensions     Json
+  lengthMm       Decimal      @map("length_mm")
+  locationSlotId String?      @map("location_slot_id")
+  photoPath      String?      @map("photo_path")
+  minStock       Decimal?     @map("min_stock")
+  currentStock   Decimal      @default(0) @map("current_stock")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  grade        Grade         @relation(fields: [gradeId], references: [id])
+  profile      Profile       @relation(fields: [profileId], references: [id])
+  locationSlot LocationSlot? @relation(fields: [locationSlotId], references: [id])
+  consumingLabel Label?      @relation("LabelConsumedMaterial")
+
+  @@map("raw_materials")
+}
+
+model FinishedGood {
+  id             String       @id @default(uuid())
+  artNo          String       @unique @map("art_no")
+  name           String
+  customer       String?
+  photoPath      String?      @map("photo_path")
+  drawingPath    String?      @map("drawing_path")
+  locationSlotId String?      @map("location_slot_id")
+  minStock       Decimal?     @map("min_stock")
+  currentStock   Decimal      @default(0) @map("current_stock")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  locationSlot LocationSlot? @relation(fields: [locationSlotId], references: [id])
+
+  @@map("finished_goods")
+}
+
+model StockMovement {
+  id            String         @id @default(uuid())
+  itemType      ItemType       @map("item_type")
+  itemId        String         @map("item_id")
+  userId        String         @map("user_id")
+  kind          MovementKind
+  amount        Decimal
+  previousStock Decimal        @map("previous_stock")
+  newStock      Decimal        @map("new_stock")
+  reason        MovementReason
+  note          String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([itemId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("stock_movements")
+}
+
+model Label {
+  number                String      @id
+  batchId               String      @map("batch_id")
+  status                LabelStatus
+  printedAt             DateTime    @map("printed_at")
+  printedById           String      @map("printed_by")
+  consumedAt            DateTime?   @map("consumed_at")
+  consumedRawMaterialId String?     @unique @map("consumed_raw_material_id")
+
+  printedBy           User         @relation(fields: [printedById], references: [id])
+  consumedRawMaterial RawMaterial? @relation("LabelConsumedMaterial", fields: [consumedRawMaterialId], references: [id])
+
+  @@index([status])
+  @@map("labels")
+}
+
+model Lock {
+  itemType      ItemType @map("item_type")
+  itemId        String   @map("item_id")
+  userId        String   @map("user_id")
+  acquiredAt    DateTime @map("acquired_at")
+  lastHeartbeat DateTime @map("last_heartbeat")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([itemType, itemId])
+  @@index([lastHeartbeat])
+  @@map("locks")
+}
+
+model LockRequest {
+  id             String    @id @default(uuid())
+  itemType       ItemType  @map("item_type")
+  itemId         String    @map("item_id")
+  requestedById  String    @map("requested_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  acknowledgedAt DateTime? @map("acknowledged_at")
+
+  requestedBy User @relation(fields: [requestedById], references: [id])
+
+  @@map("lock_requests")
+}
