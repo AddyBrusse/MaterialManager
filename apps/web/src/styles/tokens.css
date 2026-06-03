@@ -789,6 +789,24 @@ tr:hover .row-actions { opacity: 1; }
 .zf-question-lbl      { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
 .zf-question-expected { font-family: var(--font-mono); font-size: 13px; color: var(--text-3); }
 
+/* check hero block — big visual expected value */
+.zf-check-hero-block {
+  text-align: center; padding: 6px 0 4px;
+}
+.zf-question-hero {
+  font-family: var(--font-mono); font-size: 52px; font-weight: 700;
+  letter-spacing: -0.03em; color: var(--text);
+  margin: 10px 0 14px; line-height: 1;
+}
+
+/* keuring summary after both checks are done */
+.zf-keuring-done {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 22px 16px; text-align: center;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
 /* big check buttons */
 .zf-check-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .zf-check-btn {

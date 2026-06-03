@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { NumberInput } from '@mantine/core'
+import { NumberInput, Select } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconPrinter, IconAlertTriangle, IconLock } from '@tabler/icons-react'
 import { rawMaterialsApi, formatLocation } from '../../api/raw-materials'
@@ -173,6 +173,7 @@ export function ZaagCalculatorPage() {
           pieces:         res,
           productLen,
           sawLength:      sawLen,
+          fysiekeLengte:  Number(bar.currentStock),
           materiaal,
           diameter:       Number(diameter),
           werkstukLengte: Number(werkstukL),
@@ -227,15 +228,12 @@ export function ZaagCalculatorPage() {
             <div className="zaag-card-hd">Taakinvoer</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-              <div>
-                <FieldLabel>Machine</FieldLabel>
-                <select className="st-select" style={{ width: '100%' }}
-                  value={machine} onChange={e => setMachine(e.target.value)}>
-                  {MACHINES.map(m => (
-                    <option key={m.value} value={m.value}>{m.label} — max {m.maxLength} mm</option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Machine" size="sm" allowDeselect={false}
+                data={MACHINES.map(m => ({ value: m.value, label: `${m.label} — max ${m.maxLength} mm` }))}
+                value={machine}
+                onChange={v => setMachine(v ?? 'DMG')}
+              />
 
               <div>
                 <FieldLabel>Calculatienummer <span style={{ color: 'var(--text-4)', fontWeight: 400 }}>(optioneel)</span></FieldLabel>
@@ -259,27 +257,22 @@ export function ZaagCalculatorPage() {
                 allowDecimal={false}
               />
 
-              <div>
-                <FieldLabel>Kwaliteit (materiaal)</FieldLabel>
-                <select className="st-select" style={{ width: '100%' }}
-                  value={materiaal}
-                  onChange={e => { setMateriaal(e.target.value); setDiameter('') }}>
-                  <option value="">— selecteer —</option>
-                  {grades.map(g => <option key={g.id} value={g.name}>{g.name}</option>)}
-                </select>
-              </div>
+              <Select
+                label="Kwaliteit (materiaal)" size="sm"
+                placeholder="— selecteer —"
+                data={grades.map(g => ({ value: g.name, label: g.name }))}
+                value={materiaal || null}
+                onChange={v => { setMateriaal(v ?? ''); setDiameter('') }}
+              />
 
-              <div>
-                <FieldLabel>Diameter</FieldLabel>
-                <select className="st-select" style={{ width: '100%' }}
-                  value={diameter} onChange={e => setDiameter(e.target.value)}
-                  disabled={!materiaal}>
-                  <option value="">— selecteer —</option>
-                  {diameterOptions.map(d => (
-                    <option key={d} value={String(d)}>Ø{d} mm</option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                label="Diameter" size="sm"
+                placeholder="— selecteer —"
+                data={diameterOptions.map(d => ({ value: String(d), label: `Ø${d} mm` }))}
+                value={diameter || null}
+                onChange={v => setDiameter(v ?? '')}
+                disabled={!materiaal}
+              />
 
             </div>
           </div>

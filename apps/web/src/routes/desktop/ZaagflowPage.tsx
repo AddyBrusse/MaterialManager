@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import {
   IconSearch, IconCircleCheck, IconCircle, IconAlertTriangle,
   IconCheck, IconX, IconTrash, IconMapPin, IconPlayerPlay,
-  IconPrinter, IconChevronRight,
+  IconPrinter, IconArrowRight, IconChevronRight,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { reservationsStore, type ZaagReservation } from '../../api/reservations'
@@ -17,7 +17,21 @@ interface ZaagJob {
   machine: string; materiaal: string; diameter: number; totalPcs: number
   priority: number | null; status: 'open' | 'in_progress' | 'done'; createdAt: string
 }
-type BarCheck = { diameter: boolean | null; lengte: boolean | null; issue: string }
+
+type CheckField = 'materiaal' | 'diameter' | 'lengte'
+
+interface BarState {
+  materiaalOk: boolean | null
+  diameterOk:  boolean | null
+  lengteOk:    boolean | null
+  issueField:  CheckField | null
+  issueText:   string
+  showIssue:   boolean
+  sawed:       boolean
+  rest:        string
+  decision:    'store' | 'scrap' | null
+  location:    string
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -83,7 +97,7 @@ function JobCard({ job, onClick }: { job: ZaagJob; onClick: () => void }) {
 
 // ── Step indicator ─────────────────────────────────────────────────────────────
 
-const STEP_LABELS = ['Voorbereiding', 'Uitvoering', 'Meting', 'Afronding']
+const STEP_LABELS = ['Keuring', 'Zagen', 'Meting', 'Afronding']
 
 function StepDots({ step }: { step: 1 | 2 | 3 | 4 }) {
   return (
@@ -105,20 +119,6 @@ function StepDots({ step }: { step: 1 | 2 | 3 | 4 }) {
   )
 }
 
-// ── Bar progress dots ──────────────────────────────────────────────────────────
-
-function BarDots({ bars, activeIdx, doneIds }: { bars: ZaagReservation[]; activeIdx: number; doneIds: string[] }) {
-  if (bars.length <= 1) return null
-  return (
-    <div className="zf-bar-nav">
-      {bars.map((b, i) => (
-        <div key={b.id} className={`zf-bar-dot${i === activeIdx ? ' active' : doneIds.includes(b.id) ? ' done' : ''}`} />
-      ))}
-      <span className="zf-bar-nav-label">As {activeIdx + 1} van {bars.length}</span>
-    </div>
-  )
-}
-
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
 function JobModal({ job, onClose, onUpdate }: {
@@ -126,91 +126,105 @@ function JobModal({ job, onClose, onUpdate }: {
 }) {
   const bars = job.reservations
 
-  const [step, setStep]       = useState<1 | 2 | 3 | 4>(job.status === 'in_progress' ? 2 : 1)
+  // Per-bar cursor
+  const [barIdx, setBarIdx]       = useState(0)
+  const [subStep, setSubStep]     = useState<1 | 2 | 3 | 4>(1)
+  const [checkField, setCheckField] = useState<CheckField>('materiaal')
+  const [jobStarted, setJobStarted] = useState(job.status === 'in_progress')
 
-  // Step 1
-  const [checks, setChecks]   = useState<Record<string, BarCheck>>(() =>
-    Object.fromEntries(bars.map(r => [r.id, { diameter: null, lengte: null, issue: '' }]))
+  // Per-bar state
+  const [barStates, setBarStates] = useState<Record<string, BarState>>(() =>
+    Object.fromEntries(bars.map(r => [r.id, {
+      materiaalOk: null, diameterOk: null, lengteOk: null, issueField: null,
+      issueText: '', showIssue: false,
+      sawed: false, rest: '', decision: null, location: '',
+    }]))
   )
-  const [s1cur, setS1cur]     = useState({ bi: 0, field: 'diameter' as 'diameter' | 'lengte' })
-  const [showIssue, setShowIssue] = useState(false)
 
-  // Step 2
-  const [sawed, setSawed]     = useState<Record<string, boolean>>({})
-  const [s2bi, setS2bi]       = useState(0)
-
-  // Step 3
-  const [rests, setRests]     = useState<Record<string, string>>({})
-  const [s3bi, setS3bi]       = useState(0)
-
-  // Step 4
-  const [decisions, setDecisions] = useState<Record<string, 'store' | 'scrap'>>({})
-  const [locations, setLocations] = useState<Record<string, string>>({})
-  const [s4bi, setS4bi]       = useState(0)
-
-  const grijp = bars[0] ? bars[0].sawLength - bars[0].pieces * bars[0].productLen : 0
+  const bar  = bars[barIdx]
+  const bs   = barStates[bar.id]
+  const grijp = bar.sawLength - bar.pieces * bar.productLen
 
   // Completion gates
-  const step1Done = bars.every(r => checks[r.id]?.diameter !== null && checks[r.id]?.lengte !== null)
-  const hasIssues = bars.some(r => checks[r.id]?.diameter === false || checks[r.id]?.lengte === false)
-  const step2Done = bars.every(r => sawed[r.id])
-  const step3Done = bars.every(r => rests[r.id])
-  const step4Done = bars.every(r => {
-    const rest = Number(rests[r.id]) || 0
-    return rest < MIN_REST_MM ? true : decisions[r.id] != null
-  })
+  const keuringDone = bs.materiaalOk !== null && bs.diameterOk !== null && bs.lengteOk !== null && !bs.showIssue
+  const hasIssues   = bs.materiaalOk === false || bs.diameterOk === false || bs.lengteOk === false
+  const step4Done   = (() => {
+    const rest = Number(bs.rest) || 0
+    return rest < MIN_REST_MM ? true : bs.decision != null
+  })()
 
-  // Auto-scrap short remnants when entering step 4
+  // Auto-scrap short rests entering step 4
   useEffect(() => {
-    if (step !== 4) return
-    setDecisions(prev => {
-      const next = { ...prev }
-      bars.forEach(r => {
-        const rest = Number(rests[r.id]) || 0
-        if (rest < MIN_REST_MM && !next[r.id]) next[r.id] = 'scrap'
-      })
-      return next
-    })
-  }, [step]) // eslint-disable-line
+    if (subStep !== 4) return
+    const rest = Number(bs.rest) || 0
+    if (rest < MIN_REST_MM && bs.decision == null) {
+      setBarStates(p => ({ ...p, [bar.id]: { ...p[bar.id], decision: 'scrap' } }))
+    }
+  }, [subStep, barIdx]) // eslint-disable-line
 
-  // Close on Escape
+  // Escape key
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [onClose])
 
-  function advanceCursor() {
-    const { bi, field } = s1cur
-    if (field === 'diameter') setS1cur({ bi, field: 'lengte' })
-    else if (bi < bars.length - 1) setS1cur({ bi: bi + 1, field: 'diameter' })
+  const CHECK_ORDER: CheckField[] = ['materiaal', 'diameter', 'lengte']
+  function nextField(f: CheckField): CheckField | null {
+    const i = CHECK_ORDER.indexOf(f)
+    return i < CHECK_ORDER.length - 1 ? CHECK_ORDER[i + 1] : null
   }
 
   function handleCheck(val: boolean) {
-    const bar = bars[s1cur.bi]
-    setChecks(p => ({ ...p, [bar.id]: { ...p[bar.id], [s1cur.field]: val } }))
-    if (!val) { setShowIssue(true); return }
-    setTimeout(advanceCursor, 180)
+    const stateKey = checkField === 'materiaal' ? 'materiaalOk'
+      : checkField === 'diameter' ? 'diameterOk' : 'lengteOk'
+    setBarStates(p => ({
+      ...p,
+      [bar.id]: {
+        ...p[bar.id],
+        [stateKey]: val,
+        issueField: !val ? checkField : p[bar.id].issueField,
+        showIssue: !val,
+      },
+    }))
+    // Advance to the next check after a correct answer
+    if (val) {
+      const nf = nextField(checkField)
+      if (nf) setTimeout(() => setCheckField(nf), 180)
+    }
   }
 
-  function dismissIssue() { setShowIssue(false); setTimeout(advanceCursor, 50) }
+  function dismissIssue() {
+    setBarStates(p => ({ ...p, [bar.id]: { ...p[bar.id], showIssue: false } }))
+    // Continue to the next check after acknowledging an issue
+    const nf = nextField(checkField)
+    if (nf) setTimeout(() => setCheckField(nf), 50)
+  }
 
   function startJob() {
     bars.forEach(r => reservationsStore.setStatus(r.id, 'in_progress'))
-    onUpdate(); setStep(2)
-  }
-
-  function completeJob() {
-    bars.forEach(r => reservationsStore.complete(r.id, Number(rests[r.id]) || null))
+    setJobStarted(true)
+    setSubStep(2)
     onUpdate()
-    notifications.show({ color: 'green', title: 'Job afgerond!', message: `${job.calcNr} is voltooid.` })
-    onClose()
   }
 
-  const s1Bar = bars[s1cur.bi]
-  const s2Bar = bars[s2bi]
-  const s3Bar = bars[s3bi]
-  const s4Bar = bars[s4bi]
+  function advanceBar() {
+    // Complete this bar and move on
+    reservationsStore.complete(bar.id, Number(bs.rest) || null)
+    onUpdate()
+    if (barIdx < bars.length - 1) {
+      setBarIdx(i => i + 1)
+      setSubStep(1)
+      setCheckField('materiaal')
+    } else {
+      notifications.show({ color: 'green', title: 'Job afgerond!', message: `${job.calcNr} is voltooid.` })
+      onClose()
+    }
+  }
+
+  // Overall progress across all bars
+  const totalSteps = bars.length * 4
+  const doneSteps  = barIdx * 4 + (subStep - 1)
 
   return (
     <div className="zf-overlay" onClick={onClose}>
@@ -218,7 +232,7 @@ function JobModal({ job, onClose, onUpdate }: {
 
         {/* Thin progress strip */}
         <div className="zf-progress-track">
-          <div className="zf-progress-fill" style={{ width: `${((step - 1) / 3) * 100}%` }} />
+          <div className="zf-progress-fill" style={{ width: `${(doneSteps / totalSteps) * 100}%` }} />
         </div>
 
         {/* Header */}
@@ -227,7 +241,29 @@ function JobModal({ job, onClose, onUpdate }: {
             <div className="zf-job-title">{job.calcNr}</div>
             <div className="zf-job-sub">{job.machine} · {job.materiaal} Ø{job.diameter} mm · {job.totalPcs} stuks</div>
           </div>
-          <StepDots step={step} />
+
+          {/* Bar position indicator (multi-bar only) */}
+          {bars.length > 1 && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 5 }}>
+                {bars.map((_, i) => (
+                  <div key={i} style={{
+                    width: 8, height: 8, borderRadius: '50%',
+                    background: i < barIdx ? 'var(--success)' : i === barIdx ? 'var(--accent)' : 'var(--border-strong)',
+                    transform: i === barIdx ? 'scale(1.35)' : 'none',
+                    transition: 'all .2s',
+                    flexShrink: 0,
+                  }} />
+                ))}
+              </div>
+              <span style={{ fontSize: 10.5, color: 'var(--text-3)', fontWeight: 600, fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
+                As {barIdx + 1} / {bars.length}
+              </span>
+            </div>
+          )}
+
+          <StepDots step={subStep} />
+
           <button className="st-icon-btn" onClick={onClose} title="Sluiten (Esc)" style={{ flexShrink: 0 }}>
             <IconX size={15} />
           </button>
@@ -236,162 +272,163 @@ function JobModal({ job, onClose, onUpdate }: {
         {/* Body */}
         <div className="zf-modal-body">
 
-          {/* ── Step 1: Voorbereiding ─────────────────────────────────── */}
-          {step === 1 && (
-            <>
-              <BarDots
-                bars={bars} activeIdx={s1cur.bi}
-                doneIds={bars.filter(r => checks[r.id].diameter !== null && checks[r.id].lengte !== null).map(r => r.id)}
-              />
+          {/* Bar identifier */}
+          <div className="zf-bar-info">
+            <span className="zf-bar-code">{bar.barCode}</span>
+            <span className="zf-bar-loc"><IconMapPin size={12} />{bar.barLocation || '—'}</span>
+          </div>
 
-              <div className="zf-bar-info">
-                <span className="zf-bar-code">{s1Bar.barCode}</span>
-                <span className="zf-bar-loc"><IconMapPin size={12} />{s1Bar.barLocation || '—'}</span>
+          {/* ── Sub-step 1: Keuring ───────────────────────────────────── */}
+
+          {subStep === 1 && bs.showIssue && (
+            <div className="zf-issue-panel">
+              <IconAlertTriangle size={36} style={{ color: 'var(--warning)' }} />
+              <div className="zf-issue-title">Overleg met Bart</div>
+              <div className="zf-issue-sub">
+                {bs.issueField === 'materiaal' ? 'Verkeerd materiaalnummer'
+                  : bs.issueField === 'diameter' ? 'Diameter klopt niet'
+                  : 'Lengte klopt niet'} — overleg vóór je verdergaat.
+              </div>
+              <textarea
+                className="st-input"
+                style={{ width: '100%', minHeight: 60, resize: 'none', fontSize: 12, marginTop: 4 }}
+                placeholder="Notitie (optioneel)…"
+                value={bs.issueText}
+                onChange={e => setBarStates(p => ({ ...p, [bar.id]: { ...p[bar.id], issueText: e.target.value } }))}
+              />
+              <button className="st-btn primary" onClick={dismissIssue}>Begrepen → ga verder</button>
+            </div>
+          )}
+
+          {/* Active check question */}
+          {subStep === 1 && !bs.showIssue && !keuringDone && (
+            <>
+              <div className="zf-check-hero-block">
+                <div className="zf-question-type">
+                  {checkField === 'materiaal' ? '① Materiaalnummer'
+                    : checkField === 'diameter' ? '② Diameter controle'
+                    : '③ Lengte controle'}
+                </div>
+                <div className="zf-question-lbl">
+                  {checkField === 'materiaal' ? 'Heb je het juiste materiaal gepakt?'
+                    : checkField === 'diameter' ? 'Is de diameter correct?'
+                    : 'Klopt de lengte van de staaf?'}
+                </div>
+                <div
+                  className="zf-question-hero"
+                  style={checkField === 'materiaal' && bar.barCode.length > 7 ? { fontSize: 36 } : undefined}
+                >
+                  {checkField === 'materiaal' ? bar.barCode
+                    : checkField === 'diameter' ? `Ø ${bar.diameter} mm`
+                    : fmm(bar.fysiekeLengte)}
+                </div>
+                {checkField === 'materiaal' && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                    {bar.materiaal} · {bar.barVorm} · {bar.barLocation || '—'}
+                  </div>
+                )}
+                {checkField === 'lengte' && (
+                  <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                    Fysieke lengte van de staaf op de stelling
+                  </div>
+                )}
               </div>
 
-              {!showIssue ? (
-                <>
-                  <div className="zf-question">
-                    <div className="zf-question-type">
-                      {s1cur.field === 'diameter' ? '① Diameter' : '② Lengte'}
-                    </div>
-                    <div className="zf-question-lbl">
-                      {s1cur.field === 'diameter' ? 'Is de diameter correct?' : 'Is de staaf lang genoeg?'}
-                    </div>
-                    <div className="zf-question-expected">
-                      {s1cur.field === 'diameter'
-                        ? `Verwacht Ø${s1Bar.diameter} mm`
-                        : `Minimaal ${fmm(s1Bar.sawLength)}`}
-                    </div>
-                  </div>
+              <div className="zf-check-pair">
+                <button className="zf-check-btn ok" onClick={() => handleCheck(true)}>
+                  <IconCheck size={32} /><span>Klopt</span>
+                </button>
+                <button className="zf-check-btn nok" onClick={() => handleCheck(false)}>
+                  <IconX size={32} /><span>Niet goed</span>
+                </button>
+              </div>
 
-                  <div className="zf-check-pair">
-                    <button className="zf-check-btn ok" onClick={() => handleCheck(true)}>
-                      <IconCheck size={32} /><span>Klopt</span>
-                    </button>
-                    <button className="zf-check-btn nok" onClick={() => handleCheck(false)}>
-                      <IconX size={32} /><span>Niet goed</span>
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="zf-issue-panel">
-                  <IconAlertTriangle size={36} style={{ color: 'var(--warning)' }} />
-                  <div className="zf-issue-title">Overleg met Bart</div>
-                  <div className="zf-issue-sub">
-                    {s1cur.field === 'diameter' ? 'Diameter klopt niet' : 'As is te kort'} — overleg vóór je verdergaat.
-                  </div>
-                  <textarea
-                    className="st-input"
-                    style={{ width: '100%', minHeight: 60, resize: 'none', fontSize: 12, marginTop: 4 }}
-                    placeholder="Notitie (optioneel)…"
-                    value={checks[s1Bar.id]?.issue || ''}
-                    onChange={e => setChecks(p => ({ ...p, [s1Bar.id]: { ...p[s1Bar.id], issue: e.target.value } }))}
-                  />
-                  <button className="st-btn primary" onClick={dismissIssue}>Begrepen → ga verder</button>
-                </div>
-              )}
-
-              {/* Summary of checked bars */}
-              {bars.some(r => checks[r.id].diameter !== null) && (
-                <div className="zf-recap">
-                  {bars.filter(r => checks[r.id].diameter !== null).map(r => (
-                    <div key={r.id} className="zf-recap-row">
-                      <span className="zf-bar-code" style={{ fontSize: 12 }}>{r.barCode}</span>
-                      <span style={{ display: 'flex', gap: 5 }}>
-                        <span className={`zf-pill${checks[r.id].diameter ? ' ok' : ' nok'}`}>
-                          Ø {checks[r.id].diameter ? '✓' : '✗'}
-                        </span>
-                        {checks[r.id].lengte !== null && (
-                          <span className={`zf-pill${checks[r.id].lengte ? ' ok' : ' nok'}`}>
-                            L {checks[r.id].lengte ? '✓' : '✗'}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  ))}
+              {/* Running tally of completed checks */}
+              {(bs.materiaalOk !== null || bs.diameterOk !== null) && (
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {bs.materiaalOk !== null && checkField !== 'materiaal' && (
+                    <span className={`zf-pill${bs.materiaalOk ? ' ok' : ' nok'}`}>
+                      {bar.barCode} {bs.materiaalOk ? '✓' : '✗'}
+                    </span>
+                  )}
+                  {bs.diameterOk !== null && checkField !== 'diameter' && (
+                    <span className={`zf-pill${bs.diameterOk ? ' ok' : ' nok'}`}>
+                      Ø {bar.diameter} mm {bs.diameterOk ? '✓' : '✗'}
+                    </span>
+                  )}
                 </div>
               )}
             </>
           )}
 
-          {/* ── Step 2: Uitvoering ───────────────────────────────────── */}
-          {step === 2 && (
-            <>
-              <BarDots
-                bars={bars} activeIdx={s2bi}
-                doneIds={Object.entries(sawed).filter(([, v]) => v).map(([id]) => id)}
-              />
-
-              <div className="zf-bar-info">
-                <span className="zf-bar-code">{s2Bar.barCode}</span>
-                <span className="zf-bar-loc"><IconMapPin size={12} />{s2Bar.barLocation || '—'}</span>
+          {/* Keuring summary — both checks done */}
+          {subStep === 1 && !bs.showIssue && keuringDone && (
+            <div className="zf-keuring-done">
+              <IconCircleCheck size={32} style={{ color: hasIssues ? 'var(--warning)' : 'var(--success)' }} />
+              <div style={{ fontWeight: 700, fontSize: 16, color: hasIssues ? 'var(--warning)' : 'var(--success)' }}>
+                {hasIssues ? 'Keuring klaar — problemen genoteerd' : 'Keuring geslaagd'}
               </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <span className={`zf-pill${bs.materiaalOk ? ' ok' : ' nok'}`}>
+                  {bar.barCode} {bs.materiaalOk ? '✓' : '✗'}
+                </span>
+                <span className={`zf-pill${bs.diameterOk ? ' ok' : ' nok'}`}>
+                  Ø {bar.diameter} mm {bs.diameterOk ? '✓' : '✗'}
+                </span>
+                <span className={`zf-pill${bs.lengteOk ? ' ok' : ' nok'}`}>
+                  {fmm(bar.fysiekeLengte)} {bs.lengteOk ? '✓' : '✗'}
+                </span>
+              </div>
+            </div>
+          )}
 
+          {/* ── Sub-step 2: Zagen ─────────────────────────────────────── */}
+          {subStep === 2 && (
+            <>
               <div className="zf-hero">
                 <div className="zf-hero-label">Zaagopdracht</div>
-                <div className="zf-hero-value">Zaag 1×{s2Bar.sawLength}mm</div>
+                <div className="zf-hero-value">{bar.pieces}× {bar.werkstukLengte} mm</div>
                 <div className="zf-hero-sub">
-                  {s2Bar.pieces} × {s2Bar.werkstukLengte}mm · kerf {s2Bar.steekbreedte}mm · grip {grijp}mm
+                  Totaal {fmm(bar.sawLength)} · kerf {bar.steekbreedte} mm · grip {fmm(grijp)}
                 </div>
               </div>
 
               <button
-                className={`zf-done-btn${sawed[s2Bar.id] ? ' done' : ''}`}
-                onClick={() => {
-                  const next = !sawed[s2Bar.id]
-                  setSawed(p => ({ ...p, [s2Bar.id]: next }))
-                  if (next && s2bi < bars.length - 1) setTimeout(() => setS2bi(i => i + 1), 350)
-                }}
+                className={`zf-done-btn${bs.sawed ? ' done' : ''}`}
+                onClick={() => setBarStates(p => ({ ...p, [bar.id]: { ...p[bar.id], sawed: !p[bar.id].sawed } }))}
               >
-                {sawed[s2Bar.id]
+                {bs.sawed
                   ? <><IconCircleCheck size={20} />Uitgevoerd ✓</>
                   : <><IconCircle size={20} />Markeer als uitgevoerd</>
                 }
               </button>
-
-              {bars.length > 1 && (
-                <div className="zf-nav-btns">
-                  <button className="st-btn sm" disabled={s2bi === 0} onClick={() => setS2bi(i => i - 1)}>← Vorige</button>
-                  <button className="st-btn sm" disabled={s2bi >= bars.length - 1} onClick={() => setS2bi(i => i + 1)}>Volgende →</button>
-                </div>
-              )}
             </>
           )}
 
-          {/* ── Step 3: Meting ──────────────────────────────────────── */}
-          {step === 3 && (
+          {/* ── Sub-step 3: Meting ────────────────────────────────────── */}
+          {subStep === 3 && (
             <>
-              <BarDots
-                bars={bars} activeIdx={s3bi}
-                doneIds={bars.filter(r => rests[r.id]).map(r => r.id)}
-              />
-
-              <div className="zf-bar-info">
-                <span className="zf-bar-code">{s3Bar.barCode}</span>
-                <span className="zf-bar-loc">
-                  Verwacht rest ≈ {fmm(s3Bar.sawLength - s3Bar.pieces * s3Bar.productLen)}
-                </span>
+              <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }}>
+                Verwacht rest ≈ {fmm(bar.sawLength - bar.pieces * bar.productLen)}
               </div>
-
               <div className="zf-hero">
                 <div className="zf-hero-label">Gemeten restlengte</div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 14 }}>
                   <input
-                    key={s3bi}
+                    key={barIdx}
                     type="number" min={0}
                     className="st-input cell-mono"
                     style={{ fontSize: 32, height: 62, width: 150, textAlign: 'center' }}
                     placeholder="0"
-                    value={rests[s3Bar.id] ?? ''}
+                    value={bs.rest}
                     autoFocus
-                    onChange={e => setRests(p => ({ ...p, [s3Bar.id]: e.target.value }))}
+                    onChange={e => setBarStates(p => ({ ...p, [bar.id]: { ...p[bar.id], rest: e.target.value } }))}
                   />
                   <span style={{ fontSize: 20, color: 'var(--text-3)', fontWeight: 500 }}>mm</span>
                 </div>
-                {rests[s3Bar.id] && (() => {
-                  const expected = s3Bar.sawLength - s3Bar.pieces * s3Bar.productLen
-                  const diff = Math.abs(Number(rests[s3Bar.id]) - expected)
+                {bs.rest && (() => {
+                  const expected = bar.sawLength - bar.pieces * bar.productLen
+                  const diff = Math.abs(Number(bs.rest) - expected)
                   return diff < 20
                     ? <div style={{ marginTop: 10, color: 'var(--success)', fontWeight: 600, textAlign: 'center' }}>✓ Binnen tolerantie</div>
                     : <div style={{ marginTop: 10, color: 'var(--warning)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
@@ -399,39 +436,25 @@ function JobModal({ job, onClose, onUpdate }: {
                       </div>
                 })()}
               </div>
-
-              {bars.length > 1 && (
-                <div className="zf-nav-btns">
-                  <button className="st-btn sm" disabled={s3bi === 0} onClick={() => setS3bi(i => i - 1)}>← Vorige</button>
-                  <button className="st-btn sm primary" disabled={!rests[s3Bar.id] || s3bi >= bars.length - 1} onClick={() => setS3bi(i => i + 1)}>
-                    Volgende →
-                  </button>
-                </div>
-              )}
             </>
           )}
 
-          {/* ── Step 4: Afronding ───────────────────────────────────── */}
-          {step === 4 && (() => {
-            const rest = Number(rests[s4Bar.id]) || 0
+          {/* ── Sub-step 4: Afronding ─────────────────────────────────── */}
+          {subStep === 4 && (() => {
+            const rest = Number(bs.rest) || 0
             const isScrap = rest < MIN_REST_MM
             return (
               <>
-                <BarDots
-                  bars={bars} activeIdx={s4bi}
-                  doneIds={bars.filter(r => decisions[r.id] != null).map(r => r.id)}
-                />
-
-                <div className="zf-bar-info">
-                  <span className="zf-bar-code">{s4Bar.barCode}</span>
-                  <span className="zf-bar-loc">Gemeten rest: <strong>{fmm(rest)}</strong></span>
+                <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-2)' }}>
+                  Gemeten rest:{' '}
+                  <strong style={{ color: 'var(--text)', fontFamily: 'var(--font-mono)' }}>{fmm(rest)}</strong>
                 </div>
 
                 {isScrap ? (
                   <div className="zf-decision-scrap">
                     <IconTrash size={36} />
                     <div style={{ fontWeight: 700, fontSize: 16 }}>Schrootbak</div>
-                    <div style={{ fontSize: 12, color: 'var(--danger)', opacity: 0.8 }}>
+                    <div style={{ fontSize: 12, opacity: 0.8 }}>
                       {rest} mm &lt; {MIN_REST_MM} mm minimum — gaat naar de schrootbak
                     </div>
                   </div>
@@ -439,43 +462,34 @@ function JobModal({ job, onClose, onUpdate }: {
                   <>
                     <div className="zf-decision-cards">
                       <button
-                        className={`zf-decision-card${decisions[s4Bar.id] === 'scrap' ? ' sel-danger' : ''}`}
-                        onClick={() => setDecisions(p => ({ ...p, [s4Bar.id]: 'scrap' }))}
+                        className={`zf-decision-card${bs.decision === 'scrap' ? ' sel-danger' : ''}`}
+                        onClick={() => setBarStates(p => ({ ...p, [bar.id]: { ...p[bar.id], decision: 'scrap' } }))}
                       >
                         <IconTrash size={28} /><span>Schrootbak</span>
                       </button>
                       <button
-                        className={`zf-decision-card${decisions[s4Bar.id] === 'store' ? ' sel-ok' : ''}`}
-                        onClick={() => setDecisions(p => ({ ...p, [s4Bar.id]: 'store' }))}
+                        className={`zf-decision-card${bs.decision === 'store' ? ' sel-ok' : ''}`}
+                        onClick={() => setBarStates(p => ({ ...p, [bar.id]: { ...p[bar.id], decision: 'store' } }))}
                       >
                         <IconMapPin size={28} /><span>Opslaan</span>
                       </button>
                     </div>
 
-                    {decisions[s4Bar.id] === 'store' && (
+                    {bs.decision === 'store' && (
                       <div>
                         <div className="zf-hero-label" style={{ marginBottom: 6 }}>Opslaglocatie</div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <input
                             className="st-input"
                             placeholder="Bijv. Hal A · Stelling 01 · R4"
-                            value={locations[s4Bar.id] ?? ''}
-                            onChange={e => setLocations(p => ({ ...p, [s4Bar.id]: e.target.value }))}
+                            value={bs.location}
+                            onChange={e => setBarStates(p => ({ ...p, [bar.id]: { ...p[bar.id], location: e.target.value } }))}
                           />
                           <button className="st-btn sm"><IconPrinter size={12} />Sticker</button>
                         </div>
                       </div>
                     )}
                   </>
-                )}
-
-                {bars.length > 1 && (
-                  <div className="zf-nav-btns">
-                    <button className="st-btn sm" disabled={s4bi === 0} onClick={() => setS4bi(i => i - 1)}>← Vorige</button>
-                    <button className="st-btn sm primary" disabled={decisions[s4Bar.id] == null || s4bi >= bars.length - 1} onClick={() => setS4bi(i => i + 1)}>
-                      Volgende →
-                    </button>
-                  </div>
                 )}
               </>
             )
@@ -485,28 +499,38 @@ function JobModal({ job, onClose, onUpdate }: {
 
         {/* Footer CTA */}
         <div className="zf-modal-footer">
-          {step === 1 && hasIssues && step1Done && (
+          {subStep === 1 && hasIssues && keuringDone && (
             <span className="zf-warning-note"><IconAlertTriangle size={13} />Problemen gevonden — overleg vóór start</span>
           )}
-          {step === 1 && (
-            <button className="zf-cta" disabled={!step1Done || showIssue} onClick={startJob}>
+          {subStep === 1 && (
+            <button
+              className="zf-cta"
+              disabled={!keuringDone || bs.showIssue}
+              onClick={jobStarted ? () => setSubStep(2) : startJob}
+            >
               <IconPlayerPlay size={16} />Start zagen
             </button>
           )}
-          {step === 2 && (
-            <button className="zf-cta" disabled={!step2Done} onClick={() => setStep(3)}>
-              Alles gezaagd → Meting
+          {subStep === 2 && (
+            <button className="zf-cta" disabled={!bs.sawed} onClick={() => setSubStep(3)}>
+              Meting →
             </button>
           )}
-          {step === 3 && (
-            <button className="zf-cta" disabled={!step3Done} onClick={() => setStep(4)}>
-              Meting klaar → Afronding
+          {subStep === 3 && (
+            <button className="zf-cta" disabled={!bs.rest} onClick={() => setSubStep(4)}>
+              Afronding →
             </button>
           )}
-          {step === 4 && (
-            <button className="zf-cta" disabled={!step4Done} onClick={completeJob}>
-              <IconCircleCheck size={16} />Job afsluiten
-            </button>
+          {subStep === 4 && (
+            barIdx < bars.length - 1 ? (
+              <button className="zf-cta" disabled={!step4Done} onClick={advanceBar}>
+                <IconArrowRight size={16} />Volgende as →
+              </button>
+            ) : (
+              <button className="zf-cta" disabled={!step4Done} onClick={advanceBar}>
+                <IconCircleCheck size={16} />Job afsluiten
+              </button>
+            )
           )}
         </div>
 
@@ -520,7 +544,7 @@ function JobModal({ job, onClose, onUpdate }: {
 export function ZaagflowPage() {
   const [reservations, setReservations] = useState(() => reservationsStore.list())
   const [search, setSearch]             = useState('')
-  const [filter, setFilter]             = useState<'open' | 'in_progress' | 'done' | 'all'>('all')
+  const [filter, setFilter]             = useState<'open' | 'in_progress' | 'done' | 'all'>('open')
   const [activeCalcNr, setActiveCalcNr] = useState<string | null>(null)
 
   const allJobs = useMemo(() => buildJobs(reservations), [reservations])
@@ -554,7 +578,7 @@ export function ZaagflowPage() {
 
       <div className="zaagflow-toolbar">
         <div className="zaagflow-filter-tabs">
-          {([['all', 'Alles'], ['open', 'Open'], ['in_progress', 'Bezig'], ['done', 'Klaar']] as const).map(([v, label]) => (
+          {([['open', 'Open'], ['in_progress', 'Bezig'], ['done', 'Klaar'], ['all', 'Alles']] as const).map(([v, label]) => (
             <button
               key={v}
               className={`zaagflow-filter-tab${filter === v ? ' active' : ''}`}
@@ -592,7 +616,6 @@ export function ZaagflowPage() {
         </div>
       )}
 
-      {/* Modal — renders on top of the job list */}
       {activeJob && (
         <JobModal
           job={activeJob}

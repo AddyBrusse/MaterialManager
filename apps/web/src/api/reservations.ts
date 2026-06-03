@@ -12,6 +12,7 @@ export interface ZaagReservation {
   pieces: number
   productLen: number   // mm per piece (werkstuk + kerf + vlakToeslag)
   sawLength: number    // pieces × productLen + grijplengte (total bar consumed)
+  fysiekeLengte: number // physical length of the bar on the shelf at reservation time (mm)
   materiaal: string
   diameter: number
   werkstukLengte: number
@@ -42,6 +43,7 @@ function load(): ZaagReservation[] {
       barVorm: 'Rond',
       steekbreedte: 0,
       vlakToeslag: 0,
+      fysiekeLengte: r.sawLength ?? 0, // fallback for old records lacking physical length
       ...r,
     } as ZaagReservation))
   } catch {
