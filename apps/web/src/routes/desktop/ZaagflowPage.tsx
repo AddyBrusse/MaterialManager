@@ -5,18 +5,13 @@ import {
   IconPrinter, IconArrowRight, IconChevronRight,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { reservationsStore, type ZaagReservation } from '../../api/reservations'
+import { reservationsStore } from '../../api/reservations'
+import { buildJobs, type ZaagJob } from '../../api/zaag-jobs'
 
 const MIN_REST_MM = 100
 function fmm(n: number) { return n.toLocaleString('nl-NL') + ' mm' }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface ZaagJob {
-  calcNr: string; reservations: ZaagReservation[]
-  machine: string; materiaal: string; diameter: number; totalPcs: number
-  priority: number | null; status: 'open' | 'in_progress' | 'done'; createdAt: string
-}
 
 type CheckField = 'materiaal' | 'diameter' | 'lengte'
 
@@ -34,34 +29,6 @@ interface BarState {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function buildJobs(reservations: ZaagReservation[]): ZaagJob[] {
-  const map = new Map<string, ZaagReservation[]>()
-  for (const r of reservations) {
-    const k = r.calculatieNr || '—'
-    if (!map.has(k)) map.set(k, [])
-    map.get(k)!.push(r)
-  }
-  return [...map.entries()].map(([calcNr, items]) => {
-    const first = items[0]
-    const statuses = items.map(r => r.status)
-    const jobStatus = statuses.every(s => s === 'done') ? 'done'
-      : statuses.some(s => s === 'in_progress') ? 'in_progress' : 'open'
-    return {
-      calcNr, reservations: items, machine: first.machine, materiaal: first.materiaal,
-      diameter: first.diameter, totalPcs: items.reduce((s, r) => s + r.pieces, 0),
-      priority: items[0].priority, status: jobStatus as ZaagJob['status'], createdAt: items[0].createdAt,
-    }
-  }).sort((a, b) => {
-    const sp = (j: ZaagJob) => ({ in_progress: 0, open: 1, done: 2 }[j.status])
-    if (sp(a) !== sp(b)) return sp(a) - sp(b)
-    if (a.priority !== b.priority) {
-      if (a.priority == null) return 1; if (b.priority == null) return -1
-      return a.priority - b.priority
-    }
-    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  })
-}
 
 function StatusBadge({ status }: { status: ZaagJob['status'] }) {
   const map = {
@@ -82,6 +49,7 @@ function JobCard({ job, onClick }: { job: ZaagJob; onClick: () => void }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 14 }}>{job.calcNr}</span>
             <StatusBadge status={job.status} />
+            {job.rush && <span className="zplan-spoed-badge">SPOED</span>}
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-3)', display: 'flex', gap: 16 }}>
             <span>{job.machine}</span>
