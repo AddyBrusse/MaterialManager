@@ -3,6 +3,7 @@ import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck,
+  IconArrowsSort,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery } from '@tanstack/react-query'
@@ -13,12 +14,35 @@ import { BinnenBoekenPage } from '../../routes/desktop/BinnenBoekenPage'
 import { InstellingenPage } from '../../routes/desktop/InstellingenPage'
 import { ZaagCalculatorPage } from '../../routes/desktop/ZaagCalculatorPage'
 import { ReserveringenPage } from '../../routes/desktop/ReserveringenPage'
+import { ZaagPlannerPage } from '../../routes/desktop/ZaagPlannerPage'
 import { ZaagflowPage } from '../../routes/desktop/ZaagflowPage'
 
 function getInitials(name: string) {
   const parts = name.trim().split(' ')
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+}
+
+// Counts derived from the saved zaag reservations:
+// - reservationCount: total reserved bars
+// - zaagflowCount: number of active jobs (calculatienummer groups not yet fully done)
+function readReservationCounts(): { reservationCount: number; zaagflowCount: number } {
+  try {
+    const list = JSON.parse(localStorage.getItem('sm_zaag_reservations') ?? '[]') as Array<{ calculatieNr?: string; status?: string }>
+    const groups = new Map<string, string[]>()
+    for (const r of list) {
+      const k = r.calculatieNr || '—'
+      if (!groups.has(k)) groups.set(k, [])
+      groups.get(k)!.push(r.status ?? 'open')
+    }
+    let zaagflowCount = 0
+    for (const statuses of groups.values()) {
+      if (statuses.some(s => s !== 'done')) zaagflowCount++
+    }
+    return { reservationCount: list.length, zaagflowCount }
+  } catch {
+    return { reservationCount: 0, zaagflowCount: 0 }
+  }
 }
 
 function Sidebar() {
@@ -29,14 +53,22 @@ function Sidebar() {
   const { data: rawData } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
   const voorraadCount = rawData?.data?.length ?? 0
 
-  // Reservation count — read directly from localStorage (no API, fast)
-  const [reservationCount, setReservationCount] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sm_zaag_reservations') ?? '[]').length } catch { return 0 }
-  })
-  // Re-read on location change so the badge updates after creating/deleting reservations
+  // Reservation + zaagflow counts — read directly from localStorage (no API, fast)
+  const [counts, setCounts] = useState(readReservationCounts)
+  // Re-read on location change …
+  useEffect(() => { setCounts(readReservationCounts()) }, [location.pathname])
+  // … and immediately whenever reservations change (create in calculator,
+  // start/complete in zaagflow), without needing to navigate.
   useEffect(() => {
-    try { setReservationCount(JSON.parse(localStorage.getItem('sm_zaag_reservations') ?? '[]').length) } catch {}
-  }, [location.pathname])
+    const handler = () => setCounts(readReservationCounts())
+    window.addEventListener('sm-reservations-changed', handler)
+    window.addEventListener('storage', handler) // cross-tab updates
+    return () => {
+      window.removeEventListener('sm-reservations-changed', handler)
+      window.removeEventListener('storage', handler)
+    }
+  }, [])
+  const { reservationCount, zaagflowCount } = counts
 
   const NAV = [
     {
@@ -56,9 +88,10 @@ function Sidebar() {
     {
       label: 'Productie',
       items: [
-        { to: '/zaagcalculator',  label: 'Zaag calculator', Icon: IconCut,       count: null },
-        { to: '/reserveringen',   label: 'Reserveringen',   Icon: IconBookmark,  count: reservationCount || null },
-        { to: '/zaagflow',        label: 'Zaagflow',        Icon: IconListCheck, count: null },
+        { to: '/zaagcalculator',  label: 'Zaag calculator', Icon: IconCut,        count: null },
+        { to: '/reserveringen',   label: 'Reserveringen',   Icon: IconBookmark,   count: reservationCount || null },
+        { to: '/zaagplanner',     label: 'Zaag planner',    Icon: IconArrowsSort, count: zaagflowCount || null },
+        { to: '/zaagflow',        label: 'Zaagflow',        Icon: IconListCheck,  count: zaagflowCount || null },
       ],
     },
   ]
@@ -124,6 +157,7 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/artikelen':       ['Artikelen',        'Artikelen'],
   '/zaagcalculator':  ['Productie',        'Zaag calculator'],
   '/reserveringen':   ['Productie',        'Reserveringen'],
+  '/zaagplanner':     ['Productie',        'Zaag planner'],
   '/zaagflow':        ['Productie',        'Zaagflow'],
 }
 
@@ -161,6 +195,7 @@ export function AppLayout() {
             <Route path="/instellingen"    element={<InstellingenPage />} />
             <Route path="/zaagcalculator"  element={<ZaagCalculatorPage />} />
             <Route path="/reserveringen"   element={<ReserveringenPage />} />
+            <Route path="/zaagplanner"     element={<ZaagPlannerPage />} />
             <Route path="/zaagflow"        element={<ZaagflowPage />} />
             <Route path="*"             element={<Navigate to="/voorraad" replace />} />
           </Routes>

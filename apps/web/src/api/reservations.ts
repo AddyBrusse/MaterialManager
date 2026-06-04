@@ -23,6 +23,7 @@ export interface ZaagReservation {
   createdAt: string
   // flow fields (set by saw worker or planner)
   priority: number | null      // planner sets order (1 = highest); null = no priority
+  rush: boolean                // planner "Spoed" flag — rush jobs jump the queue
   status: ReservationStatus    // open → in_progress → done
   restLengteMm: number | null  // measured rest after sawing (set when marking done)
   completedAt: string | null
@@ -36,6 +37,7 @@ function load(): ZaagReservation[] {
     // Migrate old records that lack the new flow fields
     return parsed.map(r => ({
       priority: null,
+      rush: false,
       status: 'open' as ReservationStatus,
       restLengteMm: null,
       completedAt: null,
@@ -53,18 +55,22 @@ function load(): ZaagReservation[] {
 
 function save(data: ZaagReservation[]): void {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
+  // Notify same-tab listeners (e.g. sidebar count badges) — the native
+  // 'storage' event only fires in *other* tabs, so we emit our own.
+  try { window.dispatchEvent(new Event('sm-reservations-changed')) } catch {}
 }
 
 export const reservationsStore = {
   list: () => load(),
 
-  create: (items: Omit<ZaagReservation, 'id' | 'createdAt' | 'priority' | 'status' | 'restLengteMm' | 'completedAt'>[]): ZaagReservation[] => {
+  create: (items: Omit<ZaagReservation, 'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt'>[]): ZaagReservation[] => {
     const existing = load()
     const created: ZaagReservation[] = items.map((item, i) => ({
       ...item,
       id: `res_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
       createdAt: new Date().toISOString(),
       priority: null,
+      rush: false,
       status: 'open',
       restLengteMm: null,
       completedAt: null,
@@ -79,6 +85,20 @@ export const reservationsStore = {
 
   setPriority: (id: string, priority: number | null): void => {
     save(load().map(r => r.id === id ? { ...r, priority } : r))
+  },
+
+  // Apply a full planner ordering in one write: job at index i → priority i+1,
+  // plus its rush flag, on every reservation it contains. Reservations not in
+  // any listed job are left untouched. Single save() → single change event.
+  applyPlan: (jobs: { ids: string[]; rush: boolean }[]): void => {
+    const plan = new Map<string, { priority: number; rush: boolean }>()
+    jobs.forEach((job, i) => {
+      for (const id of job.ids) plan.set(id, { priority: i + 1, rush: job.rush })
+    })
+    save(load().map(r => {
+      const p = plan.get(r.id)
+      return p ? { ...r, priority: p.priority, rush: p.rush } : r
+    }))
   },
 
   setStatus: (id: string, status: ReservationStatus): void => {
