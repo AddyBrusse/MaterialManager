@@ -22,28 +22,18 @@
 
 ## Weight calculation
 
-Computed on read, never stored. Formula depends on profile.
+Computed on read, never stored — see `features/34-grades-profiles.md` for the
+per-profile formula table and the `computeWeight` service description.
 
-| Profile | Formula (volume in mm³) |
-|---|---|
-| `round` | `π × (Ø/2)² × length` |
-| `square` | `side² × length` |
-| `flat` | `width × thickness × length` |
-| `tube` | `π × ((OD/2)² − (ID/2)²) × length` |
-
-Convert to m³ (`/ 1e9`), multiply by `grade.density_kg_m3`, return kg with 2 decimals.
-
-Admin can add new profiles. Each profile declares:
-- `dimension_schema` (jsonb): which fields to ask the user for
-- `volume_formula`: identifier the backend recognizes. For new profiles, allow `custom` with a stored formula string evaluated server-side (parked — start with the four above).
+Admin can add new profiles via Settings → Materiaalbeheer → Profielen
+(`ProfilesTab`). Custom (non-built-in) volume formulas remain parked.
 
 ## Stock model
 
-Even though each raw material row is a unique physical piece, `current_stock` exists because:
-- Sometimes you have multiple identical pieces grouped under one code (decide during build whether each piece is its own row or a code = quantity)
-- TBD during build — current default: one code = one piece, `current_stock` is 0 or 1
-
-Confirm with Addy when starting the data model.
+`raw_materials.current_stock` is a real column (`Decimal`, default `0`) on the
+`RawMaterial` Prisma model — one row per code, `current_stock` tracks the
+quantity at that code (usually 0 or 1 for unique pieces, but supports grouped
+identical pieces under one code).
 
 ## Lifecycle
 

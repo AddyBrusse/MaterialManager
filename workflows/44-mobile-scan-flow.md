@@ -1,5 +1,9 @@
 # 44 — Mobile Scan Flow
 
+> **Status: not yet built.** Depends on the mobile views in
+> `frontend/14-mobile-view.md`, which are currently a stub. This describes
+> the target flow once mobile is implemented.
+
 ## Entry
 
 Mobile home → **Scannen** tile.

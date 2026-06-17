@@ -13,6 +13,7 @@ import { rawMaterialsApi, formatDimensions, formatLocation, MOCK_MATERIALS } fro
 import { RawMaterialForm } from '../../components/raw-materials/RawMaterialForm'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
+import { reservationsStore, type ZaagReservation } from '../../api/reservations'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
 
@@ -76,9 +77,9 @@ function TypeGlyph({ volumeFormula, size = 16 }: { volumeFormula: string; size?:
 }
 
 // ── sort helpers ──────────────────────────────────────────────────────────────
-type SortKey = 'code' | 'grade' | 'profile' | 'afmeting' | 'lengthMm' | 'currentStock' | 'locatie' | 'updatedAt'
+type SortKey = 'code' | 'grade' | 'profile' | 'afmeting' | 'lengthMm' | 'currentStock' | 'reserved' | 'locatie' | 'updatedAt'
 
-function sortVal(row: RawMaterialRow, key: SortKey): string | number {
+function sortVal(row: RawMaterialRow, key: SortKey, reservedByBar: Record<string, number>): string | number {
   switch (key) {
     case 'code':         return row.code
     case 'grade':        return row.grade.name
@@ -86,15 +87,16 @@ function sortVal(row: RawMaterialRow, key: SortKey): string | number {
     case 'afmeting':     return formatDimensions(row.profile, row.dimensions)
     case 'lengthMm':     return Number(row.lengthMm)
     case 'currentStock': return Number(row.currentStock)
+    case 'reserved':     return reservedByBar[row.id] ?? 0
     case 'locatie':      return formatLocation(row.locationSlot)
     case 'updatedAt':    return row.updatedAt
   }
 }
 
-function applySort(data: RawMaterialRow[], key: SortKey | null, dir: 'asc' | 'desc') {
+function applySort(data: RawMaterialRow[], key: SortKey | null, dir: 'asc' | 'desc', reservedByBar: Record<string, number>) {
   if (!key) return data
   return [...data].sort((a, b) => {
-    const va = sortVal(a, key), vb = sortVal(b, key)
+    const va = sortVal(a, key, reservedByBar), vb = sortVal(b, key, reservedByBar)
     const cmp = typeof va === 'number' && typeof vb === 'number'
       ? va - vb : String(va).localeCompare(String(vb), 'nl')
     return dir === 'asc' ? cmp : -cmp
@@ -414,16 +416,19 @@ function MutatieModal({ row, opened, onClose }: {
 }
 
 // ── item detail drawer ────────────────────────────────────────────────────────
-function ItemDrawer({ row, onClose, onEdit, onMutatie }: {
-  row: RawMaterialRow; onClose: () => void; onEdit: () => void; onMutatie: () => void
+function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
+  row: RawMaterialRow
+  barReservations: ZaagReservation[]
+  onClose: () => void; onEdit: () => void; onMutatie: () => void
 }) {
-  const remaining = Number(row.currentStock)          // mm remaining
-  const min       = Number(row.minStock) || 0         // threshold mm
-  const original  = Number(row.lengthMm)              // original mm
-  const cut       = original - remaining              // mm already cut
-  const st        = statusFor(remaining, min, original)
-  const pct       = original > 0 ? Math.min(100, Math.max(0, (remaining / original) * 100)) : 0
-  const lvlCls    = st.cls === 'ok' || st.cls === 'info' ? '' : st.cls
+  const remaining  = Number(row.currentStock)
+  const min        = Number(row.minStock) || 0
+  const original   = Number(row.lengthMm)
+  const cut        = original - remaining
+  const totalRes   = barReservations.reduce((s, r) => s + r.sawLength, 0)
+  const st         = statusFor(remaining, min, original)
+  const pct        = original > 0 ? Math.min(100, Math.max(0, (remaining / original) * 100)) : 0
+  const lvlCls     = st.cls === 'ok' || st.cls === 'info' ? '' : st.cls
 
   return (
     <>
@@ -454,15 +459,16 @@ function ItemDrawer({ row, onClose, onEdit, onMutatie }: {
         <div className="st-drawer-bd">
 
           {/* ── stat tiles ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
-              { lbl: 'Resterend',  val: fmm(remaining), foot: `${Math.round(pct)}% van origineel` },
-              { lbl: 'Gesneden',   val: fmm(cut),        foot: 'al verwerkt'                       },
-              { lbl: 'Origineel',  val: fmm(original),   foot: 'beginlengte staf'                  },
+              { lbl: 'Fysieke lengte', val: fmm(remaining), foot: `${Math.round(pct)}% van origineel` },
+              { lbl: 'Gereserveerd',   val: totalRes > 0 ? fmm(totalRes) : '—', foot: totalRes > 0 ? `${barReservations.length} reservering(en)` : 'niets ingepland', warn: totalRes > 0 },
+              { lbl: 'Gesneden',       val: fmm(cut),        foot: 'al verwerkt'      },
+              { lbl: 'Origineel',      val: fmm(original),   foot: 'beginlengte staf' },
             ].map(t => (
               <div key={t.lbl} className="st-stat">
-                <div className="st-stat-lbl">{t.lbl}</div>
-                <div className="st-stat-val" style={{ fontSize: 15 }}>{t.val}</div>
+                <div className="st-stat-lbl" style={t.warn ? { color: 'var(--warning)' } : undefined}>{t.lbl}</div>
+                <div className="st-stat-val" style={{ fontSize: 15, color: t.warn ? 'var(--warning)' : undefined }}>{t.val}</div>
                 <div className="st-stat-foot"><span>{t.foot}</span></div>
               </div>
             ))}
@@ -493,6 +499,52 @@ function ItemDrawer({ row, onClose, onEdit, onMutatie }: {
             <dt>Locatie</dt>    <dd>{formatLocation(row.locationSlot)}</dd>
             <dt>Laatste mutatie</dt><dd>{formatRelative(row.updatedAt)}</dd>
           </dl>
+
+          {/* ── reservations ── */}
+          <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-3)', marginBottom: 6 }}>
+            Reserveringen
+            {barReservations.length > 0 && (
+              <span style={{ marginLeft: 6, fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 11, color: 'var(--warning)', background: '#fff7ed', padding: '1px 6px', borderRadius: 10 }}>
+                {barReservations.length}
+              </span>
+            )}
+          </div>
+          {barReservations.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-4)', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+              Geen openstaande reserveringen
+            </div>
+          ) : (
+            <div style={{ marginBottom: 20 }}>
+              {barReservations.map(r => (
+                <div key={r.id} style={{
+                  display: 'grid', gridTemplateColumns: '1fr auto',
+                  gap: 8, alignItems: 'center',
+                  padding: '9px 0', borderTop: '1px solid var(--border)',
+                }}>
+                  <div>
+                    <div className="cell-strong" style={{ fontSize: 12.5 }}>
+                      {r.calculatieNr || <span className="cell-muted">Zonder nr.</span>}
+                      <span className="cell-muted" style={{ fontWeight: 400 }}> · {r.machine}</span>
+                    </div>
+                    <div className="cell-muted cell-mono" style={{ fontSize: 11.5, marginTop: 2 }}>
+                      {r.pieces} st × {r.werkstukLengte} mm · kerf {r.steekbreedte} mm
+                    </div>
+                    <div style={{ marginTop: 2, fontSize: 11, color: 'var(--text-4)' }}>
+                      {new Date(r.createdAt).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                      <span style={{ marginLeft: 8, padding: '1px 6px', borderRadius: 10, fontSize: 10.5, fontWeight: 600, background: r.status === 'in_progress' ? '#fff7ed' : 'var(--bg-chip)', color: r.status === 'in_progress' ? '#c2410c' : 'var(--text-3)' }}>
+                        {r.status === 'in_progress' ? 'Bezig' : 'Open'}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <span className="cell-mono" style={{ fontWeight: 700, fontSize: 13, color: 'var(--warning)' }}>
+                      -{r.sawLength.toLocaleString('nl-NL')} mm
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* ── history ── */}
           <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-3)', marginBottom: 2 }}>Historie</div>
@@ -557,6 +609,16 @@ export function VoorraadPage() {
   const { data: gradesData }   = useQuery({ queryKey: ['grades'],   queryFn: gradesApi.list   })
   const { data: profilesData } = useQuery({ queryKey: ['profiles'], queryFn: profilesApi.list })
 
+  // Open/in-progress reservations per bar for availability display.
+  const [allReservations] = useState(() => reservationsStore.list())
+  const reservedByBar = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const r of allReservations) {
+      if (r.status !== 'done') map[r.barId] = (map[r.barId] ?? 0) + r.sawLength
+    }
+    return map
+  }, [allReservations])
+
   const deleteMutation = useMutation({
     mutationFn: rawMaterialsApi.remove,
     onSuccess: () => {
@@ -585,8 +647,8 @@ export function VoorraadPage() {
       const v = Number(r.currentStock), m = Number(r.minStock) || 0, orig = Number(r.lengthMm)
       return statusFor(v, m, orig).tag === status
     })
-    return applySort(f, sort.key, sort.dir)
-  }, [source, q, grade, type, status, sort])
+    return applySort(f, sort.key, sort.dir, reservedByBar)
+  }, [source, q, grade, type, status, sort, reservedByBar])
 
   const stats = useMemo(() => {
     // totalKg: weight proportional to remaining length
@@ -749,7 +811,8 @@ export function VoorraadPage() {
                   <SortTh k="grade"        sort={sort} onSort={handleSort}>Kwaliteit</SortTh>
                   <SortTh k="afmeting"     sort={sort} onSort={handleSort}>Afmeting</SortTh>
                   <th>Afwerking</th>
-                  <SortTh k="currentStock" sort={sort} onSort={handleSort} align="right">Resterend</SortTh>
+                  <SortTh k="currentStock" sort={sort} onSort={handleSort} align="right">Fysieke lengte</SortTh>
+                  <SortTh k="reserved"     sort={sort} onSort={handleSort} align="right">Gereserveerd</SortTh>
                   <th style={{ minWidth: 160 }}>Niveau</th>
                   <SortTh k="locatie"      sort={sort} onSort={handleSort}>Locatie</SortTh>
                   <SortTh k="updatedAt"    sort={sort} onSort={handleSort}>Laatste mutatie</SortTh>
@@ -788,6 +851,14 @@ export function VoorraadPage() {
                       <td className="cell-mono cell-muted">{formatDimensions(row.profile, row.dimensions)}</td>
                       <td><span className="cell-muted" style={{ fontSize: 12 }}>Blank</span></td>
                       <td className="cell-num cell-strong cell-mono" style={{ fontSize: 12 }}>{fmm(remaining)}</td>
+                      <td className="cell-num cell-mono" style={{ fontSize: 12 }}>
+                        {(() => {
+                          const res = reservedByBar[row.id] ?? 0
+                          return res > 0
+                            ? <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{fmm(res)}</span>
+                            : <span className="cell-muted">—</span>
+                        })()}
+                      </td>
                       <td>
                         <div className={`st-lvl${lvlCls ? ` ${lvlCls}` : ''}`}>
                           <div className="st-lvl-bar"><i style={{ width: `${pct}%` }} /></div>
@@ -829,7 +900,7 @@ export function VoorraadPage() {
                   )
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={11} className="st-empty">Geen artikelen gevonden voor deze filters.</td></tr>
+                  <tr><td colSpan={12} className="st-empty">Geen artikelen gevonden voor deze filters.</td></tr>
                 )}
               </tbody>
             </table>
@@ -863,6 +934,7 @@ export function VoorraadPage() {
       {drawerRow && (
         <ItemDrawer
           row={drawerRow}
+          barReservations={allReservations.filter(r => r.barId === drawerRow.id && r.status !== 'done')}
           onClose={() => setDrawerRow(null)}
           onEdit={() => { setEditItem(drawerRow); setDrawerRow(null) }}
           onMutatie={() => openMutatie(drawerRow)}

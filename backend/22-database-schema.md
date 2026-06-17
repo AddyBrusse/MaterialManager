@@ -1,6 +1,14 @@
 # 22 — Database Schema
 
-PostgreSQL. UUIDs as primary keys (except where natural keys make sense).
+PostgreSQL via Prisma. UUIDs as primary keys (except where natural keys make
+sense). `apps/api/prisma/schema.prisma` is the definitive schema — this doc
+mirrors it (snake_case columns via `@map`, camelCase in Prisma/TS) and is
+implemented essentially as written below, with one drift:
+
+> **Drift**: `packages/shared/src/schemas/grade.ts`'s `GradeSchema` has an
+> optional `pricePerKg` (used by `features/38-article-calculator.md`), but
+> the Prisma `Grade` model below does not yet have a `price_per_kg` column.
+> Add it when reconciling the calculator's mock data with the real backend.
 
 ## Tables
 
@@ -145,4 +153,4 @@ Optional: when user B presses "Verzoek bewerken".
 
 ## Migrations
 
-Use Prisma migrate or `node-pg-migrate`. Decide when building.
+Prisma Migrate (`prisma migrate dev` / `migrate deploy`).

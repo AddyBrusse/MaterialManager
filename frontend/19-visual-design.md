@@ -256,7 +256,7 @@ Each card: `--bg-2`, 1px border, 8px radius, `14px 16px` padding.
 
 ## Screens
 
-### Voorraad (`/raw` → rename to `/voorraad`)
+### Voorraad (`/voorraad`)
 
 **Page header actions**: Exporteer · Scan · **+ Mutatie** (primary)
 
@@ -347,8 +347,15 @@ Same dense-table pattern as Voorraad. Different columns:
 
 ### Instellingen (`/instellingen`)
 
-**Top tabs** (underline style, 2px accent bar on active):
-Algemeen · Locaties · Gebruikers & rollen · Nummering · Meldingen · Integraties
+**Top tabs** (underline style, 2px accent bar on active) — actual set, see
+`frontend/15-desktop-view.md`:
+Algemeen · Materiaalbeheer · Bedrijfskosten · Gebruikers & rollen · Nummering
+· Meldingen · Integraties
+
+- **Materiaalbeheer** has its own sub-tabs: Locaties · Kwaliteiten · Profielen
+  (`MateriaalbeheerPage` → `LocationsTab`/`GradesTab`/`ProfilesTab`)
+- **Bedrijfskosten** has sub-tabs: Bedrijfskosten · Machines
+  (`OverheadPage` → `BedrijfskostenTab`/`OverheadTab`)
 
 **Algemeen tab** — settings rows pattern:
 ```
@@ -363,59 +370,40 @@ Sticky save bar at bottom
 
 **Gebruikers & rollen tab** — team table: Avatar+name · Email (mono 11.5px --text-3) · Rol badge · Locaties · Laatste login · Status badge
 
----
-
-## Implementation priorities for our codebase
-
-### 1. Update `apps/web/src/theme/index.ts`
-- Font: IBM Plex Sans + IBM Plex Mono (Google Fonts)
-- Primary: `#2d6df6` (not current blue)
-- Background: `#fbfbfa`
-- Default radius: 6px (not `sm`)
-- Remove `Table` defaults (we'll style the custom table ourselves)
-
-### 2. Redo the sidebar (`routes/desktop/index.tsx`)
-- Remove Mantine `AppShell.Navbar` / `MantineNavLink` — build from scratch with CSS
-- Two nav groups: "Materiaal beheer" (Voorraad · Binnen boeken · Instellingen) + "Artikelen"
-- Brand mark + org switcher
-- User footer with avatar + bell
-
-### 3. Add topbar breadcrumb
-Currently just shows "StockManager" title. Needs breadcrumb + global actions (Geschiedenis · Etiket printen · + Nieuw).
-
-### 4. Rework Voorraad page
-- Add stat cards (4-across)
-- Add info banner
-- Redesign toolbar with filter chips (not Mantine Selects)
-- Redesign table: add checkbox col, type-pic, heat number sub-row, Afwerking badge, Gereserveerd col, Niveau mini-bar, Laatste mutatie badge+time
-- Redesign detail drawer per spec above
-
-### 5. New: Binnen boeken page
-
-### 6. New: Artikelen page
-
-### 7. New: Instellingen page (tabs)
+**Status**: Algemeen, Materiaalbeheer (all 3 sub-tabs) and Bedrijfskosten
+(both sub-tabs) are built and data-backed. Gebruikers & rollen, Nummering,
+Meldingen, Integraties have built UI shells but render hardcoded sample data
+— not wired to a store or backend yet.
 
 ---
 
-## Component helpers to build once and reuse
+## Status — implementation
 
-```tsx
-// Mono text — use everywhere for IDs, codes, dims, prices
-<Mono fz="xs">ST-10042</Mono>
+The plan below (originally "Implementation priorities") is **done**: theme
+(`apps/web/src/theme/index.ts`), sidebar/topbar (`AppLayout.tsx`, see
+`frontend/15-desktop-view.md`), Voorraad/Artikelen/Binnen boeken/Instellingen
+pages, and the stat-card/table/drawer anatomy described above are all built
+against `tokens.css`.
 
-// Status badge — derives from voorraad/min/max
-<StatusBadge status="laag" />
+Remaining gaps:
+- Mobile views (`frontend/14-mobile-view.md`) — stub only
+- Instellingen: Gebruikers & rollen / Nummering / Meldingen / Integraties —
+  static sample data, not wired up
+- Several resources (articles, relaties, machines, overhead, reservations)
+  are localStorage mocks pending a real backend — see
+  `decisions/90-decisions-log.md`
 
-// Stock level mini-bar
-<StockLevel voorraad={14} max={50} status="ok" />
+---
 
-// Type glyph chip (26×26 or 36×36)
-<TypePic kind="buis" size={26} />
+## Helper components
 
-// Filter chip with hidden select
-<FilterChip label="Type" value={type} options={TYPES} onChange={setType} />
-```
+The `Mono` / status-badge / stock-level-bar / filter-chip helpers sketched in
+earlier drafts of this doc exist, but as page-local helpers (defined at the
+top of `VoorraadPage.tsx`, `ArtikelenPage.tsx`, `ZaagflowPage.tsx`, etc.), not
+as a shared exported library. Reuse by copying the local helper from the
+nearest existing page rather than searching for a shared `components/common`
+export — promote to `components/common` only once a third page needs the same
+helper.
 
 ---
 
@@ -423,11 +411,4 @@ Currently just shows "StockManager" title. Needs breadcrumb + global actions (Ge
 
 Supported. Toggle via `data-theme="dark"` on the app root.
 Use Mantine's `ColorSchemeScript` + `useMantineColorScheme`.
-All token overrides are in `[data-theme="dark"]` in `styles.css` — map to Mantine's `light-dark()` utility.
-
----
-
-## What NOT to port
-
-`tweaks-panel.jsx` — design preview panel only, not for production.
-Placeholder customers / suppliers / locations — wire to real data.
+All token overrides are in `[data-theme="dark"]` in `tokens.css` — map to Mantine's `light-dark()` utility.

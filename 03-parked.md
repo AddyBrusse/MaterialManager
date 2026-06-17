@@ -17,8 +17,3 @@ Open decisions to revisit. Do not block initial build on these.
 - Uploads folder snapshot (rsync to NAS share?)
 - Use QNAP HBS 3 vs in-app cron job
 - Retention policy
-
-## ToolManager visual extraction
-- Mantine theme tokens (primary color, gray scale, fonts)
-- Layout patterns (sidebar width, header height, table density)
-- To be extracted from `C:\ClaudeProjects\ToolManager-main` when frontend work starts

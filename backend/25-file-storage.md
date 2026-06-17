@@ -40,3 +40,13 @@ Not generated server-side in v1. Browser scales. Add later if perf becomes an is
 ## Cleanup
 
 When an item is deleted, its files should be deleted too. Implement in the delete service. Orphan scan job can be added later if needed.
+
+## Planned: article attachments
+
+`features/31-items-finished.md`'s setup-sheet `attachments[]` (NC files,
+images, drawings, tagged by machine) currently store **metadata only** in the
+articles localStorage mock — no upload endpoint exists yet. When building the
+real articles backend, extend the layout above with e.g.
+`/data/uploads/articles/<articleId>/<uuid>.<ext>` and a generic
+`POST /api/uploads/article-attachment` rather than the photo/drawing-specific
+endpoints.

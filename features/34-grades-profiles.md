@@ -4,9 +4,11 @@
 
 Material specs. Each grade has:
 - `name` (e.g. S355, AISI 304, 7075-T6)
-- `density_kg_m3` (e.g. 7850 for steel, 2700 for aluminum)
+- `densityKgM3` (e.g. 7850 for steel, 2700 for aluminum)
+- `pricePerKg` (optional) — purchase price, used as the default material cost
+  input for the article cost calculator (`features/38-article-calculator.md`)
 
-Admin manages list in Settings → Materiaalgrades.
+Admin manages list in Settings → Materiaalbeheer → Kwaliteiten (`GradesTab`).
 
 ## Profiles (admin)
 

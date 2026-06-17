@@ -6,6 +6,8 @@ import {
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { reservationsStore, type ZaagReservation } from '../../api/reservations'
+import { rawMaterialsApi } from '../../api/raw-materials'
+import { useQueryClient } from '@tanstack/react-query'
 
 const MIN_REST_MM = 100
 function fmm(n: number) { return n.toLocaleString('nl-NL') + ' mm' }
@@ -125,6 +127,7 @@ function JobModal({ job, onClose, onUpdate }: {
   job: ZaagJob; onClose: () => void; onUpdate: () => void
 }) {
   const bars = job.reservations
+  const qc   = useQueryClient()
 
   // Per-bar cursor
   const [barIdx, setBarIdx]       = useState(0)
@@ -209,8 +212,19 @@ function JobModal({ job, onClose, onUpdate }: {
   }
 
   function advanceBar() {
-    // Complete this bar and move on
-    reservationsStore.complete(bar.id, Number(bs.rest) || null)
+    const restMm   = Number(bs.rest) || 0
+    // scrap: rest below threshold OR operator chose scrap → bar goes to 0
+    const newStock = (restMm < MIN_REST_MM || bs.decision === 'scrap') ? 0 : restMm
+
+    // 1. Mark reservation done (stores measured rest in reservation record)
+    reservationsStore.complete(bar.id, restMm || null)
+
+    // 2. Update the raw bar's physical remaining length so the calculator
+    //    and vorraad pages reflect the actual post-saw stock immediately.
+    rawMaterialsApi.adjustStock(bar.barId, newStock)
+      .then(() => qc.invalidateQueries({ queryKey: ['raw-materials'] }))
+      .catch(() => {})
+
     onUpdate()
     if (barIdx < bars.length - 1) {
       setBarIdx(i => i + 1)
@@ -409,7 +423,7 @@ function JobModal({ job, onClose, onUpdate }: {
           {subStep === 3 && (
             <>
               <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-3)' }}>
-                Verwacht rest ≈ {fmm(bar.sawLength - bar.pieces * bar.productLen)}
+                Verwacht rest ≈ {fmm(bar.fysiekeLengte - bar.sawLength)}
               </div>
               <div className="zf-hero">
                 <div className="zf-hero-label">Gemeten restlengte</div>
@@ -427,7 +441,7 @@ function JobModal({ job, onClose, onUpdate }: {
                   <span style={{ fontSize: 20, color: 'var(--text-3)', fontWeight: 500 }}>mm</span>
                 </div>
                 {bs.rest && (() => {
-                  const expected = bar.sawLength - bar.pieces * bar.productLen
+                  const expected = bar.fysiekeLengte - bar.sawLength
                   const diff = Math.abs(Number(bs.rest) - expected)
                   return diff < 20
                     ? <div style={{ marginTop: 10, color: 'var(--success)', fontWeight: 600, textAlign: 'center' }}>✓ Binnen tolerantie</div>

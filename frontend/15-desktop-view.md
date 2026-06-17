@@ -2,64 +2,63 @@
 
 ## When
 
-Viewport width > 900px.
+Viewport width > 900px → `AppLayout` (`apps/web/src/components/layout/AppLayout.tsx`).
 
-## Layout — Mantine AppShell
+For pixel-level specs (colors, spacing, table/card anatomy per screen), see
+`frontend/19-visual-design.md` — this doc covers structure/navigation only, to
+avoid duplicating that spec.
 
-- **Sidebar** (left, fixed width ~220px)
-  - Logo / app name
-  - Nav items: Dashboard, Grondstof, Artikelen, Historie, Instellingen
-  - Low-stock badge on the matching nav item: `Lage voorraad (5)`
-  - Bottom: current user pill, switch user link
-- **Header** (top)
-  - Page title / breadcrumb
-  - Search shortcut
-- **Main** content area
+## Layout
+
+Custom layout (not Mantine `AppShell`) using `st-*` classes from
+`apps/web/src/styles/tokens.css`:
+
+- **Sidebar** (`st-sidebar`, left) — brand mark, org switcher, grouped nav,
+  user pill + notifications icon at the bottom
+- **Topbar** (`st-topbar`) — breadcrumb derived from the route
+  (`ROUTE_LABELS` in `AppLayout.tsx`) + a help icon
+- **Content** (`st-content`) — routed page
+
+## Navigation groups
+
+| Group | Items |
+|---|---|
+| Materiaal beheer | Voorraad, Binnen boeken, Instellingen |
+| Artikelen | Artikelen, Relaties |
+| Productie | Zaag calculator, Reserveringen, Zaagflow |
+
+"Voorraad" shows a count badge (total raw-material rows). "Reserveringen"
+shows a count badge read from `localStorage['sm_zaag_reservations']`.
 
 ## Pages
 
-### Dashboard (`/`)
-- Recent activity (last N movements)
-- Low-stock items list
-- Quick links
+See `frontend/11-routing.md` for the full route table. Brief notes:
 
-### Raw materials list (`/grondstof`)
-- Dense table
-- Columns: code, grade, profile, dimensions, length (mm), weight (kg), location, current stock, last movement
-- Search bar + filter dropdowns
-- Row click → detail
+- **Voorraad** (`/voorraad`) — raw materials table; row click opens a detail
+  drawer (not a route)
+- **Binnen boeken** (`/binnenboeken`) — receiving workflow, see
+  `workflows/41-receive-material.md`
+- **Artikelen** (`/artikelen`, `/artikelen/:id`) — list + dedicated detail
+  page with Calculatie/Bestanden/Historie tabs, see
+  `features/31-items-finished.md` and `features/38-article-calculator.md`
+- **Relaties** (`/relaties`, `/relaties/:id`) — customers/suppliers list +
+  detail with Gegevens/Contacten/Artikelen tabs
+- **Zaag calculator / Reserveringen / Zaagflow** — saw-cutting pipeline: plan
+  cuts from stock, review reservations, execute with quality checks
+- **Instellingen** (`/instellingen`, admin-gated) — tabbed:
+  - **Algemeen** — org info, units, timezone
+  - **Materiaalbeheer** — sub-tabs Locaties / Kwaliteiten / Profielen
+    (`LocationsTab`, `GradesTab`, `ProfilesTab`)
+  - **Bedrijfskosten** — `OverheadPage`, sub-tabs Bedrijfskosten / Machines
+    (`BedrijfskostenTab`, `OverheadTab`)
+  - **Gebruikers & rollen**, **Nummering**, **Meldingen**, **Integraties**
 
-### Raw material detail (`/grondstof/:id`)
-- Header: code, grade badge, lock state
-- Sections: photo, metadata, location, current stock + computed weight, movement history
-- Edit button → acquires lock, switches to edit mode
-- Read-only mode shown if locked by other user, with "Verzoek bewerken" button
-
-### Finished goods list (`/artikelen`)
-- Similar table layout
-- Columns: art-no, name, customer, location, current stock, last movement
-
-### Finished good detail (`/artikelen/:id`)
-- Photo + drawing PDF viewer side by side (or stacked on narrow desktop)
-- Same lock behavior as raw materials
-
-### History (`/historie`)
-- Global movement log
-- Filters: date range, user, item code, reason
-- Compact table, exportable later
-
-### Settings (`/instellingen`) — admin only
-- Tabs:
-  - Gebruikers (users CRUD)
-  - Locaties (racks/rows, cabinets/shelves/boxes)
-  - Materiaalgrades (grade + density)
-  - Profielen (shapes + dimensions schema)
-  - Min. voorraad (per grade or per item)
-  - Labels (print batch of 10, view unused/printed)
-- Non-admins → redirected away with toast
+There is no Dashboard (`/`) or global Historie route — `/` redirects to
+`/voorraad`. Per-article history lives on the article detail page's
+"Historie" tab.
 
 ## Density
 
-- Mantine `size="xs"` table rows
-- Compact padding
-- Dense forms in modals/drawers
+- Tables use the global `st-tbl` CSS class (custom, dense)
+- Forms in Mantine modals/drawers use `size="sm"` (see
+  `frontend/18-design-patterns.md`)

@@ -4,7 +4,7 @@
 
 - Node 20+
 - Express
-- PostgreSQL (via `pg` or Prisma — decide when building)
+- PostgreSQL via **Prisma** (decided, see `decisions/90-decisions-log.md`) — schema at `apps/api/prisma/schema.prisma`
 - Zod for validation (shared schemas)
 - multer for uploads
 
@@ -48,3 +48,13 @@ apps/api/src/
 ## Static frontend
 
 In production, Express serves the Vite build output from `apps/web/dist` at `/`, and the API at `/api/*`.
+
+## Newer frontend areas with no backend yet
+
+Articles (recipe/operations/estimate), Relaties, Machines, Overhead/
+Bedrijfskosten, and the Zaag calculator/reserveringen are built
+frontend-first as localStorage mocks (`apps/web/src/api/articles.ts`,
+`relaties.ts`, `machines.ts`, `overhead.ts`, `estimate.ts`,
+`reservations.ts`) — there are no `apps/api/src/routes/*` for these yet. See
+the 2026-06-15 "mock phase" entry in `decisions/90-decisions-log.md` before
+adding real routes for them.

@@ -2,35 +2,49 @@
 
 ## Server state — TanStack Query
 
-All data from the backend goes through TanStack Query. Lives in `apps/web/src/api/`.
+All data goes through TanStack Query, via typed wrappers in `apps/web/src/api/`
+(one module per resource: `raw-materials.ts`, `articles.ts`, `grades.ts`,
+`profiles.ts`, `locations.ts`, `machines.ts`, `overhead.ts`, `relaties.ts`,
+`estimate.ts`, plus `users` for the user picker).
 
-- One hook per resource, e.g. `useRawMaterial(id)`, `useFinishedGoods()`, `useLock(itemId)`
-- Mutations use `useMutation` and invalidate the right keys on success
-- Lock polling: `useQuery` with `refetchInterval: 5000`
+Query keys actually in use:
+```
+['raw-materials']
+['grades']
+['profiles']
+['locations']
+['machines']
+['articles']
+['relaties']
+['relaties', id]
+['users']
+```
 
-Query key conventions:
-```
-['rawMaterial', id]
-['rawMaterials', { search, filters }]
-['finishedGood', id]
-['lock', itemId]
-['movements', { itemId?, from, to }]
-['lowStock']
-```
+Mutations call `qc.invalidateQueries({ queryKey: [...] })` on success — usually
+the list key for the resource just changed (e.g. saving a Relatie contact
+invalidates both `['relaties', id]` and `['relaties']`).
+
+`['lock', itemId]` / `['movements', ...]` / `['lowStock']` are not used yet —
+remove once locking/movements/low-stock are wired up, or implement them then.
 
 ## Client state — Zustand (light)
 
-Use Zustand only for cross-cutting state that isn't server data:
+- `useUserStore` (`apps/web/src/stores/user.ts`) — currently selected user,
+  persisted via `zustand/middleware persist` under localStorage key
+  `stockmanager-user`. Shape: `{ user: { id, name, role } | null }`.
 
-- `useUserStore` — current selected user (persisted to localStorage)
-- `useDeviceStore` — current device mode (mobile/desktop), updated on resize
-
-Keep stores tiny. Anything that comes from the backend stays in TanStack Query.
+There is no `useDeviceStore` — device mode (mobile/desktop) is computed
+inline in `App.tsx` from `window.innerWidth` on mount/resize, not stored.
 
 ## localStorage
 
 | Key | Value |
 |---|---|
-| `inventaris:user` | `{ id, name, role }` of selected user |
+| `stockmanager-user` | zustand-persisted `{ user: { id, name, role } }` |
+| `sm_zaag_reservations` | Zaag calculator reservations (mock-phase data — see `decisions/90-decisions-log.md`) |
 
-That's it. No app preferences stored yet.
+Several `apps/web/src/api/*.ts` modules (relaties, articles, estimate,
+machines, overhead, reservations) are themselves localStorage-backed mocks
+with no backend route yet — see the 2026-06-15 "mock phase" decision log
+entry. They still go through TanStack Query so swapping in real `fetch` calls
+later doesn't change calling code.

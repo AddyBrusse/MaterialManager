@@ -2,18 +2,21 @@ import { useState, useEffect } from 'react'
 import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
-  IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck,
+  IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery } from '@tanstack/react-query'
 import { rawMaterialsApi } from '../../api/raw-materials'
 import { VoorraadPage } from '../../routes/desktop/VoorraadPage'
 import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
+import { ArtikelDetailPage } from '../../routes/desktop/ArtikelDetailPage'
 import { BinnenBoekenPage } from '../../routes/desktop/BinnenBoekenPage'
 import { InstellingenPage } from '../../routes/desktop/InstellingenPage'
 import { ZaagCalculatorPage } from '../../routes/desktop/ZaagCalculatorPage'
 import { ReserveringenPage } from '../../routes/desktop/ReserveringenPage'
 import { ZaagflowPage } from '../../routes/desktop/ZaagflowPage'
+import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
+import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 
 function getInitials(name: string) {
   const parts = name.trim().split(' ')
@@ -50,7 +53,8 @@ function Sidebar() {
     {
       label: 'Artikelen',
       items: [
-        { to: '/artikelen', label: 'Artikelen', Icon: IconList, count: null },
+        { to: '/artikelen', label: 'Artikelen', Icon: IconList,  count: null },
+        { to: '/relaties',  label: 'Relaties',  Icon: IconUsers, count: null },
       ],
     },
     {
@@ -122,6 +126,7 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/binnenboeken':    ['Materiaal beheer', 'Binnen boeken'],
   '/instellingen':    ['Materiaal beheer', 'Instellingen'],
   '/artikelen':       ['Artikelen',        'Artikelen'],
+  '/relaties':        ['Artikelen',        'Relaties'],
   '/zaagcalculator':  ['Productie',        'Zaag calculator'],
   '/reserveringen':   ['Productie',        'Reserveringen'],
   '/zaagflow':        ['Productie',        'Zaagflow'],
@@ -129,7 +134,10 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
 
 function Topbar() {
   const location = useLocation()
-  const [section, page] = ROUTE_LABELS[location.pathname] ?? ['', '']
+  const detail = location.pathname.startsWith('/artikelen/')
+    ? (['Artikelen', 'Artikel'] as [string, string])
+    : undefined
+  const [section, page] = detail ?? ROUTE_LABELS[location.pathname] ?? ['', '']
 
   return (
     <div className="st-topbar">
@@ -158,10 +166,13 @@ export function AppLayout() {
             <Route path="/voorraad"        element={<VoorraadPage />} />
             <Route path="/binnenboeken"    element={<BinnenBoekenPage />} />
             <Route path="/artikelen"       element={<ArtikelenPage />} />
+            <Route path="/artikelen/:id"   element={<ArtikelDetailPage />} />
             <Route path="/instellingen"    element={<InstellingenPage />} />
             <Route path="/zaagcalculator"  element={<ZaagCalculatorPage />} />
             <Route path="/reserveringen"   element={<ReserveringenPage />} />
             <Route path="/zaagflow"        element={<ZaagflowPage />} />
+            <Route path="/relaties"        element={<RelatiesPage />} />
+            <Route path="/relaties/:id"    element={<RelatieDetailPage />} />
             <Route path="*"             element={<Navigate to="/voorraad" replace />} />
           </Routes>
         </div>

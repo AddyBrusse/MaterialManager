@@ -53,7 +53,7 @@ Single image builds both web and api:
 ## Migrations
 
 - Run on container start (prestart script) or as a separate one-off command
-- Use Prisma `migrate deploy` or `node-pg-migrate up`
+- `prisma migrate deploy`
 
 ## Env
 

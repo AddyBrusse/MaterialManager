@@ -6,21 +6,28 @@ Reference for building new pages. Follow these patterns exactly — do not inven
 
 ## Theme
 
-Defined in `apps/web/src/theme/index.ts`.
+Defined in `apps/web/src/theme/index.ts`. Full visual spec (colors, spacing,
+typography) is `frontend/19-visual-design.md` — only the Mantine-relevant bits
+are summarized here.
 
-- **Primary colour**: custom blue (`#1a8aff`)
-- **Font**: Inter / system-ui
-- **Default radius**: `sm`
-- **Global component defaults** (do not override per-instance unless there is a strong reason):
+- **Font**: IBM Plex Sans / IBM Plex Mono, **primary colour**: `blue` tuple
+  matching `--accent` `#2d6df6`, **default radius**: `sm`
+- **Global component defaults**:
 
 ```ts
-Button:      size="xs"
 TextInput:   size="xs"
-Select:      size="xs"
 NumberInput: size="xs"
-Table:       withTableBorder withColumnBorders striped
+Select:      size="xs"
+Textarea:    size="xs"
+Drawer:      size="md"
 Badge:       size="xs"
+Loader:      size="sm"
 ```
+
+Mantine is only used for complex UI (forms, drawers, modals, notifications).
+Page layout and tables use the `st-*` CSS classes in
+`apps/web/src/styles/tokens.css` directly — see `frontend/15-desktop-view.md`
+and `frontend/19-visual-design.md`.
 
 All UI text is **Dutch**.
 
@@ -28,32 +35,34 @@ All UI text is **Dutch**.
 
 ## Layout
 
-`DesktopLayout` in `apps/web/src/routes/desktop/index.tsx` uses Mantine `AppShell`:
-
-```
-AppShell
-  AppShell.Header   h=44, p="xs"  — app title
-  AppShell.Navbar   w=200         — nav + user pill
-  AppShell.Main     pt=44         — page content
-```
-
-Nav items use `NavLink` from react-router-dom wrapped in `MantineNavLink`. Admin-only items are gated on `user.role === 'admin'`.
+`AppLayout` (`apps/web/src/components/layout/AppLayout.tsx`) is a custom
+`st-sidebar` / `st-topbar` / `st-content` layout, **not** Mantine `AppShell` —
+see `frontend/15-desktop-view.md` for the structure and nav groups.
 
 Add a new route:
 1. Create `apps/web/src/routes/desktop/YourPage.tsx`
-2. Import and add `<Route path="/your-path" element={<YourPage />} />` in `index.tsx`
-3. Add a `MantineNavLink` entry in `DesktopNav`
+2. Import and add `<Route path="/your-path" element={<YourPage />} />` in `AppLayout.tsx`
+3. Add an entry to the relevant `NAV` group and `ROUTE_LABELS` in `AppLayout.tsx`
 
 ---
 
-## Sortable Table — the standard pattern
+## Sortable Table — legacy pattern (do not start new pages this way)
 
-Every list page uses this pattern. Required files:
+`apps/web/src/routes/desktop/RawMaterialsPage.tsx` +
+`TableSort.module.css` are an earlier, unrouted prototype using Mantine
+`Table` with CSS-module sort-header styling. They are **dead code** — the
+real `/voorraad` route is `VoorraadPage.tsx`, which (like all current list
+pages) renders a plain `<table class="st-tbl">` styled from
+`apps/web/src/styles/tokens.css` (anatomy documented in
+`frontend/19-visual-design.md` under "Table").
+
+For **new list pages**: use `st-tbl` markup, not Mantine `Table` +
+`TableSort.module.css`. The sort-state/sort-function helpers below are still
+useful — only the markup/CSS-module part is legacy.
 
 | File | Purpose |
 |---|---|
-| `TableSort.module.css` | Column header hover styles — one per route folder |
-| `YourPage.tsx` | Page with table, filters, CRUD wiring |
+| `YourPage.tsx` | Page with `st-tbl` table, filters, CRUD wiring |
 
 ### CSS module (`TableSort.module.css`)
 
@@ -116,7 +125,7 @@ function applySort(data: Row[], sortBy: SortKey | null, reversed: boolean) {
 }
 ```
 
-### Table markup
+### Table markup (legacy Mantine version — see note above)
 
 ```tsx
 <ScrollArea>
@@ -159,6 +168,11 @@ Key details:
 - Action column is `width: 64`, stopPropagation so click doesn't open detail drawer
 - Empty state: single `<Table.Td colSpan={N}>` with centred Dutch text
 
+For the current `st-tbl` markup, see `VoorraadPage.tsx` / `ArtikelenPage.tsx` /
+`RelatiesPage.tsx`: a plain `<table className="st-tbl">` inside
+`<div className="st-table-wrap"><div className="st-tbl-scroll">…</div></div>`,
+with the same `Th`/sort-state helpers above driving `<th>` click handlers.
+
 ---
 
 ## Filter toolbar
@@ -192,6 +206,28 @@ const source = data?.data?.length ? data.data : MOCK
 ```
 
 Define `MOCK` as a typed constant at the top of the page file. Remove it once the feature is production-ready.
+
+---
+
+## Tabbed detail page (alternative to the drawer)
+
+For records with enough sub-content that a drawer is too cramped — articles,
+relaties — use a dedicated full-page route instead:
+`ArtikelDetailPage.tsx` (`/artikelen/:id`) and `RelatieDetailPage.tsx`
+(`/relaties/:id`) are the reference implementations.
+
+Shape:
+- `st-page-hd` header with an editable info strip (e.g. `ArticleInfoStrip`)
+  for the core record fields — edits open an `ArticleForm`/equivalent Modal
+- A row of tab buttons (`type Tab = '...' as const`), one panel rendered per
+  active tab, each panel a separate component
+  (e.g. `ArticleCalculator` / `ArticleFilesTab` / `ArticleHistoryTab`)
+- Each tab component receives the record (and any shared lookups: grades,
+  profiles, machines, relaties) as props, fetched once at the page level via
+  `useQuery` and passed down — don't re-fetch per tab
+
+Use this pattern when a record needs ≥3 distinct content areas; otherwise
+prefer the read-only drawer below.
 
 ---
 
@@ -325,6 +361,23 @@ export const yourApi = {
 ```
 
 The `apiFetch` client in `apps/web/src/api/client.ts` automatically attaches `x-user-id` from Zustand store and throws on non-2xx responses.
+
+---
+
+## Grouped line-item lists (calculator / zaagflow)
+
+`ArticleCalculator.tsx` (Materialen/Bewerkingen/Uitbestedingen, see
+`features/38-article-calculator.md`) and `ZaagflowPage.tsx` (per-bar cut
+flow) both use the same shape for editable grouped lists:
+
+- Each group is a section with a header (totals/summary) and a list of line
+  items below it
+- A line item is read-only in the list; an edit (✎) button next to the
+  delete button, or a double-click on the row, opens a confirm-gated Modal
+  (`size="sm"` inputs) to add/edit that item — the list itself never has
+  inline editable cells
+- New reference implementations for this kind of UI should follow these two
+  files rather than inventing a new grouped-list pattern
 
 ---
 

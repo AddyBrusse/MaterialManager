@@ -1,5 +1,13 @@
 # 14 — Mobile View
 
+> **Status: not yet built.** `routes/mobile/index.tsx` currently renders a
+> stub — a Mantine `AppShell` with a bottom `SegmentedControl` (Grondstof /
+> Artikel / Mutaties → `/raw` `/finished` `/movements`), each page just
+> showing "nog te bouwen" placeholder text. The routes, page names (`/scan`,
+> `/zoek`, `/item/:id`, …) and flows below are the **target design** —
+> implement against this when building mobile, but see
+> `frontend/11-routing.md` for what currently exists.
+
 ## When
 
 Active when viewport width ≤ 900px. Triggered on initial mount and on `resize`.

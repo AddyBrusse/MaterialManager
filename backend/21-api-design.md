@@ -81,3 +81,12 @@ Frontend sends `x-user-id: <uuid>` header on every request. Middleware loads the
 ```
 
 Common codes: `VALIDATION`, `NOT_FOUND`, `FORBIDDEN`, `LOCK_HELD`, `LOCK_NOT_HELD`, `LABEL_TAKEN`.
+
+## Not implemented yet
+
+No `/api/articles`, `/api/relaties`, `/api/machines`, `/api/overhead`,
+`/api/estimate`, or `/api/reservations` routes exist — these resources are
+localStorage mocks on the frontend (see `backend/20-backend-overview.md`).
+When building them, the endpoint shapes above (list/get/create/patch/delete,
+admin-gated writes, `{ data }` / `{ error }` envelope) are still the
+convention to follow.

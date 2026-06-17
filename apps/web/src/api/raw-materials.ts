@@ -54,6 +54,25 @@ export function formatDimensions(profile: Pick<ProfileInfo, 'volumeFormula'>, di
   }
 }
 
+// Weight (kg) from profile formula + dimensions + length + grade density.
+// Volume in mm³ → m³ (÷ 1e9) × density. Mirrors features/34-grades-profiles.md.
+export function computeWeightKg(
+  volumeFormula: ProfileInfo['volumeFormula'],
+  dims: Record<string, number>,
+  lengthMm: number,
+  densityKgM3: number,
+): number {
+  let area = 0 // mm²
+  switch (volumeFormula) {
+    case 'round':  area = Math.PI * Math.pow((dims.diameter ?? 0) / 2, 2); break
+    case 'square': area = Math.pow(dims.side ?? 0, 2); break
+    case 'flat':   area = (dims.width ?? 0) * (dims.height ?? 0); break
+    case 'tube':   area = Math.PI * (Math.pow((dims.outerDiameter ?? 0) / 2, 2) - Math.pow((dims.innerDiameter ?? 0) / 2, 2)); break
+  }
+  const volumeMm3 = area * (lengthMm || 0)
+  return (volumeMm3 / 1e9) * densityKgM3
+}
+
 export function formatLocation(slot: LocationSlotWithLocation | null): string {
   if (!slot) return '—'
   const base = `${slot.location.label} · ${slot.level1}`

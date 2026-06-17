@@ -5,8 +5,9 @@ import { IconPlus, IconEdit, IconTrash, IconX, IconCheck } from '@tabler/icons-r
 import { gradesApi } from '../../api/grades'
 import type { Grade } from '@stockmanager/shared'
 
-type EditState = { id: string; name: string; densityKgM3: number | '' } | null
-type AddState  = { name: string; densityKgM3: number | '' } | null
+type Num = number | ''
+type EditState = { id: string; name: string; densityKgM3: Num; pricePerKg: Num } | null
+type AddState  = { name: string; densityKgM3: Num; pricePerKg: Num } | null
 
 export function GradesTab() {
   const qc = useQueryClient()
@@ -20,12 +21,12 @@ export function GradesTab() {
   const invalidate = () => qc.invalidateQueries({ queryKey: ['grades'] })
 
   const createMut = useMutation({
-    mutationFn: (b: { name: string; densityKgM3: number }) => gradesApi.create(b),
+    mutationFn: (b: { name: string; densityKgM3: number; pricePerKg?: number }) => gradesApi.create(b),
     onSuccess: () => { invalidate(); setAdd(null); notifications.show({ color: 'green', message: 'Kwaliteit aangemaakt' }) },
     onError: () => notifications.show({ color: 'red', message: 'Aanmaken mislukt' }),
   })
   const updateMut = useMutation({
-    mutationFn: ({ id, ...b }: { id: string; name: string; densityKgM3: number }) => gradesApi.update(id, b),
+    mutationFn: ({ id, ...b }: { id: string; name: string; densityKgM3: number; pricePerKg?: number }) => gradesApi.update(id, b),
     onSuccess: () => { invalidate(); setEdit(null); notifications.show({ color: 'green', message: 'Kwaliteit bijgewerkt' }) },
     onError: () => notifications.show({ color: 'red', message: 'Opslaan mislukt' }),
   })
@@ -37,13 +38,24 @@ export function GradesTab() {
 
   function saveEdit() {
     if (!edit || !edit.name || !edit.densityKgM3) return
-    updateMut.mutate({ id: edit.id, name: edit.name, densityKgM3: Number(edit.densityKgM3) })
+    updateMut.mutate({
+      id: edit.id, name: edit.name, densityKgM3: Number(edit.densityKgM3),
+      pricePerKg: edit.pricePerKg === '' ? undefined : Number(edit.pricePerKg),
+    })
   }
-
   function saveAdd() {
     if (!add || !add.name || !add.densityKgM3) return
-    createMut.mutate({ name: add.name, densityKgM3: Number(add.densityKgM3) })
+    createMut.mutate({
+      name: add.name, densityKgM3: Number(add.densityKgM3),
+      pricePerKg: add.pricePerKg === '' ? undefined : Number(add.pricePerKg),
+    })
   }
+
+  const priceInput = (val: Num, set: (v: Num) => void, onKey: (e: React.KeyboardEvent) => void) => (
+    <input className="st-input cell-mono" style={{ width: '100%', textAlign: 'right' }}
+      type="number" min={0} step={0.01} placeholder="—"
+      value={val} onChange={e => set(e.target.value === '' ? '' : Number(e.target.value))} onKeyDown={onKey} />
+  )
 
   return (
     <div style={{ maxWidth: 720 }}>
@@ -51,11 +63,11 @@ export function GradesTab() {
         <div>
           <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Kwaliteiten / Staalsoorten</h3>
           <p style={{ color: 'var(--text-3)', margin: '2px 0 0', fontSize: 12.5 }}>
-            Staalsoorten met dichtheid — gebruikt voor gewichtsberekeningen.
+            Staalsoorten met dichtheid (gewicht) en prijs per kg (calculatie).
           </p>
         </div>
         <button className="st-btn primary sm" style={{ marginLeft: 'auto' }}
-          onClick={() => { setAdd({ name: '', densityKgM3: 7850 }); setEdit(null) }}>
+          onClick={() => { setAdd({ name: '', densityKgM3: 7850, pricePerKg: '' }); setEdit(null) }}>
           <IconPlus size={12} />Kwaliteit
         </button>
       </div>
@@ -66,6 +78,7 @@ export function GradesTab() {
             <tr>
               <th>Naam</th>
               <th style={{ textAlign: 'right' }}>Dichtheid (kg/m³)</th>
+              <th style={{ textAlign: 'right' }}>Prijs (€/kg)</th>
               <th style={{ width: 72 }} />
             </tr>
           </thead>
@@ -85,6 +98,7 @@ export function GradesTab() {
                       onChange={e => setEdit({ ...edit, densityKgM3: e.target.value === '' ? '' : Number(e.target.value) })}
                       onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEdit(null) }} />
                   </td>
+                  <td>{priceInput(edit.pricePerKg, v => setEdit({ ...edit, pricePerKg: v }), e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEdit(null) })}</td>
                   <td>
                     <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                       <button className="st-icon-btn" title="Opslaan" onClick={saveEdit}><IconCheck size={14} /></button>
@@ -94,7 +108,7 @@ export function GradesTab() {
                 </tr>
               ) : deleteId === g.id ? (
                 <tr key={g.id} style={{ background: 'rgba(184,39,12,0.04)' }}>
-                  <td colSpan={2}>
+                  <td colSpan={3}>
                     <span style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
                       <strong>{g.name}</strong> verwijderen?
                     </span>
@@ -110,10 +124,11 @@ export function GradesTab() {
                 <tr key={g.id}>
                   <td className="cell-strong">{g.name}</td>
                   <td className="cell-num cell-mono">{g.densityKgM3.toLocaleString('nl-NL')}</td>
+                  <td className="cell-num cell-mono">{g.pricePerKg != null ? `€ ${g.pricePerKg.toFixed(2)}` : '—'}</td>
                   <td>
                     <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
                       <button className="st-icon-btn" title="Bewerken"
-                        onClick={() => { setEdit({ id: g.id, name: g.name, densityKgM3: g.densityKgM3 }); setAdd(null) }}>
+                        onClick={() => { setEdit({ id: g.id, name: g.name, densityKgM3: g.densityKgM3, pricePerKg: g.pricePerKg ?? '' }); setAdd(null) }}>
                         <IconEdit size={14} />
                       </button>
                       <button className="st-icon-btn danger" title="Verwijderen" onClick={() => setDeleteId(g.id)}>
@@ -125,7 +140,6 @@ export function GradesTab() {
               )
             )}
 
-            {/* add row */}
             {add && (
               <tr style={{ background: 'var(--bg-sidebar)' }}>
                 <td>
@@ -141,6 +155,7 @@ export function GradesTab() {
                     onChange={e => setAdd({ ...add, densityKgM3: e.target.value === '' ? '' : Number(e.target.value) })}
                     onKeyDown={e => { if (e.key === 'Enter') saveAdd(); if (e.key === 'Escape') setAdd(null) }} />
                 </td>
+                <td>{priceInput(add.pricePerKg, v => setAdd({ ...add, pricePerKg: v }), e => { if (e.key === 'Enter') saveAdd(); if (e.key === 'Escape') setAdd(null) })}</td>
                 <td>
                   <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                     <button className="st-icon-btn" title="Toevoegen" onClick={saveAdd}><IconCheck size={14} /></button>

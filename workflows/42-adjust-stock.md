@@ -1,5 +1,16 @@
 # 42 — Adjust Stock Flow
 
+> **Status: partially built, differently shaped.** The desktop
+> implementation is the `MutatieModal` in `VoorraadPage.tsx` ("Mutatie"
+> button on the item drawer): a `SegmentedControl` with **Toevoegen /
+> Afboeken / Correctie** (not the Delta/Overwrite toggle + Ontvangen /
+> Verbruikt / Afgekeurd / Correctie / Overig reason select described below),
+> operating on `currentStock` as a **remaining length in mm**. It calls
+> `rawMaterialsApi.adjustStock(id, newStock)` directly — a localStorage mock,
+> not `POST /api/movements`, so there's no row-level locking, no movement
+> history record, and no `lowStock` query yet. Treat this doc as the target
+> shape for the real `/api/movements` endpoint when it's built.
+
 ## Entry points
 
 - Mobile: item detail → **Voorraad aanpassen** button

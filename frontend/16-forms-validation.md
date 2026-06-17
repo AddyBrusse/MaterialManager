@@ -2,32 +2,43 @@
 
 ## Library
 
-- **Mantine `useForm`** for form state
-- **Zod** schemas imported from `@inventaris/shared`
-- `@mantine/form` + `mantine-form-zod-resolver` to wire Zod into useForm
+- **Mantine `useForm`** (`@mantine/form`) for form state
+- **Zod** schemas live in `@stockmanager/shared` and are the source of truth
+  for shapes shared with the backend
 
-## Pattern
+## Current pattern
+
+Built forms (`RawMaterialForm`, `ArticleForm`, …) use `useForm` with Mantine's
+own `validate` map — per-field functions returning a Dutch error string or
+`null` — rather than a Zod resolver:
 
 ```ts
-import { rawMaterialSchema } from '@inventaris/shared';
-import { useForm, zodResolver } from '@mantine/form';
-
-const form = useForm({
+const form = useForm<FormValues>({
   initialValues: { ... },
-  validate: zodResolver(rawMaterialSchema),
-});
+  validate: {
+    naam: (v) => (!v.trim() ? 'Naam is verplicht' : null),
+    gradeId: (v) => (!v ? 'Grade is verplicht' : null),
+  },
+})
 ```
 
-## Shared schemas (in `@inventaris/shared`)
+A `zodResolver(schema)` wiring (as `mantine-form-zod-resolver` would provide)
+is not currently used — if a form's shape maps directly onto a shared schema,
+prefer that over hand-written rules, but don't introduce the dependency just
+for this doc's sake.
+
+## Shared schemas (in `@stockmanager/shared`)
 
 - `userSchema`
 - `rawMaterialSchema`
-- `finishedGoodSchema`
+- `finishedGoodSchema` (legacy catalog shape — see `features/31-items-finished.md` for the drift vs. the frontend `Article` type)
 - `locationSchema`
-- `gradeSchema`
+- `gradeSchema` (incl. optional `pricePerKg`)
 - `profileSchema`
-- `stockMovementSchema`
-- `labelBatchSchema`
+- `movementSchema`
+- `labelSchema`
+- `lockSchema`
+- `RelatieSchema` / `CreateRelatieSchema` / `UpdateRelatieSchema` / `RelatieContactSchema`
 
 Each exports both the Zod schema and the inferred TS type:
 
@@ -39,11 +50,14 @@ export type RawMaterial = z.infer<typeof rawMaterialSchema>;
 ## Validation messages
 
 - Dutch language
-- Customize via Zod's `message` argument or a small map
 - Examples:
-  - `z.string().min(1, 'Verplicht veld')`
-  - `z.number().positive('Moet groter zijn dan 0')`
+  - `'Verplicht veld'`
+  - `'Moet groter zijn dan 0'`
 
 ## Server-side
 
-Backend imports the same schemas and validates incoming request bodies. If validation fails, return `400` with the Zod issue list.
+Where a backend route exists (raw materials, grades, profiles, locations), it
+imports the same `@stockmanager/shared` schemas and validates request bodies,
+returning `400` with the Zod issue list on failure. Resources still in the
+mock phase (articles, relaties, machines, overhead, estimate) validate
+client-side only — see `decisions/90-decisions-log.md`.

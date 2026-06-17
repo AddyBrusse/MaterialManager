@@ -1,9 +1,8 @@
 import { useState } from 'react'
 import { IconPlus, IconDots } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { GradesTab }    from '../../components/settings/GradesTab'
-import { ProfilesTab }  from '../../components/settings/ProfilesTab'
-import { LocationsTab } from '../../components/settings/LocationsTab'
+import { MateriaalbeheerPage } from '../../components/settings/MateriaalbeheerPage'
+import { OverheadPage }        from '../../components/settings/OverheadPage'
 
 // ── shared primitives ─────────────────────────────────────────────────────────
 function ToggleSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
@@ -265,10 +264,9 @@ function Integraties() {
 // ── main page ─────────────────────────────────────────────────────────────────
 const TABS = [
   ['algemeen',    'Algemeen'],
-  ['locaties',    'Locaties'],
-  ['kwaliteiten', 'Kwaliteiten'],
-  ['profielen',   'Profielen'],
-  ['gebruikers',  'Gebruikers & rollen'],
+  ['materiaalbeheer', 'Materiaalbeheer'],
+  ['bedrijfskosten', 'Bedrijfskosten'],
+  ['gebruikers',     'Gebruikers & rollen'],
   ['nummering',   'Nummering'],
   ['meldingen',   'Meldingen'],
   ['integraties', 'Integraties'],
@@ -302,9 +300,8 @@ export function InstellingenPage() {
 
       <div className="st-tab-content" style={{ padding: '20px 24px 40px', overflowY: 'auto', flex: 1 }}>
         {tab === 'algemeen'    && <Algemeen />}
-        {tab === 'locaties'    && <LocationsTab />}
-        {tab === 'kwaliteiten' && <GradesTab />}
-        {tab === 'profielen'   && <ProfilesTab />}
+        {tab === 'materiaalbeheer' && <MateriaalbeheerPage />}
+        {tab === 'bedrijfskosten' && <OverheadPage />}
         {tab === 'gebruikers'  && <Gebruikers />}
         {tab === 'nummering'   && <Nummering />}
         {tab === 'meldingen'   && <Meldingen />}

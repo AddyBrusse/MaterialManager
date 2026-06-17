@@ -2,12 +2,12 @@ import type { Grade } from '@stockmanager/shared'
 import { apiFetch } from './client'
 
 export const MOCK_GRADES: Grade[] = [
-  { id: 'g1', name: 'S235',    densityKgM3: 7850, createdAt: '' },
-  { id: 'g2', name: 'S275',    densityKgM3: 7850, createdAt: '' },
-  { id: 'g3', name: 'S355',    densityKgM3: 7850, createdAt: '' },
-  { id: 'g4', name: 'S420',    densityKgM3: 7850, createdAt: '' },
-  { id: 'g5', name: '304 RVS', densityKgM3: 7930, createdAt: '' },
-  { id: 'g6', name: '316L RVS',densityKgM3: 7980, createdAt: '' },
+  { id: 'g1', name: 'S235',    densityKgM3: 7850, pricePerKg: 1.10, createdAt: '' },
+  { id: 'g2', name: 'S275',    densityKgM3: 7850, pricePerKg: 1.15, createdAt: '' },
+  { id: 'g3', name: 'S355',    densityKgM3: 7850, pricePerKg: 1.25, createdAt: '' },
+  { id: 'g4', name: 'S420',    densityKgM3: 7850, pricePerKg: 1.45, createdAt: '' },
+  { id: 'g5', name: '304 RVS', densityKgM3: 7930, pricePerKg: 4.50, createdAt: '' },
+  { id: 'g6', name: '316L RVS',densityKgM3: 7980, pricePerKg: 6.20, createdAt: '' },
 ]
 
 const LS_KEY = 'sm_grades'
@@ -30,7 +30,7 @@ export const gradesApi = {
   list: () =>
     apiFetch<Grade[]>('/grades').catch(() => ({ data: mockGrades })),
 
-  create: (body: { name: string; densityKgM3: number }) =>
+  create: (body: { name: string; densityKgM3: number; pricePerKg?: number }) =>
     apiFetch<Grade>('/grades', { method: 'POST', body: JSON.stringify(body) }).catch(() => {
       const item: Grade = { id: `g${Date.now()}`, ...body, createdAt: new Date().toISOString() }
       mockGrades = [...mockGrades, item]
@@ -38,7 +38,7 @@ export const gradesApi = {
       return { data: item }
     }),
 
-  update: (id: string, body: { name?: string; densityKgM3?: number }) =>
+  update: (id: string, body: { name?: string; densityKgM3?: number; pricePerKg?: number }) =>
     apiFetch<Grade>(`/grades/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).catch(() => {
       const existing = mockGrades.find(g => g.id === id)
       if (!existing) throw new Error('Niet gevonden')

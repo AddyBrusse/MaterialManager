@@ -1,4 +1,4 @@
-# Inventaris — Documentation Index
+# StockManager — Documentation Index
 
 Internal inventory system for a small CNC shop (4 users). This folder is the source of truth for the agent (Claude Code) building the project.
 
@@ -26,7 +26,9 @@ Internal inventory system for a small CNC shop (4 users). This folder is the sou
 - [14-mobile-view.md](./frontend/14-mobile-view.md)
 - [15-desktop-view.md](./frontend/15-desktop-view.md)
 - [16-forms-validation.md](./frontend/16-forms-validation.md)
-- [17-styling-theme.md](./frontend/17-styling-theme.md)
+- [17-styling-theme.md](./frontend/17-styling-theme.md) — superseded, see 19
+- [18-design-patterns.md](./frontend/18-design-patterns.md) — code patterns, read before building new pages
+- [19-visual-design.md](./frontend/19-visual-design.md) — visual spec, read before touching UI
 
 ### Backend
 - [20-backend-overview.md](./backend/20-backend-overview.md)
@@ -46,6 +48,20 @@ Internal inventory system for a small CNC shop (4 users). This folder is the sou
 - [35-labels.md](./features/35-labels.md)
 - [36-search.md](./features/36-search.md)
 - [37-low-stock.md](./features/37-low-stock.md)
+- [38-article-calculator.md](./features/38-article-calculator.md) — calculator modal/UI patterns
+
+### Newer areas (code-only, no dedicated doc yet)
+
+These were built after the docs above were written. No feature doc exists —
+read the code directly, and see `decisions/90-decisions-log.md` (2026-06-15
+"mock phase" entry) for their localStorage-mock status.
+
+| Area | Code |
+|---|---|
+| Relaties (customers/suppliers) | `apps/web/src/api/relaties.ts`, `apps/web/src/components/relaties/`, `routes/desktop/Relaties*Page.tsx` |
+| Machines & Bedrijfskosten (Instellingen) | `apps/web/src/components/settings/{OverheadPage,OverheadTab,MachinesTab,BedrijfskostenTab}.tsx` |
+| Zaag calculator / Reserveringen / Zaagflow | `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` |
+| Binnen boeken | `routes/desktop/BinnenBoekenPage.tsx` — see status note in `workflows/41-receive-material.md` |
 
 ### Workflows
 - [40-user-flows.md](./workflows/40-user-flows.md)

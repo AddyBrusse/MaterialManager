@@ -4,6 +4,7 @@ export const GradeSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   densityKgM3: z.number().positive(),
+  pricePerKg: z.number().nonnegative().optional(),
   createdAt: z.string().datetime(),
 })
 export type Grade = z.infer<typeof GradeSchema>
@@ -11,6 +12,7 @@ export type Grade = z.infer<typeof GradeSchema>
 export const CreateGradeSchema = z.object({
   name: z.string().min(1, 'Naam is verplicht'),
   densityKgM3: z.number().positive('Dichtheid moet positief zijn'),
+  pricePerKg: z.number().nonnegative('Prijs mag niet negatief zijn').optional(),
 })
 export type CreateGrade = z.infer<typeof CreateGradeSchema>
 

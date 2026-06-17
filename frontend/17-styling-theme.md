@@ -1,43 +1,19 @@
 # 17 — Styling & Theme
 
-## Source of truth
+**Superseded by `frontend/19-visual-design.md`**, which has the full token
+table (colors, spacing, typography, component anatomy) extracted from the
+StaalTrack design handoff and largely implemented in
+`apps/web/src/styles/tokens.css` + `apps/web/src/theme/index.ts`.
 
-Visual style matches **ToolManager** at `C:\ClaudeProjects\ToolManager-main`.
+This file is kept only as a redirect.
 
-When starting frontend work, extract from that repo:
-- Mantine theme config (colors, primary color, gray scale)
-- Typography (font families, sizes)
-- Spacing scale
-- Component defaults (button radius, table density)
-- AppShell dimensions (sidebar width, header height)
+## What's actually in `apps/web/src/theme/index.ts`
 
-Mirror those into `apps/web/src/theme/index.ts`.
+- `fontFamily`: IBM Plex Sans, `fontFamilyMonospace`: IBM Plex Mono
+- `primaryColor`: `blue` (custom tuple matching `--accent` `#2d6df6`)
+- `defaultRadius`: `sm`
+- Mantine is only used for complex UI (forms, drawers, modals,
+  notifications) — page layout and tables use the `st-*` classes in
+  `tokens.css` directly, not Mantine `AppShell`/`Table`
 
-## Mantine setup
-
-- `MantineProvider` at the top of `App.tsx`, wrapping device-detected router
-- ColorScheme: match ToolManager (likely light, confirm during extraction)
-- Default `radius`, `fontFamily`, `primaryColor` set via theme tokens
-
-## Density
-
-- Desktop: tight. Default Mantine `size="xs"` or `"sm"` for `Table`, `TextInput`, `Button`
-- Mobile: touch-friendly. `size="md"` or `"lg"` for primary actions
-
-## Colors (placeholder until extraction)
-
-| Token | Use |
-|---|---|
-| `primary` | Brand color, primary buttons, active nav |
-| `success` | Positive movements (Ontvangen) |
-| `warning` | Low-stock badge, lock idle banner |
-| `danger` | Negative movements (Afgekeurd, Verbruikt) |
-| `muted` | Read-only fields, disabled |
-
-Fill in actual hex values after extracting from ToolManager.
-
-## CSS approach
-
-- CSS Modules per component
-- No global stylesheet beyond Mantine's reset + a tiny `app.css` for layout root
-- Avoid inline styles except for one-offs (computed widths, etc.)
+See `frontend/18-design-patterns.md` for how to apply this in new pages.

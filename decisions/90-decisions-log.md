@@ -4,6 +4,97 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-06-15 — Calculator line items edit via confirm-gated modal, not inline
+
+**Decision:** Adding or editing a Materialen/Bewerkingen/Uitbestedingen line in
+the article calculator opens a shared `NodeEditModal` (one component, keyed by
+`{ type, mode }`) holding a **draft copy** of the node. The underlying `nodes`
+array is only touched on explicit **OK** (`confirmModal`); **Cancel**/X discards
+the draft. The modal cannot be dismissed via outside-click or Escape
+(`closeOnClickOutside={false}`, `closeOnEscape={false}`) — only the two footer
+buttons. Double-clicking a row, or its new edit-pencil icon (placed left of the
+existing trash icon), opens the modal pre-filled for editing.
+
+To avoid duplicating the grade/profile/machine config UI, `MaterialConfig` and
+`MachineConfig` gained `embedded?: boolean` and `size?: 'xs' | 'sm'` props: they
+render compactly (`xs`, with their own header) inline in a `Popover`, or as a
+plain section (`sm`, no header — the modal supplies Dividers/title) inside the
+modal.
+
+**Why:** Prevents accidental edits from sticking on misclicks/Escape, and gives
+each line item a focused, properly-sized (`size="sm"`) form instead of cramped
+inline `xs` popover fields — while reusing the same config components for both
+contexts.
+
+**Trade-off:** One extra click to add a line item (modal confirm instead of
+instant insert); mitigated by sensible defaults pre-filled in the draft.
+
+Full pattern writeup: `features/38-article-calculator.md`.
+
+---
+
+## 2026-06-15 — New feature areas built frontend-first as localStorage mocks
+
+**Decision:** Relaties, Articles (+ recipe/estimate), Machines, Overhead/Bedrijfskosten
+and Reserveringen were all built as frontend-only features first: their
+`apps/web/src/api/*.ts` modules (`relaties.ts`, `articles.ts`, `estimate.ts`,
+`machines.ts`, `overhead.ts`, `reservations.ts`) read/write `localStorage`
+directly, with no corresponding `apps/api` routes or Prisma models yet. This is
+the same "mock phase" pattern already noted for article attachments
+(2026-06-04), generalised across these modules.
+
+**Why:** Lets the UI/UX for these larger feature areas (calculator, relaties,
+machine/overhead settings, saw pipeline) be iterated quickly without blocking
+on backend schema design. Matches CLAUDE.md build order in spirit but inverted
+for exploratory frontend work.
+
+**Trade-off:** No persistence beyond the browser, no multi-user sharing of this
+data yet, and the `@stockmanager/shared` Zod schemas for these entities may
+drift from whatever Prisma models are eventually designed (see
+`backend/22-database-schema.md`). When building the real backend for these
+areas, follow CLAUDE.md's `shared → api → web` order and reconcile the mock
+shapes with the new schemas rather than assuming they're final.
+
+---
+
+## 2026-06-04 — Articles are make-to-stock manufactured products (MES-bound)
+**Decision:** An article is a product we manufacture in-house to stock, not a passive
+catalog entry. The data model carries a **structured recipe** (raw profile + grade +
+dimensions + length-per-piece, referencing the existing grades/profiles), an **operations**
+list (routing, tags for now), **setup data** (workholding + general notes, plus attachments:
+NC files tagged by machine, images, drawings, documents), and stock levels. Destination is a
+light MES (routing detail, production runs, time tracking) built in later layers.
+**Why:** Matches the real intent ("op voorraad maken om levertijd te verkorten") and lets an
+article later feed the saw pipeline (calculator → reservations → planner → zaagflow).
+**Trade-off:** Bigger model than the original simple catalog; built incrementally.
+
+## 2026-06-04 — Article detail is a dedicated route, not a drawer
+**Decision:** Article detail lives at `/artikelen/:id` (full page), unlike raw materials
+(side drawer). Add/edit of core fields stays a drawer.
+**Why:** An article's detail is a cockpit (recipe, routing, setup sheet, production history,
+drawing viewer) — too much for a 440–520px drawer. Starting as a page avoids a later migration.
+
+## 2026-06-04 — Setup attachments: metadata-only in the mock phase
+**Decision:** Article setup files (NC/images/drawings/documents) are stored as **metadata**
+(name, kind, size, machine tag) — not bytes — until the backend/uploads dir exists. `path`
+is reserved for the real file location. Setup notes (opspanning/algemeen) are fully stored.
+**Why:** No working API yet; localStorage can't hold real NC/PDF/photo bytes.
+**Trade-off:** No download/preview of file contents until the upload backend lands.
+
+---
+
+## 2026-05-29 — Prisma as the ORM
+
+**Decision:** `apps/api` uses Prisma (schema + migrations) against PostgreSQL,
+resolving the "pg vs Prisma — TBD" note in `02-tech-stack.md`.
+**Why:** Type-safe queries, schema-as-code migrations, good fit for the
+`@stockmanager/shared` Zod-types-on-both-sides approach.
+**Trade-off:** Prisma's generated types are DB-shape, not always identical to
+the Zod schemas in `packages/shared` — watch for drift (e.g. `Grade.pricePerKg`
+exists in the Zod schema but not yet in `schema.prisma`).
+
+---
+
 ## 2026-05-22 — Lock release policy
 **Decision:** Locks stay until explicitly released by holder or force-released by admin. No auto-release after idle.  
 **Why:** Simpler model. Admin as safety net for forgotten locks.  

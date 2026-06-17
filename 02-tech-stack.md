@@ -19,25 +19,26 @@
 ## Backend
 
 - **Express** — HTTP server
-- **pg** — PostgreSQL client (or **Prisma** — TBD when building; lean toward Prisma for type-safe queries shared with frontend types)
+- **Prisma** — ORM + migrations against PostgreSQL (decided, see `decisions/90-decisions-log.md`)
 - **Zod** — request/response validation
 - **multer** — multipart uploads (photos, PDFs)
 
 ## Shared
 
-- Monorepo with npm workspaces
-- `/packages/shared` exports Zod schemas + inferred TS types used by both apps
+- Monorepo with npm workspaces, package names `@stockmanager/web`, `@stockmanager/api`, `@stockmanager/shared`
+- `/packages/shared` exports Zod schemas + inferred TS types used by both apps, imported as `@stockmanager/shared`
 
-## Repo layout (target)
+## Repo layout
 
 ```
-inventaris/
-├── docs/                    ← this folder
+StockManager/
+├── 00-overview.md … 03-parked.md   ← docs (this repo root)
+├── frontend/ · backend/ · features/ · workflows/ · decisions/
 ├── packages/
-│   └── shared/              ← Zod schemas, shared types
+│   └── shared/              ← Zod schemas, shared types (@stockmanager/shared)
 ├── apps/
 │   ├── web/                 ← React + Vite + Mantine
-│   └── api/                 ← Express + Postgres
+│   └── api/                 ← Express + Prisma + Postgres
 ├── docker/
 │   ├── docker-compose.yml
 │   └── Dockerfile

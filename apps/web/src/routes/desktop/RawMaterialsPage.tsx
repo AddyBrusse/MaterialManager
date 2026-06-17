@@ -13,6 +13,7 @@ import classes from './TableSort.module.css'
 import { rawMaterialsApi, formatDimensions, formatLocation } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
+import { reservationsStore } from '../../api/reservations'
 import { RawMaterialDrawer } from '../../components/raw-materials/RawMaterialDrawer'
 import { RawMaterialForm } from '../../components/raw-materials/RawMaterialForm'
 import type { RawMaterialRow } from '../../api/raw-materials'
@@ -29,9 +30,9 @@ const MOCK: RawMaterialRow[] = [
 ]
 
 // ── sort helpers ──────────────────────────────────────────────────────────────
-type SortKey = 'code' | 'grade' | 'profile' | 'dimensions' | 'lengthMm' | 'weightKg' | 'location' | 'currentStock'
+type SortKey = 'code' | 'grade' | 'profile' | 'dimensions' | 'lengthMm' | 'weightKg' | 'location' | 'currentStock' | 'reserved'
 
-function sortValue(row: RawMaterialRow, key: SortKey): string | number {
+function sortValue(row: RawMaterialRow, key: SortKey, reservedByBar: Record<string, number>): string | number {
   switch (key) {
     case 'code':        return row.code
     case 'grade':       return row.grade.name
@@ -41,14 +42,15 @@ function sortValue(row: RawMaterialRow, key: SortKey): string | number {
     case 'weightKg':    return row.weightKg
     case 'location':    return formatLocation(row.locationSlot)
     case 'currentStock': return Number(row.currentStock)
+    case 'reserved':    return reservedByBar[row.id] ?? 0
   }
 }
 
-function applySort(data: RawMaterialRow[], sortBy: SortKey | null, reversed: boolean) {
+function applySort(data: RawMaterialRow[], sortBy: SortKey | null, reversed: boolean, reservedByBar: Record<string, number>) {
   if (!sortBy) return data
   return [...data].sort((a, b) => {
-    const va = sortValue(a, sortBy)
-    const vb = sortValue(b, sortBy)
+    const va = sortValue(a, sortBy, reservedByBar)
+    const vb = sortValue(b, sortBy, reservedByBar)
     const cmp = typeof va === 'number' && typeof vb === 'number'
       ? va - vb
       : String(va).localeCompare(String(vb), 'nl')
@@ -101,6 +103,16 @@ export function RawMaterialsPage() {
   const { data: gradesData } = useQuery({ queryKey: ['grades'], queryFn: gradesApi.list })
   const { data: profilesData } = useQuery({ queryKey: ['profiles'], queryFn: profilesApi.list })
 
+  // Reserved mm per bar from open/in-progress zaag reservations.
+  const [allReservations] = useState(() => reservationsStore.list())
+  const reservedByBar = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const r of allReservations) {
+      if (r.status !== 'done') map[r.barId] = (map[r.barId] ?? 0) + r.sawLength
+    }
+    return map
+  }, [allReservations])
+
   const deleteMutation = useMutation({
     mutationFn: rawMaterialsApi.remove,
     onSuccess: () => {
@@ -118,8 +130,8 @@ export function RawMaterialsPage() {
     if (gradeFilter)        items = items.filter(r => r.gradeId === gradeFilter || r.grade.name === gradeFilter)
     if (profileFilter)      items = items.filter(r => r.profileId === profileFilter || r.profile.name === profileFilter)
     if (sizeFilter.trim())  items = items.filter(r => formatDimensions(r.profile, r.dimensions).toLowerCase().includes(sizeFilter.toLowerCase()))
-    return applySort(items, sortBy, reversed)
-  }, [source, codeSearch, gradeFilter, profileFilter, sizeFilter, sortBy, reversed])
+    return applySort(items, sortBy, reversed, reservedByBar)
+  }, [source, codeSearch, gradeFilter, profileFilter, sizeFilter, sortBy, reversed, reservedByBar])
 
   function handleSort(key: SortKey) {
     setReversed(sortBy === key ? !reversed : false)
@@ -158,7 +170,7 @@ export function RawMaterialsPage() {
           <Center py="xl"><Loader size="sm" /></Center>
         ) : (
           <ScrollArea>
-            <Table miw={860} verticalSpacing={3} fz="xs" layout="fixed">
+            <Table miw={980} verticalSpacing={3} fz="xs" layout="fixed">
               <Table.Thead>
                 <Table.Tr>
                   <Th sortKey="code"         {...thProps}>Code</Th>
@@ -168,18 +180,22 @@ export function RawMaterialsPage() {
                   <Th sortKey="lengthMm"     {...thProps}>Lengte (mm)</Th>
                   <Th sortKey="weightKg"     {...thProps}>Gewicht (kg)</Th>
                   <Th sortKey="location"     {...thProps}>Locatie</Th>
-                  <Th sortKey="currentStock" {...thProps}>Voorraad</Th>
+                  <Th sortKey="currentStock" {...thProps}>Fysiek (mm)</Th>
+                  <Th sortKey="reserved"     {...thProps}>Gereserveerd (mm)</Th>
                   <Table.Th style={{ width: 64 }} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {rows.length === 0 ? (
                   <Table.Tr>
-                    <Table.Td colSpan={9}>
+                    <Table.Td colSpan={10}>
                       <Text ta="center" c="dimmed" py="md" fz="xs">Geen grondstoffen gevonden</Text>
                     </Table.Td>
                   </Table.Tr>
-                ) : rows.map(row => (
+                ) : rows.map(row => {
+                  const reserved = reservedByBar[row.id] ?? 0
+                  const fysiek   = Number(row.currentStock)
+                  return (
                   <Table.Tr key={row.id} onClick={() => setSelected(row)} style={{ cursor: 'pointer' }}>
                     <Table.Td><Text fz="xs" ff="monospace" fw={600}>{row.code}</Text></Table.Td>
                     <Table.Td><Badge variant="light">{row.grade.name}</Badge></Table.Td>
@@ -188,7 +204,18 @@ export function RawMaterialsPage() {
                     <Table.Td ta="right">{Number(row.lengthMm).toLocaleString('nl-NL')}</Table.Td>
                     <Table.Td ta="right">{row.weightKg.toFixed(3)}</Table.Td>
                     <Table.Td>{formatLocation(row.locationSlot)}</Table.Td>
-                    <Table.Td ta="right">{Number(row.currentStock)}</Table.Td>
+                    <Table.Td ta="right">
+                      <Text fz="xs" ff="monospace">{fysiek.toLocaleString('nl-NL')}</Text>
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      {reserved > 0 ? (
+                        <Text fz="xs" ff="monospace" c="orange.7" fw={600}>
+                          {reserved.toLocaleString('nl-NL')}
+                        </Text>
+                      ) : (
+                        <Text fz="xs" c="dimmed">—</Text>
+                      )}
+                    </Table.Td>
                     <Table.Td>
                       <Group gap={4} justify="center" onClick={e => e.stopPropagation()}>
                         <Tooltip label="Bewerken">
@@ -207,7 +234,8 @@ export function RawMaterialsPage() {
                       </Group>
                     </Table.Td>
                   </Table.Tr>
-                ))}
+                  )
+                })}
               </Table.Tbody>
             </Table>
           </ScrollArea>

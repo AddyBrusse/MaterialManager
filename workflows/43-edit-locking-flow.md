@@ -1,5 +1,12 @@
 # 43 — Edit Locking Flow
 
+> **Status: backend exists, frontend not wired up.** `apps/api` implements
+> the lock acquire/release/request/force-release routes
+> (`backend/24-locking.md`), but no frontend page currently queries lock
+> state, shows `<LockBanner />`, or sends heartbeats. This doc describes the
+> intended integration — implement against it when wiring up locking on the
+> raw materials / article detail pages.
+
 ## User A opens an item to edit
 
 1. Navigate to item detail
