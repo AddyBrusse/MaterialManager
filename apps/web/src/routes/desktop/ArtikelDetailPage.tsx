@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconArrowLeft } from '@tabler/icons-react'
 import { articlesApi, type Article, type ArticleEstimate } from '../../api/articles'
@@ -46,6 +46,8 @@ type Tab = 'calculatie' | 'bestanden' | 'historie'
 export function ArtikelDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const returnTo = searchParams.get('returnTo') ?? null
   const qc = useQueryClient()
   const isAdmin = useUserStore(s => s.user?.role === 'admin')
   const [tab, setTab] = useState<Tab>('calculatie')
@@ -102,7 +104,7 @@ export function ArtikelDetailPage() {
       <>
         <div className="st-page-hd art-detail-hd">
           <div>
-            <button className="st-btn ghost sm" onClick={() => navigate('/artikelen')}><IconArrowLeft size={14} />Artikelen</button>
+            <button className="st-btn ghost sm" onClick={() => navigate(returnTo ?? '/artikelen')}><IconArrowLeft size={14} />{returnTo ? 'Terug naar offerte' : 'Artikelen'}</button>
             <div className="st-page-title" style={{ marginTop: 8 }}>Artikel niet gevonden</div>
           </div>
         </div>
@@ -153,7 +155,7 @@ export function ArtikelDetailPage() {
   return (
     <>
       <div className="detail-head">
-        <button className="detail-back" onClick={() => navigate('/artikelen')}><Ic d={Icon.chevronRight} />Artikelen</button>
+        <button className="detail-back" onClick={() => navigate(returnTo ?? '/artikelen')}><Ic d={Icon.chevronRight} />{returnTo ? 'Terug naar offerte' : 'Artikelen'}</button>
         <div className="detail-top">
           <div className="detail-icon"><TypeGlyph kind={profileToGlyphKind(activeProfile?.volumeFormula)} size={26} /></div>
           <div className="detail-id">

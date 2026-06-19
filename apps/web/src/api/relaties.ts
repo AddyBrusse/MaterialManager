@@ -140,6 +140,7 @@ function saveStore(data: Relatie[]): void {
 let mockStore: Relatie[] = loadStore()
 
 export const relatiesApi = {
+  listSync: (): Relatie[] => mockStore,
   list: () =>
     apiFetch<Relatie[]>('/relaties').catch(() => ({ data: mockStore })),
 

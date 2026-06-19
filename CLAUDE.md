@@ -69,7 +69,13 @@ shouldn't need revisiting.
 | Workflows | `workflows/40-user-flows.md` · `41-receive-material.md` · `42-adjust-stock.md` · `43-edit-locking-flow.md` · `44-mobile-scan-flow.md` |
 | Decisions | `decisions/90-decisions-log.md` |
 | Parked | `03-parked.md` — things not decided yet, do not implement |
-| Newer areas (no doc yet) | Relaties: `api/relaties.ts`, `components/relaties/`, `routes/desktop/Relaties*Page.tsx` · Machines/Bedrijfskosten: `components/settings/{OverheadPage,OverheadTab,MachinesTab,BedrijfskostenTab}.tsx` · Zaag calculator/Reserveringen/Zaagflow: `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` · Binnen boeken: `routes/desktop/BinnenBoekenPage.tsx` (see `workflows/41-receive-material.md` status note) |
+| Newer areas (no doc yet) | Relaties: `api/relaties.ts`, `components/relaties/`, `routes/desktop/Relaties*Page.tsx` · Machines/Bedrijfskosten: `components/settings/{OverheadPage,OverheadTab,MachinesTab,BedrijfskostenTab}.tsx` · Zaag calculator/Reserveringen/Zaagflow: `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` · Binnen boeken: `routes/desktop/BinnenBoekenPage.tsx` (see `workflows/41-receive-material.md` status note) · **Projecten**: `api/projects.ts`, `components/projecten/`, `routes/desktop/Projecten*Page.tsx` |
+
+## Projecten UI conventions
+
+- **Adding items uses a full-width modal, never a side drawer.** "Artikelen toevoegen" opens `ArtikelPickerModal` (80vh, article list + staging table). The drawer (`RegelForm`) is only for *editing* an existing regel.
+- `ArtikelPickerModal`: auto-stages on checkbox click; bidirectional marge ↔ verkoopprijs; footer always visible (staging max-height 180px with internal scroll).
+- Kostprijs is computed synchronously via `buildEstimateCtx` + `computeEstimateTotals` using `gradesApi.listSync()`, `profilesApi.listSync()`, `machinesApi.listSync()`.
 
 ## Sub-agent tips
 

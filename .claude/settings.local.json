@@ -22,7 +22,11 @@
       "Bash(git commit -m ' *)",
       "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c\", \"cd C:\\\\ClaudeProjects\\\\StockManager && npm run dev:api\" -WindowStyle Normal -PassThru)",
       "Skill(run)",
-      "Skill(run:*)"
+      "Skill(run:*)",
+      "Bash(git -C \"C:\\\\ClaudeProjects\\\\StockManager\" log --oneline -10)",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget",
+      "WebFetch(domain:mantine.dev)"
     ]
   }
 }

@@ -29,6 +29,7 @@ let mockGrades: Grade[] = loadStore()
 export const gradesApi = {
   list: () =>
     apiFetch<Grade[]>('/grades').catch(() => ({ data: mockGrades })),
+  listSync: (): Grade[] => mockGrades,
 
   create: (body: { name: string; densityKgM3: number; pricePerKg?: number }) =>
     apiFetch<Grade>('/grades', { method: 'POST', body: JSON.stringify(body) }).catch(() => {

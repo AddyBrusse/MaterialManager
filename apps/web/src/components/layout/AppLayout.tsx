@@ -3,6 +3,7 @@ import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
+  IconClipboardList,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery } from '@tanstack/react-query'
@@ -17,6 +18,8 @@ import { ReserveringenPage } from '../../routes/desktop/ReserveringenPage'
 import { ZaagflowPage } from '../../routes/desktop/ZaagflowPage'
 import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
 import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
+import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
+import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
 
 function getInitials(name: string) {
   const parts = name.trim().split(' ')
@@ -62,7 +65,8 @@ function Sidebar() {
       items: [
         { to: '/zaagcalculator',  label: 'Zaag calculator', Icon: IconCut,       count: null },
         { to: '/reserveringen',   label: 'Reserveringen',   Icon: IconBookmark,  count: reservationCount || null },
-        { to: '/zaagflow',        label: 'Zaagflow',        Icon: IconListCheck, count: null },
+        { to: '/zaagflow',        label: 'Zaagflow',        Icon: IconListCheck,      count: null },
+        { to: '/projecten',       label: 'Projecten',       Icon: IconClipboardList,  count: null },
       ],
     },
   ]
@@ -130,12 +134,17 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/zaagcalculator':  ['Productie',        'Zaag calculator'],
   '/reserveringen':   ['Productie',        'Reserveringen'],
   '/zaagflow':        ['Productie',        'Zaagflow'],
+  '/projecten':       ['Productie',        'Projecten'],
 }
 
 function Topbar() {
   const location = useLocation()
   const detail = location.pathname.startsWith('/artikelen/')
     ? (['Artikelen', 'Artikel'] as [string, string])
+    : location.pathname.startsWith('/projecten/')
+    ? (['Productie', 'Project detail'] as [string, string])
+    : location.pathname.startsWith('/relaties/')
+    ? (['Artikelen', 'Relatie detail'] as [string, string])
     : undefined
   const [section, page] = detail ?? ROUTE_LABELS[location.pathname] ?? ['', '']
 
@@ -173,7 +182,9 @@ export function AppLayout() {
             <Route path="/zaagflow"        element={<ZaagflowPage />} />
             <Route path="/relaties"        element={<RelatiesPage />} />
             <Route path="/relaties/:id"    element={<RelatieDetailPage />} />
-            <Route path="*"             element={<Navigate to="/voorraad" replace />} />
+            <Route path="/projecten"       element={<ProjectenPage />} />
+            <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
+            <Route path="*"               element={<Navigate to="/voorraad" replace />} />
           </Routes>
         </div>
       </div>

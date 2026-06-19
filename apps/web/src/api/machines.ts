@@ -40,6 +40,7 @@ export type MachineInput = {
 export const machinesApi = {
   list: () =>
     apiFetch<Machine[]>('/machines').catch(() => ({ data: mockMachines })),
+  listSync: (): Machine[] => mockMachines,
 
   create: (body: MachineInput) =>
     apiFetch<Machine>('/machines', { method: 'POST', body: JSON.stringify(body) }).catch(() => {

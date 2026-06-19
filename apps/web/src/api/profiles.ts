@@ -55,6 +55,7 @@ let mockProfiles: Profile[] = loadStore()
 export const profilesApi = {
   list: () =>
     apiFetch<Profile[]>('/profiles').catch(() => ({ data: mockProfiles })),
+  listSync: (): Profile[] => mockProfiles,
 
   create: (body: { name: string; volumeFormula: Profile['volumeFormula']; dimensionSchema: DimField[] }) =>
     apiFetch<Profile>('/profiles', { method: 'POST', body: JSON.stringify(body) }).catch(() => {
