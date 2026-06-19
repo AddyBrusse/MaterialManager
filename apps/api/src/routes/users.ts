@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../db/client'
-import { CreateUserSchema, UpdateUserSchema } from '@stockmanager/shared'
+import { CreateUserSchema, UpdateUserSchema, UserSchema } from '@stockmanager/shared'
 import { requireAdmin } from '../middleware/require-admin'
 import { AppError } from '../middleware/error'
 import { asyncHandler } from '../lib/async-handler'

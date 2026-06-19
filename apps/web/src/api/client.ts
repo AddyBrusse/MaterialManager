@@ -11,7 +11,15 @@ export async function apiFetch<T>(
     ...(options.headers ?? {}),
   }
 
-  const res = await fetch(`/api${path}`, { ...options, headers })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 3000)
+
+  let res: Response
+  try {
+    res = await fetch(`/api${path}`, { ...options, headers, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
   const json = await res.json()
 
   if (!res.ok) {

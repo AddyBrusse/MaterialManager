@@ -41,12 +41,36 @@ enum LabelStatus {
   voided
 }
 
+model Company {
+  id            String   @id @default("default")
+  naam          String   @default("")
+  adres         String?
+  postcode      String?
+  stad          String?
+  land          String   @default("Nederland")
+  telefoon      String?
+  email         String?
+  website       String?
+  kvk           String?
+  btw           String?
+  iban          String?
+  graphClientId String?  @map("graph_client_id")
+  graphTenantId String?  @map("graph_tenant_id")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("company")
+}
+
 model User {
-  id           String    @id @default(uuid())
-  name         String    @unique
-  role         Role      @default(user)
-  avatarPath   String?   @map("avatar_path")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id          String    @id @default(uuid())
+  name        String    @unique
+  achternaam  String?
+  titel       String?
+  email       String?   @unique
+  telefoon    String?
+  role        Role      @default(user)
+  avatarPath  String?   @map("avatar_path")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   movements    StockMovement[]
   locks        Lock[]

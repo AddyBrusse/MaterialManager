@@ -1,16 +1,6 @@
 import jsPDF from 'jspdf'
 import type { Offerte } from '@stockmanager/shared'
-
-const BEDRIJF = {
-  naam: 'Boer Metaalbewerking',
-  adres: 'Industrieweg 1',
-  postcode: '1234 AB',
-  stad: 'Amsterdam',
-  tel: '+31 20 123 4567',
-  email: 'info@boer-metaal.nl',
-  kvk: '12345678',
-  btw: 'NL123456789B01',
-}
+import { companyApi } from '../api/company'
 
 const C = {
   primary: '#1a5fc8',
@@ -156,6 +146,7 @@ export interface OffertePdfProject {
 }
 
 export function downloadOffertePdf(project: OffertePdfProject, offerte: Offerte) {
+  const co = companyApi.getSync()
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
 
   let y = MARGIN
@@ -169,23 +160,24 @@ export function downloadOffertePdf(project: OffertePdfProject, offerte: Offerte)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setColor(doc, C.muted, 'text')
-  txt(doc, BEDRIJF.naam.toUpperCase(), MARGIN, y + 44)
+  txt(doc, co.naam.toUpperCase(), MARGIN, y + 44)
 
   // Company card (right)
   const cardX = PAGE_W - MARGIN - 170
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   setColor(doc, C.text, 'text')
-  txt(doc, BEDRIJF.naam, cardX + 170, y + 9, { align: 'right' })
+  txt(doc, co.naam, cardX + 170, y + 9, { align: 'right' })
 
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   setColor(doc, C.muted, 'text')
-  txt(doc, BEDRIJF.adres,                       cardX + 170, y + 21, { align: 'right' })
-  txt(doc, `${BEDRIJF.postcode}  ${BEDRIJF.stad}`, cardX + 170, y + 31, { align: 'right' })
-  txt(doc, BEDRIJF.tel,                          cardX + 170, y + 49, { align: 'right' })
-  txt(doc, BEDRIJF.email,                        cardX + 170, y + 59, { align: 'right' })
-  txt(doc, `KvK ${BEDRIJF.kvk}  ·  BTW ${BEDRIJF.btw}`, cardX + 170, y + 77, { align: 'right' })
+  if (co.adres) txt(doc, co.adres, cardX + 170, y + 21, { align: 'right' })
+  if (co.postcode || co.stad) txt(doc, [co.postcode, co.stad].filter(Boolean).join('  '), cardX + 170, y + 31, { align: 'right' })
+  if (co.telefoon) txt(doc, co.telefoon, cardX + 170, y + 49, { align: 'right' })
+  if (co.email)    txt(doc, co.email,    cardX + 170, y + 59, { align: 'right' })
+  const fiscal = [co.kvk && `KvK ${co.kvk}`, co.btw && `BTW ${co.btw}`].filter(Boolean).join('  ·  ')
+  if (fiscal)      txt(doc, fiscal,      cardX + 170, y + 77, { align: 'right' })
 
   y += 90
 
@@ -292,7 +284,7 @@ export function downloadOffertePdf(project: OffertePdfProject, offerte: Offerte)
   setColor(doc, C.muted, 'text')
   txt(
     doc,
-    `Betalingstermijn: 30 dagen netto  ·  Alle prijzen zijn excl. BTW  ·  ${BEDRIJF.naam}  ·  ${BEDRIJF.email}`,
+    `Betalingstermijn: 30 dagen netto  ·  Alle prijzen zijn excl. BTW  ·  ${co.naam}${co.email ? '  ·  ' + co.email : ''}`,
     PAGE_W / 2, footerY,
     { align: 'center' }
   )

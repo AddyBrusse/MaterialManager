@@ -22,6 +22,7 @@ import uploadsRouter from './routes/uploads'
 import searchRouter from './routes/search'
 import lowStockRouter from './routes/low-stock'
 import pdfRouter from './routes/pdf'
+import settingsRouter from './routes/settings'
 
 const app = express()
 
@@ -60,6 +61,7 @@ app.use('/api/locks', locksRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/search', searchRouter)
 app.use('/api/low-stock', lowStockRouter)
+app.use('/api/settings', settingsRouter)
 
 // Serve uploaded files
 app.use('/uploads', express.static(config.uploadsDir))
