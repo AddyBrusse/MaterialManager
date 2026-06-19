@@ -23,6 +23,12 @@ import searchRouter from './routes/search'
 import lowStockRouter from './routes/low-stock'
 import pdfRouter from './routes/pdf'
 import settingsRouter from './routes/settings'
+import machinesRouter from './routes/machines'
+import relatiesRouter from './routes/relaties'
+import articlesRouter from './routes/articles'
+import projectsRouter from './routes/projects'
+import reservationsRouter from './routes/reservations'
+import sequencesRouter from './routes/sequences'
 
 const app = express()
 
@@ -62,6 +68,12 @@ app.use('/api/uploads', uploadsRouter)
 app.use('/api/search', searchRouter)
 app.use('/api/low-stock', lowStockRouter)
 app.use('/api/settings', settingsRouter)
+app.use('/api/machines', machinesRouter)
+app.use('/api/relaties', relatiesRouter)
+app.use('/api/articles', articlesRouter)
+app.use('/api/projects', projectsRouter)
+app.use('/api/reservations', reservationsRouter)
+app.use('/api/sequences', sequencesRouter)
 
 // Serve uploaded files
 app.use('/uploads', express.static(config.uploadsDir))

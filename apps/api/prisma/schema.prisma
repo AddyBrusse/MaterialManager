@@ -230,3 +230,128 @@ model LockRequest {
 
   @@map("lock_requests")
 }
+
+// ── Business entity models ────────────────────────────────────────────────────
+
+model Machine {
+  id                  String   @id @default(uuid())
+  name                String
+  machineRatePerHour  Decimal  @map("machine_rate_per_hour")
+  operatorRatePerHour Decimal  @map("operator_rate_per_hour")
+  defaultSetupMin     Int      @map("default_setup_min")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@map("machines")
+}
+
+model Relatie {
+  id                 String   @id @default(uuid())
+  naam               String
+  type               String
+  actief             Boolean  @default(true)
+  telefoon           String?
+  email              String?
+  emailFactuur       String?  @map("email_factuur")
+  emailOfferte       String?  @map("email_offerte")
+  website            String?
+  straat             String?
+  postcode           String?
+  stad               String?
+  land               String   @default("Nederland")
+  factuurAdresZelfde Boolean  @default(true) @map("factuur_adres_zelfde")
+  factuurStraat      String?  @map("factuur_straat")
+  factuurPostcode    String?  @map("factuur_postcode")
+  factuurStad        String?  @map("factuur_stad")
+  factuurLand        String?  @map("factuur_land")
+  afleverAdresZelfde Boolean  @default(true) @map("aflever_adres_zelfde")
+  afleverStraat      String?  @map("aflever_straat")
+  afleverPostcode    String?  @map("aflever_postcode")
+  afleverStad        String?  @map("aflever_stad")
+  afleverLand        String?  @map("aflever_land")
+  kvk                String?
+  btw                String?
+  iban               String?
+  betalingstermijn   Int?
+  notities           String?
+  contacten          Json     @default("[]")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("relaties")
+}
+
+model Article {
+  id           String   @id
+  naam         String
+  klant        String?
+  relatieId    String?  @map("relatie_id")
+  contactId    String?  @map("contact_id")
+  tekening     String?
+  rev          String?
+  drawingPath  String?  @map("drawing_path")
+  photoPath    String?  @map("photo_path")
+  recipe       Json?
+  operations   Json     @default("[]")
+  notes        Json     @default("{\"workholding\":\"\",\"general\":\"\"}")
+  attachments  Json     @default("[]")
+  estimate     Json?
+  locatie      String?
+  currentStock Decimal  @default(0) @map("current_stock")
+  minStock     Decimal? @map("min_stock")
+  maxStock     Decimal? @map("max_stock")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("articles")
+}
+
+model DocSequence {
+  prefix String @id
+  lastN  Int    @default(0) @map("last_n")
+
+  @@map("doc_sequences")
+}
+
+model Project {
+  id             String   @id
+  naam           String
+  relatieId      String?  @map("relatie_id")
+  contactId      String?  @map("contact_id")
+  klantRef       String?  @map("klant_ref")
+  status         String   @default("concept")
+  levertijdDatum String?  @map("levertijd_datum")
+  notities       String   @default("")
+  offertes       Json     @default("[]")
+  productieOrders Json    @default("[]") @map("productie_orders")
+  paklijst       Json?
+  factuur        Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("projects")
+}
+
+model ZaagReservering {
+  id             String    @id
+  calculatieNr   String    @map("calculatie_nr")
+  barId          String    @map("bar_id")
+  barCode        String    @map("bar_code")
+  barLocation    String    @map("bar_location")
+  barVorm        String    @map("bar_vorm")
+  pieces         Int
+  productLen     Decimal   @map("product_len")
+  sawLength      Decimal   @map("saw_length")
+  fysiekeLengte  Decimal   @map("fysieke_lengte")
+  materiaal      String
+  diameter       Decimal
+  werkstukLengte Decimal   @map("werkstuk_lengte")
+  steekbreedte   Decimal
+  vlakToeslag    Decimal   @map("vlak_toeslag")
+  machine        String
+  priority       Int?
+  status         String    @default("open")
+  restLengteMm   Decimal?  @map("rest_lengte_mm")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@map("zaag_reserveringen")
+}

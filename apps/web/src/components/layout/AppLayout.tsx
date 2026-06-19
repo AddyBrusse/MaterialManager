@@ -8,6 +8,11 @@ import {
 import { useUserStore } from '../../stores/user'
 import { useQuery } from '@tanstack/react-query'
 import { rawMaterialsApi } from '../../api/raw-materials'
+import { initMachines } from '../../api/machines'
+import { initRelaties } from '../../api/relaties'
+import { initArticles } from '../../api/articles'
+import { initProjects } from '../../api/projects'
+import { initReservations, reservationsStore } from '../../api/reservations'
 import { VoorraadPage } from '../../routes/desktop/VoorraadPage'
 import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
 import { ArtikelDetailPage } from '../../routes/desktop/ArtikelDetailPage'
@@ -35,13 +40,9 @@ function Sidebar() {
   const { data: rawData } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
   const voorraadCount = rawData?.data?.length ?? 0
 
-  // Reservation count — read directly from localStorage (no API, fast)
-  const [reservationCount, setReservationCount] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('sm_zaag_reservations') ?? '[]').length } catch { return 0 }
-  })
-  // Re-read on location change so the badge updates after creating/deleting reservations
+  const [reservationCount, setReservationCount] = useState(() => reservationsStore.list().length)
   useEffect(() => {
-    try { setReservationCount(JSON.parse(localStorage.getItem('sm_zaag_reservations') ?? '[]').length) } catch {}
+    setReservationCount(reservationsStore.list().length)
   }, [location.pathname])
 
   const NAV = [
@@ -164,6 +165,15 @@ function Topbar() {
 }
 
 export function AppLayout() {
+  useEffect(() => {
+    // Populate all in-memory caches from API on startup (runs in background)
+    void initMachines()
+    void initRelaties()
+    void initArticles()
+    void initProjects()
+    void initReservations()
+  }, [])
+
   return (
     <div className="st-app">
       <Sidebar />

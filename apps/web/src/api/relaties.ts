@@ -66,66 +66,9 @@ const MOCK_RELATIES: Relatie[] = [
     ],
     createdAt: '2025-02-10T09:00:00.000Z',
   },
-  {
-    id: 'rel3',
-    naam: 'Aerospace Components GmbH',
-    type: 'klant',
-    actief: true,
-    telefoon: '+49 89 123456',
-    email: 'procurement@aerocomp.de',
-    emailFactuur: 'invoices@aerocomp.de',
-    emailOfferte: 'quotes@aerocomp.de',
-    website: 'www.aerocomp.de',
-    straat: 'Industriestraße 45',
-    postcode: '80939',
-    stad: 'München',
-    land: 'Duitsland',
-    factuurAdresZelfde: false,
-    factuurStraat: 'Rechnungsstraße 1',
-    factuurPostcode: '80333',
-    factuurStad: 'München',
-    factuurLand: 'Duitsland',
-    afleverAdresZelfde: true,
-    afleverStraat: null, afleverPostcode: null, afleverStad: null, afleverLand: null,
-    kvk: null,
-    btw: 'DE123456789',
-    iban: null,
-    betalingstermijn: 45,
-    notities: 'AS9100-gecertificeerd. Meetrapporten verplicht.',
-    contacten: [
-      { id: 'c4', naam: 'Klaus Weber', functie: 'Einkauf', telefoon: '+49 89 123457', mobiel: null, email: 'k.weber@aerocomp.de' },
-    ],
-    createdAt: '2025-03-01T11:00:00.000Z',
-  },
-  {
-    id: 'rel4',
-    naam: 'Metaal Express B.V.',
-    type: 'beide',
-    actief: true,
-    telefoon: '+31 (0)10 456 7890',
-    email: 'info@metaalexpress.nl',
-    emailFactuur: null,
-    emailOfferte: null,
-    website: null,
-    straat: 'Havenweg 8',
-    postcode: '3089 JH',
-    stad: 'Rotterdam',
-    land: 'Nederland',
-    factuurAdresZelfde: true,
-    factuurStraat: null, factuurPostcode: null, factuurStad: null, factuurLand: null,
-    afleverAdresZelfde: true,
-    afleverStraat: null, afleverPostcode: null, afleverStad: null, afleverLand: null,
-    kvk: '55667788',
-    btw: 'NL556677880B01',
-    iban: 'NL20INGB0001234567',
-    betalingstermijn: 30,
-    notities: null,
-    contacten: [],
-    createdAt: '2025-04-20T14:00:00.000Z',
-  },
 ]
 
-function loadStore(): Relatie[] {
+function loadLocal(): Relatie[] {
   try {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) return JSON.parse(raw) as Relatie[]
@@ -133,58 +76,81 @@ function loadStore(): Relatie[] {
   return [...MOCK_RELATIES]
 }
 
-function saveStore(data: Relatie[]): void {
+function saveLocal(data: Relatie[]): void {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
 }
 
-let mockStore: Relatie[] = loadStore()
+let cache: Relatie[] = loadLocal()
+
+export async function initRelaties(): Promise<void> {
+  try {
+    const { data } = await apiFetch<Relatie[]>('/relaties')
+    cache = data
+    saveLocal(data)
+  } catch {
+    cache = loadLocal()
+  }
+}
 
 export const relatiesApi = {
-  listSync: (): Relatie[] => mockStore,
-  list: () =>
-    apiFetch<Relatie[]>('/relaties').catch(() => ({ data: mockStore })),
+  listSync: (): Relatie[] => cache,
 
-  get: (id: string) =>
-    apiFetch<Relatie>(`/relaties/${id}`).catch(() => {
-      const item = mockStore.find(r => r.id === id)
+  list: () => apiFetch<Relatie[]>('/relaties')
+    .then(r => { cache = r.data; saveLocal(r.data); return r })
+    .catch(() => ({ data: cache })),
+
+  get: (id: string) => apiFetch<Relatie>(`/relaties/${id}`)
+    .catch(() => {
+      const item = cache.find(r => r.id === id)
       if (!item) throw new Error('Niet gevonden')
       return { data: item }
     }),
 
-  create: (body: CreateRelatie) =>
-    apiFetch<Relatie>('/relaties', { method: 'POST', body: JSON.stringify(body) }).catch(() => {
-      const defaults = {
-        actief: true as boolean,
-        land: 'Nederland',
-        factuurAdresZelfde: true as boolean,
-        afleverAdresZelfde: true as boolean,
-        contacten: [] as Relatie['contacten'],
-      }
+  create: async (body: CreateRelatie): Promise<{ data: Relatie }> => {
+    try {
+      const r = await apiFetch<Relatie>('/relaties', { method: 'POST', body: JSON.stringify(body) })
+      cache = [...cache, r.data]
+      saveLocal(cache)
+      return r
+    } catch {
       const item: Relatie = {
-        ...defaults,
-        ...body,
         id: `rel${Date.now()}`,
         createdAt: new Date().toISOString(),
+        ...body,
+        actief: body.actief ?? true,
+        land: body.land ?? 'Nederland',
+        factuurAdresZelfde: body.factuurAdresZelfde ?? true,
+        afleverAdresZelfde: body.afleverAdresZelfde ?? true,
+        contacten: body.contacten ?? [],
       }
-      mockStore = [...mockStore, item]
-      saveStore(mockStore)
+      cache = [...cache, item]
+      saveLocal(cache)
       return { data: item }
-    }),
+    }
+  },
 
-  update: (id: string, body: UpdateRelatie) =>
-    apiFetch<Relatie>(`/relaties/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).catch(() => {
-      const existing = mockStore.find(r => r.id === id)
+  update: async (id: string, body: UpdateRelatie): Promise<{ data: Relatie }> => {
+    try {
+      const r = await apiFetch<Relatie>(`/relaties/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+      cache = cache.map(r2 => r2.id === id ? r.data : r2)
+      saveLocal(cache)
+      return r
+    } catch {
+      const existing = cache.find(r => r.id === id)
       if (!existing) throw new Error('Niet gevonden')
       const updated: Relatie = { ...existing, ...body }
-      mockStore = mockStore.map(r => r.id === id ? updated : r)
-      saveStore(mockStore)
+      cache = cache.map(r => r.id === id ? updated : r)
+      saveLocal(cache)
       return { data: updated }
-    }),
+    }
+  },
 
-  remove: (id: string) =>
-    apiFetch<void>(`/relaties/${id}`, { method: 'DELETE' }).catch(() => {
-      mockStore = mockStore.filter(r => r.id !== id)
-      saveStore(mockStore)
-      return { data: undefined as void }
-    }),
+  remove: async (id: string): Promise<{ data: void }> => {
+    try {
+      await apiFetch<void>(`/relaties/${id}`, { method: 'DELETE' })
+    } catch {}
+    cache = cache.filter(r => r.id !== id)
+    saveLocal(cache)
+    return { data: undefined }
+  },
 }

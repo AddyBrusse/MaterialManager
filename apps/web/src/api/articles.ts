@@ -1,75 +1,60 @@
 // Articles = make-to-stock manufactured products (recipe + routing), MES-bound.
-// Foundation slice: localStorage-mock store (same pattern as reservations.ts).
-// The data model leaves room for routing detail, production runs and time tracking,
-// which are NOT built yet.
+
+import { apiFetch } from './client'
 
 const LS_KEY = 'sm_articles'
 
-// The raw blank that one finished piece is made from. References the real
-// grade/profile taxonomy (grades.ts / profiles.ts) so it can later feed the
-// saw pipeline (calculator → reservations → planner → zaagflow).
 export interface ArticleRecipe {
   profileId: string
   gradeId: string
-  dimensions: Record<string, number> // matches profile.dimensionSchema, e.g. { diameter: 80 }
-  lengthPerPieceMm: number           // raw length consumed per finished piece
+  dimensions: Record<string, number>
+  lengthPerPieceMm: number
 }
 
-// One routing step. Foundation only stores the type (tag); machine/times are
-// MES-future and intentionally left out for now.
 export interface ArticleOperation {
   id: string
-  type: string // 'draaien' | 'frezen' | 'boren' | 'zagen' | custom
+  type: string
 }
 
-// Setup-sheet attachment. METADATA ONLY in the mock phase: we record what the
-// file is, not its bytes. `path` is filled once a backend/uploads dir exists.
 export type AttachmentKind = 'nc' | 'image' | 'drawing' | 'document' | 'other'
 export interface ArticleAttachment {
   id: string
   kind: AttachmentKind
   name: string
   sizeBytes: number | null
-  machine: string | null   // NC files: 'DMG' | 'Doosan' | null
+  machine: string | null
   note: string | null
-  path: string | null      // future: filesystem path served from /uploads
+  path: string | null
   uploadedAt: string
 }
 
-// Free-text setup notes shown on the setup sheet.
 export interface ArticleSetupNotes {
-  workholding: string      // opspanning
-  general: string          // algemeen
+  workholding: string
+  general: string
 }
 
-// ── Calculator / estimate (routing + costing) ───────────────────────────────
-// A machining step under a machine node (per-piece cycle time only;
-// setup is once per machine node, not per step).
 export interface EstimateStep {
   id: string
   name: string
-  cycleMin: number   // per piece
+  cycleMin: number
 }
 export type EstimateNodeType = 'material' | 'machine' | 'external'
 export interface EstimateNode {
   id: string
   type: EstimateNodeType
   name: string
-  // material:
   gradeId?: string | null
-  profileId?: string | null     // overrides recipe profile (shape)
-  dimensions?: Record<string, number> | null // overrides recipe dimensions (size)
-  lengthMm?: number | null      // raw length consumed per piece (defaults from recipe)
-  qty?: number                  // aantal (material/external)
-  costOverride?: number | null  // € per piece, overrides computed material cost
-  // machine:
+  profileId?: string | null
+  dimensions?: Record<string, number> | null
+  lengthMm?: number | null
+  qty?: number
+  costOverride?: number | null
   machineId?: string | null
-  setupMin?: number       // one-time setup for this machine node
-  rateOverride?: number | null // € per uur, overrides machine + operator rate
+  setupMin?: number
+  rateOverride?: number | null
   steps?: EstimateStep[]
-  // external:
-  externalCost?: number | null  // € per piece
-  note?: string | null          // spec / omschrijving
+  externalCost?: number | null
+  note?: string | null
 }
 export interface ArticleEstimate {
   marginPct: number
@@ -78,14 +63,14 @@ export interface ArticleEstimate {
 }
 
 export interface Article {
-  id: string                 // ART-NNNN
+  id: string
   naam: string
   klant: string | null
   relatieId: string | null
-  contactId: string | null   // chosen contact within relatie.contacten
+  contactId: string | null
   tekening: string | null
   rev: string | null
-  drawingPath: string | null // PDF — viewer deferred
+  drawingPath: string | null
   photoPath: string | null
   recipe: ArticleRecipe | null
   operations: ArticleOperation[]
@@ -106,7 +91,6 @@ export const ATTACHMENT_KIND_LABELS: Record<AttachmentKind, string> = {
   nc: 'NC-programma', image: 'Foto', drawing: 'Tekening', document: 'Document', other: 'Overig',
 }
 
-// Infer attachment kind from a filename extension.
 export function inferAttachmentKind(filename: string): AttachmentKind {
   const ext = filename.toLowerCase().split('.').pop() ?? ''
   if (['nc', 'tap', 'mpf', 'eia', 'gcode', 'ngc', 'ptp', 'h'].includes(ext)) return 'nc'
@@ -124,27 +108,24 @@ export const KNOWN_OPERATIONS: { id: string; name: string }[] = [
   { id: 'extern',  name: 'Extern'  },
 ]
 
+// ── Seed data ────────────────────────────────────────────────────────────────
+
 function ops(...types: string[]): ArticleOperation[] {
   return types.map((t, i) => ({ id: `op_${i}_${t}`, type: t }))
 }
 
-// ── Seed data ───────────────────────────────────────────────────────────────
-// Mapped from the original mockup, with structured recipes referencing real
-// grade ids (grades.ts) and profile ids (profiles.ts). ART-0004 (square tube /
-// "koker" — no matching profile yet) intentionally has no recipe to exercise
-// the "Geen recept" empty state.
 const SEED_DATE = '2026-05-01T08:00:00Z'
-function seed(): Article[] {
+function makeSeed(): Article[] {
+  const att = (
+    kind: ArticleAttachment['kind'], name: string, sizeBytes: number, machine: string | null = null,
+  ): ArticleAttachment => ({
+    id: `att_${name}`, kind, name, sizeBytes, machine, note: null, path: null, uploadedAt: SEED_DATE,
+  })
   const base = (a: Partial<Article> & Pick<Article, 'id' | 'naam'>): Article => ({
     klant: null, relatieId: null, contactId: null, tekening: null, rev: null, drawingPath: null, photoPath: null,
     recipe: null, operations: [], notes: { workholding: '', general: '' }, attachments: [],
     estimate: null, locatie: null, currentStock: 0, minStock: null, maxStock: null,
     createdAt: SEED_DATE, updatedAt: SEED_DATE, ...a,
-  })
-  const att = (
-    kind: ArticleAttachment['kind'], name: string, sizeBytes: number, machine: string | null = null,
-  ): ArticleAttachment => ({
-    id: `att_${name}`, kind, name, sizeBytes, machine, note: null, path: null, uploadedAt: SEED_DATE,
   })
   return [
     base({ id: 'ART-0001', naam: 'Beugel links M16', klant: 'Bosch Rexroth', tekening: 'BRX-2214', rev: 'B',
@@ -153,10 +134,7 @@ function seed(): Article[] {
     base({ id: 'ART-0002', naam: 'Flens DN50', klant: 'Tata Steel NL', tekening: 'TS-F50-04', rev: 'A',
       operations: ops('draaien'), locatie: 'Hal A · Kast 2', currentStock: 3, minStock: 8, maxStock: 20,
       recipe: { profileId: 'p1', gradeId: 'g1', dimensions: { diameter: 80 }, lengthPerPieceMm: 40 },
-      notes: {
-        workholding: 'Driebekklauw, zachte bekken Ø80. Uitsteek max. 35 mm i.v.m. trillingen.',
-        general: 'Afbramen na boren. Visuele controle pasvlak.',
-      },
+      notes: { workholding: 'Driebekklauw, zachte bekken Ø80. Uitsteek max. 35 mm i.v.m. trillingen.', general: 'Afbramen na boren. Visuele controle pasvlak.' },
       attachments: [
         att('nc', 'FLENS-DN50-DRAAIEN.mpf', 14820, 'DMG'),
         att('nc', 'FLENS-DN50-DOOSAN.eia', 13110, 'Doosan'),
@@ -181,12 +159,13 @@ function seed(): Article[] {
   ]
 }
 
-function load(): Article[] {
+// ── Cache layer ───────────────────────────────────────────────────────────────
+
+function loadLocal(): Article[] {
   try {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Article>[]
-      // Normalise older records that predate newer fields.
       return parsed.map(a => ({
         notes: { workholding: '', general: '' },
         attachments: [],
@@ -197,16 +176,28 @@ function load(): Article[] {
       } as Article))
     }
   } catch {}
-  const initial = seed()
-  save(initial)
-  return initial
+  const seed = makeSeed()
+  saveLocal(seed)
+  return seed
 }
 
-function save(data: Article[]): void {
+function saveLocal(data: Article[]): void {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
 }
 
-/** Next ART-NNNN from existing rows: max numeric part + 1, zero-padded to 4. */
+let cache: Article[] = loadLocal()
+
+export async function initArticles(): Promise<void> {
+  try {
+    const { data } = await apiFetch<Article[]>('/articles')
+    cache = data
+    saveLocal(data)
+  } catch {
+    cache = loadLocal()
+  }
+}
+
+/** Next ART-NNNN from existing rows (client-side fallback when API unavailable). */
 export function nextArtNo(rows: Article[]): string {
   const nums = rows.map(r => parseInt(r.id.replace(/\D/g, ''), 10)).filter(n => !isNaN(n))
   const next = nums.length ? Math.max(...nums) + 1 : 1
@@ -216,28 +207,36 @@ export function nextArtNo(rows: Article[]): string {
 export type ArticleInput = Omit<Article, 'id' | 'createdAt' | 'updatedAt'>
 
 export const articlesApi = {
-  list: (): Article[] => load(),
+  list: (): Article[] => cache,
 
-  get: (id: string): Article | null => load().find(a => a.id === id) ?? null,
+  get: (id: string): Article | null => cache.find(a => a.id === id) ?? null,
 
   create: (input: ArticleInput): Article => {
-    const rows = load()
     const now = new Date().toISOString()
-    const item: Article = { ...input, id: nextArtNo(rows), createdAt: now, updatedAt: now }
-    save([...rows, item])
+    const item: Article = { ...input, id: nextArtNo(cache), createdAt: now, updatedAt: now }
+    cache = [...cache, item]
+    saveLocal(cache)
+    apiFetch<Article>('/articles', { method: 'POST', body: JSON.stringify({ ...input, id: item.id }) })
+      .then(r => { cache = cache.map(a => a.id === item.id ? r.data : a); saveLocal(cache) })
+      .catch(() => {})
     return item
   },
 
-  update: (id: string, patch: Partial<ArticleInput>): Article => {
-    const rows = load()
-    const existing = rows.find(a => a.id === id)
+  update: async (id: string, patch: Partial<ArticleInput>): Promise<Article> => {
+    const existing = cache.find(a => a.id === id)
     if (!existing) throw new Error('Artikel niet gevonden')
     const updated: Article = { ...existing, ...patch, updatedAt: new Date().toISOString() }
-    save(rows.map(a => a.id === id ? updated : a))
+    cache = cache.map(a => a.id === id ? updated : a)
+    saveLocal(cache)
+    apiFetch<Article>(`/articles/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+      .then(r => { cache = cache.map(a => a.id === id ? r.data : a); saveLocal(cache) })
+      .catch(() => {})
     return updated
   },
 
-  remove: (id: string): void => {
-    save(load().filter(a => a.id !== id))
+  remove: async (id: string): Promise<void> => {
+    cache = cache.filter(a => a.id !== id)
+    saveLocal(cache)
+    apiFetch<void>(`/articles/${id}`, { method: 'DELETE' }).catch(() => {})
   },
 }

@@ -1,95 +1,124 @@
+import { apiFetch } from './client'
+
 const LS_KEY = 'sm_zaag_reservations'
 
 export type ReservationStatus = 'open' | 'in_progress' | 'done'
 
 export interface ZaagReservation {
-  id: string           // unique — e.g. res_1748123456789_ab3f
-  calculatieNr: string // ref to production file (may be empty string)
+  id: string
+  calculatieNr: string
   barId: string
   barCode: string
-  barLocation: string  // formatted location at time of reservation
-  barVorm: string      // e.g. "Rond"
+  barLocation: string
+  barVorm: string
   pieces: number
-  productLen: number   // mm per piece (werkstuk + kerf + vlakToeslag)
-  sawLength: number    // pieces × productLen + grijplengte (total bar consumed)
-  fysiekeLengte: number // physical length of the bar on the shelf at reservation time (mm)
+  productLen: number
+  sawLength: number
+  fysiekeLengte: number
   materiaal: string
   diameter: number
   werkstukLengte: number
-  steekbreedte: number // kerf width per cut
-  vlakToeslag: number  // facing allowance per piece
-  // grijplengte is derived: sawLength − pieces × productLen
+  steekbreedte: number
+  vlakToeslag: number
   machine: string
   createdAt: string
-  // flow fields (set by saw worker or planner)
-  priority: number | null      // planner sets order (1 = highest); null = no priority
-  status: ReservationStatus    // open → in_progress → done
-  restLengteMm: number | null  // measured rest after sawing (set when marking done)
+  priority: number | null
+  status: ReservationStatus
+  restLengteMm: number | null
   completedAt: string | null
 }
 
-function load(): ZaagReservation[] {
+function migrate(r: Partial<ZaagReservation>): ZaagReservation {
+  return {
+    priority: null,
+    status: 'open',
+    restLengteMm: null,
+    completedAt: null,
+    barLocation: '',
+    barVorm: 'Rond',
+    steekbreedte: 0,
+    vlakToeslag: 0,
+    fysiekeLengte: (r as { sawLength?: number }).sawLength ?? 0,
+    ...r,
+  } as ZaagReservation
+}
+
+function loadLocal(): ZaagReservation[] {
   try {
     const raw = localStorage.getItem(LS_KEY)
     if (!raw) return []
-    const parsed = JSON.parse(raw) as Partial<ZaagReservation>[]
-    // Migrate old records that lack the new flow fields
-    return parsed.map(r => ({
-      priority: null,
-      status: 'open' as ReservationStatus,
-      restLengteMm: null,
-      completedAt: null,
-      barLocation: '',
-      barVorm: 'Rond',
-      steekbreedte: 0,
-      vlakToeslag: 0,
-      fysiekeLengte: r.sawLength ?? 0, // fallback for old records lacking physical length
-      ...r,
-    } as ZaagReservation))
-  } catch {
-    return []
-  }
+    return (JSON.parse(raw) as Partial<ZaagReservation>[]).map(migrate)
+  } catch { return [] }
 }
 
-function save(data: ZaagReservation[]): void {
+function saveLocal(data: ZaagReservation[]): void {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
 }
 
-export const reservationsStore = {
-  list: () => load(),
+let cache: ZaagReservation[] = loadLocal()
 
-  create: (items: Omit<ZaagReservation, 'id' | 'createdAt' | 'priority' | 'status' | 'restLengteMm' | 'completedAt'>[]): ZaagReservation[] => {
-    const existing = load()
+export async function initReservations(): Promise<void> {
+  try {
+    const { data } = await apiFetch<ZaagReservation[]>('/reservations')
+    cache = data
+    saveLocal(data)
+  } catch {
+    cache = loadLocal()
+  }
+}
+
+type CreateInput = Omit<ZaagReservation, 'id' | 'createdAt' | 'priority' | 'status' | 'restLengteMm' | 'completedAt'>
+
+export const reservationsStore = {
+  list: () => cache,
+
+  create: (items: CreateInput[]): ZaagReservation[] => {
     const created: ZaagReservation[] = items.map((item, i) => ({
       ...item,
       id: `res_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
       createdAt: new Date().toISOString(),
       priority: null,
-      status: 'open',
+      status: 'open' as ReservationStatus,
       restLengteMm: null,
       completedAt: null,
     }))
-    save([...existing, ...created])
+    cache = [...cache, ...created]
+    saveLocal(cache)
+    apiFetch<ZaagReservation[]>('/reservations', { method: 'POST', body: JSON.stringify(items) })
+      .catch(() => {})
     return created
   },
 
-  remove: (id: string): void => {
-    save(load().filter(r => r.id !== id))
+  remove: async (id: string): Promise<void> => {
+    cache = cache.filter(r => r.id !== id)
+    saveLocal(cache)
+    apiFetch<void>(`/reservations/${id}`, { method: 'DELETE' }).catch(() => {})
   },
 
-  setPriority: (id: string, priority: number | null): void => {
-    save(load().map(r => r.id === id ? { ...r, priority } : r))
+  setPriority: async (id: string, priority: number | null): Promise<void> => {
+    cache = cache.map(r => r.id === id ? { ...r, priority } : r)
+    saveLocal(cache)
+    apiFetch<ZaagReservation>(`/reservations/${id}/priority`, {
+      method: 'PATCH', body: JSON.stringify({ priority }),
+    }).catch(() => {})
   },
 
-  setStatus: (id: string, status: ReservationStatus): void => {
-    save(load().map(r => r.id === id ? { ...r, status } : r))
+  setStatus: async (id: string, status: ReservationStatus): Promise<void> => {
+    cache = cache.map(r => r.id === id ? { ...r, status } : r)
+    saveLocal(cache)
+    apiFetch<ZaagReservation>(`/reservations/${id}/status`, {
+      method: 'PATCH', body: JSON.stringify({ status }),
+    }).catch(() => {})
   },
 
-  complete: (id: string, restLengteMm: number | null): void => {
-    save(load().map(r =>
-      r.id === id
-        ? { ...r, status: 'done', restLengteMm, completedAt: new Date().toISOString() }
-        : r
-    ))
+  complete: async (id: string, restLengteMm: number | null): Promise<void> => {
+    const completedAt = new Date().toISOString()
+    cache = cache.map(r =>
+      r.id === id ? { ...r, status: 'done', restLengteMm, completedAt } : r,
+    )
+    saveLocal(cache)
+    apiFetch<ZaagReservation>(`/reservations/${id}/complete`, {
+      method: 'POST', body: JSON.stringify({ restLengteMm }),
+    }).catch(() => {})
   },
 }
