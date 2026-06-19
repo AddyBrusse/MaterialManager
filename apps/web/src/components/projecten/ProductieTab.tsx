@@ -1,8 +1,13 @@
 import { useState } from 'react'
-import { IconCheck, IconClock, IconCircleCheck } from '@tabler/icons-react'
+import { IconCheck, IconClock, IconCircleCheck, IconAlertTriangle } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { projectsApi, formatDate } from '../../api/projects'
 import { useUserStore } from '../../stores/user'
+import {
+  downloadProductieFormulier,
+  downloadAlleProductieFormulieren,
+  getOrdersWithMissingDrawing,
+} from '../../services/productie-pdf'
 import type { Project, ProductieOrder, ProductieStap } from '@stockmanager/shared'
 
 // ── Step check-off ────────────────────────────────────────────────────────────
@@ -14,8 +19,8 @@ interface StapRowProps {
 }
 
 function StapRow({ stap, orderStatus, onCheck }: StapRowProps) {
-  const isDone    = !!stap.gereedOp
-  const isNext    = !isDone && orderStatus !== 'gereed'
+  const isDone = !!stap.gereedOp
+  const isNext = !isDone && orderStatus !== 'gereed'
 
   return (
     <div className="prj-stap-row">
@@ -50,6 +55,7 @@ interface OrderCardProps {
 function OrderCard({ project, order, onChanged }: OrderCardProps) {
   const user = useUserStore(s => s.user)
   const [expanded, setExpanded] = useState(order.status !== 'gereed')
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   const doneCount  = order.stappen.filter(s => s.gereedOp).length
   const totalSteps = order.stappen.length
@@ -68,6 +74,18 @@ function OrderCard({ project, order, onChanged }: OrderCardProps) {
     projectsApi.checkOffStap(project.id, order.id, stapId, user?.name ?? 'Operator')
     notifications.show({ color: 'green', message: `Stap "${stap.naam}" gereed` })
     onChanged()
+  }
+
+  async function handleWerkopdracht(e: React.MouseEvent) {
+    e.stopPropagation()
+    setPdfLoading(true)
+    try {
+      await downloadProductieFormulier(order, project)
+    } catch {
+      notifications.show({ color: 'red', message: 'PDF generatie mislukt' })
+    } finally {
+      setPdfLoading(false)
+    }
   }
 
   return (
@@ -119,8 +137,14 @@ function OrderCard({ project, order, onChanged }: OrderCardProps) {
           </div>
         )}
 
-        <button className="st-btn ghost xs" style={{ marginLeft: 4 }} onClick={e => { e.stopPropagation(); }} disabled title="PDF beschikbaar na backend">
-          ↓ Werkopdracht
+        <button
+          className="st-btn ghost xs"
+          style={{ marginLeft: 4 }}
+          onClick={handleWerkopdracht}
+          disabled={pdfLoading}
+          title="Download productieformulier + loopkaart"
+        >
+          {pdfLoading ? '…' : '↓ Werkopdracht'}
         </button>
       </div>
 
@@ -161,6 +185,43 @@ function OrderCard({ project, order, onChanged }: OrderCardProps) {
   )
 }
 
+// ── Missing drawing warning ────────────────────────────────────────────────────
+
+interface MissingDrawingWarningProps {
+  namen: string[]
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function MissingDrawingWarning({ namen, onConfirm, onCancel }: MissingDrawingWarningProps) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+    }}>
+      <div style={{
+        background: 'var(--bg-1)', border: '1px solid var(--border)',
+        borderRadius: 10, padding: 24, maxWidth: 420, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,.18)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <IconAlertTriangle size={20} style={{ color: 'var(--warning)', flexShrink: 0 }} />
+          <span style={{ fontWeight: 700, fontSize: 14 }}>Tekening ontbreekt</span>
+        </div>
+        <p style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 12, lineHeight: 1.5 }}>
+          De volgende artikelen hebben geen tekening (PDF) gekoppeld. Voeg de tekening toe in het artikeldossier voor een volledig printpakket.
+        </p>
+        <ul style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 16, paddingLeft: 18 }}>
+          {namen.map(n => <li key={n}>{n}</li>)}
+        </ul>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button className="st-btn ghost sm" onClick={onCancel}>Annuleren</button>
+          <button className="st-btn sm primary" onClick={onConfirm}>Toch genereren</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Tab ───────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -169,6 +230,30 @@ interface Props {
 }
 
 export function ProductieTab({ project, onChanged }: Props) {
+  const [pdfLoading, setPdfLoading] = useState(false)
+  const [missingWarning, setMissingWarning] = useState<string[] | null>(null)
+
+  async function generateAll() {
+    const missing = getOrdersWithMissingDrawing(project.productieOrders)
+    if (missing.length > 0) {
+      setMissingWarning(missing)
+      return
+    }
+    await doGenerateAll()
+  }
+
+  async function doGenerateAll() {
+    setMissingWarning(null)
+    setPdfLoading(true)
+    try {
+      await downloadAlleProductieFormulieren(project)
+    } catch {
+      notifications.show({ color: 'red', message: 'PDF generatie mislukt' })
+    } finally {
+      setPdfLoading(false)
+    }
+  }
+
   if (project.productieOrders.length === 0) {
     return (
       <div style={{
@@ -190,60 +275,78 @@ export function ProductieTab({ project, onChanged }: Props) {
   const gepland     = project.productieOrders.filter(o => o.status === 'gepland')
   const gereed      = project.productieOrders.filter(o => o.status === 'gereed')
 
-  const doneAll = gereed.length === project.productieOrders.length
+  const doneAll    = gereed.length === project.productieOrders.length
   const gereedCount = gereed.length
-  const total = project.productieOrders.length
+  const total      = project.productieOrders.length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {/* Progress summary */}
-      <div style={{
-        background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8,
-        padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 14,
-      }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 4 }}>
-            Productie voortgang — {gereedCount} van {total} orders gereed
+    <>
+      {missingWarning && (
+        <MissingDrawingWarning
+          namen={missingWarning}
+          onConfirm={doGenerateAll}
+          onCancel={() => setMissingWarning(null)}
+        />
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Progress summary + generate button */}
+        <div style={{
+          background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8,
+          padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 14,
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-3)', marginBottom: 4 }}>
+              Productie voortgang — {gereedCount} van {total} orders gereed
+            </div>
+            <div style={{ height: 6, background: 'var(--bg-chip)', borderRadius: 999, overflow: 'hidden' }}>
+              <div style={{
+                width: `${total > 0 ? (gereedCount / total) * 100 : 0}%`,
+                height: '100%', background: doneAll ? 'var(--success)' : 'var(--accent)',
+                transition: 'width .4s',
+              }} />
+            </div>
           </div>
-          <div style={{ height: 6, background: 'var(--bg-chip)', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              width: `${total > 0 ? (gereedCount / total) * 100 : 0}%`,
-              height: '100%', background: doneAll ? 'var(--success)' : 'var(--accent)',
-              transition: 'width .4s',
-            }} />
-          </div>
+          {doneAll && !project.paklijst && (
+            <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
+              <IconCheck size={14} style={{ marginRight: 4 }} />
+              Alle orders klaar — paklijst kan aangemaakt worden
+            </span>
+          )}
+          <button
+            className="st-btn sm primary"
+            onClick={generateAll}
+            disabled={pdfLoading}
+            title="Genereer productieformulieren + loopkaarten als PDF"
+          >
+            {pdfLoading ? '…' : '↓ Genereer formulieren'}
+          </button>
         </div>
-        {doneAll && !project.paklijst && (
-          <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
-            <IconCheck size={14} style={{ marginRight: 4 }} />
-            Alle orders klaar — paklijst kan aangemaakt worden
-          </span>
+
+        {/* In productie */}
+        {inProductie.map(o => (
+          <OrderCard key={o.id} project={project} order={o} onChanged={onChanged} />
+        ))}
+
+        {/* Gepland */}
+        {gepland.map(o => (
+          <OrderCard key={o.id} project={project} order={o} onChanged={onChanged} />
+        ))}
+
+        {/* Gereed */}
+        {gereed.length > 0 && (
+          <>
+            {(inProductie.length > 0 || gepland.length > 0) && (
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-3)', padding: '4px 0 2px' }}>
+                Gereed
+              </div>
+            )}
+            {gereed.map(o => (
+              <OrderCard key={o.id} project={project} order={o} onChanged={onChanged} />
+            ))}
+          </>
         )}
       </div>
-
-      {/* In productie */}
-      {inProductie.map(o => (
-        <OrderCard key={o.id} project={project} order={o} onChanged={onChanged} />
-      ))}
-
-      {/* Gepland */}
-      {gepland.map(o => (
-        <OrderCard key={o.id} project={project} order={o} onChanged={onChanged} />
-      ))}
-
-      {/* Gereed */}
-      {gereed.length > 0 && (
-        <>
-          {(inProductie.length > 0 || gepland.length > 0) && (
-            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-3)', padding: '4px 0 2px' }}>
-              Gereed
-            </div>
-          )}
-          {gereed.map(o => (
-            <OrderCard key={o.id} project={project} order={o} onChanged={onChanged} />
-          ))}
-        </>
-      )}
-    </div>
+    </>
   )
 }
