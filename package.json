@@ -6,6 +6,7 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
     "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w apps/web",
@@ -13,6 +14,7 @@
     "db:seed": "npm run db:seed -w apps/api"
   },
   "devDependencies": {
+    "concurrently": "^10.0.3",
     "typescript": "^5.3.3"
   }
 }

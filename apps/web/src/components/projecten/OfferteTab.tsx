@@ -7,6 +7,8 @@ import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
 import { buildEstimateCtx, computeEstimateTotals } from '../../api/estimate'
+import { relatiesApi } from '../../api/relaties'
+import { downloadOffertePdf } from '../../services/offerte-pdf'
 import { useUserStore } from '../../stores/user'
 import { ArtikelPickerModal } from './ArtikelPickerModal'
 import type { Project, Offerte, OfferteRegel } from '@stockmanager/shared'
@@ -254,6 +256,20 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
     return [p?.name, g?.name].filter(Boolean).join(' · ') || '—'
   }
 
+  function downloadPdf() {
+    const relaties = relatiesApi.listSync()
+    const relatie  = relaties.find(r => r.id === project.relatieId)
+    const contact  = relatie?.contacten.find(c => c.id === project.contactId)
+    downloadOffertePdf({
+      id:             project.id,
+      naam:           project.naam,
+      klantNaam:      relatie?.naam,
+      contactNaam:    contact?.naam,
+      klantRef:       project.klantRef,
+      levertijdDatum: project.levertijdDatum,
+    }, offerte)
+  }
+
   function handleVerstuur() {
     if (offerte.regels.length === 0) {
       notifications.show({ color: 'red', message: 'Voeg eerst artikelregels toe' })
@@ -410,7 +426,7 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
                 </button>
               )}
               <div style={{ flex: 1 }} />
-              <button className="st-btn sm ghost" disabled title="PDF generatie beschikbaar na backend implementatie">
+              <button className="st-btn sm ghost" onClick={downloadPdf} title="Download offerte als PDF">
                 ↓ PDF
               </button>
               {offerte.status === 'concept' && (

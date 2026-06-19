@@ -21,6 +21,7 @@ import locksRouter from './routes/locks'
 import uploadsRouter from './routes/uploads'
 import searchRouter from './routes/search'
 import lowStockRouter from './routes/low-stock'
+import pdfRouter from './routes/pdf'
 
 const app = express()
 
@@ -40,6 +41,9 @@ app.get('/api/users', asyncHandler(async (_req, res) => {
   const users = await prisma.user.findMany({ orderBy: { name: 'asc' } })
   res.json({ data: users })
 }))
+
+// PDF routes — no DB needed, data comes from the POST body
+app.use('/api/pdf', pdfRouter)
 
 // Auth middleware on all remaining /api routes
 app.use('/api', userContext)
