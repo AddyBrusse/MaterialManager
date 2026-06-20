@@ -354,6 +354,33 @@ export const projectsApi = {
     return updated
   },
 
+  planStap(
+    projectId: string,
+    orderId: string,
+    stapId: string,
+    geplandDatum: string | null,
+    geplandMachine: string | null,
+  ): Project {
+    const updated = updateCache(projectId, p => ({
+      ...p,
+      updatedAt: now(),
+      productieOrders: p.productieOrders.map(o =>
+        o.id !== orderId ? o : {
+          ...o,
+          updatedAt: now(),
+          stappen: o.stappen.map(s =>
+            s.id !== stapId ? s : { ...s, geplandDatum, geplandMachine },
+          ),
+        },
+      ),
+    }))
+    apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/plan`, {
+      method: 'PATCH', body: JSON.stringify({ geplandDatum, geplandMachine }),
+    }).then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
+      .catch(() => {})
+    return updated
+  },
+
   markOrderGereed(projectId: string, orderId: string): Project {
     const updated = updateCache(projectId, p => ({
       ...p,

@@ -23,6 +23,8 @@ export const ProductieStapSchema = z.object({
   machine: z.string().nullable(),
   gereedOp: z.string().nullable(),    // ISO datetime
   gereedDoor: z.string().nullable(),  // user name
+  geplandDatum: z.string().nullable().optional(),   // 'YYYY-MM-DD'
+  geplandMachine: z.string().nullable().optional(), // machine name override
 })
 export type ProductieStap = z.infer<typeof ProductieStapSchema>
 

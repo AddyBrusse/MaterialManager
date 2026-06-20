@@ -1559,6 +1559,147 @@ tr:hover .row-actions { opacity: 1; }
   background: var(--bg-2); flex-shrink: 0;
 }
 
+/* ===== Planning board ===== */
+
+.plan-page { display: flex; flex-direction: column; gap: 14px; height: 100%; overflow: hidden; }
+
+.plan-header {
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+}
+.plan-week-title {
+  font-size: 14px; font-weight: 700; color: var(--text); min-width: 160px;
+}
+.plan-stats-strip {
+  display: flex; gap: 24px; margin-left: auto; align-items: center;
+}
+.plan-stat {
+  display: flex; flex-direction: column; align-items: flex-end;
+}
+.plan-stat-val { font-size: 14px; font-weight: 700; color: var(--text); }
+.plan-stat-lbl { font-size: 10.5px; color: var(--text-3); text-transform: uppercase; letter-spacing: .04em; }
+.plan-stat-val.warn  { color: var(--warning); }
+.plan-stat-val.danger { color: var(--danger); }
+
+.plan-offerte-bar {
+  display: flex; align-items: center; gap: 10px; padding: 7px 14px;
+  background: rgba(168,90,0,.07); border: 1px solid rgba(168,90,0,.18); border-radius: 8px;
+  font-size: 12px; flex-shrink: 0;
+}
+.plan-offerte-toggle {
+  margin-left: auto; font-size: 11.5px; color: var(--accent); cursor: pointer;
+  background: none; border: none; padding: 0; font-weight: 600;
+}
+
+/* Board layout */
+.plan-body { display: flex; gap: 12px; flex: 1; min-height: 0; }
+
+.plan-backlog {
+  width: 200px; flex-shrink: 0; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-2);
+}
+.plan-backlog-hd {
+  padding: 9px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--text-3); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--bg-2); z-index: 1;
+}
+.plan-backlog-inner { padding: 8px; display: flex; flex-direction: column; gap: 5px; }
+.plan-backlog-empty {
+  padding: 20px 12px; text-align: center; font-size: 12px; color: var(--text-3); font-style: italic;
+}
+
+/* Board grid */
+.plan-board-wrap {
+  flex: 1; overflow: auto; border: 1px solid var(--border);
+  border-radius: var(--radius-lg); background: var(--bg-1);
+}
+.plan-board {
+  display: grid;
+  grid-template-columns: 110px repeat(5, minmax(140px, 1fr));
+  min-width: 810px;
+}
+
+/* Column headers */
+.plan-col-hd {
+  padding: 9px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-3); border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border); position: sticky; top: 0; z-index: 2;
+  background: var(--bg-2);
+}
+.plan-col-hd:first-child { background: var(--bg-2); }
+.plan-col-hd.vandaag { color: var(--accent); background: rgba(45,109,246,.06); }
+
+/* Machine label */
+.plan-mach-lbl {
+  padding: 10px 10px; font-size: 12px; font-weight: 700; color: var(--text-2);
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start;
+}
+
+/* Day cell */
+.plan-cell {
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  padding: 6px; display: flex; flex-direction: column; gap: 5px; min-height: 120px;
+  transition: background .12s;
+}
+.plan-cell.drag-over { background: rgba(45,109,246,.07); outline: 2px dashed var(--accent); outline-offset: -3px; }
+.plan-cell.vandaag { background: rgba(45,109,246,.03); }
+
+/* Capacity bar */
+.plan-cap-bar-wrap {
+  margin-top: auto; display: flex; flex-direction: column; gap: 3px;
+}
+.plan-cap-bar {
+  height: 5px; background: var(--bg-chip); border-radius: 999px; overflow: hidden;
+}
+.plan-cap-fill {
+  height: 100%; border-radius: inherit; transition: width .3s;
+}
+.plan-cap-fill.ok    { background: var(--success); }
+.plan-cap-fill.warn  { background: var(--warning); }
+.plan-cap-fill.over  { background: var(--danger); }
+.plan-cap-lbl {
+  font-size: 9.5px; color: var(--text-3); font-family: var(--font-mono);
+}
+.plan-cap-lbl.over { color: var(--danger); font-weight: 600; }
+
+/* Stap card */
+.stap-card {
+  border-radius: 6px; background: var(--bg-1); border: 1px solid var(--border);
+  padding: 6px 8px; cursor: grab; user-select: none;
+  border-left: 3px solid var(--border); transition: box-shadow .12s, opacity .12s;
+  font-size: 11.5px;
+}
+.stap-card:active { cursor: grabbing; opacity: .7; }
+.stap-card.dragging { opacity: .4; }
+.stap-card.placeholder { border-style: dashed; }
+.stap-card.ghost { opacity: .45; border-style: dashed; pointer-events: none; }
+
+.stap-card-top {
+  display: flex; align-items: center; gap: 5px; margin-bottom: 2px;
+}
+.stap-card-naam { font-weight: 600; color: var(--text); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stap-card-dur  { font-family: var(--font-mono); font-size: 10.5px; color: var(--text-3); flex-shrink: 0; }
+.stap-card-dur.placeholder { font-style: italic; }
+
+.stap-card-order {
+  font-size: 10.5px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.stap-card-deadline {
+  font-size: 10px; font-weight: 600; margin-top: 3px;
+}
+.stap-card-deadline.ok     { color: var(--success); }
+.stap-card-deadline.warn   { color: var(--warning); }
+.stap-card-deadline.danger { color: var(--danger); }
+
+/* Group move overlay button */
+.stap-card-group-btn {
+  margin-top: 4px; width: 100%; font-size: 10px; padding: 2px 6px;
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text-3); cursor: pointer; text-align: center;
+}
+.stap-card-group-btn:hover { background: var(--bg-chip); color: var(--text); }
+
 /* ===== Tablet ===== */
 @media (max-width: 1100px) {
   .st-app { grid-template-columns: 72px 1fr; }
