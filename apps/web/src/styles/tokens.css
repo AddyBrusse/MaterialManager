@@ -1693,6 +1693,102 @@ tr:hover .row-actions { opacity: 1; }
 .stap-card-deadline.danger { color: var(--danger); }
 
 /* Group move overlay button */
+/* Card action buttons — visible on hover */
+.stap-card-actions { display: flex; gap: 2px; flex-shrink: 0; opacity: 0; transition: opacity .1s; }
+.stap-card:hover .stap-card-actions { opacity: 1; }
+.stap-card-btn {
+  width: 16px; height: 16px; border-radius: 3px; border: 1px solid transparent;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: none; padding: 0; flex-shrink: 0;
+}
+.stap-card-btn.check { color: var(--success); }
+.stap-card-btn.check:hover { background: rgba(22,163,74,.12); border-color: var(--success); }
+.stap-card-btn.remove { color: var(--danger); }
+.stap-card-btn.remove:hover { background: rgba(220,38,38,.12); border-color: var(--danger); }
+
+/* Completed card */
+.stap-card.completed { opacity: .45; cursor: default; }
+.stap-card.completed .stap-card-naam { text-decoration: line-through; color: var(--text-3); }
+
+/* Step order warning */
+.stap-card-volgorde-warn {
+  display: flex; align-items: center; gap: 3px;
+  font-size: 9.5px; color: var(--warning); margin-top: 2px;
+}
+
+/* Deadline edit pencil hint */
+.stap-card-deadline-edit { opacity: 0; transition: opacity .1s; }
+.stap-card:hover .stap-card-deadline-edit { opacity: .6; }
+.stap-card-deadline-input {
+  width: 100%; font-size: 10px; margin-top: 3px; padding: 2px 4px;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--bg-1); color: var(--text);
+}
+
+/* Plan-from-date input on backlog cards */
+.stap-card-plan-date {
+  width: 100%; font-size: 10px; margin-top: 4px; padding: 2px 4px;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--bg-1); color: var(--text-2);
+}
+
+/* Unplan all / move all links */
+.stap-card-links { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.stap-card-link-btn {
+  font-size: 9.5px; color: var(--text-3); background: none; border: none; cursor: pointer; padding: 0;
+}
+.stap-card-link-btn:hover { color: var(--text); text-decoration: underline; }
+
+/* Header tools (undo, show-completed toggle) */
+.plan-header-tools { display: flex; align-items: center; gap: 8px; }
+.plan-undo-btn {
+  display: flex; align-items: center; gap: 4px; font-size: 11px;
+  padding: 3px 9px; border: 1px solid var(--border); border-radius: 5px;
+  background: var(--bg-chip); cursor: pointer; color: var(--text-2);
+}
+.plan-undo-btn:hover { background: var(--bg-hover); }
+
+/* Overdue banner */
+.plan-achterstand-banner {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  padding: 7px 14px; border-radius: 6px; font-size: 12px;
+  background: rgba(220,38,38,.07); border: 1px solid rgba(220,38,38,.18);
+  color: var(--danger);
+}
+
+/* Backlog controls (filter + sort) */
+.plan-backlog-controls {
+  display: flex; align-items: center; gap: 5px; padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.plan-backlog-filter {
+  flex: 1; font-size: 11px; padding: 2px 5px; border: 1px solid var(--border);
+  border-radius: 4px; background: var(--bg-1); color: var(--text);
+}
+.plan-backlog-sort-btn {
+  display: flex; align-items: center; padding: 3px 5px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg-1); cursor: pointer; color: var(--text-3);
+}
+.plan-backlog-sort-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(45,109,246,.06); }
+
+/* Machine row capacity mini-bar */
+.plan-mach-lbl { flex-direction: column; gap: 5px; justify-content: center; }
+.plan-mach-cap { display: flex; align-items: center; gap: 5px; width: 100%; }
+.plan-mach-cap-bar { flex: 1; height: 3px; background: var(--bg-chip); border-radius: 2px; overflow: hidden; }
+.plan-mach-cap-fill { height: 100%; border-radius: inherit; }
+.plan-mach-cap-fill.ok   { background: var(--success); }
+.plan-mach-cap-fill.warn { background: var(--warning); }
+.plan-mach-cap-fill.over { background: var(--danger); }
+.plan-mach-cap-pct { font-size: 9px; color: var(--text-3); font-family: var(--font-mono); white-space: nowrap; }
+
+/* Column header deadline dots */
+.plan-col-deadlines { display: flex; gap: 3px; margin-top: 3px; justify-content: center; flex-wrap: wrap; }
+.plan-col-deadline-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+/* st-btn active state for toggles */
+.st-btn.ghost.xs.active { background: rgba(45,109,246,.1); color: var(--accent); }
+
 .stap-card-group-btn {
   margin-top: 4px; width: 100%; font-size: 10px; padding: 2px 6px;
   background: none; border: 1px solid var(--border); border-radius: 4px;

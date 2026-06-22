@@ -26,7 +26,18 @@
       "Bash(git -C \"C:\\\\ClaudeProjects\\\\StockManager\" log --oneline -10)",
       "mcp__visualize__read_me",
       "mcp__visualize__show_widget",
-      "WebFetch(domain:mantine.dev)"
+      "WebFetch(domain:mantine.dev)",
+      "Bash(npm install *)",
+      "Bash(curl -s -X POST http://localhost:3000/api/pdf/offerte -H 'Content-Type: application/json' -d '{\"project\":{\"id\":\"T\",\"naam\":\"Test\",\"klantRef\":null,\"levertijdDatum\":null},\"offerte\":{\"id\":\"OFF-T\",\"projectId\":\"T\",\"versie\":1,\"status\":\"concept\",\"regels\":[],\"notities\":\"\",\"geldigTot\":null,\"verzondenOp\":null,\"geaccepteerdOp\":null,\"createdAt\":\"2026-01-01T00:00:00Z\",\"updatedAt\":\"2026-01-01T00:00:00Z\"}}' -w '\\\\nHTTP_STATUS:%{http_code}')",
+      "PowerShell(cd C:\\\\ClaudeProjects\\\\StockManager; \\(Get-Content apps/web/package.json | Select-String \"qrcode\"\\))",
+      "PowerShell(cd C:\\\\ClaudeProjects\\\\StockManager; $env:DATABASE_URL=\"postgresql://stockmanager:stockmanager@localhost:5432/stockmanager\"; npx prisma generate --schema apps/api/prisma/schema.prisma 2>&1)",
+      "Bash(npx prisma *)",
+      "Bash(DATABASE_URL=\"postgresql://stockmanager:stockmanager@localhost:5432/stockmanager\" npx prisma migrate diff --from-database-url \"postgresql://stockmanager:stockmanager@localhost:5432/stockmanager\" --to-schema-datamodel apps/api/prisma/schema.prisma --script)",
+      "Bash(echo \"EXIT:$?\")",
+      "Read(//tmp/**)",
+      "Bash(cygpath -w /tmp/migration_diff.sql)",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit:$?\")"
     ]
   }
 }

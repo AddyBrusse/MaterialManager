@@ -137,6 +137,59 @@ export function projectKleur(projectId: string): string {
   return KLEUREN[Math.abs(hash) % KLEUREN.length]
 }
 
+// ── Machine week capacity ─────────────────────────────────────────────────────
+
+export function berekenMachineWeekCap(
+  items: PlanningStapItem[],
+  machine: string,
+  datums: string[],
+): { geboektMin: number; pctGebruikt: number; overboekt: boolean } {
+  const relevant = items.filter(i =>
+    (i.stap.geplandMachine ?? i.stap.machine ?? '') === machine &&
+    datums.includes(i.stap.geplandDatum ?? '') &&
+    !i.stap.gereedOp,
+  )
+  const geboektMin = relevant.reduce((s, i) => s + i.duurMin, 0)
+  const weekEffMin = datums.length * EFFECTIEVE_MIN
+  return {
+    geboektMin,
+    pctGebruikt: weekEffMin > 0 ? Math.min(geboektMin / weekEffMin, 1.5) : 0,
+    overboekt: geboektMin > weekEffMin,
+  }
+}
+
+// ── Past-week overdue items ───────────────────────────────────────────────────
+
+export function vindAchterstanden(items: PlanningStapItem[]): PlanningStapItem[] {
+  const vandaag = toDateStr(new Date())
+  return items.filter(i =>
+    i.stap.geplandDatum != null &&
+    i.stap.geplandDatum < vandaag &&
+    !i.stap.gereedOp,
+  )
+}
+
+// ── Step order (volgorde) warning ─────────────────────────────────────────────
+
+export function heeftVolgordeWaarschuwing(item: PlanningStapItem): boolean {
+  const { stap, order } = item
+  const myVolgorde = stap.volgorde ?? 0
+  if (myVolgorde <= 1) return false
+  return order.stappen.some(s => {
+    const v = s.volgorde ?? 0
+    return v > 0 && v < myVolgorde && !s.gereedOp && (
+      !s.geplandDatum ||
+      (stap.geplandDatum != null && s.geplandDatum >= stap.geplandDatum)
+    )
+  })
+}
+
+// ── Projects with deadline on a specific date ─────────────────────────────────
+
+export function projectenOpDatum(projects: Project[], datum: string): Project[] {
+  return projects.filter(p => p.levertijdDatum === datum)
+}
+
 // ── Offerte belasting ─────────────────────────────────────────────────────────
 
 export interface OfferteLastItem {
