@@ -354,6 +354,26 @@ export const projectsApi = {
     return updated
   },
 
+  uncheckStap(projectId: string, orderId: string, stapId: string): Project {
+    const updated = updateCache(projectId, p => {
+      const orders = p.productieOrders.map(o => {
+        if (o.id !== orderId) return o
+        const stappen = o.stappen.map(s =>
+          s.id === stapId ? { ...s, gereedOp: null, gereedDoor: null } : s,
+        )
+        const allDone = stappen.every(s => s.gereedOp)
+        const anyDone = stappen.some(s => s.gereedOp)
+        const status: ProductieOrder['status'] = allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
+        return { ...o, stappen, status, updatedAt: now() }
+      })
+      return { ...p, productieOrders: orders, updatedAt: now() }
+    })
+    apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/uncheck`, { method: 'POST' })
+      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
+      .catch(() => {})
+    return updated
+  },
+
   planStap(
     projectId: string,
     orderId: string,

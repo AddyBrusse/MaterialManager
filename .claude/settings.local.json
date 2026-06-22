@@ -37,7 +37,20 @@
       "Read(//tmp/**)",
       "Bash(cygpath -w /tmp/migration_diff.sql)",
       "Bash(git check-ignore *)",
-      "Bash(echo \"exit:$?\")"
+      "Bash(echo \"exit:$?\")",
+      "Bash(npm run *)",
+      "Bash(npx vite *)",
+      "Bash(npx dotenv *)",
+      "Bash(curl -s -X PATCH http://localhost:3000/api/projects/PRJ-TEST-A/orders/PROD-TEST-A1/stap/STAP-A3/plan -H \"Content-Type: application/json\" -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\" -d '{\"geplandDatum\":\"2026-07-20\",\"geplandMachine\":\"Draaibank\"}' -w \"\\\\nHTTP:%{http_code}\\\\n\")",
+      "Bash(curl -s -X PATCH http://localhost:3000/api/projects/PRJ-TEST-A/orders/PROD-TEST-A1/stap/STAP-A3/plan -H \"Content-Type: application/json\" -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\" -d '{\"geplandDatum\":null,\"geplandMachine\":null}' -w \"\\\\nHTTP:%{http_code}\\\\n\" -o /dev/null)",
+      "Bash(curl -s -X POST http://localhost:3000/api/projects/PRJ-TEST-A/orders/PROD-TEST-A1/unplan -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\" -w \"\\\\nunplan HTTP:%{http_code}\\\\n\" -o /dev/null)",
+      "Bash(curl -s -X PATCH http://localhost:3000/api/projects/PRJ-TEST-A/orders/PROD-TEST-A1/stap/STAP-A1/plan -H \"Content-Type: application/json\" -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\" -d '{\"geplandDatum\":\"2026-06-20\",\"geplandMachine\":\"Lasersnijden\"}' -o /dev/null -w \"A1:%{http_code}\\\\n\")",
+      "Bash(curl -s -X PATCH http://localhost:3000/api/projects/PRJ-TEST-A/orders/PROD-TEST-A1/stap/STAP-A2/plan -H \"Content-Type: application/json\" -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\" -d '{\"geplandDatum\":\"2026-06-22\",\"geplandMachine\":\"Kantbank\"}' -o /dev/null -w \"A2:%{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/api/projects/PRJ-TEST-A -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen.map\\(s=>\\({id:s.id,dt:s.geplandDatum}\\)\\),null,1\\)\\)}\\)\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen.find\\(s=>s.id==='STAP-A2'\\)\\)\\)}\\)\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen.find\\(s=>s.id==='STAP-A1'\\)\\)\\)}\\)\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen,null,1\\)\\)}\\)\")"
     ]
   }
 }

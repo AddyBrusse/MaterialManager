@@ -3,7 +3,7 @@ import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
-  IconClipboardList, IconCalendarEvent,
+  IconClipboardList, IconCalendarEvent, IconTimeline,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery } from '@tanstack/react-query'
@@ -26,6 +26,7 @@ import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
 import { PlanningPage } from '../../routes/desktop/PlanningPage'
+import { PlanningGanttPage } from '../../routes/desktop/PlanningGanttPage'
 
 function getInitials(name: string) {
   const parts = name.trim().split(' ')
@@ -70,6 +71,7 @@ function Sidebar() {
         { to: '/zaagflow',        label: 'Zaagflow',        Icon: IconListCheck,      count: null },
         { to: '/projecten',       label: 'Projecten',       Icon: IconClipboardList,  count: null },
         { to: '/planning',        label: 'Planning',        Icon: IconCalendarEvent,  count: null },
+        { to: '/planning-gantt',  label: 'Planning (Gantt)', Icon: IconTimeline,      count: null },
       ],
     },
   ]
@@ -139,6 +141,7 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/zaagflow':        ['Productie',        'Zaagflow'],
   '/projecten':       ['Productie',        'Projecten'],
   '/planning':        ['Productie',        'Planning'],
+  '/planning-gantt':  ['Productie',        'Planning (Gantt)'],
 }
 
 function Topbar() {
@@ -198,6 +201,7 @@ export function AppLayout() {
             <Route path="/projecten"       element={<ProjectenPage />} />
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
             <Route path="/planning"        element={<PlanningPage />} />
+            <Route path="/planning-gantt"  element={<PlanningGanttPage />} />
             <Route path="*"               element={<Navigate to="/voorraad" replace />} />
           </Routes>
         </div>

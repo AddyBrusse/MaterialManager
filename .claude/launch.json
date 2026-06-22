@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev"],
       "cwd": "${workspaceRoot}/apps/web",
       "port": 5173
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceRoot}/apps/api",
+      "port": 3000
     }
   ]
 }

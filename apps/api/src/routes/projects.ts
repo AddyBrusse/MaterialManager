@@ -357,6 +357,63 @@ router.post(
 )
 
 router.post(
+  '/:id/orders/:orderId/stap/:stapId/uncheck',
+  asyncHandler(async (req, res) => {
+    const p = await getProject(req.params.id)
+    const updatedOrders = p.productieOrders.map(o => {
+      if (o.id !== req.params.orderId) return o
+      const stappen = o.stappen.map(s =>
+        s.id === req.params.stapId ? { ...s, gereedOp: null, gereedDoor: null } : s,
+      )
+      const allDone = stappen.every(s => s.gereedOp)
+      const anyDone = stappen.some(s => s.gereedOp)
+      const status: ProductieOrder['status'] = allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
+      return { ...o, stappen, status, updatedAt: now() }
+    })
+    const updated = await saveProject({ ...p, productieOrders: updatedOrders, updatedAt: now() })
+    res.json({ data: updated })
+  }),
+)
+
+const PlanStapSchema = z.object({
+  geplandDatum: z.string().nullable(),
+  geplandMachine: z.string().nullable(),
+})
+
+router.patch(
+  '/:id/orders/:orderId/stap/:stapId/plan',
+  asyncHandler(async (req, res) => {
+    const { geplandDatum, geplandMachine } = PlanStapSchema.parse(req.body)
+    const p = await getProject(req.params.id)
+    const updatedOrders = p.productieOrders.map(o => {
+      if (o.id !== req.params.orderId) return o
+      const stappen = o.stappen.map(s =>
+        s.id === req.params.stapId ? { ...s, geplandDatum, geplandMachine } : s,
+      )
+      return { ...o, stappen, updatedAt: now() }
+    })
+    const updated = await saveProject({ ...p, productieOrders: updatedOrders, updatedAt: now() })
+    res.json({ data: updated })
+  }),
+)
+
+router.post(
+  '/:id/orders/:orderId/unplan',
+  asyncHandler(async (req, res) => {
+    const p = await getProject(req.params.id)
+    const updatedOrders = p.productieOrders.map(o => {
+      if (o.id !== req.params.orderId) return o
+      const stappen = o.stappen.map(s =>
+        s.gereedOp ? s : { ...s, geplandDatum: null, geplandMachine: null },
+      )
+      return { ...o, stappen, updatedAt: now() }
+    })
+    const updated = await saveProject({ ...p, productieOrders: updatedOrders, updatedAt: now() })
+    res.json({ data: updated })
+  }),
+)
+
+router.post(
   '/:id/orders/:orderId/gereed',
   asyncHandler(async (_req, res) => {
     const p = await getProject(_req.params.id)
