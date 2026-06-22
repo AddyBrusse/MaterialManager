@@ -4,6 +4,28 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-06-22 — Mock phase ended: build straight against the DB from now on
+
+**Decision:** The 2026-06-15 "build frontend-first as localStorage mocks"
+pattern is retired. As of this date the localStorage→PostgreSQL backend
+migration (Prisma models + API routes for Machine, Relatie, Article, Project,
+ZaagReservering, Company, DocSequence) is fully applied to the dev database.
+All new feature work — including finishing out the still-mock-backed corners
+of relaties/machines/overhead/zaag — goes straight to the real stack:
+`@stockmanager/shared` Zod schema → Prisma model/migration → `apps/api` route
+→ frontend wired to the real endpoint. No new localStorage-only modules.
+
+**Why:** The mock phase existed to unblock UI iteration while backend schema
+was still being designed. That blocker is gone; continuing to mock would just
+add reconciliation work later.
+
+**Trade-off:** None notable — existing mock-backed modules still have a
+localStorage *fallback* for offline resilience (per the write-through cache
+pattern from the backend migration), but localStorage must no longer be the
+*primary* store for anything new.
+
+---
+
 ## 2026-06-15 — Calculator line items edit via confirm-gated modal, not inline
 
 **Decision:** Adding or editing a Materialen/Bewerkingen/Uitbestedingen line in

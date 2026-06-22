@@ -36,10 +36,11 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - **ORM**: Prisma (decided 2026-05-29, see `decisions/90-decisions-log.md`)
 - **Response shape**: `{ data }` on success, `{ error: { code, message, details? } }` on failure
 - **Weight** is computed on read (never stored) from profile formula + dimensions + grade density
-- **Newer feature areas** (articles/relaties/machines/overhead/zaag) are
-  built frontend-first as localStorage mocks before their backend routes
-  exist — see the 2026-06-15 "mock phase" decision and
-  `backend/20-backend-overview.md`
+- **Mock phase ended (2026-06-22)** — the localStorage→PostgreSQL backend
+  migration is fully applied. New features go straight to the real stack
+  (shared schema → Prisma model/migration → API route → frontend), no new
+  localStorage-only modules. See the 2026-06-22 decision in
+  `decisions/90-decisions-log.md`
 
 ## Building rules
 
