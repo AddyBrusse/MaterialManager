@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconPlus, IconTrash, IconX } from '@tabler/icons-react'
 import { machinesApi, type Machine } from '../../api/machines'
@@ -13,7 +13,7 @@ const fmtN = (n: number, dec = 0) => n.toLocaleString('nl-NL', { minimumFraction
 
 const COMP   = 'var(--bg-sidebar)'
 const LBL_W  = 162   // label column px — wide enough for "Totaal incl. op."
-const COL_W  = 82    // machine column px
+const COL_W  = 130   // machine column px — long names wrap to 2 lines instead of clipping
 
 // ── Section divider row ───────────────────────────────────────────────────────
 function Sec({ label, cols, comp }: { label: string; cols: number; comp?: boolean }) {
@@ -95,6 +95,31 @@ function RC({ v, accent, bold, warn, muted, title: t }: {
     >
       {v}
     </td>
+  )
+}
+
+// ── Machine name cell — wraps onto a 2nd line (growing the header row) instead
+// of clipping long names like "Doosan LYNX 2100 LSYB" ────────────────────────
+function NameCell({ value, onChange, title }: { value: string; onChange: (v: string) => void; title?: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      className="oh-input-name"
+      style={{ paddingRight: 14 }}
+      rows={1}
+      value={value}
+      placeholder="Naam"
+      title={title}
+      onChange={e => onChange(e.target.value)}
+      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLTextAreaElement).blur() } }}
+    />
   )
 }
 
@@ -234,15 +259,13 @@ export function OverheadTab() {
                       </div>
                     ) : (
                       <div style={{ position: 'relative' }}>
-                        <input
-                          className="oh-input-name"
-                          style={{ width: '100%', textAlign: 'center', fontSize: 11.5, paddingRight: 14 }}
-                          value={nameOf(m)} placeholder="Naam"
-                          onChange={e => { setLocalNames(p => ({ ...p, [m.id]: e.target.value })); debouncedName(m.id, e.target.value) }}
+                        <NameCell
+                          value={nameOf(m)} title={nameOf(m)}
+                          onChange={v => { setLocalNames(p => ({ ...p, [m.id]: v })); debouncedName(m.id, v) }}
                         />
                         <button
                           className="st-icon-btn danger"
-                          style={{ position: 'absolute', right: 1, top: '50%', transform: 'translateY(-50%)', padding: 1, opacity: 0, transition: 'opacity .15s' }}
+                          style={{ position: 'absolute', right: 1, top: 1, padding: 1, opacity: 0, transition: 'opacity .15s' }}
                           onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                           onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
                           onClick={() => setDeleteId(m.id)}
