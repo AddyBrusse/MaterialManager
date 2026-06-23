@@ -235,7 +235,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
         ) : null}
         <button className="st-btn primary sm" style={{ marginLeft: 'auto' }} onClick={() => {
           const blank = articlesApi.create({
-            naam: '', klant: null, relatieId: relatieId ?? null, contactId: null,
+            naam: 'Nieuw artikel', klant: null, relatieId: relatieId ?? null, contactId: null,
             tekening: null, rev: null, drawingPath: null, photoPath: null,
             recipe: null, operations: [], notes: { workholding: '', general: '' },
             attachments: [], estimate: null, locatie: null,

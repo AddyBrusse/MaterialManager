@@ -92,7 +92,7 @@ export function ArtikelenPage() {
 
   function handleNieuwArtikel() {
     const blank = articlesApi.create({
-      naam: '', klant: null, relatieId: null, contactId: null, tekening: null, rev: null,
+      naam: 'Nieuw artikel', klant: null, relatieId: null, contactId: null, tekening: null, rev: null,
       drawingPath: null, photoPath: null, recipe: null,
       operations: [], notes: { workholding: '', general: '' },
       attachments: [], estimate: null, locatie: null,

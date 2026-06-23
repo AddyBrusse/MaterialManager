@@ -109,6 +109,7 @@ model Grade {
   id          String      @id @default(uuid())
   name        String      @unique
   densityKgM3 Decimal     @map("density_kg_m3")
+  pricePerKg  Decimal?    @map("price_per_kg")
   createdAt   DateTime    @default(now()) @map("created_at")
 
   rawMaterials RawMaterial[]

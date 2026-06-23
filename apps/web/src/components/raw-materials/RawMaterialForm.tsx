@@ -1,14 +1,17 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Stack, Select, NumberInput, Button, Group, Text, Divider, TextInput, Badge } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
-import { IconX } from '@tabler/icons-react'
+import { IconX, IconLock } from '@tabler/icons-react'
 import { rawMaterialsApi } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { locationsApi } from '../../api/locations'
+import { locksApi } from '../../api/locks'
 import type { RawMaterialRow } from '../../api/raw-materials'
+
+const LOCK_HEARTBEAT_MS = 60_000
 
 /** Derive next unique code from existing rows: max numeric part + 1, zero-padded to 5 digits. */
 function nextCode(rows: RawMaterialRow[]): string {
@@ -48,6 +51,37 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
   const { data: locationsData } = useQuery({ queryKey: ['locations'], queryFn: locationsApi.list })
 
   const autoCode = useMemo(() => nextCode(allRows), [allRows])
+
+  // Editing an existing item requires holding a lock (enforced server-side on
+  // PATCH /raw-materials/:id) — acquire it while the drawer is open, refresh
+  // it periodically, and release it on close. Without this, every save 409s.
+  const [lockError, setLockError] = useState<string | null>(null)
+  const lockedItemId = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!opened || mode !== 'edit' || !item) {
+      setLockError(null)
+      return
+    }
+    let cancelled = false
+    setLockError(null)
+    locksApi.acquire(item.id, 'raw')
+      .then(() => { if (!cancelled) lockedItemId.current = item.id })
+      .catch((e: Error) => { if (!cancelled) setLockError(e.message || 'Kon geen vergrendeling verkrijgen') })
+
+    const heartbeat = setInterval(() => {
+      locksApi.heartbeat(item.id, 'raw').catch(() => {})
+    }, LOCK_HEARTBEAT_MS)
+
+    return () => {
+      cancelled = true
+      clearInterval(heartbeat)
+      if (lockedItemId.current === item.id) {
+        locksApi.release(item.id, 'raw').catch(() => {})
+        lockedItemId.current = null
+      }
+    }
+  }, [opened, item?.id, mode])
 
   const form = useForm<FormValues>({
     initialValues: EMPTY,
@@ -131,6 +165,12 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
 
         {/* body */}
         <div className="st-drawer-bd">
+          {lockError && (
+            <Group gap={6} mb="sm" p="xs" style={{ background: 'var(--danger-soft)', borderRadius: 6, color: 'var(--danger)' }}>
+              <IconLock size={14} />
+              <Text size="xs">{lockError}</Text>
+            </Group>
+          )}
           <form id="mat-form" onSubmit={form.onSubmit(v => mutation.mutate(v))}>
             <Stack gap="sm">
               {mode === 'add' ? (
@@ -235,6 +275,7 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
               form="mat-form"
               size="xs"
               loading={mutation.isPending}
+              disabled={!!lockError}
             >
               {mode === 'add' ? 'Aanmaken' : 'Opslaan'}
             </Button>

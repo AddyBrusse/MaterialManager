@@ -23,17 +23,17 @@ export function GradesTab() {
   const createMut = useMutation({
     mutationFn: (b: { name: string; densityKgM3: number; pricePerKg?: number }) => gradesApi.create(b),
     onSuccess: () => { invalidate(); setAdd(null); notifications.show({ color: 'green', message: 'Kwaliteit aangemaakt' }) },
-    onError: () => notifications.show({ color: 'red', message: 'Aanmaken mislukt' }),
+    onError: (e: Error) => notifications.show({ color: 'red', message: e.message || 'Aanmaken mislukt' }),
   })
   const updateMut = useMutation({
     mutationFn: ({ id, ...b }: { id: string; name: string; densityKgM3: number; pricePerKg?: number }) => gradesApi.update(id, b),
     onSuccess: () => { invalidate(); setEdit(null); notifications.show({ color: 'green', message: 'Kwaliteit bijgewerkt' }) },
-    onError: () => notifications.show({ color: 'red', message: 'Opslaan mislukt' }),
+    onError: (e: Error) => notifications.show({ color: 'red', message: e.message || 'Opslaan mislukt' }),
   })
   const deleteMut = useMutation({
     mutationFn: gradesApi.remove,
     onSuccess: () => { invalidate(); setDeleteId(null); notifications.show({ color: 'green', message: 'Kwaliteit verwijderd' }) },
-    onError: () => notifications.show({ color: 'red', message: 'Verwijderen mislukt' }),
+    onError: (e: Error) => notifications.show({ color: 'red', message: e.message || 'Verwijderen mislukt' }),
   })
 
   function saveEdit() {

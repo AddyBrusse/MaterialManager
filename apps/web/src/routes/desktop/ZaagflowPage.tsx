@@ -221,7 +221,7 @@ function JobModal({ job, onClose, onUpdate }: {
 
     // 2. Update the raw bar's physical remaining length so the calculator
     //    and vorraad pages reflect the actual post-saw stock immediately.
-    rawMaterialsApi.adjustStock(bar.barId, newStock)
+    rawMaterialsApi.adjustStock(bar.barId, newStock, 'used', `Zaagflow ${job.calcNr}`)
       .then(() => qc.invalidateQueries({ queryKey: ['raw-materials'] }))
       .catch(() => {})
 

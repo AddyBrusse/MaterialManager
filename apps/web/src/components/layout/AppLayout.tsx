@@ -6,7 +6,7 @@ import {
   IconClipboardList, IconCalendarEvent, IconTimeline,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { rawMaterialsApi } from '../../api/raw-materials'
 import { initMachines } from '../../api/machines'
 import { initRelaties } from '../../api/relaties'
@@ -171,14 +171,31 @@ function Topbar() {
 }
 
 export function AppLayout() {
+  const qc = useQueryClient()
+
   useEffect(() => {
-    // Populate all in-memory caches from API on startup (runs in background)
-    void initMachines()
-    void initRelaties()
-    void initArticles()
-    void initProjects()
-    void initReservations()
-  }, [])
+    // Populate all in-memory caches from API on startup. These modules expose
+    // a synchronous list()/listSync() read of an in-memory cache that starts
+    // out seeded from localStorage (or hardcoded mock defaults) — pages that
+    // read it via useQuery get that stale snapshot immediately on mount, and
+    // nothing tells them to re-render once the real fetch below resolves.
+    // Invalidate every query relying on these caches so they pick up the
+    // real DB data as soon as it's in, instead of getting stuck showing
+    // whatever was cached/seeded before this load.
+    Promise.all([
+      initMachines(),
+      initRelaties(),
+      initArticles(),
+      initProjects(),
+      initReservations(),
+    ]).then(() => {
+      qc.invalidateQueries({ queryKey: ['machines'] })
+      qc.invalidateQueries({ queryKey: ['relaties'] })
+      qc.invalidateQueries({ queryKey: ['articles'] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['reservations'] })
+    })
+  }, [qc])
 
   return (
     <div className="st-app">

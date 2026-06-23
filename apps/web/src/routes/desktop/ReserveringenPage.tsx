@@ -1,7 +1,11 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { IconTrash, IconCut, IconAlertTriangle, IconPrinter, IconX } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { reservationsStore, type ZaagReservation } from '../../api/reservations'
+import { reservationsStore, initReservations, type ZaagReservation } from '../../api/reservations'
+
+function sortByCreatedDesc(rows: ZaagReservation[]): ZaagReservation[] {
+  return [...rows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+}
 
 function fmm(mm: number) {
   return mm.toLocaleString('nl-NL') + ' mm'
@@ -255,11 +259,17 @@ function ReservationGroup({
 // ── page ──────────────────────────────────────────────────────────────────────
 export function ReserveringenPage() {
   const [reservations, setReservations] = useState<ZaagReservation[]>(() =>
-    reservationsStore.list().sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
+    sortByCreatedDesc(reservationsStore.list())
   )
   const [activeZaagbon, setActiveZaagbon] = useState<string | null>(null)
+
+  // reservationsStore.list() is a snapshot of an in-memory cache that's only
+  // populated once the background initReservations() fetch resolves — the
+  // lazy useState above can capture an empty/stale snapshot taken before
+  // that happens. Re-fetch and refresh local state once the real data is in.
+  useEffect(() => {
+    initReservations().then(() => setReservations(sortByCreatedDesc(reservationsStore.list())))
+  }, [])
 
   const groups = useMemo(() => {
     const map = new Map<string, ZaagReservation[]>()

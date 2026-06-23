@@ -12,9 +12,12 @@ export function RelatieContactenTab({ relatie }: { relatie: Relatie }) {
   useEffect(() => { inited.current = false; setContacts(relatie.contacten) }, [relatie.id]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { inited.current = true }, [])
 
-  // Debounced auto-save
+  // Debounced auto-save — skipped while any contact has a blank name, since
+  // the server requires a non-empty naam per contact; saving mid-edit would
+  // 400 and (worse) get masked by the optimistic local-cache fallback.
   useEffect(() => {
     if (!inited.current) return
+    if (contacts.some(c => !c.naam.trim())) return
     const t = setTimeout(() => {
       relatiesApi.update(relatie.id, { contacten: contacts }).then(() => {
         qc.invalidateQueries({ queryKey: ['relaties', relatie.id] })

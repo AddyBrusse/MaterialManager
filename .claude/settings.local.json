@@ -50,7 +50,20 @@
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen.map\\(s=>\\({id:s.id,dt:s.geplandDatum}\\)\\),null,1\\)\\)}\\)\")",
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen.find\\(s=>s.id==='STAP-A2'\\)\\)\\)}\\)\")",
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen.find\\(s=>s.id==='STAP-A1'\\)\\)\\)}\\)\")",
-      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen,null,1\\)\\)}\\)\")"
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.productieOrders[0].stappen,null,1\\)\\)}\\)\")",
+      "Bash(curl -s http://localhost:3000/api/locations -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\")",
+      "Bash(curl -s http://localhost:3000/api/grades -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\")",
+      "Bash(curl -s http://localhost:3000/api/profiles -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\")",
+      "Bash(curl -s http://localhost:3000/api/machines -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\")",
+      "Bash(DATABASE_URL=\"postgresql://stockmanager:stockmanager@localhost:5432/stockmanager\" npx prisma generate --schema prisma/schema.prisma)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 3000 -State Listen)",
+      "Bash(curl -s http://localhost:3000/api/grades -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\" -w \"\\\\nHTTP:%{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3000/api/raw-materials -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data.map\\(r=>\\({code:r.code,currentStock:r.currentStock}\\)\\),null,1\\)\\)}\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/movements\" -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data,null,1\\)\\)}\\)\")",
+      "Bash(curl -s -X PATCH http://localhost:3000/api/grades/5037b99b-741f-4a0a-bc2a-65f66d45f52a -H \"Content-Type: application/json\" -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\" -d '{\"pricePerKg\":null}' -w \"\\\\nHTTP:%{http_code}\\\\n\")",
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.data.find\\(r=>r.code==='#00009'\\).id\\)}\\)\")"
     ]
   }
 }

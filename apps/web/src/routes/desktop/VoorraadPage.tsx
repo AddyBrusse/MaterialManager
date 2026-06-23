@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
-import { Drawer, Modal, SegmentedControl, NumberInput, Textarea, Stack, Group, Button, Text, Select as MantineSelect } from '@mantine/core'
+import { Drawer, Modal, SegmentedControl, NumberInput, Textarea, Stack, Group, Button, Text } from '@mantine/core'
 import {
   IconDownload, IconScan, IconPlus, IconAlertTriangle,
   IconPackage, IconLayersLinked, IconArrowUp, IconArrowDown,
@@ -274,8 +274,9 @@ function MutatieModal({ row, opened, onClose }: {
   const [reden, setReden]  = useState('')
 
   const adjustMut = useMutation({
-    mutationFn: ({ id, newStock }: { id: string; newStock: number }) =>
-      rawMaterialsApi.adjustStock(id, newStock),
+    mutationFn: ({ id, newStock, reason, note }: {
+      id: string; newStock: number; reason: 'received' | 'used' | 'correction'; note?: string
+    }) => rawMaterialsApi.adjustStock(id, newStock, reason, note),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['raw-materials'] })
       const mm = Number(lengte)
@@ -319,7 +320,8 @@ function MutatieModal({ row, opened, onClose }: {
       newStock = Math.max(mm, 0)
     }
 
-    adjustMut.mutate({ id: safeRow.id, newStock })
+    const reason = type === 'toevoegen' ? 'received' : type === 'afboeken' ? 'used' : 'correction'
+    adjustMut.mutate({ id: safeRow.id, newStock, reason, note: reden || undefined })
   }
 
   return (
@@ -383,15 +385,13 @@ function MutatieModal({ row, opened, onClose }: {
               suffix=" mm"
             />
 
-            <MantineSelect
-              label="Locatie"
-              defaultValue={formatLocation(safeRow.locationSlot)}
-              data={[
-                'Hal A · Stelling 01', 'Hal A · Stelling 02', 'Hal A · Stelling 03',
-                'Hal B · Vak 12', 'Hal B · Vak 14', 'Hal C · Buitenopslag',
-              ]}
-              size="sm"
-            />
+            <div className="st-field">
+              <label style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-3)' }}>
+                Locatie
+              </label>
+              <Text size="sm" mt={4}>{formatLocation(safeRow.locationSlot)}</Text>
+              <Text size="xs" c="dimmed" mt={2}>Wijzig de locatie via "Bewerken" op het materiaal.</Text>
+            </div>
 
             <Textarea
               label="Reden / opmerking"

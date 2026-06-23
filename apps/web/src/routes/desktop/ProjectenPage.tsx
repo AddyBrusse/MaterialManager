@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconPlus, IconDownload, IconFolder, IconDots, IconTrash,
   IconArrowUp, IconArrowDown, IconUsers, IconClipboardList,
@@ -75,10 +76,15 @@ function SortTh({ k, sort, onSort, align, children, style }: {
 export function ProjectenPage() {
   const navigate = useNavigate()
   const user = useUserStore(s => s.user)
+  const qc = useQueryClient()
   const [, forceUpdate] = useState(0)
-  const rerender = () => forceUpdate(n => n + 1)
+  const rerender = () => { forceUpdate(n => n + 1); qc.invalidateQueries({ queryKey: ['projects'] }) }
 
-  const projects = projectsApi.list()
+  // projectsApi.list() reads a synchronous in-memory cache that's only
+  // populated once the background initProjects() fetch resolves — without
+  // going through useQuery, this page never re-renders once that happens,
+  // so it can get stuck showing whatever was cached/seeded at first paint.
+  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => projectsApi.list() })
   const relaties = relatiesApi.listSync()
 
   const [q, setQ] = useState('')
@@ -160,7 +166,8 @@ export function ProjectenPage() {
         <div className="st-page-actions">
           <button className="st-btn"><IconDownload size={14} />Exporteer</button>
           <button className="st-btn primary" onClick={() => {
-            const p = projectsApi.create({ naam: '', relatieId: null, contactId: null, klantRef: null, levertijdDatum: null, notities: '' })
+            const p = projectsApi.create({ naam: 'Nieuw project', relatieId: null, contactId: null, klantRef: null, levertijdDatum: null, notities: '' })
+            qc.invalidateQueries({ queryKey: ['projects'] })
             navigate(`/projecten/${p.id}`)
           }}>
             <IconPlus size={14} />Nieuw project

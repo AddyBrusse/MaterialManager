@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconArrowLeft, IconCheck, IconPencil,
   IconBulb, IconFileText, IconCircleCheck, IconTool,
@@ -92,17 +93,44 @@ export function ProjectDetailPage() {
   const isAdmin      = useUserStore(s => s.user?.role === 'admin')
   const relaties     = relatiesApi.listSync()
 
-  // Load synchronously — safe to do before hooks (not a hook itself)
-  let project: Project | null = null
-  try { project = projectsApi.get(id) } catch {}
+  // projectsApi.get() reads a synchronous in-memory cache that's only
+  // populated once the background initProjects() fetch resolves — on a
+  // fresh load that cache can still be empty at first render. Route it
+  // through useQuery (with retries) instead of reading it once synchronously,
+  // so the page waits for real data instead of permanently showing "not
+  // found" if the first render beat initProjects() to the punch.
+  const { data: project, isPending } = useQuery({
+    queryKey: ['projects', id],
+    queryFn: () => projectsApi.get(id),
+    enabled: !!id,
+    retry: 5,
+    retryDelay: 300,
+  })
 
   const [tab, setTab]       = useState<Tab>('offertes')
-  const [editMode, setEdit] = useState<boolean>(() => !project?.naam)
-  const [meta, setMetaState] = useState<ProjectMeta>(() =>
-    project ? toProjectMeta(project) : { naam: '', relatieId: null, contactId: null, klantRef: '', levertijdDatum: '' }
-  )
+  const [editMode, setEdit] = useState(false)
+  const [meta, setMetaState] = useState<ProjectMeta>({ naam: '', relatieId: null, contactId: null, klantRef: '', levertijdDatum: '' })
+  const qc = useQueryClient()
   const [, forceUpdate] = useState(0)
-  const rerender = () => forceUpdate(n => n + 1)
+  // projectsApi mutations write straight into its in-memory cache and return
+  // synchronously — invalidate so the useQuery above re-reads that cache
+  // (instead of serving its now-stale cached result), same as forceUpdate
+  // used to force a fresh synchronous read under the old code.
+  const rerender = () => { forceUpdate(n => n + 1); qc.invalidateQueries({ queryKey: ['projects', id] }) }
+
+  // Project arrives asynchronously now (see useQuery above) — seed meta/
+  // editMode the first time it loads, same as the old synchronous lazy
+  // initializers did. Guarded so a later background refetch (e.g. another
+  // tab invalidating ['projects']) doesn't stomp on in-progress edits.
+  const metaInited = useRef<string | null>(null)
+  useEffect(() => {
+    if (!project || metaInited.current === project.id) return
+    metaInited.current = project.id
+    setMetaState(toProjectMeta(project))
+    setEdit(!project.naam)
+  }, [project])
+
+  if (isPending) return null
 
   if (!project) {
     return (

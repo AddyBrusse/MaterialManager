@@ -1,4 +1,4 @@
-import type { CreateRawMaterial, UpdateRawMaterial } from '@stockmanager/shared'
+import type { CreateRawMaterial, UpdateRawMaterial, MovementReason } from '@stockmanager/shared'
 import { apiFetch } from './client'
 import { MOCK_GRADES } from './grades'
 import { MOCK_PROFILES } from './profiles'
@@ -200,24 +200,18 @@ export const rawMaterialsApi = {
         return { data: undefined as void }
       }),
 
-  /** Adjust remaining stock length in mm (used by MutatieModal). */
-  adjustStock: (id: string, newCurrentStockMm: number) =>
-    apiFetch<RawMaterialRow>(`/raw-materials/${id}/adjust`, {
+  /**
+   * Adjust remaining stock length in mm (used by MutatieModal) via the
+   * generic /movements endpoint — there never was a `/raw-materials/:id/adjust`
+   * route, so this used to silently fall back to a local-only mock that
+   * couldn't find DB-backed items ("Mutatie mislukt").
+   */
+  adjustStock: (id: string, newCurrentStockMm: number, reason: MovementReason, note?: string) =>
+    apiFetch<{ id: string }>('/movements', {
       method: 'POST',
-      body: JSON.stringify({ currentStock: newCurrentStockMm }),
-    }).catch(() => {
-      const existing = mockStore.find(r => r.id === id)
-      if (!existing) throw new Error('Niet gevonden')
-      const roundedStock = Math.round(newCurrentStockMm)
-      const updated: RawMaterialRow = {
-        ...existing,
-        currentStock: String(roundedStock),
-        // If new stock exceeds the recorded original length, extend it too
-        lengthMm: String(Math.max(roundedStock, Number(existing.lengthMm))),
-        updatedAt: new Date().toISOString(),
-      }
-      mockStore = mockStore.map(r => r.id === id ? updated : r)
-      saveStore(mockStore)
-      return { data: updated }
+      body: JSON.stringify({
+        itemType: 'raw', itemId: id, kind: 'overwrite',
+        amount: Math.round(newCurrentStockMm), reason, note: note || undefined,
+      }),
     }),
 }

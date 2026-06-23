@@ -4,10 +4,10 @@ import {
   IconX, IconCheck, IconArrowBackUp, IconAlertTriangle,
   IconEye, IconEyeOff, IconSortAscending,
 } from '@tabler/icons-react'
-import { projectsApi } from '../../api/projects'
-import { articlesApi } from '../../api/articles'
-import { machinesApi } from '../../api/machines'
-import { relatiesApi } from '../../api/relaties'
+import { projectsApi, initProjects } from '../../api/projects'
+import { articlesApi, initArticles } from '../../api/articles'
+import { machinesApi, initMachines } from '../../api/machines'
+import { relatiesApi, initRelaties } from '../../api/relaties'
 import { useUserStore } from '../../stores/user'
 import {
   getMaandag, weekDagen, toDateStr, formatDagHeader,
@@ -283,6 +283,15 @@ export function PlanningPage() {
   const userName  = useUserStore(state => state.user?.name ?? 'Onbekend')
 
   const rerender = useCallback(() => { setTick(t => t + 1); forceRender(n => n + 1) }, [])
+
+  // projects/articles/machines/relaties are read synchronously from each
+  // module's in-memory cache, which starts out seeded from localStorage (or
+  // hardcoded mock defaults) — re-fetch the real data and force a re-render
+  // once it's in, instead of getting stuck showing stale/seeded data forever.
+  useEffect(() => {
+    Promise.all([initProjects(), initArticles(), initMachines(), initRelaties()]).then(rerender)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function saveUndo(label: string, fn: () => void) {
     undoFnRef.current = fn

@@ -38,7 +38,7 @@ export function RelatiesPage() {
 
   function handleNieuweRelatie() {
     relatiesApi.create({
-      naam: '', type: 'klant', actief: true, land: 'Nederland',
+      naam: 'Nieuwe relatie', type: 'klant', actief: true, land: 'Nederland',
       factuurAdresZelfde: true, afleverAdresZelfde: true, contacten: [],
     }).then(({ data }) => {
       qc.invalidateQueries({ queryKey: ['relaties'] })

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import { IconPlus, IconEdit, IconTrash, IconX, IconCheck, IconChevronDown, IconChevronRight } from '@tabler/icons-react'
@@ -89,7 +89,7 @@ export function LocationsTab() {
               const isDeleteRow = deleteLocId === loc.id
 
               return (
-                <>
+                <React.Fragment key={loc.id}>
                   {/* location row */}
                   {isEditRow ? (
                     <tr key={`${loc.id}-edit`} style={{ background: 'var(--bg-sidebar)' }}>
@@ -229,7 +229,7 @@ export function LocationsTab() {
                       )}
                     </>
                   )}
-                </>
+                </React.Fragment>
               )
             })}
 
