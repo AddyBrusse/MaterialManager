@@ -289,7 +289,7 @@ export const projectsApi = {
             id: `stap_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
             volgorde: i + 1,
             naam,
-            machine: null,
+            machine: naam,
             gereedOp: null,
             gereedDoor: null,
           }))

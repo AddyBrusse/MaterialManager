@@ -210,10 +210,10 @@
 .pg-root .ruler-day {
   border-right: 1px solid var(--border); display: flex; flex-direction: column;
   align-items: center; justify-content: center; flex-shrink: 0;
-  font-size: 10.5px; color: var(--text-3); gap: 0; overflow: hidden;
+  font-size: 10.5px; color: var(--text-3); gap: 2px; overflow: hidden;
 }
-.pg-root .ruler-day .dn { font-weight: 500; }
-.pg-root .ruler-day .dd { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--text-2); }
+.pg-root .ruler-day .dn { font-weight: 500; line-height: 1; }
+.pg-root .ruler-day .dd { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 11px; color: var(--text-2); line-height: 1; }
 .pg-root .ruler-day.weekend { background: var(--bg-chip); }
 .pg-root .ruler-day.today { background: var(--accent-soft); }
 .pg-root .ruler-day.today .dn, .pg-root .ruler-day.today .dd { color: var(--accent); font-weight: 600; }
@@ -229,8 +229,8 @@
 .pg-root .row-label-top { display: flex; align-items: center; gap: 8px; }
 .pg-root .row-ico { width: 24px; height: 24px; border-radius: 5px; background: var(--bg-chip);
   color: var(--text-2); display: grid; place-items: center; flex-shrink: 0; }
-.pg-root .row-label .nm { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.1; }
-.pg-root .row-label .sb { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); }
+.pg-root .row-label .nm { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.1; margin-bottom: 2px; }
+.pg-root .row-label .sb { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); line-height: 1.2; }
 .pg-root .row-label.geen .row-ico { background: transparent; border: 1px dashed var(--border-strong); }
 
 /* capacity mini-bars (one per visible week) */

@@ -82,8 +82,12 @@ export function weekNrForIdx(idx: number, windowStart: Date): number {
 }
 
 // ── Zoom + geometry constants ───────────────────────────────────────────────
+// Picked so each zoom level frames roughly what its name promises on a typical
+// desktop window (~1100px of visible track): "Dag" ≈ 3 days, "Week" ≈ 1.5
+// weeks, "Maand" ≈ 1 month — rather than the old 176/68/24 px/day, which
+// (at that same width) showed ~6 days, ~3 weeks and ~2 months respectively.
 export type ZoomLevel = 'day' | 'week' | 'month'
-export const PX_PER_DAY: Record<ZoomLevel, number> = { day: 176, week: 68, month: 24 }
+export const PX_PER_DAY: Record<ZoomLevel, number> = { day: 320, week: 90, month: 34 }
 export const NODE_H = 42
 export const LANE_GAP = 5
 export const LANE_PAD = 7

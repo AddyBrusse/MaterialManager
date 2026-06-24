@@ -49,7 +49,13 @@ export function minToUren(min: number): string {
 // ── Week helpers ──────────────────────────────────────────────────────────────
 
 export function toDateStr(d: Date): string {
-  return d.toISOString().split('T')[0]
+  // toISOString() converts to UTC first — in any UTC+ timezone (e.g. NL) that
+  // shifts a local-midnight Date back by one calendar day. Format from the
+  // Date's own local fields instead so day-index round-trips stay exact.
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 export function weekDagen(maandag: Date): Date[] {

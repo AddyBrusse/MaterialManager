@@ -63,7 +63,28 @@
       "Bash(curl -s \"http://localhost:3000/api/movements\" -H \"x-user-id: 48bc9dbf-a4c8-45fe-a6fc-b67e7a799884\")",
       "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(JSON.stringify\\(j.data,null,1\\)\\)}\\)\")",
       "Bash(curl -s -X PATCH http://localhost:3000/api/grades/5037b99b-741f-4a0a-bc2a-65f66d45f52a -H \"Content-Type: application/json\" -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\" -d '{\"pricePerKg\":null}' -w \"\\\\nHTTP:%{http_code}\\\\n\")",
-      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.data.find\\(r=>r.code==='#00009'\\).id\\)}\\)\")"
+      "Bash(node -e \"let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const j=JSON.parse\\(d\\);console.log\\(j.data.find\\(r=>r.code==='#00009'\\).id\\)}\\)\")",
+      "Bash(netstat -ano)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5173 -ErrorAction SilentlyContinue | Select-Object LocalPort,State,OwningProcess; Get-Process | Where-Object { $_.ProcessName -match 'node' } | Select-Object Id,ProcessName,StartTime)",
+      "Bash(curl -s -m 5 http://localhost:5173/)",
+      "Bash(echo \"---EXIT:$?---\")",
+      "Bash(curl -s -m 5 -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:5173/planning-gantt)",
+      "Bash(curl -s http://localhost:3000/api/projects -H \"x-user-id: admin\")",
+      "Bash(curl -s http://localhost:3000/api/users)",
+      "Bash(curl -s http://localhost:3000/api/projects -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\")",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s http://localhost:3000/api/projects -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\" -o /tmp/projects.json)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s http://localhost:3000/api/projects -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\" -o ./_debug_projects.json)",
+      "Bash(rm ./_debug_projects.json)",
+      "Bash(curl -s http://localhost:3000/api/articles -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\" -o ./_debug_articles.json)",
+      "Bash(rm ./_debug_articles.json)",
+      "Bash(curl -s -X POST http://localhost:3000/api/projects -H 'x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08' -H 'Content-Type: application/json' -d '{\"naam\":\"Machine-fix verify\",\"relatieId\":null,\"contactId\":null,\"klantRef\":\"verify\",\"levertijdDatum\":null,\"notities\":\"\"}')",
+      "Bash(curl -s -X POST http://localhost:3000/api/projects/PRJ-2026-002/offertes -H 'x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08' -H 'Content-Type: application/json' -o ./_debug_off.json)",
+      "Bash(curl -s -X POST http://localhost:3000/api/projects/PRJ-2026-002/offertes/OFF-2026-004/regels -H 'x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08' -H 'Content-Type: application/json' -d '{\"artikelId\":\"ART-0003\",\"naam\":\"Draai onderdeel op 2 machines\",\"omschrijving\":\"verify\",\"qty\":1,\"eenheid\":\"st.\",\"verkoopprijs\":100,\"bewerkingen\":[\"DMG 450TC EcoLine\",\"Doosan LYNX 2100 LSYB\"]}' -o ./_debug_regel.json)",
+      "Bash(curl -s -X POST http://localhost:3000/api/projects/PRJ-2026-002/offertes/OFF-2026-004/verzend -H 'x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08' -H 'Content-Type: application/json' -o ./_debug_verzend.json)",
+      "Bash(curl -s -X POST http://localhost:3000/api/projects/PRJ-2026-002/offertes/OFF-2026-004/accepteer -H 'x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08' -H 'Content-Type: application/json' -d '{\"userName\":\"Admin\"}' -o ./_debug_accept.json)",
+      "Bash(curl -s -X DELETE http://localhost:3000/api/projects/PRJ-2026-002 -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\" -o /dev/null -w \"DELETE status: %{http_code}\\\\n\")"
     ]
   }
 }

@@ -59,7 +59,6 @@ export function ArticleInfoStrip({
   const contacten = relatie?.contacten ?? []
   const contact = contacten.find(c => c.id === meta.contactId) ?? contacten[0]
   const cur = Number(meta.currentStock) || 0
-  const referentie = `PO-${(article.id.replace(/\D/g, '') || '000000').padEnd(6, '0').slice(0, 6)}`
 
   const toggleOp = (op: string) =>
     onChange({ operations: meta.operations.includes(op) ? meta.operations.filter(o => o !== op) : [...meta.operations, op] })
@@ -90,8 +89,6 @@ export function ArticleInfoStrip({
             ) : (
               <span className="v">{contact ? `${contact.naam}${contact.functie ? ` (${contact.functie})` : ''}` : '—'}</span>
             )}</div>
-          <div className="info-line"><span className="k">Referentie</span>
-            <span className="v mono">{referentie}</span></div>
           <div className="info-line"><span className="k">Aangemaakt</span>
             <span className="v">{fmtDate(article.createdAt)}</span></div>
         </div>

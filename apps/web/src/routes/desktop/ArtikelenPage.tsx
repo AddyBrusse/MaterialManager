@@ -8,12 +8,17 @@ import {
   IconList, IconUser, IconPackage, IconArrowUp, IconArrowDown, IconDots,
   IconMinus, IconPencil, IconTrash,
 } from '@tabler/icons-react'
-import { articlesApi, KNOWN_OPERATIONS, type Article } from '../../api/articles'
+import { articlesApi, KNOWN_OPERATIONS, type Article, type ArticleEstimate } from '../../api/articles'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
+import { machinesApi } from '../../api/machines'
 import { formatDimensions } from '../../api/raw-materials'
+import { buildEstimateCtx, computeEstimateTotals, type EstimateTotals } from '../../api/estimate'
 import { useUserStore } from '../../stores/user'
 import { ArticleForm } from '../../components/articles/ArticleForm'
+
+const EMPTY_ESTIMATE: ArticleEstimate = { marginPct: 0, nodes: [], updatedAt: '' }
+const eur = (n: number) => `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function statusForArt(it: Article) {
@@ -65,6 +70,7 @@ export function ArtikelenPage() {
   const { data: articles = [] } = useQuery({ queryKey: ['articles'], queryFn: () => articlesApi.list() })
   const { data: gradesData }    = useQuery({ queryKey: ['grades'],   queryFn: gradesApi.list })
   const { data: profilesData }  = useQuery({ queryKey: ['profiles'], queryFn: profilesApi.list })
+  const { data: machinesData }  = useQuery({ queryKey: ['machines'], queryFn: machinesApi.list })
 
   const gradeName = useMemo(() => {
     const m = new Map((gradesData?.data ?? []).map(g => [g.id, g.name]))
@@ -74,6 +80,22 @@ export function ArtikelenPage() {
     const m = new Map((profilesData?.data ?? []).map(p => [p.id, p]))
     return (id: string) => m.get(id)
   }, [profilesData])
+
+  // Per-article cost breakdown (materiaal / bewerking / uitbesteding / marge / totaal)
+  // for the extra list columns — same calc as the article detail page.
+  const totalsByArticle = useMemo(() => {
+    const grades = gradesData?.data ?? []
+    const profiles = profilesData?.data ?? []
+    const machines = machinesData?.data ?? []
+    const m = new Map<string, EstimateTotals>()
+    for (const a of articles) {
+      const ctx = buildEstimateCtx(a, grades, profiles.map(p => ({ id: p.id, volumeFormula: p.volumeFormula })), machines)
+      m.set(a.id, computeEstimateTotals(a.estimate ?? EMPTY_ESTIMATE, ctx))
+    }
+    return m
+  }, [articles, gradesData, profilesData, machinesData])
+  const totalsOf = (id: string): EstimateTotals =>
+    totalsByArticle.get(id) ?? { materialTotal: 0, machiningTotal: 0, externalTotal: 0, cost: 0, marginPct: 0, sell: 0, timeMin: 0 }
 
   function formatRecipe(a: Article): { text: string; grade: string } | null {
     if (!a.recipe) return null
@@ -121,13 +143,22 @@ export function ArtikelenPage() {
     if (klant)     f = f.filter(it => it.klant === klant)
     if (bewerking) f = f.filter(it => it.operations.some(o => o.type === bewerking))
     if (status)    f = f.filter(it => statusForArt(it).tag === status)
+    const TOTALS_KEYS: Record<string, keyof EstimateTotals> = {
+      totaalPrijs: 'sell', bewerkingKosten: 'machiningTotal', materiaalKosten: 'materialTotal',
+      uitbestedingKosten: 'externalTotal', marge: 'marginPct',
+    }
     return [...f].sort((a, b) => {
-      const get = (it: Article) => sort.key === 'voorraad' ? it.currentStock : (it as any)[sort.key]
+      const get = (it: Article) => {
+        if (sort.key === 'voorraad') return it.currentStock
+        const totalsKey = TOTALS_KEYS[sort.key]
+        if (totalsKey) return totalsOf(it.id)[totalsKey]
+        return (it as any)[sort.key]
+      }
       const av = get(a), bv = get(b)
       const cmp = typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv), 'nl')
       return sort.dir === 'asc' ? cmp : -cmp
     })
-  }, [articles, q, klant, bewerking, status, sort])
+  }, [articles, q, klant, bewerking, status, sort, totalsByArticle])
 
   const stats = useMemo(() => ({
     total:       articles.length,
@@ -238,6 +269,11 @@ export function ArtikelenPage() {
                 <th style={{ minWidth: 140 }}>Niveau</th>
                 <SortTh k="locatie"  sort={sort} onSort={toggleSort}>Locatie</SortTh>
                 <th>Status</th>
+                <SortTh k="totaalPrijs"        sort={sort} onSort={toggleSort} align="right">Totaal prijs</SortTh>
+                <SortTh k="bewerkingKosten"    sort={sort} onSort={toggleSort} align="right">Bewerkingskosten</SortTh>
+                <SortTh k="materiaalKosten"    sort={sort} onSort={toggleSort} align="right">Materiaalkosten</SortTh>
+                <SortTh k="uitbestedingKosten" sort={sort} onSort={toggleSort} align="right">Uitbestedingskosten</SortTh>
+                <SortTh k="marge"              sort={sort} onSort={toggleSort} align="right">Marge</SortTh>
                 <th style={{ width: 36 }} />
               </tr>
             </thead>
@@ -247,6 +283,7 @@ export function ArtikelenPage() {
                 const rec = formatRecipe(it)
                 const pct = it.maxStock ? Math.min(100, Math.max(0, (it.currentStock / it.maxStock) * 100)) : (it.currentStock > 0 ? 100 : 0)
                 const lvlCls = st.cls === 'ok' || st.cls === 'info' ? '' : st.cls
+                const tot = totalsOf(it.id)
                 return (
                   <tr key={it.id} data-selected={selected.has(it.id)} onClick={() => navigate(`/artikelen/${it.id}`)}>
                     <td className="col-checkbox" onClick={(e) => e.stopPropagation()}>
@@ -288,6 +325,11 @@ export function ArtikelenPage() {
                     </td>
                     <td><span className="cell-muted">{it.locatie ?? '—'}</span></td>
                     <td><span className={`st-badge ${st.cls}`}><span className="dot" />{st.label}</span></td>
+                    <td className="cell-num cell-strong">{eur(tot.sell)}</td>
+                    <td className="cell-num">{eur(tot.machiningTotal)}</td>
+                    <td className="cell-num">{eur(tot.materialTotal)}</td>
+                    <td className="cell-num">{eur(tot.externalTotal)}</td>
+                    <td className="cell-num">{tot.marginPct.toLocaleString('nl-NL')}%</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <Menu position="bottom-end" withinPortal shadow="md">
                         <Menu.Target>
@@ -310,7 +352,7 @@ export function ArtikelenPage() {
                 )
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={10} className="st-empty">Geen artikelen gevonden voor deze filters.</td></tr>
+                <tr><td colSpan={15} className="st-empty">Geen artikelen gevonden voor deze filters.</td></tr>
               )}
             </tbody>
           </table>
