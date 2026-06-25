@@ -1,4 +1,4 @@
-import type { CSSProperties, DragEvent } from 'react'
+import type { CSSProperties } from 'react'
 import { IconInbox, IconCalendar } from '@tabler/icons-react'
 import type { Relatie } from '@stockmanager/shared'
 import {
@@ -16,14 +16,11 @@ interface GanttBacklogPanelProps {
   onSortBy: (v: BacklogSort) => void
   selectedProjectId: string | null
   onSelectCard: (item: PlanningStapItem) => void
-  draggingId: string | null
-  onDragStartStep: (e: DragEvent, item: PlanningStapItem) => void
-  onDragEndStep: () => void
 }
 
 export function GanttBacklogPanel({
   items, relaties, projectFilter, onProjectFilter, sortBy, onSortBy,
-  selectedProjectId, onSelectCard, draggingId, onDragStartStep, onDragEndStep,
+  selectedProjectId, onSelectCard,
 }: GanttBacklogPanelProps) {
   const today = new Date().toISOString().slice(0, 10)
   const projectIds = Array.from(new Set(items.map(i => i.project.id)))
@@ -47,7 +44,7 @@ export function GanttBacklogPanel({
           <span className="t">Te plannen</span>
           <span className="n">{items.length}</span>
         </div>
-        <div className="backlog-sub">Sleep een stap op de tijdlijn om te plannen</div>
+        <div className="backlog-sub">Plan deze stappen in via de Kanban-planner</div>
         <div className="backlog-controls">
           <select value={projectFilter} onChange={e => onProjectFilter(e.target.value)}>
             <option value="all">Alle projecten</option>
@@ -74,11 +71,8 @@ export function GanttBacklogPanel({
           return (
             <div
               key={stap.id}
-              className={`bl-card${draggingId === stap.id ? ' dragging' : ''}${linked ? ' proj-linked' : ''}${dimmed ? ' dimmed' : ''}`}
+              className={`bl-card${linked ? ' proj-linked' : ''}${dimmed ? ' dimmed' : ''}`}
               style={{ '--proj': kleur } as CSSProperties}
-              draggable
-              onDragStart={e => onDragStartStep(e, item)}
-              onDragEnd={onDragEndStep}
               onClick={() => onSelectCard(item)}
             >
               <div className="bl-card-top">

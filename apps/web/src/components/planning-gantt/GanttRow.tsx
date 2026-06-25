@@ -1,10 +1,10 @@
-import type { DragEvent, MouseEvent } from 'react'
+import type { MouseEvent } from 'react'
 import { IconCpu, IconBoxOff } from '@tabler/icons-react'
 import {
   type PlanningStapItem, type GanttMachineRow, type NodePos,
   laneTop, isWeekendIdx, machineWeekLoadFromItems, capStatusLabel,
-  EFFECTIEVE_MIN, weekNrForIdx, fmtDayShort, heeftVolgordeWaarschuwing,
-  TOTAL_DAYS, NODE_H, LANE_PAD, MAX_MIN,
+  EFFECTIEVE_MIN, weekNrForIdx, heeftVolgordeWaarschuwing,
+  TOTAL_DAYS, NODE_H,
 } from '../../utils/planningGanttUtils'
 import { GanttNode } from './GanttNode'
 
@@ -22,23 +22,12 @@ interface GanttRowProps {
   selectedProjectId: string | null
   onSelectNode: (item: PlanningStapItem, e: MouseEvent) => void
   onMarkDone: (item: PlanningStapItem) => void
-  onUnplan: (item: PlanningStapItem) => void
-  draggingItem: PlanningStapItem | null
-  onDragStartStep: (e: DragEvent, item: PlanningStapItem) => void
-  onDragEndStep: () => void
-  drop: { machine: string; day: number } | null
-  onLaneDragOver: (e: DragEvent, machineNaam: string) => void
-  onLaneDrop: (e: DragEvent, machineNaam: string) => void
 }
 
 export function GanttRow({
   row, items, capacityItems, pos, height, pxDay, windowStart, weeks, todayIdx,
-  selectedStep, selectedProjectId, onSelectNode, onMarkDone, onUnplan,
-  draggingItem, onDragStartStep, onDragEndStep,
-  drop, onLaneDragOver, onLaneDrop,
+  selectedStep, selectedProjectId, onSelectNode, onMarkDone,
 }: GanttRowProps) {
-  const isDropRow = drop != null && drop.machine === row.naam
-
   const grid = []
   for (let i = 0; i < TOTAL_DAYS; i++) {
     grid.push(
@@ -84,12 +73,7 @@ export function GanttRow({
         )}
       </div>
 
-      <div
-        className={`lane${isDropRow ? ' drop-active' : ''}`}
-        style={{ width: TOTAL_DAYS * pxDay, height }}
-        onDragOver={e => onLaneDragOver(e, row.naam)}
-        onDrop={e => onLaneDrop(e, row.naam)}
-      >
+      <div className="lane" style={{ width: TOTAL_DAYS * pxDay, height }}>
         <div className="lane-grid">{grid}{weekLines}</div>
 
         {items.map(item => {
@@ -102,28 +86,12 @@ export function GanttRow({
               left={p.left} width={p.width} top={laneTop(p.lane)} height={NODE_H}
               isSelected={selectedStep?.stap.id === item.stap.id}
               isLinked={selectedProjectId === item.project.id}
-              isDragging={draggingItem?.stap.id === item.stap.id}
               showWarnDot={heeftVolgordeWaarschuwing(item)}
               onSelect={onSelectNode}
               onMarkDone={onMarkDone}
-              onUnplan={onUnplan}
-              onDragStart={onDragStartStep}
-              onDragEnd={onDragEndStep}
             />
           )
         })}
-
-        {isDropRow && draggingItem && (() => {
-          const durDays = draggingItem.duurMin / MAX_MIN
-          return (
-            <div
-              className="drop-ghost"
-              style={{ left: drop.day * pxDay + 3, width: Math.max(durDays * pxDay - 6, 36), top: LANE_PAD, height: NODE_H }}
-            >
-              {fmtDayShort(drop.day, windowStart)}
-            </div>
-          )
-        })()}
       </div>
     </div>
   )

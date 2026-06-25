@@ -1,5 +1,5 @@
-import type { DragEvent, MouseEvent, CSSProperties } from 'react'
-import { IconCheck, IconX } from '@tabler/icons-react'
+import type { MouseEvent, CSSProperties } from 'react'
+import { IconCheck } from '@tabler/icons-react'
 import { minToUren, isAchterstand, projectKleur, type PlanningStapItem } from '../../utils/planningGanttUtils'
 
 interface GanttNodeProps {
@@ -7,18 +7,13 @@ interface GanttNodeProps {
   left: number; width: number; top: number; height: number
   isSelected: boolean
   isLinked: boolean
-  isDragging: boolean
   showWarnDot: boolean
   onSelect: (item: PlanningStapItem, e: MouseEvent) => void
   onMarkDone: (item: PlanningStapItem) => void
-  onUnplan: (item: PlanningStapItem) => void
-  onDragStart: (e: DragEvent, item: PlanningStapItem) => void
-  onDragEnd: () => void
 }
 
 export function GanttNode({
-  item, left, width, top, height, isSelected, isLinked, isDragging, showWarnDot,
-  onSelect, onMarkDone, onUnplan, onDragStart, onDragEnd,
+  item, left, width, top, height, isSelected, isLinked, showWarnDot, onSelect, onMarkDone,
 }: GanttNodeProps) {
   const { stap, order } = item
   const done = !!stap.gereedOp
@@ -30,16 +25,12 @@ export function GanttNode({
     isSelected && 'is-selected',
     isLinked && 'proj-linked',
     achter && 'achterstand',
-    isDragging && 'dragging',
   ].filter(Boolean).join(' ')
 
   return (
     <div
       className={classes}
       style={{ '--c': projectKleur(item.project.id), left, width, top, height } as CSSProperties}
-      draggable={!done}
-      onDragStart={e => { e.stopPropagation(); onDragStart(e, item) }}
-      onDragEnd={onDragEnd}
       onClick={e => { e.stopPropagation(); onSelect(item, e) }}
     >
       <div className="nname">
@@ -56,9 +47,6 @@ export function GanttNode({
         <div className="node-actions">
           <button className="na" title="Gereed melden" onClick={e => { e.stopPropagation(); onMarkDone(item) }}>
             <IconCheck size={12} />
-          </button>
-          <button className="na" title="Terug naar backlog" onClick={e => { e.stopPropagation(); onUnplan(item) }}>
-            <IconX size={12} />
           </button>
         </div>
       )}

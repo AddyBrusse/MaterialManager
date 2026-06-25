@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { IconX, IconCheck, IconArrowRight, IconArrowBackUp, IconChevronRight, IconChevronLeft } from '@tabler/icons-react'
+import { IconX, IconCheck, IconArrowRight, IconChevronRight, IconChevronLeft } from '@tabler/icons-react'
 import type { Relatie } from '@stockmanager/shared'
 import {
   type PlanningStapItem, projectKleur, minToUren, klantNaam,
@@ -12,8 +12,6 @@ interface GanttDetailSidebarProps {
   relaties: Relatie[]
   onClose: () => void
   onMarkDone: (item: PlanningStapItem) => void
-  onUnplan: (item: PlanningStapItem) => void
-  onUnplanOrder: (item: PlanningStapItem) => void
   onGoProject: (projectId: string) => void
   onSetDeadline: (projectId: string, newDate: string) => void
 }
@@ -22,7 +20,7 @@ interface GanttDetailSidebarProps {
 // board shrinks via flexbox to make room for it instead of anything covering
 // the board, so the connector lines for the selected order stay visible.
 export function GanttDetailSidebar({
-  item, relaties, onClose, onMarkDone, onUnplan, onUnplanOrder, onGoProject, onSetDeadline,
+  item, relaties, onClose, onMarkDone, onGoProject, onSetDeadline,
 }: GanttDetailSidebarProps) {
   const { stap, order, project } = item
   const [editingDeadline, setEditingDeadline] = useState(false)
@@ -122,16 +120,6 @@ export function GanttDetailSidebar({
             <IconCheck size={13} /> Gereed
           </button>
         )}
-        {stap.geplandDatum != null && (
-          <button className="icon-btn" style={{ width: 32 }} onClick={() => onUnplan(item)} title="Terug naar backlog">
-            <IconX size={14} />
-          </button>
-        )}
-      </div>
-      <div className="np-foot">
-        <button className="ft" onClick={() => onUnplanOrder(item)}>
-          <IconArrowBackUp size={12} /> Hele order terugzetten naar backlog
-        </button>
       </div>
     </div>
   )

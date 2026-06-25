@@ -185,13 +185,11 @@
 .pg-root .bl-card {
   background: var(--bg-2); border: 1px solid var(--border);
   border-left: 3px solid var(--proj, var(--accent));
-  border-radius: var(--radius); padding: 9px 10px 9px 11px; cursor: grab;
+  border-radius: var(--radius); padding: 9px 10px 9px 11px; cursor: pointer;
   display: flex; flex-direction: column; gap: 5px; user-select: none;
   transition: box-shadow .12s, border-color .12s, transform .08s;
 }
 .pg-root .bl-card:hover { box-shadow: var(--shadow-md); }
-.pg-root .bl-card:active { cursor: grabbing; }
-.pg-root .bl-card.dragging { opacity: 0.4; }
 .pg-root .bl-card.proj-linked { box-shadow: 0 0 0 2px var(--proj); }
 .pg-root .bl-card.dimmed { opacity: 0.4; }
 .pg-root .bl-card-top { display: flex; align-items: center; gap: 7px; }
@@ -333,9 +331,6 @@
 }
 
 .pg-root .node:hover { box-shadow: var(--shadow-md); z-index: 3; }
-.pg-root .node[draggable="true"] { cursor: grab; }
-.pg-root .node[draggable="true"]:active { cursor: grabbing; }
-.pg-root .node.dragging { opacity: 0.4; }
 
 /* completed */
 .pg-root .node.done { opacity: 0.5; }
@@ -384,16 +379,6 @@
 .pg-root .gantt-connectors path { fill: none; stroke-width: 2; stroke-linecap: round; opacity: 0.85; }
 .pg-root .gantt-connectors circle { stroke-width: 2; }
 
-/* ===== Ghost overlay ===== */
-/* ===== Drop target highlight ===== */
-.pg-root .lane.drop-active { background: var(--accent-soft); }
-.pg-root .drop-ghost {
-  position: absolute; box-sizing: border-box; border-radius: 5px;
-  background: var(--accent-soft); border: 1.5px dashed var(--accent); z-index: 5;
-  pointer-events: none; display: flex; align-items: center; justify-content: center;
-  font-size: 10.5px; font-weight: 600; color: var(--accent);
-}
-
 /* ===== Detail sidebar — a flex sibling of the board, not an overlay, so it
    never covers other nodes or the connector lines while it's open. ===== */
 .pg-root .detail-sidebar {
@@ -424,13 +409,6 @@
 .pg-root .np-actions { padding: 10px 14px 12px; display: flex; gap: 8px; border-top: 1px solid var(--border); }
 .pg-root .np-actions .btn { flex: 1; justify-content: center; }
 .pg-root .np-close { position: absolute; top: 10px; right: 10px; }
-.pg-root .np-foot { padding: 0 14px 12px; }
-.pg-root .np-foot .ft {
-  background: none; border: 0; color: var(--text-3); font-size: 11.5px;
-  display: inline-flex; align-items: center; gap: 6px; padding: 0; cursor: pointer;
-}
-.pg-root .np-foot .ft:hover { color: var(--text); }
-
 /* small badges reused */
 .pg-root .badge.sm { font-size: 10.5px; padding: 1px 7px; }
 

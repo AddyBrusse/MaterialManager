@@ -10,6 +10,7 @@ import '@mantine/notifications/styles.css'
 import '@mantine/charts/styles.css'
 import './styles/tokens.css'
 import './styles/planning-gantt.css'
+import './styles/planning-kanban.css'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLocalStorage } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
@@ -34,7 +33,6 @@ export function PlanningGanttPage() {
   const [selectedStep, setSelectedStep] = useState<PlanningStapItem | null>(null)
   const [projectFilter, setProjectFilter] = useState('all')
   const [backlogSort, setBacklogSort] = useState<BacklogSort>('default')
-  const [draggingItem, setDraggingItem] = useState<PlanningStapItem | null>(null)
   const [undoStack, setUndoStack] = useState<{ label: string; fn: () => void }[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const toastTimer = useRef<number | undefined>(undefined)
@@ -94,46 +92,8 @@ export function PlanningGanttPage() {
   }
 
   // ── Mutations ────────────────────────────────────────────────────────────────
-
-  function dropPlan(item: PlanningStapItem, machineNaam: string, geplandDatum: string) {
-    const { project, order, stap } = item
-    const prevDatum = stap.geplandDatum ?? null
-    const prevMachine = stap.geplandMachine ?? stap.machine ?? null
-    projectsApi.planStap(project.id, order.id, stap.id, geplandDatum, machineNaam || null)
-    pushUndo(
-      prevDatum ? `Verplaatsing ${stap.id} ongedaan maken` : `${stap.id} terugzetten ongedaan maken`,
-      () => projectsApi.planStap(project.id, order.id, stap.id, prevDatum, prevMachine),
-    )
-    setDraggingItem(null)
-    bump()
-    flash(`${stap.id} ingepland op ${fmtShortNL(geplandDatum)}`)
-  }
-
-  function handleUnplan(item: PlanningStapItem) {
-    const { project, order, stap } = item
-    const prevDatum = stap.geplandDatum ?? null
-    const prevMachine = stap.geplandMachine ?? stap.machine ?? null
-    projectsApi.planStap(project.id, order.id, stap.id, null, null)
-    pushUndo(`${stap.id} opnieuw inplannen ongedaan maken`, () =>
-      projectsApi.planStap(project.id, order.id, stap.id, prevDatum, prevMachine))
-    if (selectedStep?.stap.id === stap.id) clearSel()
-    bump()
-    flash(`${stap.id} terug naar backlog`)
-  }
-
-  function handleUnplanOrder(item: PlanningStapItem) {
-    const { project, order } = item
-    const prev = order.stappen
-      .filter(s => !s.gereedOp)
-      .map(s => ({ id: s.id, datum: s.geplandDatum ?? null, machine: s.geplandMachine ?? s.machine ?? null }))
-    projectsApi.unplanOrder(project.id, order.id)
-    pushUndo(`Inplanning order ${order.id} herstellen`, () => {
-      for (const { id, datum, machine } of prev) projectsApi.planStap(project.id, order.id, id, datum, machine)
-    })
-    clearSel()
-    bump()
-    flash(`${order.id}: ${prev.length} stappen teruggezet`)
-  }
+  // Scheduling (plan/move/unplan) now happens exclusively in the Kanban
+  // planner — this board is read-only: completion + deadline edits only.
 
   function handleMarkDone(item: PlanningStapItem) {
     const { project, order, stap } = item
@@ -169,13 +129,6 @@ export function PlanningGanttPage() {
     }
   }
 
-  function onDragStartStep(e: DragEvent, item: PlanningStapItem) {
-    setDraggingItem(item)
-    e.dataTransfer.effectAllowed = 'move'
-    try { e.dataTransfer.setData('text/plain', item.stap.id) } catch { /* unsupported in some browsers */ }
-  }
-  function onDragEndStep() { setDraggingItem(null) }
-
   // ── Data ─────────────────────────────────────────────────────────────────────
 
   const projects = projectsApi.list()
@@ -200,7 +153,7 @@ export function PlanningGanttPage() {
       <div className="st-page-hd">
         <div>
           <div className="st-page-title">Planning (Gantt)</div>
-          <div className="st-page-sub">Horizontale tijdlijn — sleep stappen op de tijdlijn om in te plannen</div>
+          <div className="st-page-sub">Horizontale tijdlijn — overzicht van de werkbelasting (inplannen gaat via Kanban)</div>
         </div>
         <div className="st-page-actions">
           <button className="st-btn ghost" onClick={() => scrollApiRef.current?.toToday()}>
@@ -249,8 +202,6 @@ export function PlanningGanttPage() {
           sortBy={backlogSort} onSortBy={setBacklogSort}
           selectedProjectId={selectedStep?.project.id ?? null}
           onSelectCard={item => setSelectedStep(item)}
-          draggingId={draggingItem?.stap.id ?? null}
-          onDragStartStep={onDragStartStep} onDragEndStep={onDragEndStep}
         />
         <GanttBoard
           zoom={zoom} blockStyle={blockStyle} linkStyle={linkStyle}
@@ -258,15 +209,14 @@ export function PlanningGanttPage() {
           machines={machines} scheduledItems={scheduledItems}
           selectedStep={selectedStep} selectedProjectId={selectedStep?.project.id ?? null}
           onSelectNode={selectNode} onClearSelection={clearSel}
-          onMarkDone={handleMarkDone} onUnplan={handleUnplan} onDrop={dropPlan}
-          draggingItem={draggingItem} onDragStartStep={onDragStartStep} onDragEndStep={onDragEndStep}
+          onMarkDone={handleMarkDone}
           scrollApiRef={scrollApiRef}
         />
         {selectedStep && (
           <GanttDetailSidebar
             item={selectedStep} relaties={relaties}
-            onClose={clearSel} onMarkDone={handleMarkDone} onUnplan={handleUnplan}
-            onUnplanOrder={handleUnplanOrder} onGoProject={handleGoProject} onSetDeadline={handleSetDeadline}
+            onClose={clearSel} onMarkDone={handleMarkDone}
+            onGoProject={handleGoProject} onSetDeadline={handleSetDeadline}
           />
         )}
       </div>

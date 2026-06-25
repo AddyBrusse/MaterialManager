@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent, MouseEvent, MutableRefObject, RefObject } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
+import type { MouseEvent, MutableRefObject, RefObject } from 'react'
 import { useResizeObserver } from '@mantine/hooks'
 import type { Machine } from '../../api/machines'
 import {
   type PlanningStapItem, type ZoomLevel,
   TARGET_DAYS, MIN_PX_PER_DAY, MAX_PX_PER_DAY, TOTAL_DAYS, LABEL_W, NODE_H,
-  todayIndex, dateStrForDayIndex,
+  todayIndex,
   buildMachineRows, effectiveMachine, computeRowLayout, laneTop,
   dayIndexForDate, projectKleur,
 } from '../../utils/planningGanttUtils'
@@ -28,11 +28,6 @@ interface GanttBoardProps {
   onSelectNode: (item: PlanningStapItem, e: MouseEvent) => void
   onClearSelection: () => void
   onMarkDone: (item: PlanningStapItem) => void
-  onUnplan: (item: PlanningStapItem) => void
-  onDrop: (item: PlanningStapItem, machineNaam: string, geplandDatum: string) => void
-  draggingItem: PlanningStapItem | null
-  onDragStartStep: (e: DragEvent, item: PlanningStapItem) => void
-  onDragEndStep: () => void
   scrollApiRef: MutableRefObject<GanttScrollApi | null>
 }
 
@@ -43,7 +38,7 @@ function clamp(v: number, min: number, max: number): number {
 export function GanttBoard({
   zoom, blockStyle, linkStyle, showDone, windowStart, machines, scheduledItems,
   selectedStep, selectedProjectId, onSelectNode, onClearSelection,
-  onMarkDone, onUnplan, onDrop, draggingItem, onDragStartStep, onDragEndStep, scrollApiRef,
+  onMarkDone, scrollApiRef,
 }: GanttBoardProps) {
   // pxDay is derived from the actually-rendered track width, not a fixed
   // constant, so "Dag/Week/Maand" frame roughly what they promise on this
@@ -54,8 +49,6 @@ export function GanttBoard({
   const trackW = TOTAL_DAYS * pxDay
   const weeks = TOTAL_DAYS / 7
   const todayIdx = todayIndex(windowStart)
-
-  const [drop, setDrop] = useState<{ machine: string; day: number } | null>(null)
 
   const machineRows = useMemo(() => buildMachineRows(machines), [machines])
 
@@ -95,25 +88,6 @@ export function GanttBoard({
     pts.sort((a, b) => a.day - b.day || a.volgorde - b.volgorde)
     return pts
   }, [selectedProjectId, linkStyle, layout, windowStart])
-
-  function onLaneDragOver(e: DragEvent, machineNaam: string) {
-    if (!draggingItem) return
-    e.preventDefault()
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const day = Math.max(0, Math.min(TOTAL_DAYS - 1, Math.floor(x / pxDay)))
-    setDrop(prev => (!prev || prev.machine !== machineNaam || prev.day !== day) ? { machine: machineNaam, day } : prev)
-  }
-  function onLaneDrop(e: DragEvent, machineNaam: string) {
-    if (!draggingItem) return
-    e.preventDefault()
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const day = Math.max(0, Math.min(TOTAL_DAYS - 1, Math.floor(x / pxDay)))
-    onDrop(draggingItem, machineNaam, dateStrForDayIndex(day, windowStart))
-    setDrop(null)
-  }
-  useEffect(() => { if (!draggingItem) setDrop(null) }, [draggingItem])
 
   // Snap to "today" once the track width is first measured, and again
   // whenever the user explicitly changes zoom — but NOT on every resize-
@@ -161,9 +135,7 @@ export function GanttBoard({
                 pos={r.pos} height={r.height}
                 pxDay={pxDay} windowStart={windowStart} weeks={weeks} todayIdx={todayIdx}
                 selectedStep={selectedStep} selectedProjectId={selectedProjectId}
-                onSelectNode={onSelectNode} onMarkDone={onMarkDone} onUnplan={onUnplan}
-                draggingItem={draggingItem} onDragStartStep={onDragStartStep} onDragEndStep={onDragEndStep}
-                drop={drop} onLaneDragOver={onLaneDragOver} onLaneDrop={onLaneDrop}
+                onSelectNode={onSelectNode} onMarkDone={onMarkDone}
               />
             ))}
 
