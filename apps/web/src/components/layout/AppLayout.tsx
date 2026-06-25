@@ -3,7 +3,7 @@ import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
-  IconClipboardList, IconCalendarEvent, IconTimeline,
+  IconClipboardList, IconCalendarEvent, IconTimeline, IconChartBar,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -27,6 +27,7 @@ import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
 import { PlanningPage } from '../../routes/desktop/PlanningPage'
 import { PlanningGanttPage } from '../../routes/desktop/PlanningGanttPage'
+import { PrognosePage } from '../../routes/desktop/PrognosePage'
 
 function getInitials(name: string) {
   const parts = name.trim().split(' ')
@@ -72,6 +73,7 @@ function Sidebar() {
         { to: '/projecten',       label: 'Projecten',       Icon: IconClipboardList,  count: null },
         { to: '/planning',        label: 'Planning',        Icon: IconCalendarEvent,  count: null },
         { to: '/planning-gantt',  label: 'Planning (Gantt)', Icon: IconTimeline,      count: null },
+        { to: '/prognose',        label: 'Prognose',        Icon: IconChartBar,      count: null },
       ],
     },
   ]
@@ -142,6 +144,7 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/projecten':       ['Productie',        'Projecten'],
   '/planning':        ['Productie',        'Planning'],
   '/planning-gantt':  ['Productie',        'Planning (Gantt)'],
+  '/prognose':        ['Productie',        'Prognose'],
 }
 
 function Topbar() {
@@ -219,6 +222,7 @@ export function AppLayout() {
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
             <Route path="/planning"        element={<PlanningPage />} />
             <Route path="/planning-gantt"  element={<PlanningGanttPage />} />
+            <Route path="/prognose"        element={<PrognosePage />} />
             <Route path="*"               element={<Navigate to="/voorraad" replace />} />
           </Routes>
         </div>

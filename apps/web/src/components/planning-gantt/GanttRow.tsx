@@ -3,21 +3,21 @@ import { IconCpu, IconBoxOff } from '@tabler/icons-react'
 import {
   type PlanningStapItem, type GanttMachineRow, type NodePos,
   laneTop, isWeekendIdx, machineWeekLoadFromItems, capStatusLabel,
-  EFFECTIEVE_MIN, MAX_MIN, weekNrForIdx, fmtDayShort, heeftVolgordeWaarschuwing,
-  TOTAL_DAYS, NODE_H, GHOST_H, LANE_PAD,
+  EFFECTIEVE_MIN, weekNrForIdx, fmtDayShort, heeftVolgordeWaarschuwing,
+  TOTAL_DAYS, NODE_H, LANE_PAD, MAX_MIN,
 } from '../../utils/planningGanttUtils'
 import { GanttNode } from './GanttNode'
 
 interface GanttRowProps {
   row: GanttMachineRow
   items: PlanningStapItem[]               // rendered nodes (respects the "Gereed" toggle)
-  capacityItems: PlanningStapItem[]       // all non-done scheduled steps for this machine, for cap bars
+  capacityItems: PlanningStapItem[]       // all non-done scheduled steps for this machine, for the cap bar
   pos: Record<string, NodePos>
   height: number
-  realH: number
   pxDay: number
   windowStart: Date
   weeks: number
+  todayIdx: number
   selectedStep: PlanningStapItem | null
   selectedProjectId: string | null
   onSelectNode: (item: PlanningStapItem, e: MouseEvent) => void
@@ -29,15 +29,13 @@ interface GanttRowProps {
   drop: { machine: string; day: number } | null
   onLaneDragOver: (e: DragEvent, machineNaam: string) => void
   onLaneDrop: (e: DragEvent, machineNaam: string) => void
-  showGhost: boolean
-  ghostByWeek: number[]
 }
 
 export function GanttRow({
-  row, items, capacityItems, pos, height, realH, pxDay, windowStart, weeks,
+  row, items, capacityItems, pos, height, pxDay, windowStart, weeks, todayIdx,
   selectedStep, selectedProjectId, onSelectNode, onMarkDone, onUnplan,
   draggingItem, onDragStartStep, onDragEndStep,
-  drop, onLaneDragOver, onLaneDrop, showGhost, ghostByWeek,
+  drop, onLaneDragOver, onLaneDrop,
 }: GanttRowProps) {
   const isDropRow = drop != null && drop.machine === row.naam
 
@@ -55,6 +53,15 @@ export function GanttRow({
     weekLines.push(<div key={w} className="lane-weekline" style={{ left: w * 7 * pxDay }} />)
   }
 
+  // The window now spans many months, so a per-week sparkline (one bar per
+  // week) no longer fits the 196px label column — show this week's capacity
+  // only; the Prognose page is the place for the over-time view.
+  const thisWeekStart = Math.floor(todayIdx / 7) * 7
+  const thisWeekLoad = machineWeekLoadFromItems(capacityItems, row.naam, thisWeekStart, windowStart)
+  const cap = EFFECTIEVE_MIN * 5
+  const capStatus = capStatusLabel(thisWeekLoad)
+  const capPct = Math.min(100, Math.round((thisWeekLoad / cap) * 100))
+
   return (
     <div className="gantt-row" style={{ height }}>
       <div className={`row-label${row.isGeen ? ' geen' : ''}`}>
@@ -67,20 +74,12 @@ export function GanttRow({
         </div>
         {!row.isGeen && (
           <div className="cap-bars">
-            {Array.from({ length: weeks }, (_, w) => {
-              const load = machineWeekLoadFromItems(capacityItems, row.naam, w * 7, windowStart)
-              const cap = EFFECTIEVE_MIN * 5
-              const status = capStatusLabel(load)
-              const pct = Math.min(100, Math.round((load / cap) * 100))
-              return (
-                <div
-                  key={w} className="cap-bar"
-                  title={`wk ${weekNrForIdx(w * 7, windowStart)}: ${(load / 60).toFixed(1)}u / ${(cap / 60).toFixed(1)}u`}
-                >
-                  <i className={status} style={{ width: `${pct}%` }} />
-                </div>
-              )
-            })}
+            <div
+              className="cap-bar"
+              title={`deze week (wk ${weekNrForIdx(thisWeekStart, windowStart)}): ${(thisWeekLoad / 60).toFixed(1)}u / ${(cap / 60).toFixed(1)}u`}
+            >
+              <i className={capStatus} style={{ width: `${capPct}%` }} />
+            </div>
           </div>
         )}
       </div>
@@ -92,20 +91,6 @@ export function GanttRow({
         onDrop={e => onLaneDrop(e, row.naam)}
       >
         <div className="lane-grid">{grid}{weekLines}</div>
-
-        {showGhost && !row.isGeen && ghostByWeek.map((g, w) => {
-          if (g <= 0) return null
-          const durDays = g / MAX_MIN
-          return (
-            <div
-              key={`g${w}`} className="ghost-node"
-              style={{ left: (w * 7 + 0.15) * pxDay, width: Math.max(durDays * pxDay, 40), top: realH, height: GHOST_H }}
-            >
-              <span className="gn">Prognose · {(g / 60).toFixed(1)}u</span>
-              <span className="gm">uit offertes</span>
-            </div>
-          )
-        })}
 
         {items.map(item => {
           const p = pos[item.stap.id]

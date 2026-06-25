@@ -1,15 +1,14 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import { IconX, IconCheck, IconArrowRight, IconArrowBackUp } from '@tabler/icons-react'
+import { IconX, IconCheck, IconArrowRight, IconArrowBackUp, IconChevronRight, IconChevronLeft } from '@tabler/icons-react'
 import type { Relatie } from '@stockmanager/shared'
 import {
   type PlanningStapItem, projectKleur, minToUren, klantNaam,
   heeftVolgordeWaarschuwing, isAchterstand, effectiveMachine,
 } from '../../utils/planningGanttUtils'
 
-interface GanttNodePopoverProps {
+interface GanttDetailSidebarProps {
   item: PlanningStapItem
-  pos: { x: number; y: number }
   relaties: Relatie[]
   onClose: () => void
   onMarkDone: (item: PlanningStapItem) => void
@@ -19,11 +18,15 @@ interface GanttNodePopoverProps {
   onSetDeadline: (projectId: string, newDate: string) => void
 }
 
-export function GanttNodePopover({
-  item, pos, relaties, onClose, onMarkDone, onUnplan, onUnplanOrder, onGoProject, onSetDeadline,
-}: GanttNodePopoverProps) {
+// A persistent right-side panel rather than a cursor-anchored popover — the
+// board shrinks via flexbox to make room for it instead of anything covering
+// the board, so the connector lines for the selected order stay visible.
+export function GanttDetailSidebar({
+  item, relaties, onClose, onMarkDone, onUnplan, onUnplanOrder, onGoProject, onSetDeadline,
+}: GanttDetailSidebarProps) {
   const { stap, order, project } = item
   const [editingDeadline, setEditingDeadline] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
   const kleur = projectKleur(project.id)
   const done = !!stap.gereedOp
   const achter = isAchterstand(stap)
@@ -31,10 +34,23 @@ export function GanttNodePopover({
   const machineNaam = effectiveMachine(stap) || 'Geen machine'
   const totaalStappen = order.stappen.length
 
+  if (collapsed) {
+    return (
+      <div className="ds-tab" title="Details tonen" onClick={() => setCollapsed(false)}>
+        <IconChevronLeft size={14} />
+      </div>
+    )
+  }
+
   return (
-    <div className="node-pop" style={{ left: pos.x, top: pos.y, '--c': kleur } as CSSProperties}>
+    <div className="detail-sidebar" style={{ '--c': kleur } as CSSProperties}>
       <div className="np-head">
-        <button className="icon-btn np-close" onClick={onClose}><IconX size={14} /></button>
+        <button className="icon-btn np-close" onClick={() => setCollapsed(true)} title="Inklappen">
+          <IconChevronRight size={14} />
+        </button>
+        <button className="icon-btn" style={{ position: 'absolute', top: 10, right: 38 }} onClick={onClose} title="Sluiten">
+          <IconX size={14} />
+        </button>
         <div className="np-proj">
           <span className="d" />
           <span className="id">{project.id}</span>

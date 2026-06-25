@@ -14,7 +14,7 @@ import {
 
 export {
   projectKleur, minToUren, vindAchterstanden, heeftVolgordeWaarschuwing,
-  EFFECTIEVE_MIN, MAX_MIN,
+  EFFECTIEVE_MIN, MAX_MIN, toDateStr,
 } from './planningUtils'
 export type { PlanningStapItem } from './planningUtils'
 
@@ -22,9 +22,11 @@ export type { PlanningStapItem } from './planningUtils'
 // Rolling window anchored on "this week": a couple of weeks of history (so
 // achterstand context stays visible) plus a production-horizon's worth of
 // future weeks. Unlike the design mock's fixed Jun–Jul window, this is
-// recomputed from the real calendar every time the page loads.
+// recomputed from the real calendar every time the page loads. FUTURE_WEEKS
+// covers a minimum of ~8 months so both the board and the Prognose chart have
+// enough runway for real capacity planning, not just the next sprint.
 const PAST_WEEKS = 2
-const FUTURE_WEEKS = 10
+const FUTURE_WEEKS = 35
 export const TOTAL_DAYS = (PAST_WEEKS + FUTURE_WEEKS) * 7
 
 export function getWindowStart(): Date {
@@ -82,16 +84,17 @@ export function weekNrForIdx(idx: number, windowStart: Date): number {
 }
 
 // ── Zoom + geometry constants ───────────────────────────────────────────────
-// Picked so each zoom level frames roughly what its name promises on a typical
-// desktop window (~1100px of visible track): "Dag" ≈ 3 days, "Week" ≈ 1.5
-// weeks, "Maand" ≈ 1 month — rather than the old 176/68/24 px/day, which
-// (at that same width) showed ~6 days, ~3 weeks and ~2 months respectively.
+// pxDay is computed dynamically from the rendered track width (see
+// GanttBoard's useResizeObserver), targeting roughly this many visible days
+// per zoom level — rather than a fixed px/day, which can't adapt to the
+// actual screen, so "Dag" might show 3 days on one monitor and 8 on another.
 export type ZoomLevel = 'day' | 'week' | 'month'
-export const PX_PER_DAY: Record<ZoomLevel, number> = { day: 320, week: 90, month: 34 }
+export const TARGET_DAYS: Record<ZoomLevel, number> = { day: 3, week: 10, month: 30 }
+export const MIN_PX_PER_DAY = 40
+export const MAX_PX_PER_DAY = 600
 export const NODE_H = 42
 export const LANE_GAP = 5
 export const LANE_PAD = 7
-export const GHOST_H = 28
 export const LABEL_W = 196
 
 // ── Machine rows ─────────────────────────────────────────────────────────────
@@ -174,18 +177,16 @@ export function packMachineLane(
   return { pos, nLanes: Math.max(laneEnds.length, 1) }
 }
 
-export interface RowLayout { pos: Record<string, NodePos>; nLanes: number; height: number; realH: number }
+export interface RowLayout { pos: Record<string, NodePos>; nLanes: number; height: number }
 
 export function computeRowLayout(
   steps: PlanningStapItem[],
-  hasGhost: boolean,
   windowStart: Date,
   pxDay: number,
 ): RowLayout {
   const { pos, nLanes } = packMachineLane(steps, windowStart, pxDay)
-  const realH = LANE_PAD * 2 + nLanes * NODE_H + (nLanes - 1) * LANE_GAP
-  const height = realH + (hasGhost ? GHOST_H + 4 : 0)
-  return { pos, nLanes, height, realH }
+  const height = LANE_PAD * 2 + nLanes * NODE_H + (nLanes - 1) * LANE_GAP
+  return { pos, nLanes, height }
 }
 
 export function laneTop(lane: number): number {
@@ -199,16 +200,23 @@ export function capStatusLabel(min: number): 'ok' | 'warn' | 'over' {
   return 'ok'
 }
 
-export function machineWeekLoadFromItems(items: PlanningStapItem[], machineNaam: string, weekStartIdx: number, windowStart: Date): number {
+/** Scheduled (real) workload minutes for a machine within an arbitrary [startDay, endDay) range. */
+export function machineLoadInRange(
+  items: PlanningStapItem[], machineNaam: string, startDay: number, endDay: number, windowStart: Date,
+): number {
   let min = 0
   for (const item of items) {
     if (item.stap.gereedOp) continue
     if (item.stap.geplandDatum == null) continue
     if (effectiveMachine(item.stap) !== machineNaam) continue
     const day = dayIndexForDate(item.stap.geplandDatum, windowStart)
-    if (day >= weekStartIdx && day < weekStartIdx + 7) min += item.duurMin
+    if (day >= startDay && day < endDay) min += item.duurMin
   }
   return min
+}
+
+export function machineWeekLoadFromItems(items: PlanningStapItem[], machineNaam: string, weekStartIdx: number, windowStart: Date): number {
+  return machineLoadInRange(items, machineNaam, weekStartIdx, weekStartIdx + 7, windowStart)
 }
 
 // ── Ghost / Prognose workload from open offertes ────────────────────────────
@@ -265,6 +273,15 @@ function matchesMachineNaam(bewerkingNaam: string, machineNaam: string): boolean
 
 export function ghostLoadFor(ghostMap: Map<string, Map<number, number>>, machineNaam: string, weekIdx: number): number {
   return Math.round(ghostMap.get(machineNaam)?.get(weekIdx) ?? 0)
+}
+
+/** Sum of ghost (forecast) minutes for a machine across a range of week indices — used to bucket the weekly ghost map into wider (e.g. monthly) chart periods. */
+export function ghostLoadInRange(
+  ghostMap: Map<string, Map<number, number>>, machineNaam: string, startWeekIdx: number, endWeekIdx: number,
+): number {
+  let min = 0
+  for (let w = startWeekIdx; w < endWeekIdx; w++) min += ghostLoadFor(ghostMap, machineNaam, w)
+  return min
 }
 
 // ── KPI row ──────────────────────────────────────────────────────────────────

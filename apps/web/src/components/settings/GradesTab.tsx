@@ -7,15 +7,18 @@ import type { Grade } from '@stockmanager/shared'
 
 type Num = number | ''
 type EditState = { id: string; name: string; densityKgM3: Num; pricePerKg: Num } | null
-type AddState  = { name: string; densityKgM3: Num; pricePerKg: Num } | null
+type AddState = { name: string; densityKgM3: Num; pricePerKg: Num } | null
 
 export function GradesTab() {
   const qc = useQueryClient()
-  const { data } = useQuery({ queryKey: ['grades'], queryFn: gradesApi.list })
-  const grades = data?.data ?? []
+  const { data: grades = [] } = useQuery({
+    queryKey: ['grades'], queryFn: gradesApi.list, select: (data) => {
+      return [...data.data].sort((a, b) => a.name.localeCompare(b.name));
+    }
+  })
 
   const [edit, setEdit] = useState<EditState>(null)
-  const [add, setAdd]   = useState<AddState>(null)
+  const [add, setAdd] = useState<AddState>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['grades'] })

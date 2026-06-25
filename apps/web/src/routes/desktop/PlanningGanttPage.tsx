@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { DragEvent, MouseEvent } from 'react'
+import type { DragEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLocalStorage } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
@@ -12,12 +12,13 @@ import { useUserStore } from '../../stores/user'
 import {
   type PlanningStapItem, type ZoomLevel,
   buildStapItems, vindAchterstanden, berekenGanttKpis, projectKleur,
+  getWindowStart, toDateStr, dayIndexForDate,
 } from '../../utils/planningGanttUtils'
 import { GanttKpiRow } from '../../components/planning-gantt/GanttKpiRow'
 import { GanttToolbar, type BlockStyle, type LinkStyle } from '../../components/planning-gantt/GanttToolbar'
 import { GanttBacklogPanel, type BacklogSort } from '../../components/planning-gantt/GanttBacklogPanel'
-import { GanttBoard } from '../../components/planning-gantt/GanttBoard'
-import { GanttNodePopover } from '../../components/planning-gantt/GanttNodePopover'
+import { GanttBoard, type GanttScrollApi } from '../../components/planning-gantt/GanttBoard'
+import { GanttDetailSidebar } from '../../components/planning-gantt/GanttDetailSidebar'
 
 function fmtShortNL(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
@@ -31,20 +32,29 @@ export function PlanningGanttPage() {
   const bump = () => setRev(r => r + 1)
 
   const [selectedStep, setSelectedStep] = useState<PlanningStapItem | null>(null)
-  const [popPos, setPopPos] = useState<{ x: number; y: number } | null>(null)
   const [projectFilter, setProjectFilter] = useState('all')
   const [backlogSort, setBacklogSort] = useState<BacklogSort>('default')
   const [draggingItem, setDraggingItem] = useState<PlanningStapItem | null>(null)
   const [undoStack, setUndoStack] = useState<{ label: string; fn: () => void }[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const toastTimer = useRef<number | undefined>(undefined)
-  const scrollApiRef = useRef<{ toToday: () => void } | null>(null)
+  const scrollApiRef = useRef<GanttScrollApi | null>(null)
 
   const [zoom, setZoom] = useLocalStorage<ZoomLevel>({ key: 'sm_pg_zoom', defaultValue: 'week' })
   const [blockStyle, setBlockStyle] = useLocalStorage<BlockStyle>({ key: 'sm_pg_blockstyle', defaultValue: 'rand' })
   const [linkStyle, setLinkStyle] = useLocalStorage<LinkStyle>({ key: 'sm_pg_linkstyle', defaultValue: 'gloed' })
-  const [showGhost, setShowGhost] = useLocalStorage({ key: 'sm_pg_ghost', defaultValue: false })
   const [showDone, setShowDone] = useLocalStorage({ key: 'sm_pg_showdone', defaultValue: true })
+
+  // Rolling window anchor — recomputed on day rollover so "vandaag" and the
+  // window stay correct without requiring a manual page reload.
+  const [windowStart, setWindowStart] = useState(getWindowStart)
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const fresh = getWindowStart()
+      if (toDateStr(fresh) !== toDateStr(windowStart)) setWindowStart(fresh)
+    }, 60_000)
+    return () => window.clearInterval(id)
+  }, [windowStart])
 
   function pushUndo(label: string, fn: () => void) {
     setUndoStack(s => [...s, { label, fn }])
@@ -56,7 +66,7 @@ export function PlanningGanttPage() {
     setUndoStack(s => s.slice(0, -1))
     bump()
   }
-  function clearSel() { setSelectedStep(null); setPopPos(null) }
+  function clearSel() { setSelectedStep(null) }
 
   useEffect(() => {
     // AppLayout already kicks these off on app mount, but that fetch can still be
@@ -147,11 +157,16 @@ export function PlanningGanttPage() {
     flash(`Gefilterd op project ${projectId}`)
   }
 
-  function selectNode(item: PlanningStapItem, e: MouseEvent) {
+  function selectNode(item: PlanningStapItem) {
     setSelectedStep(item)
-    const x = Math.min(e.clientX + 8, window.innerWidth - 312)
-    const y = Math.min(e.clientY + 8, window.innerHeight - 380)
-    setPopPos({ x: Math.max(12, x), y: Math.max(12, y) })
+  }
+
+  function selectSearchResult(item: PlanningStapItem) {
+    setSelectedStep(item)
+    if (item.stap.geplandDatum != null) {
+      const dayIdx = dayIndexForDate(item.stap.geplandDatum, windowStart)
+      scrollApiRef.current?.scrollToDay(dayIdx)
+    }
   }
 
   function onDragStartStep(e: DragEvent, item: PlanningStapItem) {
@@ -208,8 +223,8 @@ export function PlanningGanttPage() {
         linkStyle={linkStyle} onLinkStyle={setLinkStyle}
         undoLabel={undoStack.length ? undoStack[undoStack.length - 1].label : null}
         onUndo={doUndo}
-        showGhost={showGhost} onToggleGhost={() => setShowGhost(g => !g)}
         showDone={showDone} onToggleDone={() => setShowDone(d => !d)}
+        allItems={allItems} relaties={relaties} onSelectSearch={selectSearchResult}
       />
 
       {achterItems.length > 0 && (
@@ -218,7 +233,7 @@ export function PlanningGanttPage() {
           <span><b>{achterItems.length}</b> {achterItems.length === 1 ? 'stap' : 'stappen'} over tijd, nog niet gereed</span>
           <div className="chips">
             {achterItems.map(item => (
-              <button key={item.stap.id} className="ab-chip" onClick={e => selectNode(item, e)}>
+              <button key={item.stap.id} className="ab-chip" onClick={() => selectNode(item)}>
                 <span className="d" style={{ background: projectKleur(item.project.id) }} />
                 {item.project.id} · {item.stap.geplandDatum && fmtShortNL(item.stap.geplandDatum)}
               </button>
@@ -233,30 +248,28 @@ export function PlanningGanttPage() {
           projectFilter={projectFilter} onProjectFilter={setProjectFilter}
           sortBy={backlogSort} onSortBy={setBacklogSort}
           selectedProjectId={selectedStep?.project.id ?? null}
-          onSelectCard={item => { setSelectedStep(item); setPopPos(null) }}
+          onSelectCard={item => setSelectedStep(item)}
           draggingId={draggingItem?.stap.id ?? null}
           onDragStartStep={onDragStartStep} onDragEndStep={onDragEndStep}
         />
         <GanttBoard
           zoom={zoom} blockStyle={blockStyle} linkStyle={linkStyle}
-          showDone={showDone} showGhost={showGhost}
+          showDone={showDone} windowStart={windowStart}
           machines={machines} scheduledItems={scheduledItems}
-          projects={projects} articles={articles}
           selectedStep={selectedStep} selectedProjectId={selectedStep?.project.id ?? null}
           onSelectNode={selectNode} onClearSelection={clearSel}
           onMarkDone={handleMarkDone} onUnplan={handleUnplan} onDrop={dropPlan}
           draggingItem={draggingItem} onDragStartStep={onDragStartStep} onDragEndStep={onDragEndStep}
           scrollApiRef={scrollApiRef}
         />
+        {selectedStep && (
+          <GanttDetailSidebar
+            item={selectedStep} relaties={relaties}
+            onClose={clearSel} onMarkDone={handleMarkDone} onUnplan={handleUnplan}
+            onUnplanOrder={handleUnplanOrder} onGoProject={handleGoProject} onSetDeadline={handleSetDeadline}
+          />
+        )}
       </div>
-
-      {selectedStep && popPos && (
-        <GanttNodePopover
-          item={selectedStep} pos={popPos} relaties={relaties}
-          onClose={clearSel} onMarkDone={handleMarkDone} onUnplan={handleUnplan}
-          onUnplanOrder={handleUnplanOrder} onGoProject={handleGoProject} onSetDeadline={handleSetDeadline}
-        />
-      )}
 
       {toast && <div className="plan-toast">{toast}</div>}
     </div>
