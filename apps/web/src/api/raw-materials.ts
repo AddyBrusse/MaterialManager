@@ -3,6 +3,7 @@ import { apiFetch } from './client'
 import { MOCK_GRADES } from './grades'
 import { MOCK_PROFILES } from './profiles'
 import { MOCK_LOCATIONS } from './locations'
+import { MOCK_SURFACE_FINISHES } from './surface-finishes'
 
 export type GradeInfo = {
   id: string
@@ -26,11 +27,18 @@ export type LocationSlotWithLocation = {
   location: { id: string; kind: string; label: string }
 }
 
+export type SurfaceFinishInfo = {
+  id: string
+  name: string
+  createdAt: string
+}
+
 export type RawMaterialRow = {
   id: string
   code: string
   gradeId: string
   profileId: string
+  surfaceFinishId: string | null
   dimensions: Record<string, number>
   lengthMm: string
   currentStock: string
@@ -41,6 +49,7 @@ export type RawMaterialRow = {
   updatedAt: string
   grade: GradeInfo
   profile: ProfileInfo
+  surfaceFinish: SurfaceFinishInfo | null
   locationSlot: LocationSlotWithLocation | null
 }
 
@@ -83,13 +92,13 @@ export function formatLocation(slot: LocationSlotWithLocation | null): string {
 // currentStock = remaining length of this piece in mm
 // minStock     = minimum usable length threshold in mm
 export const MOCK_MATERIALS: RawMaterialRow[] = [
-  { id: 'm1', code: '#00001', gradeId: 'g3', profileId: 'p1', dimensions: { diameter: 50 },                   lengthMm: '6000', currentStock: '5500', minStock: '500', photoPath: null, weightKg: 92.5,  createdAt: '2026-05-01T08:00:00Z', updatedAt: '2026-05-26T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, locationSlot: { id: 's1a', level1: 'R1', level2: null,  location: { id: 'l1', kind: 'rack', label: 'Hal A · Stelling 01' } } },
-  { id: 'm2', code: '#00002', gradeId: 'g3', profileId: 'p1', dimensions: { diameter: 30 },                   lengthMm: '3000', currentStock: '1200', minStock: '300', photoPath: null, weightKg: 16.6,  createdAt: '2026-05-02T08:00:00Z', updatedAt: '2026-05-24T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, locationSlot: { id: 's2a', level1: 'R1', level2: null,  location: { id: 'l2', kind: 'rack', label: 'Hal A · Stelling 02' } } },
-  { id: 'm3', code: '#00003', gradeId: 'g1', profileId: 'p3', dimensions: { width: 100, height: 10 },         lengthMm: '6000', currentStock: '0',    minStock: '500', photoPath: null, weightKg: 47.1,  createdAt: '2026-05-03T08:00:00Z', updatedAt: '2026-05-20T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p3', name: 'Plat',     dimensionSchema: [{ key: 'width', label: 'Breedte', unit: 'mm' }, { key: 'height', label: 'Hoogte', unit: 'mm' }],                                            volumeFormula: 'flat',   createdAt: '' }, locationSlot: { id: 's5c', level1: 'R3', level2: null,  location: { id: 'l5', kind: 'rack', label: 'Hal B · Vak 14'      } } },
-  { id: 'm4', code: '#00004', gradeId: 'g3', profileId: 'p4', dimensions: { outerDiameter: 60.3, innerDiameter: 51.3 }, lengthMm: '6000', currentStock: '4800', minStock: '500', photoPath: null, weightKg: 40.2, createdAt: '2026-05-04T08:00:00Z', updatedAt: '2026-05-25T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p4', name: 'Buis',     dimensionSchema: [{ key: 'outerDiameter', label: 'Buitendiameter', unit: 'mm' }, { key: 'innerDiameter', label: 'Binnendiameter', unit: 'mm' }], volumeFormula: 'tube',   createdAt: '' }, locationSlot: { id: 's2c', level1: 'R1', level2: 'V2', location: { id: 'l2', kind: 'rack', label: 'Hal A · Stelling 02' } } },
-  { id: 'm5', code: '#00005', gradeId: 'g3', profileId: 'p2', dimensions: { side: 25 },                       lengthMm: '3000', currentStock: '3000', minStock: '300', photoPath: null, weightKg: 14.7,  createdAt: '2026-05-05T08:00:00Z', updatedAt: '2026-05-23T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p2', name: 'Vierkant', dimensionSchema: [{ key: 'side', label: 'Zijde', unit: 'mm' }],                                                                                         volumeFormula: 'square', createdAt: '' }, locationSlot: { id: 's4a', level1: 'R1', level2: null,  location: { id: 'l4', kind: 'rack', label: 'Hal B · Vak 12'      } } },
-  { id: 'm6', code: '#00006', gradeId: 'g1', profileId: 'p1', dimensions: { diameter: 80 },                   lengthMm: '3000', currentStock: '350',  minStock: '500', photoPath: null, weightKg: 118.4, createdAt: '2026-05-06T08:00:00Z', updatedAt: '2026-05-18T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, locationSlot: { id: 's3c', level1: 'R3', level2: null,  location: { id: 'l3', kind: 'rack', label: 'Hal A · Stelling 03' } } },
-  { id: 'm7', code: '#00007', gradeId: 'g1', profileId: 'p3', dimensions: { width: 200, height: 20 },         lengthMm: '6000', currentStock: '5200', minStock: '500', photoPath: null, weightKg: 188.4, createdAt: '2026-05-07T08:00:00Z', updatedAt: '2026-05-22T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p3', name: 'Plat',     dimensionSchema: [{ key: 'width', label: 'Breedte', unit: 'mm' }, { key: 'height', label: 'Hoogte', unit: 'mm' }],                                            volumeFormula: 'flat',   createdAt: '' }, locationSlot: { id: 's6b', level1: 'R2', level2: null,  location: { id: 'l6', kind: 'cabinet', label: 'Hal C · Buitenopslag' } } },
+  { id: 'm1', code: '#00001', gradeId: 'g3', profileId: 'p1', surfaceFinishId: 'sf1', dimensions: { diameter: 50 },                   lengthMm: '6000', currentStock: '5500', minStock: '500', photoPath: null, weightKg: 92.5,  createdAt: '2026-05-01T08:00:00Z', updatedAt: '2026-05-26T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, surfaceFinish: { id: 'sf1', name: 'Blank', createdAt: '' }, locationSlot: { id: 's1a', level1: 'R1', level2: null,  location: { id: 'l1', kind: 'rack', label: 'Hal A · Stelling 01' } } },
+  { id: 'm2', code: '#00002', gradeId: 'g3', profileId: 'p1', surfaceFinishId: null,  dimensions: { diameter: 30 },                   lengthMm: '3000', currentStock: '1200', minStock: '300', photoPath: null, weightKg: 16.6,  createdAt: '2026-05-02T08:00:00Z', updatedAt: '2026-05-24T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, surfaceFinish: null,                                            locationSlot: { id: 's2a', level1: 'R1', level2: null,  location: { id: 'l2', kind: 'rack', label: 'Hal A · Stelling 02' } } },
+  { id: 'm3', code: '#00003', gradeId: 'g1', profileId: 'p3', surfaceFinishId: 'sf3', dimensions: { width: 100, height: 10 },         lengthMm: '6000', currentStock: '0',    minStock: '500', photoPath: null, weightKg: 47.1,  createdAt: '2026-05-03T08:00:00Z', updatedAt: '2026-05-20T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p3', name: 'Plat',     dimensionSchema: [{ key: 'width', label: 'Breedte', unit: 'mm' }, { key: 'height', label: 'Hoogte', unit: 'mm' }],                                            volumeFormula: 'flat',   createdAt: '' }, surfaceFinish: { id: 'sf3', name: 'WGW',   createdAt: '' }, locationSlot: { id: 's5c', level1: 'R3', level2: null,  location: { id: 'l5', kind: 'rack', label: 'Hal B · Vak 14'      } } },
+  { id: 'm4', code: '#00004', gradeId: 'g3', profileId: 'p4', surfaceFinishId: null,  dimensions: { outerDiameter: 60.3, innerDiameter: 51.3 }, lengthMm: '6000', currentStock: '4800', minStock: '500', photoPath: null, weightKg: 40.2, createdAt: '2026-05-04T08:00:00Z', updatedAt: '2026-05-25T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p4', name: 'Buis',     dimensionSchema: [{ key: 'outerDiameter', label: 'Buitendiameter', unit: 'mm' }, { key: 'innerDiameter', label: 'Binnendiameter', unit: 'mm' }], volumeFormula: 'tube',   createdAt: '' }, surfaceFinish: null,                                            locationSlot: { id: 's2c', level1: 'R1', level2: 'V2', location: { id: 'l2', kind: 'rack', label: 'Hal A · Stelling 02' } } },
+  { id: 'm5', code: '#00005', gradeId: 'g3', profileId: 'p2', surfaceFinishId: 'sf2', dimensions: { side: 25 },                       lengthMm: '3000', currentStock: '3000', minStock: '300', photoPath: null, weightKg: 14.7,  createdAt: '2026-05-05T08:00:00Z', updatedAt: '2026-05-23T08:00:00Z', grade: { id: 'g3', name: 'S355',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p2', name: 'Vierkant', dimensionSchema: [{ key: 'side', label: 'Zijde', unit: 'mm' }],                                                                                         volumeFormula: 'square', createdAt: '' }, surfaceFinish: { id: 'sf2', name: 'Ruw',   createdAt: '' }, locationSlot: { id: 's4a', level1: 'R1', level2: null,  location: { id: 'l4', kind: 'rack', label: 'Hal B · Vak 12'      } } },
+  { id: 'm6', code: '#00006', gradeId: 'g1', profileId: 'p1', surfaceFinishId: null,  dimensions: { diameter: 80 },                   lengthMm: '3000', currentStock: '350',  minStock: '500', photoPath: null, weightKg: 118.4, createdAt: '2026-05-06T08:00:00Z', updatedAt: '2026-05-18T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p1', name: 'Rond',     dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],                                                                                         volumeFormula: 'round',  createdAt: '' }, surfaceFinish: null,                                            locationSlot: { id: 's3c', level1: 'R3', level2: null,  location: { id: 'l3', kind: 'rack', label: 'Hal A · Stelling 03' } } },
+  { id: 'm7', code: '#00007', gradeId: 'g1', profileId: 'p3', surfaceFinishId: 'sf4', dimensions: { width: 200, height: 20 },         lengthMm: '6000', currentStock: '5200', minStock: '500', photoPath: null, weightKg: 188.4, createdAt: '2026-05-07T08:00:00Z', updatedAt: '2026-05-22T08:00:00Z', grade: { id: 'g1', name: 'S235',    densityKgM3: '7850', createdAt: '' }, profile: { id: 'p3', name: 'Plat',     dimensionSchema: [{ key: 'width', label: 'Breedte', unit: 'mm' }, { key: 'height', label: 'Hoogte', unit: 'mm' }],                                            volumeFormula: 'flat',   createdAt: '' }, surfaceFinish: { id: 'sf4', name: 'KGW',   createdAt: '' }, locationSlot: { id: 's6b', level1: 'R2', level2: null,  location: { id: 'l6', kind: 'cabinet', label: 'Hal C · Buitenopslag' } } },
 ]
 
 // ── localStorage-backed mock store ────────────────────────────────────────────
@@ -110,8 +119,9 @@ function saveStore(data: RawMaterialRow[]): void {
 let mockStore: RawMaterialRow[] = loadStore()
 
 function buildMockRow(body: CreateRawMaterial): RawMaterialRow {
-  const gradeRaw   = MOCK_GRADES.find(g => g.id === body.gradeId)
-  const profileRaw = MOCK_PROFILES.find(p => p.id === body.profileId)
+  const gradeRaw         = MOCK_GRADES.find(g => g.id === body.gradeId)
+  const profileRaw       = MOCK_PROFILES.find(p => p.id === body.profileId)
+  const surfaceFinishRaw = body.surfaceFinishId ? MOCK_SURFACE_FINISHES.find(s => s.id === body.surfaceFinishId) : undefined
   const allSlots   = MOCK_LOCATIONS.flatMap(loc =>
     loc.slots.map(s => ({ ...s, location: { id: loc.id, kind: loc.kind as string, label: loc.label } }))
   )
@@ -125,6 +135,10 @@ function buildMockRow(body: CreateRawMaterial): RawMaterialRow {
     ? { id: profileRaw.id, name: profileRaw.name, dimensionSchema: profileRaw.dimensionSchema, volumeFormula: profileRaw.volumeFormula, createdAt: profileRaw.createdAt }
     : { id: body.profileId, name: '?', dimensionSchema: [], volumeFormula: 'flat', createdAt: '' }
 
+  const surfaceFinish: SurfaceFinishInfo | null = surfaceFinishRaw
+    ? { id: surfaceFinishRaw.id, name: surfaceFinishRaw.name, createdAt: surfaceFinishRaw.createdAt }
+    : null
+
   const locationSlot: LocationSlotWithLocation | null = slot
     ? { id: slot.id, level1: slot.level1, level2: slot.level2 ?? null, location: slot.location }
     : null
@@ -134,6 +148,7 @@ function buildMockRow(body: CreateRawMaterial): RawMaterialRow {
     code: body.code,
     gradeId: body.gradeId,
     profileId: body.profileId,
+    surfaceFinishId: body.surfaceFinishId ?? null,
     dimensions: body.dimensions as Record<string, number>,
     lengthMm: String(body.lengthMm),
     currentStock: String(body.lengthMm), // new piece = full length remaining
@@ -144,6 +159,7 @@ function buildMockRow(body: CreateRawMaterial): RawMaterialRow {
     updatedAt: new Date().toISOString(),
     grade,
     profile,
+    surfaceFinish,
     locationSlot,
   }
 }
@@ -166,8 +182,11 @@ export const rawMaterialsApi = {
       .catch(() => {
         const existing = mockStore.find(r => r.id === id)
         if (!existing) throw new Error('Niet gevonden')
-        const gradeRaw   = body.gradeId   ? MOCK_GRADES.find(g => g.id === body.gradeId)   : null
-        const profileRaw = body.profileId ? MOCK_PROFILES.find(p => p.id === body.profileId) : null
+        const gradeRaw         = body.gradeId   ? MOCK_GRADES.find(g => g.id === body.gradeId)   : null
+        const profileRaw       = body.profileId ? MOCK_PROFILES.find(p => p.id === body.profileId) : null
+        const surfaceFinishRaw = body.surfaceFinishId != null
+          ? (body.surfaceFinishId ? MOCK_SURFACE_FINISHES.find(s => s.id === body.surfaceFinishId) ?? null : null)
+          : undefined
         const allSlots   = MOCK_LOCATIONS.flatMap(loc =>
           loc.slots.map(s => ({ ...s, location: { id: loc.id, kind: loc.kind as string, label: loc.label } }))
         )
@@ -179,11 +198,13 @@ export const rawMaterialsApi = {
           ...existing,
           ...(body.gradeId   ? { gradeId:   body.gradeId }   : {}),
           ...(body.profileId ? { profileId: body.profileId } : {}),
+          ...(body.surfaceFinishId !== undefined ? { surfaceFinishId: body.surfaceFinishId ?? null } : {}),
           ...(body.dimensions ? { dimensions: body.dimensions as Record<string, number> } : {}),
           ...(body.lengthMm  != null ? { lengthMm: String(body.lengthMm) }  : {}),
           ...(body.minStock  != null ? { minStock: String(body.minStock) } : {}),
           ...(gradeRaw   ? { grade:   { id: gradeRaw.id,   name: gradeRaw.name,   densityKgM3: String(gradeRaw.densityKgM3),   createdAt: gradeRaw.createdAt   } } : {}),
           ...(profileRaw ? { profile: { id: profileRaw.id, name: profileRaw.name, dimensionSchema: profileRaw.dimensionSchema, volumeFormula: profileRaw.volumeFormula, createdAt: profileRaw.createdAt } } : {}),
+          ...(surfaceFinishRaw !== undefined ? { surfaceFinish: surfaceFinishRaw ? { id: surfaceFinishRaw.id, name: surfaceFinishRaw.name, createdAt: surfaceFinishRaw.createdAt } : null } : {}),
           ...(slot !== undefined ? { locationSlot: slot ? { id: slot.id, level1: slot.level1, level2: slot.level2 ?? null, location: slot.location } : null } : {}),
           updatedAt: new Date().toISOString(),
         }

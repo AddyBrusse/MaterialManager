@@ -129,24 +129,36 @@ model Profile {
   @@map("profiles")
 }
 
-model RawMaterial {
-  id             String       @id @default(uuid())
-  code           String       @unique
-  gradeId        String       @map("grade_id")
-  profileId      String       @map("profile_id")
-  dimensions     Json
-  lengthMm       Decimal      @map("length_mm")
-  locationSlotId String?      @map("location_slot_id")
-  photoPath      String?      @map("photo_path")
-  minStock       Decimal?     @map("min_stock")
-  currentStock   Decimal      @default(0) @map("current_stock")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+model SurfaceFinish {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
 
-  grade        Grade         @relation(fields: [gradeId], references: [id])
-  profile      Profile       @relation(fields: [profileId], references: [id])
-  locationSlot LocationSlot? @relation(fields: [locationSlotId], references: [id])
-  consumingLabel Label?      @relation("LabelConsumedMaterial")
+  rawMaterials RawMaterial[]
+
+  @@map("surface_finishes")
+}
+
+model RawMaterial {
+  id              String       @id @default(uuid())
+  code            String       @unique
+  gradeId         String       @map("grade_id")
+  profileId       String       @map("profile_id")
+  surfaceFinishId String?      @map("surface_finish_id")
+  dimensions      Json
+  lengthMm        Decimal      @map("length_mm")
+  locationSlotId  String?      @map("location_slot_id")
+  photoPath       String?      @map("photo_path")
+  minStock        Decimal?     @map("min_stock")
+  currentStock    Decimal      @default(0) @map("current_stock")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  grade         Grade          @relation(fields: [gradeId], references: [id])
+  profile       Profile        @relation(fields: [profileId], references: [id])
+  surfaceFinish SurfaceFinish? @relation(fields: [surfaceFinishId], references: [id])
+  locationSlot  LocationSlot?  @relation(fields: [locationSlotId], references: [id])
+  consumingLabel Label?        @relation("LabelConsumedMaterial")
 
   @@map("raw_materials")
 }

@@ -13,6 +13,7 @@ import { rawMaterialsApi, formatDimensions, formatLocation, MOCK_MATERIALS } fro
 import { RawMaterialForm } from '../../components/raw-materials/RawMaterialForm'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
+import { surfaceFinishesApi } from '../../api/surface-finishes'
 import { reservationsStore, type ZaagReservation } from '../../api/reservations'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
@@ -49,10 +50,10 @@ function formatRelative(iso: string) {
 }
 
 function exportToCSV(rows: RawMaterialRow[]) {
-  const headers = ['Code', 'Profiel', 'Kwaliteit', 'Afmeting', 'Lengte orig (mm)', 'Resterend (mm)', 'Min drempel (mm)', 'Gewicht (kg)', 'Locatie']
+  const headers = ['Code', 'Profiel', 'Kwaliteit', 'Afmeting', 'Afwerking', 'Lengte orig (mm)', 'Resterend (mm)', 'Min drempel (mm)', 'Gewicht (kg)', 'Locatie']
   const lines = rows.map(r => [
     r.code, r.profile.name, r.grade.name,
-    formatDimensions(r.profile, r.dimensions),
+    formatDimensions(r.profile, r.dimensions), r.surfaceFinish?.name ?? '',
     r.lengthMm, r.currentStock, r.minStock ?? '',
     r.weightKg.toFixed(3), formatLocation(r.locationSlot),
   ].map(v => `"${v}"`).join(';'))
@@ -77,19 +78,20 @@ function TypeGlyph({ volumeFormula, size = 16 }: { volumeFormula: string; size?:
 }
 
 // ── sort helpers ──────────────────────────────────────────────────────────────
-type SortKey = 'code' | 'grade' | 'profile' | 'afmeting' | 'lengthMm' | 'currentStock' | 'reserved' | 'locatie' | 'updatedAt'
+type SortKey = 'code' | 'grade' | 'profile' | 'afmeting' | 'surfaceFinish' | 'lengthMm' | 'currentStock' | 'reserved' | 'locatie' | 'updatedAt'
 
 function sortVal(row: RawMaterialRow, key: SortKey, reservedByBar: Record<string, number>): string | number {
   switch (key) {
-    case 'code':         return row.code
-    case 'grade':        return row.grade.name
-    case 'profile':      return row.profile.name
-    case 'afmeting':     return formatDimensions(row.profile, row.dimensions)
-    case 'lengthMm':     return Number(row.lengthMm)
-    case 'currentStock': return Number(row.currentStock)
-    case 'reserved':     return reservedByBar[row.id] ?? 0
-    case 'locatie':      return formatLocation(row.locationSlot)
-    case 'updatedAt':    return row.updatedAt
+    case 'code':          return row.code
+    case 'grade':         return row.grade.name
+    case 'profile':       return row.profile.name
+    case 'afmeting':      return formatDimensions(row.profile, row.dimensions)
+    case 'surfaceFinish': return row.surfaceFinish?.name ?? ''
+    case 'lengthMm':      return Number(row.lengthMm)
+    case 'currentStock':  return Number(row.currentStock)
+    case 'reserved':      return reservedByBar[row.id] ?? 0
+    case 'locatie':       return formatLocation(row.locationSlot)
+    case 'updatedAt':     return row.updatedAt
   }
 }
 
@@ -492,6 +494,7 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
             <dt>Kwaliteit</dt>  <dd>{row.grade.name}</dd>
             <dt>Profiel</dt>    <dd>{row.profile.name}</dd>
             <dt>Afmeting</dt>   <dd className="cell-mono">{formatDimensions(row.profile, row.dimensions)}</dd>
+            <dt>Afwerking</dt>  <dd>{row.surfaceFinish?.name ?? '—'}</dd>
             <dt>Orig. lengte</dt><dd className="cell-mono">{Number(row.lengthMm).toLocaleString('nl-NL')} mm</dd>
             <dt>Resterend</dt>  <dd className="cell-mono">{remaining.toLocaleString('nl-NL')} mm</dd>
             <dt>Gewicht</dt>    <dd className="cell-mono">{(row.weightKg * remaining / original).toFixed(2)} kg</dd>
@@ -595,6 +598,7 @@ export function VoorraadPage() {
   const [q, setQ]           = useState('')
   const [grade, setGrade]   = useState('')
   const [type, setType]     = useState('')
+  const [afwerking, setAfwerking] = useState('')
   const [status, setStatus] = useState('')
   const [sort, setSort]     = useState<{ key: SortKey | null; dir: 'asc' | 'desc' }>({ key: 'code', dir: 'asc' })
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -608,6 +612,7 @@ export function VoorraadPage() {
   const { data, isLoading } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
   const { data: gradesData }   = useQuery({ queryKey: ['grades'],   queryFn: gradesApi.list   })
   const { data: profilesData } = useQuery({ queryKey: ['profiles'], queryFn: profilesApi.list })
+  const { data: surfaceFinishesData } = useQuery({ queryKey: ['surface-finishes'], queryFn: surfaceFinishesApi.list })
 
   // Open/in-progress reservations per bar for availability display.
   const [allReservations] = useState(() => reservationsStore.list())
@@ -638,17 +643,19 @@ export function VoorraadPage() {
         r.code.toLowerCase().includes(Q) ||
         r.grade.name.toLowerCase().includes(Q) ||
         r.profile.name.toLowerCase().includes(Q) ||
+        (r.surfaceFinish?.name.toLowerCase().includes(Q) ?? false) ||
         formatLocation(r.locationSlot).toLowerCase().includes(Q)
       )
     }
-    if (grade)  f = f.filter(r => r.grade.name === grade)
-    if (type)   f = f.filter(r => r.profile.name === type)
+    if (grade)     f = f.filter(r => r.grade.name === grade)
+    if (type)      f = f.filter(r => r.profile.name === type)
+    if (afwerking) f = f.filter(r => (r.surfaceFinish?.name ?? '') === afwerking)
     if (status) f = f.filter(r => {
       const v = Number(r.currentStock), m = Number(r.minStock) || 0, orig = Number(r.lengthMm)
       return statusFor(v, m, orig).tag === status
     })
     return applySort(f, sort.key, sort.dir, reservedByBar)
-  }, [source, q, grade, type, status, sort, reservedByBar])
+  }, [source, q, grade, type, afwerking, status, sort, reservedByBar])
 
   const stats = useMemo(() => {
     // totalKg: weight proportional to remaining length
@@ -701,8 +708,9 @@ export function VoorraadPage() {
     setMutatieRow(row)
   }
 
-  const uniqueGrades   = [...new Set([...(gradesData?.data ?? []).map(g => g.name),   ...source.map(r => r.grade.name)])]
-  const uniqueProfiles = [...new Set([...(profilesData?.data ?? []).map(p => p.name), ...source.map(r => r.profile.name)])]
+  const uniqueGrades     = [...new Set([...(gradesData?.data ?? []).map(g => g.name),   ...source.map(r => r.grade.name)])]
+  const uniqueProfiles   = [...new Set([...(profilesData?.data ?? []).map(p => p.name), ...source.map(r => r.profile.name)])]
+  const uniqueAfwerkingen = [...new Set([...(surfaceFinishesData?.data ?? []).map(s => s.name), ...source.map(r => r.surfaceFinish?.name).filter((n): n is string => !!n)])]
 
   return (
     <>
@@ -780,9 +788,10 @@ export function VoorraadPage() {
           />
           <span className="kbd">⌘K</span>
         </div>
-        <FilterChip label="Type"     value={type}   options={[['', 'Alle types'], ...uniqueProfiles.map(p => [p, p] as [string, string])]} onChange={setType} />
-        <FilterChip label="Kwaliteit" value={grade}  options={[['', 'Alle'],       ...uniqueGrades.map(g => [g, g]   as [string, string])]} onChange={setGrade} />
-        <FilterChip label="Status"   value={status} options={[['', 'Alle'], ['ok', 'Op voorraad'], ['laag', 'Laag'], ['uit', 'Uit'], ['vol', 'Vol']]} onChange={setStatus} />
+        <FilterChip label="Type"      value={type}      options={[['', 'Alle types'], ...uniqueProfiles.map(p => [p, p] as [string, string])]} onChange={setType} />
+        <FilterChip label="Kwaliteit" value={grade}     options={[['', 'Alle'],       ...uniqueGrades.map(g => [g, g]   as [string, string])]} onChange={setGrade} />
+        <FilterChip label="Afwerking" value={afwerking} options={[['', 'Alle'],       ...uniqueAfwerkingen.map(a => [a, a] as [string, string])]} onChange={setAfwerking} />
+        <FilterChip label="Status"    value={status}    options={[['', 'Alle'], ['ok', 'Op voorraad'], ['laag', 'Laag'], ['uit', 'Uit'], ['vol', 'Vol']]} onChange={setStatus} />
         <div style={{ flex: 1 }} />
         <button className="st-btn ghost sm" onClick={() => notifications.show({ message: 'Extra filters — binnenkort beschikbaar' })}>
           <IconFilter size={13} />Meer filters
@@ -810,7 +819,7 @@ export function VoorraadPage() {
                   <SortTh k="profile"      sort={sort} onSort={handleSort}>Artikel</SortTh>
                   <SortTh k="grade"        sort={sort} onSort={handleSort}>Kwaliteit</SortTh>
                   <SortTh k="afmeting"     sort={sort} onSort={handleSort}>Afmeting</SortTh>
-                  <th>Afwerking</th>
+                  <SortTh k="surfaceFinish" sort={sort} onSort={handleSort}>Afwerking</SortTh>
                   <SortTh k="currentStock" sort={sort} onSort={handleSort} align="right">Fysieke lengte</SortTh>
                   <SortTh k="reserved"     sort={sort} onSort={handleSort} align="right">Gereserveerd</SortTh>
                   <th style={{ minWidth: 160 }}>Niveau</th>
@@ -849,7 +858,7 @@ export function VoorraadPage() {
                       </td>
                       <td className="cell-mono">{row.grade.name}</td>
                       <td className="cell-mono cell-muted">{formatDimensions(row.profile, row.dimensions)}</td>
-                      <td><span className="cell-muted" style={{ fontSize: 12 }}>Blank</span></td>
+                      <td><span className="cell-muted" style={{ fontSize: 12 }}>{row.surfaceFinish?.name ?? '—'}</span></td>
                       <td className="cell-num cell-strong cell-mono" style={{ fontSize: 12 }}>{fmm(remaining)}</td>
                       <td className="cell-num cell-mono" style={{ fontSize: 12 }}>
                         {(() => {

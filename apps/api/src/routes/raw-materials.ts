@@ -8,7 +8,7 @@ import { calcWeightKg } from '../services/weight'
 
 const router = Router()
 
-const include = { grade: true, profile: true, locationSlot: { include: { location: true } } }
+const include = { grade: true, profile: true, surfaceFinish: true, locationSlot: { include: { location: true } } }
 
 function withWeight(item: {
   profile: { volumeFormula: string }
