@@ -47,7 +47,7 @@ export function KanbanBacklog({
 
   return (
     <aside className="kb-backlog">
-      <div className="kb-bl-head">
+      <div className="kb-bl-head" onClick={e => e.stopPropagation()}>
         <div className="kb-bl-title">
           <IconInbox size={16} />
           <span className="t">Te plannen</span>

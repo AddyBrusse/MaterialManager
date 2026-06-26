@@ -15,7 +15,6 @@ import {
 } from '../../utils/planningGanttUtils'
 import { GanttKpiRow } from '../../components/planning-gantt/GanttKpiRow'
 import { GanttToolbar, type BlockStyle, type LinkStyle } from '../../components/planning-gantt/GanttToolbar'
-import { GanttBacklogPanel, type BacklogSort } from '../../components/planning-gantt/GanttBacklogPanel'
 import { GanttBoard, type GanttScrollApi } from '../../components/planning-gantt/GanttBoard'
 import { GanttDetailSidebar } from '../../components/planning-gantt/GanttDetailSidebar'
 
@@ -31,8 +30,6 @@ export function PlanningGanttPage() {
   const bump = () => setRev(r => r + 1)
 
   const [selectedStep, setSelectedStep] = useState<PlanningStapItem | null>(null)
-  const [projectFilter, setProjectFilter] = useState('all')
-  const [backlogSort, setBacklogSort] = useState<BacklogSort>('default')
   const [undoStack, setUndoStack] = useState<{ label: string; fn: () => void }[]>([])
   const [toast, setToast] = useState<string | null>(null)
   const toastTimer = useRef<number | undefined>(undefined)
@@ -113,8 +110,7 @@ export function PlanningGanttPage() {
   }
 
   function handleGoProject(projectId: string) {
-    setProjectFilter(projectId)
-    flash(`Gefilterd op project ${projectId}`)
+    navigate(`/projecten/${projectId}`)
   }
 
   function selectNode(item: PlanningStapItem) {
@@ -196,13 +192,6 @@ export function PlanningGanttPage() {
       )}
 
       <div className="plan-body">
-        <GanttBacklogPanel
-          items={backlogItems} relaties={relaties}
-          projectFilter={projectFilter} onProjectFilter={setProjectFilter}
-          sortBy={backlogSort} onSortBy={setBacklogSort}
-          selectedProjectId={selectedStep?.project.id ?? null}
-          onSelectCard={item => setSelectedStep(item)}
-        />
         <GanttBoard
           zoom={zoom} blockStyle={blockStyle} linkStyle={linkStyle}
           showDone={showDone} windowStart={windowStart}

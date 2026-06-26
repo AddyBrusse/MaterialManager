@@ -28,9 +28,14 @@ interface KanbanDetailsProps {
 }
 
 export function KanbanDetails({ item, article, relaties, windowStart, collapsed, onToggle, onUnplan, onFlash }: KanbanDetailsProps) {
+  // Stop clicks from bubbling to the board's "click empty space deselects"
+  // handler — this panel IS the focused-card UI, so interacting with it
+  // (or even just clicking its background) shouldn't dismiss the selection.
+  function stop(e: { stopPropagation: () => void }) { e.stopPropagation() }
+
   if (collapsed) {
     return (
-      <aside className="kb-details collapsed">
+      <aside className="kb-details collapsed" onClick={stop}>
         <div className="kb-det-head">
           <button className="kb-det-collapse" onClick={onToggle} title="Details tonen"><IconChevronRight size={15} /></button>
         </div>
@@ -40,7 +45,7 @@ export function KanbanDetails({ item, article, relaties, windowStart, collapsed,
   }
 
   return (
-    <aside className="kb-details">
+    <aside className="kb-details" onClick={stop}>
       <div className="kb-det-head">
         <span className="t">{item ? 'Taakdetails' : 'Details'}</span>
         <button className="kb-det-collapse" onClick={onToggle} title="Inklappen"><IconChevronRight size={15} /></button>

@@ -132,28 +132,26 @@ export function PlanningKanbanPage() {
       />
 
       <div className="kb-body" onClick={clearSel}>
-        <div onClick={e => e.stopPropagation()} style={{ display: 'contents' }}>
-          <KanbanBacklog
-            items={backlogItems} articles={articles} relaties={relaties} machines={machines} windowStart={windowStart}
-            machineFilter={machineFilter} onMachineFilter={setMachineFilter}
-            sortBy={sortBy} onSortBy={setSortBy}
-            selectedId={selectedStep?.stap.id ?? null} selectedOrderId={selectedStep?.order.id ?? null} selStyle={selStyle}
-            onSelect={onSelect} onDragStart={onDragStart} onDragEnd={onDragEnd}
-            draggingId={draggingItem?.stap.id ?? null} onDropBacklog={onDropBacklog}
-          />
-          <KanbanBoard
-            scheduledItems={scheduledItems} machines={machines} articles={articles} relaties={relaties} windowStart={windowStart}
-            selStyle={selStyle} selectedId={selectedStep?.stap.id ?? null} selectedOrderId={selectedStep?.order.id ?? null}
-            onSelect={onSelect}
-            draggingItem={draggingItem} onDragStart={onDragStart} onDragEnd={onDragEnd}
-            onDrop={dropPlan} scrollApiRef={scrollApiRef}
-          />
-          <KanbanDetails
-            item={selectedStep} article={selectedArticle} relaties={relaties} windowStart={windowStart}
-            collapsed={detailsCollapsed} onToggle={() => setDetailsCollapsed(v => !v)}
-            onUnplan={handleUnplan} onFlash={flash}
-          />
-        </div>
+        <KanbanBacklog
+          items={backlogItems} articles={articles} relaties={relaties} machines={machines} windowStart={windowStart}
+          machineFilter={machineFilter} onMachineFilter={setMachineFilter}
+          sortBy={sortBy} onSortBy={setSortBy}
+          selectedId={selectedStep?.stap.id ?? null} selectedOrderId={selectedStep?.order.id ?? null} selStyle={selStyle}
+          onSelect={onSelect} onDragStart={onDragStart} onDragEnd={onDragEnd}
+          draggingId={draggingItem?.stap.id ?? null} onDropBacklog={onDropBacklog}
+        />
+        <KanbanBoard
+          scheduledItems={scheduledItems} machines={machines} articles={articles} relaties={relaties} windowStart={windowStart}
+          selStyle={selStyle} selectedId={selectedStep?.stap.id ?? null} selectedOrderId={selectedStep?.order.id ?? null}
+          onSelect={onSelect}
+          draggingItem={draggingItem} onDragStart={onDragStart} onDragEnd={onDragEnd}
+          onDrop={dropPlan} scrollApiRef={scrollApiRef}
+        />
+        <KanbanDetails
+          item={selectedStep} article={selectedArticle} relaties={relaties} windowStart={windowStart}
+          collapsed={detailsCollapsed} onToggle={() => setDetailsCollapsed(v => !v)}
+          onUnplan={handleUnplan} onFlash={flash}
+        />
       </div>
 
       {toast && <div className="kb-toast">{toast}</div>}

@@ -40,8 +40,6 @@ function buildPeriods(granularity: Granularity, windowStart: Date): Period[] {
   return periods.map(p => ({ ...p, weekStart: Math.floor(p.startDay / 7), weekEnd: Math.ceil(p.endDay / 7) }))
 }
 
-const PALETTE = ['blue', 'teal', 'grape', 'orange', 'lime', 'pink', 'cyan', 'yellow']
-
 export function PrognosePage() {
   const [rev, setRev] = useState(0)
   const bump = () => setRev(r => r + 1)
@@ -85,13 +83,12 @@ export function PrognosePage() {
     return row
   }), [periods, machines, allItems, ghostMap, windowStart])
 
-  const series = useMemo<BarChartSeries[]>(() => machines.flatMap((m, i) => {
-    const c = PALETTE[i % PALETTE.length]
+  function seriesFor(machineName: string): BarChartSeries[] {
     return [
-      { name: `${m.name}__planned`, label: `${m.name} — gepland`, color: `${c}.7`, stackId: m.name },
-      { name: `${m.name}__outstanding`, label: `${m.name} — prognose (open offertes)`, color: `${c}.3`, stackId: m.name },
+      { name: `${machineName}__planned`, label: 'Gepland', color: 'blue.7', stackId: 'load' },
+      { name: `${machineName}__outstanding`, label: 'Prognose (open offertes)', color: 'blue.3', stackId: 'load' },
     ]
-  }), [machines])
+  }
 
   return (
     <div className="pg-root plan">
@@ -109,20 +106,25 @@ export function PrognosePage() {
         </div>
       </div>
 
-      <div style={{ padding: '0 24px 24px', flex: 1, minHeight: 0 }}>
+      <div style={{ padding: '0 24px 24px', flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
         {machines.length === 0 ? (
           <div className="st-empty">Geen machines ingericht — voeg machines toe via Instellingen → Bedrijfskosten.</div>
         ) : (
-          <BarChart
-            h={460}
-            data={data}
-            dataKey="period"
-            series={series}
-            withLegend
-            withTooltip
-            unit=" u"
-            tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
-          />
+          machines.map((m, i) => (
+            <div key={m.id}>
+              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{m.name}</div>
+              <BarChart
+                h={220}
+                data={data}
+                dataKey="period"
+                series={seriesFor(m.name)}
+                withLegend={i === 0}
+                withTooltip
+                unit=" u"
+                tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
+              />
+            </div>
+          ))
         )}
       </div>
     </div>
