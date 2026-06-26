@@ -7,7 +7,9 @@ import { machinesApi, initMachines } from '../../api/machines'
 import {
   buildStapItems, berekenGhostBelasting, machineLoadInRange, ghostLoadInRange,
   getWindowStart, toDateStr, dateForDayIndex, weekNrForIdx, TOTAL_DAYS,
+  isWeekendIdx, EFFECTIEVE_MIN,
 } from '../../utils/planningGanttUtils'
+import { PrognoseHeatmap } from '../../components/planning-gantt/PrognoseHeatmap'
 
 type Granularity = 'week' | 'month'
 
@@ -38,6 +40,22 @@ function buildPeriods(granularity: Granularity, windowStart: Date): Period[] {
     }
   }
   return periods.map(p => ({ ...p, weekStart: Math.floor(p.startDay / 7), weekEnd: Math.ceil(p.endDay / 7) }))
+}
+
+function workdaysInRange(startDay: number, endDay: number, windowStart: Date): number {
+  let n = 0
+  for (let d = startDay; d < endDay; d++) if (!isWeekendIdx(d, windowStart)) n++
+  return n
+}
+
+// Effective capacity (hours) for a period — exact for "week" (every period is
+// a full Mon-Fri week, so this is always 5 workdays), an average for "month"
+// (variable workday count per calendar month, so the reference line is a
+// guide rather than an exact-per-period threshold).
+function avgCapacityHours(periods: Period[], windowStart: Date): number {
+  if (periods.length === 0) return 0
+  const totalWorkdays = periods.reduce((s, p) => s + workdaysInRange(p.startDay, p.endDay, windowStart), 0)
+  return (totalWorkdays / periods.length) * EFFECTIEVE_MIN / 60
 }
 
 export function PrognosePage() {
@@ -71,6 +89,11 @@ export function PrognosePage() {
     [projects, articles, machines, windowStart],
   )
   const periods = useMemo(() => buildPeriods(granularity, windowStart), [granularity, windowStart])
+  const capacityHours = useMemo(() => Math.round(avgCapacityHours(periods, windowStart) * 10) / 10, [periods, windowStart])
+  const capacityPerPeriod = useMemo(
+    () => periods.map(p => workdaysInRange(p.startDay, p.endDay, windowStart) * EFFECTIEVE_MIN / 60),
+    [periods, windowStart],
+  )
 
   const data = useMemo(() => periods.map(p => {
     const row: Record<string, string | number> = { period: p.label }
@@ -110,7 +133,12 @@ export function PrognosePage() {
         {machines.length === 0 ? (
           <div className="st-empty">Geen machines ingericht — voeg machines toe via Instellingen → Bedrijfskosten.</div>
         ) : (
-          machines.map((m, i) => (
+          <>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Overzicht — bezetting % per machine</div>
+            <PrognoseHeatmap machines={machines} periods={periods} data={data} capacityPerPeriod={capacityPerPeriod} />
+          </div>
+          {machines.map((m, i) => (
             <div key={m.id}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{m.name}</div>
               <BarChart
@@ -122,9 +150,14 @@ export function PrognosePage() {
                 withTooltip
                 unit=" u"
                 tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
+                referenceLines={[{
+                  y: capacityHours, color: 'red.6', label: `Capaciteit (${capacityHours} u)`,
+                  strokeDasharray: '4 4', labelPosition: 'insideTopRight', ifOverflow: 'extendDomain',
+                }]}
               />
             </div>
-          ))
+          ))}
+          </>
         )}
       </div>
     </div>
