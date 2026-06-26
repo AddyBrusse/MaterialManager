@@ -145,7 +145,13 @@ export function klantNaam(relaties: Relatie[], project: Project): string {
   return relaties.find(r => r.id === project.relatieId)?.naam ?? project.klantRef ?? project.naam
 }
 
-// ── Lane packing (overlap → sub-lanes) ──────────────────────────────────────
+// ── Lane packing (single continuous timeline per machine) ──────────────────
+// A machine can only run one step at a time, so steps queue sequentially
+// rather than stacking into parallel lanes: each step starts at its own
+// planned day, UNLESS the machine is still busy with an earlier-queued step,
+// in which case it starts as soon as the machine frees up. This visually
+// reveals queue buildup (a backed-up machine pushes later bars rightward)
+// instead of hiding it behind vertical stacking.
 export interface NodePos { lane: number; left: number; width: number }
 
 export function packMachineLane(
@@ -158,23 +164,20 @@ export function packMachineLane(
     const db = dayIndexForDate(b.stap.geplandDatum!, windowStart)
     return da - db || a.stap.volgorde - b.stap.volgorde
   })
-  const laneEnds: number[] = []
   const pos: Record<string, NodePos> = {}
+  let machineFreeAt = -Infinity
   for (const item of sorted) {
     const day = dayIndexForDate(item.stap.geplandDatum!, windowStart)
     const durDays = item.duurMin / MAX_MIN
-    const start = day
-    const end = day + durDays
-    let lane = laneEnds.findIndex(e => e <= start + 0.001)
-    if (lane === -1) { lane = laneEnds.length; laneEnds.push(end) }
-    else laneEnds[lane] = end
+    const start = Math.max(day, machineFreeAt)
+    machineFreeAt = start + durDays
     pos[item.stap.id] = {
-      lane,
-      left: day * pxDay + 3,
+      lane: 0,
+      left: start * pxDay + 3,
       width: Math.max(durDays * pxDay - 6, 20),
     }
   }
-  return { pos, nLanes: Math.max(laneEnds.length, 1) }
+  return { pos, nLanes: 1 }
 }
 
 export interface RowLayout { pos: Record<string, NodePos>; nLanes: number; height: number }
