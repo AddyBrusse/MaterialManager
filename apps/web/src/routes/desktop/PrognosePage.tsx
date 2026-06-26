@@ -6,20 +6,31 @@ import { articlesApi, initArticles } from '../../api/articles'
 import { machinesApi, initMachines } from '../../api/machines'
 import {
   buildStapItems, berekenGhostBelasting, machineLoadInRange, ghostLoadInRange,
-  getWindowStart, toDateStr, dateForDayIndex, weekNrForIdx, TOTAL_DAYS,
+  getWindowStart, toDateStr, dateForDayIndex, weekNrForIdx, fmtDayShort, TOTAL_DAYS,
   isWeekendIdx, EFFECTIEVE_MIN,
 } from '../../utils/planningGanttUtils'
 import { PrognoseHeatmap } from '../../components/planning-gantt/PrognoseHeatmap'
 
-type Granularity = 'week' | 'month'
+type Granularity = 'day' | 'week' | 'month'
 
 interface Period { label: string; startDay: number; endDay: number; weekStart: number; weekEnd: number }
 
 // Monthly buckets are derived from the same per-week ghost map the board
 // uses, so a week is wholly attributed to the month its first day falls in —
 // a minor approximation at month boundaries, consistent with the ghost map
-// itself already being an estimate (see berekenGhostBelasting).
+// itself already being an estimate (see berekenGhostBelasting). Day buckets
+// reuse that same per-week ghost figure for every workday in the week, for
+// the same reason.
 function buildPeriods(granularity: Granularity, windowStart: Date): Period[] {
+  if (granularity === 'day') {
+    const days: Period[] = []
+    for (let d = 0; d < TOTAL_DAYS; d++) {
+      if (isWeekendIdx(d, windowStart)) continue
+      const week = Math.floor(d / 7)
+      days.push({ label: fmtDayShort(d, windowStart), startDay: d, endDay: d + 1, weekStart: week, weekEnd: week + 1 })
+    }
+    return days
+  }
   if (granularity === 'week') {
     const weeks = TOTAL_DAYS / 7
     return Array.from({ length: weeks }, (_, w) => ({
@@ -124,6 +135,7 @@ export function PrognosePage() {
 
       <div className="plan-toolbar">
         <div className="seg" role="tablist">
+          <button data-active={granularity === 'day'} onClick={() => setGranularity('day')}>Dag</button>
           <button data-active={granularity === 'week'} onClick={() => setGranularity('week')}>Week</button>
           <button data-active={granularity === 'month'} onClick={() => setGranularity('month')}>Maand</button>
         </div>
@@ -141,20 +153,24 @@ export function PrognosePage() {
           {machines.map((m, i) => (
             <div key={m.id}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{m.name}</div>
-              <BarChart
-                h={220}
-                data={data}
-                dataKey="period"
-                series={seriesFor(m.name)}
-                withLegend={i === 0}
-                withTooltip
-                unit=" u"
-                tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
-                referenceLines={[{
-                  y: capacityHours, color: 'red.6', label: `Capaciteit (${capacityHours} u)`,
-                  strokeDasharray: '4 4', labelPosition: 'insideTopRight', ifOverflow: 'extendDomain',
-                }]}
-              />
+              <div style={{ overflowX: granularity === 'day' ? 'auto' : 'visible' }}>
+                <div style={{ minWidth: granularity === 'day' ? periods.length * 16 : '100%' }}>
+                  <BarChart
+                    h={220}
+                    data={data}
+                    dataKey="period"
+                    series={seriesFor(m.name)}
+                    withLegend={i === 0}
+                    withTooltip
+                    unit=" u"
+                    tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
+                    referenceLines={[{
+                      y: capacityHours, color: 'red.6', label: `Capaciteit (${capacityHours} u)`,
+                      strokeDasharray: '4 4', labelPosition: 'insideTopRight', ifOverflow: 'extendDomain',
+                    }]}
+                  />
+                </div>
+              </div>
             </div>
           ))}
           </>
