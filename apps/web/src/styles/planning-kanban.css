@@ -157,7 +157,7 @@
 /* ===== Board + minimap column ===== */
 .kb-board-area { flex: 1; min-width: 0; display: flex; position: relative; background: var(--bg); }
 .kb-board-scroll { flex: 1; min-width: 0; overflow: auto; position: relative; }
-.kb-board-inner { position: relative; min-width: calc(var(--label-w) + 7 * var(--col-w)); }
+.kb-board-inner { position: relative; min-width: calc(var(--label-w) + var(--machine-count, 1) * var(--col-w)); }
 .kb-board { --label-w: 128px; --col-w: 150px; --ruler-h: 56px; }
 
 /* header (machines) */

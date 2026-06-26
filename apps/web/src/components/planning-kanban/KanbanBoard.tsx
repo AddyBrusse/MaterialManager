@@ -135,6 +135,7 @@ export function KanbanBoard({
   const styleVars = {
     '--label-w': `${LABEL_W}px`, '--col-w': `${COL_W}px`, '--ruler-h': `${RULER_H}px`,
     '--min-row': `${MIN_ROW}px`, '--card-h': `${CARD_H}px`, '--card-gap': `${CARD_GAP}px`, '--cell-pad': `${CELL_PAD}px`,
+    '--machine-count': Math.max(machines.length, 1),
   } as CSSProperties
 
   return (
