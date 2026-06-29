@@ -32,9 +32,7 @@ export function PrognoseHeatmap({ machines, periods, data, capacityPerPeriod }: 
             <div className="prog-hm-rowhd">{m.name}</div>
             {periods.map((p, i) => {
               const row = data[i]
-              const planned = Number(row?.[`${m.name}__planned`] ?? 0)
-              const outstanding = Number(row?.[`${m.name}__outstanding`] ?? 0)
-              const load = planned + outstanding
+              const load = Number(row?.[`${m.name}__total`] ?? 0)
               const cap = capacityPerPeriod[i] || 0
               const ratio = cap > 0 ? load / cap : 0
               return (

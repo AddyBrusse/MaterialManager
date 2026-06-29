@@ -15,7 +15,7 @@ type Granularity = 'day' | 'week' | 'month'
 
 // "Dag" zooms in on the near term rather than the full ~9-month window —
 // the heatmap/week/month views are for the long-range overview.
-const DAY_VIEW_WORKDAYS = 60
+const DAY_VIEW_WORKDAYS = 14
 
 const PALETTE = ['blue', 'teal', 'grape', 'orange', 'lime', 'pink', 'cyan', 'yellow']
 
