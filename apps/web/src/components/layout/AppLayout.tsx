@@ -3,7 +3,7 @@ import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
-  IconClipboardList, IconTimeline, IconChartBar, IconLayoutKanban,
+  IconClipboardList, IconChartBar, IconLayoutKanban,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -26,7 +26,6 @@ import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
 import { PlanningPage } from '../../routes/desktop/PlanningPage'
-import { PlanningGanttPage } from '../../routes/desktop/PlanningGanttPage'
 import { PlanningKanbanPage } from '../../routes/desktop/PlanningKanbanPage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 
@@ -78,7 +77,6 @@ function Sidebar() {
       label: 'Planning',
       items: [
         { to: '/planning-kanban', label: 'Planning (KanBan)', Icon: IconLayoutKanban, count: null },
-        { to: '/planning-gantt',  label: 'Planning (Gantt)',  Icon: IconTimeline,     count: null },
         { to: '/prognose',        label: 'Prognose',          Icon: IconChartBar,     count: null },
       ],
     },
@@ -150,7 +148,6 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/projecten':       ['Productie',        'Projecten'],
   '/planning':        ['Productie',        'Planning'],
   '/planning-kanban': ['Planning',         'Planning (KanBan)'],
-  '/planning-gantt':  ['Planning',         'Planning (Gantt)'],
   '/prognose':        ['Planning',         'Prognose'],
 }
 
@@ -229,7 +226,6 @@ export function AppLayout() {
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
             <Route path="/planning"        element={<PlanningPage />} />
             <Route path="/planning-kanban" element={<PlanningKanbanPage />} />
-            <Route path="/planning-gantt"  element={<PlanningGanttPage />} />
             <Route path="/prognose"        element={<PrognosePage />} />
             <Route path="*"               element={<Navigate to="/voorraad" replace />} />
           </Routes>

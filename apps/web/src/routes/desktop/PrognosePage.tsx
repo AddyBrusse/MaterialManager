@@ -13,6 +13,12 @@ import { PrognoseHeatmap } from '../../components/planning-gantt/PrognoseHeatmap
 
 type Granularity = 'day' | 'week' | 'month'
 
+// "Dag" zooms in on the near term rather than the full ~9-month window —
+// the heatmap/week/month views are for the long-range overview.
+const DAY_VIEW_WORKDAYS = 60
+
+const PALETTE = ['blue', 'teal', 'grape', 'orange', 'lime', 'pink', 'cyan', 'yellow']
+
 interface Period { label: string; startDay: number; endDay: number; weekStart: number; weekEnd: number }
 
 // Monthly buckets are derived from the same per-week ghost map the board
@@ -24,7 +30,7 @@ interface Period { label: string; startDay: number; endDay: number; weekStart: n
 function buildPeriods(granularity: Granularity, windowStart: Date): Period[] {
   if (granularity === 'day') {
     const days: Period[] = []
-    for (let d = 0; d < TOTAL_DAYS; d++) {
+    for (let d = 0; d < TOTAL_DAYS && days.length < DAY_VIEW_WORKDAYS; d++) {
       if (isWeekendIdx(d, windowStart)) continue
       const week = Math.floor(d / 7)
       days.push({ label: fmtDayShort(d, windowStart), startDay: d, endDay: d + 1, weekStart: week, weekEnd: week + 1 })
@@ -111,18 +117,14 @@ export function PrognosePage() {
     for (const m of machines) {
       const planned = machineLoadInRange(allItems, m.name, p.startDay, p.endDay, windowStart) / 60
       const outstanding = ghostLoadInRange(ghostMap, m.name, p.weekStart, p.weekEnd) / 60
-      row[`${m.name}__planned`] = Math.round(planned * 10) / 10
-      row[`${m.name}__outstanding`] = Math.round(outstanding * 10) / 10
+      row[`${m.name}__total`] = Math.round((planned + outstanding) * 10) / 10
     }
     return row
   }), [periods, machines, allItems, ghostMap, windowStart])
 
-  function seriesFor(machineName: string): BarChartSeries[] {
-    return [
-      { name: `${machineName}__planned`, label: 'Gepland', color: 'blue.7', stackId: 'load' },
-      { name: `${machineName}__outstanding`, label: 'Prognose (open offertes)', color: 'blue.3', stackId: 'load' },
-    ]
-  }
+  const series = useMemo<BarChartSeries[]>(() => machines.map((m, i) => ({
+    name: `${m.name}__total`, label: m.name, color: `${PALETTE[i % PALETTE.length]}.6`,
+  })), [machines])
 
   return (
     <div className="pg-root plan">
@@ -150,30 +152,28 @@ export function PrognosePage() {
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Overzicht — bezetting % per machine</div>
             <PrognoseHeatmap machines={machines} periods={periods} data={data} capacityPerPeriod={capacityPerPeriod} />
           </div>
-          {machines.map((m, i) => (
-            <div key={m.id}>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{m.name}</div>
-              <div style={{ overflowX: granularity === 'day' ? 'auto' : 'visible' }}>
-                <div style={{ minWidth: granularity === 'day' ? periods.length * 16 : '100%' }}>
-                  <BarChart
-                    h={220}
-                    data={data}
-                    dataKey="period"
-                    series={seriesFor(m.name)}
-                    withLegend={i === 0}
-                    withTooltip
-                    unit=" u"
-                    tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
-                    xAxisProps={{ angle: -45, textAnchor: 'end', height: 60, interval: 0 }}
-                    referenceLines={[{
-                      y: capacityHours, color: 'red.6', label: `Capaciteit (${capacityHours} u)`,
-                      strokeDasharray: '4 4', labelPosition: 'insideTopRight', ifOverflow: 'extendDomain',
-                    }]}
-                  />
-                </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Werklast per machine (gepland + prognose)</div>
+            <div style={{ overflowX: granularity === 'day' ? 'auto' : 'visible' }}>
+              <div style={{ minWidth: granularity === 'day' ? periods.length * 16 : '100%' }}>
+                <BarChart
+                  h={320}
+                  data={data}
+                  dataKey="period"
+                  series={series}
+                  withLegend
+                  withTooltip
+                  unit=" u"
+                  tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
+                  xAxisProps={{ angle: -45, textAnchor: 'end', height: 60, interval: 0 }}
+                  referenceLines={[{
+                    y: capacityHours, color: 'red.6', label: `Capaciteit per machine (${capacityHours} u)`,
+                    strokeDasharray: '4 4', labelPosition: 'insideTopRight', ifOverflow: 'extendDomain',
+                  }]}
+                />
               </div>
             </div>
-          ))}
+          </div>
           </>
         )}
       </div>
