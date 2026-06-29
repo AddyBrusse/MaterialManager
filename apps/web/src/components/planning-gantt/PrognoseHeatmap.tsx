@@ -1,4 +1,5 @@
 import { Fragment } from 'react'
+import type { RefObject } from 'react'
 import type { Machine } from '../../api/machines'
 
 interface PrognoseHeatmapProps {
@@ -6,6 +7,10 @@ interface PrognoseHeatmapProps {
   periods: { label: string }[]
   data: Record<string, string | number>[]
   capacityPerPeriod: number[]
+  colWidth: number
+  labelWidth: number
+  scrollRef: RefObject<HTMLDivElement>
+  onScroll: () => void
 }
 
 // Single-hue gradient (this app's --danger red) rather than the usual
@@ -18,18 +23,20 @@ function ratioColor(ratio: number): string {
   return `color-mix(in srgb, var(--danger) ${intensity}%, var(--bg-2))`
 }
 
-export function PrognoseHeatmap({ machines, periods, data, capacityPerPeriod }: PrognoseHeatmapProps) {
+export function PrognoseHeatmap({
+  machines, periods, data, capacityPerPeriod, colWidth, labelWidth, scrollRef, onScroll,
+}: PrognoseHeatmapProps) {
   return (
-    <div className="prog-hm-wrap">
-      <div className="prog-hm-grid" style={{ gridTemplateColumns: `160px repeat(${periods.length}, minmax(34px, 1fr))` }}>
-        <div className="prog-hm-corner">Machine</div>
+    <div className="prog-hm-wrap" ref={scrollRef} onScroll={onScroll}>
+      <div className="prog-hm-grid" style={{ gridTemplateColumns: `${labelWidth}px repeat(${periods.length}, ${colWidth}px)` }}>
+        <div className="prog-hm-corner" style={{ width: labelWidth }}>Machine</div>
         {periods.map((p, i) => (
-          <div key={i} className="prog-hm-colhd"><span>{p.label}</span></div>
+          <div key={i} className="prog-hm-colhd" style={{ width: colWidth }}><span>{p.label}</span></div>
         ))}
 
         {machines.map(m => (
           <Fragment key={m.id}>
-            <div className="prog-hm-rowhd">{m.name}</div>
+            <div className="prog-hm-rowhd" style={{ width: labelWidth }}>{m.name}</div>
             {periods.map((p, i) => {
               const row = data[i]
               const load = Number(row?.[`${m.name}__total`] ?? 0)

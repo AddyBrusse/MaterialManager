@@ -1,23 +1,26 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocalStorage } from '@mantine/hooks'
-import { BarChart, type BarChartSeries } from '@mantine/charts'
 import { projectsApi, initProjects } from '../../api/projects'
 import { articlesApi, initArticles } from '../../api/articles'
 import { machinesApi, initMachines } from '../../api/machines'
 import {
   buildStapItems, berekenGhostBelasting, machineLoadInRange, ghostLoadInRange,
   getWindowStart, toDateStr, dateForDayIndex, weekNrForIdx, fmtDayShort, TOTAL_DAYS,
-  isWeekendIdx, EFFECTIEVE_MIN,
+  EFFECTIEVE_MIN,
 } from '../../utils/planningGanttUtils'
 import { PrognoseHeatmap } from '../../components/planning-gantt/PrognoseHeatmap'
+import { PrognoseBars } from '../../components/planning-gantt/PrognoseBars'
 
 type Granularity = 'day' | 'week' | 'month'
 
 // "Dag" zooms in on the near term rather than the full ~9-month window —
 // the heatmap/week/month views are for the long-range overview.
-const DAY_VIEW_WORKDAYS = 14
+const DAY_VIEW_DAYS = 14
 
-const PALETTE = ['blue', 'teal', 'grape', 'orange', 'lime', 'pink', 'cyan', 'yellow']
+// Shared column geometry — the heatmap and the bar chart both use this, so
+// scrolling either one keeps the same day lined up in both.
+export const COL_W = 44
+export const LABEL_W = 160
 
 interface Period { label: string; startDay: number; endDay: number; weekStart: number; weekEnd: number }
 
@@ -25,13 +28,13 @@ interface Period { label: string; startDay: number; endDay: number; weekStart: n
 // uses, so a week is wholly attributed to the month its first day falls in —
 // a minor approximation at month boundaries, consistent with the ghost map
 // itself already being an estimate (see berekenGhostBelasting). Day buckets
-// reuse that same per-week ghost figure for every workday in the week, for
-// the same reason.
+// reuse that same per-week ghost figure for every day in the week, for the
+// same reason. Weekends are included throughout — this shop schedules
+// weekend work too, so every calendar day counts the same.
 function buildPeriods(granularity: Granularity, windowStart: Date): Period[] {
   if (granularity === 'day') {
     const days: Period[] = []
-    for (let d = 0; d < TOTAL_DAYS && days.length < DAY_VIEW_WORKDAYS; d++) {
-      if (isWeekendIdx(d, windowStart)) continue
+    for (let d = 0; d < TOTAL_DAYS && days.length < DAY_VIEW_DAYS; d++) {
       const week = Math.floor(d / 7)
       days.push({ label: fmtDayShort(d, windowStart), startDay: d, endDay: d + 1, weekStart: week, weekEnd: week + 1 })
     }
@@ -59,20 +62,12 @@ function buildPeriods(granularity: Granularity, windowStart: Date): Period[] {
   return periods.map(p => ({ ...p, weekStart: Math.floor(p.startDay / 7), weekEnd: Math.ceil(p.endDay / 7) }))
 }
 
-function workdaysInRange(startDay: number, endDay: number, windowStart: Date): number {
-  let n = 0
-  for (let d = startDay; d < endDay; d++) if (!isWeekendIdx(d, windowStart)) n++
-  return n
-}
-
-// Effective capacity (hours) for a period — exact for "week" (every period is
-// a full Mon-Fri week, so this is always 5 workdays), an average for "month"
-// (variable workday count per calendar month, so the reference line is a
-// guide rather than an exact-per-period threshold).
-function avgCapacityHours(periods: Period[], windowStart: Date): number {
+// Effective capacity (hours) for a period — every calendar day counts
+// equally now (weekend work included), so this is just day-count * rate.
+function avgCapacityHours(periods: Period[]): number {
   if (periods.length === 0) return 0
-  const totalWorkdays = periods.reduce((s, p) => s + workdaysInRange(p.startDay, p.endDay, windowStart), 0)
-  return (totalWorkdays / periods.length) * EFFECTIEVE_MIN / 60
+  const totalDays = periods.reduce((s, p) => s + (p.endDay - p.startDay), 0)
+  return (totalDays / periods.length) * EFFECTIEVE_MIN / 60
 }
 
 export function PrognosePage() {
@@ -93,6 +88,25 @@ export function PrognosePage() {
     return () => window.clearInterval(id)
   }, [windowStart])
 
+  // Linked horizontal scroll — the heatmap and the bar chart share the same
+  // column width, so keeping their scrollLeft in sync keeps every day
+  // aligned between the two.
+  const heatmapScrollRef = useRef<HTMLDivElement>(null)
+  const barsScrollRef = useRef<HTMLDivElement>(null)
+  const isSyncingScroll = useRef(false)
+  function onHeatmapScroll() {
+    if (isSyncingScroll.current) return
+    isSyncingScroll.current = true
+    if (barsScrollRef.current && heatmapScrollRef.current) barsScrollRef.current.scrollLeft = heatmapScrollRef.current.scrollLeft
+    isSyncingScroll.current = false
+  }
+  function onBarsScroll() {
+    if (isSyncingScroll.current) return
+    isSyncingScroll.current = true
+    if (heatmapScrollRef.current && barsScrollRef.current) heatmapScrollRef.current.scrollLeft = barsScrollRef.current.scrollLeft
+    isSyncingScroll.current = false
+  }
+
   const projects = projectsApi.list()
   const articles = articlesApi.list()
   const machines = machinesApi.listSync()
@@ -106,10 +120,10 @@ export function PrognosePage() {
     [projects, articles, machines, windowStart],
   )
   const periods = useMemo(() => buildPeriods(granularity, windowStart), [granularity, windowStart])
-  const capacityHours = useMemo(() => Math.round(avgCapacityHours(periods, windowStart) * 10) / 10, [periods, windowStart])
+  const capacityHours = useMemo(() => Math.round(avgCapacityHours(periods) * 10) / 10, [periods])
   const capacityPerPeriod = useMemo(
-    () => periods.map(p => workdaysInRange(p.startDay, p.endDay, windowStart) * EFFECTIEVE_MIN / 60),
-    [periods, windowStart],
+    () => periods.map(p => (p.endDay - p.startDay) * EFFECTIEVE_MIN / 60),
+    [periods],
   )
 
   const data = useMemo(() => periods.map(p => {
@@ -121,10 +135,6 @@ export function PrognosePage() {
     }
     return row
   }), [periods, machines, allItems, ghostMap, windowStart])
-
-  const series = useMemo<BarChartSeries[]>(() => machines.map((m, i) => ({
-    name: `${m.name}__total`, label: m.name, color: `${PALETTE[i % PALETTE.length]}.6`,
-  })), [machines])
 
   return (
     <div className="pg-root plan">
@@ -150,29 +160,17 @@ export function PrognosePage() {
           <>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Overzicht — bezetting % per machine</div>
-            <PrognoseHeatmap machines={machines} periods={periods} data={data} capacityPerPeriod={capacityPerPeriod} />
+            <PrognoseHeatmap
+              machines={machines} periods={periods} data={data} capacityPerPeriod={capacityPerPeriod}
+              colWidth={COL_W} labelWidth={LABEL_W} scrollRef={heatmapScrollRef} onScroll={onHeatmapScroll}
+            />
           </div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Werklast per machine (gepland + prognose)</div>
-            <div style={{ overflowX: granularity === 'day' ? 'auto' : 'visible' }}>
-              <div style={{ minWidth: granularity === 'day' ? periods.length * 16 : '100%' }}>
-                <BarChart
-                  h={320}
-                  data={data}
-                  dataKey="period"
-                  series={series}
-                  withLegend
-                  withTooltip
-                  unit=" u"
-                  tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
-                  xAxisProps={{ angle: -45, textAnchor: 'end', height: 60, interval: 0 }}
-                  referenceLines={[{
-                    y: capacityHours, color: 'red.6', label: `Capaciteit per machine (${capacityHours} u)`,
-                    strokeDasharray: '4 4', labelPosition: 'insideTopRight', ifOverflow: 'extendDomain',
-                  }]}
-                />
-              </div>
-            </div>
+            <PrognoseBars
+              machines={machines} periods={periods} data={data} capacityHours={capacityHours}
+              colWidth={COL_W} labelWidth={LABEL_W} scrollRef={barsScrollRef} onScroll={onBarsScroll}
+            />
           </div>
           </>
         )}
