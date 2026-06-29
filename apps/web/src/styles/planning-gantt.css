@@ -389,10 +389,23 @@
 .pg-root .prog-hm-colhd {
   position: sticky; top: 0; z-index: 2; background: var(--bg-2);
   border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
-  padding: 6px 8px; font-weight: 600; color: var(--text-3); text-align: center;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-weight: 600; color: var(--text-3);
 }
-.pg-root .prog-hm-corner { left: 0; z-index: 3; text-align: left; }
+.pg-root .prog-hm-corner {
+  left: 0; z-index: 3; padding: 6px 8px; text-align: left;
+  display: flex; align-items: flex-end;
+}
+/* Tilted column headers (45°) so a narrow day column still reads — the
+   label is positioned at the cell's bottom-left and rotated around that
+   anchor, so it climbs up-and-right instead of being ellipsis-truncated. */
+.pg-root .prog-hm-colhd {
+  height: 64px; overflow: visible;
+}
+.pg-root .prog-hm-colhd span {
+  position: absolute; bottom: 6px; left: 6px;
+  transform: rotate(-45deg); transform-origin: left bottom;
+  white-space: nowrap;
+}
 .pg-root .prog-hm-rowhd {
   position: sticky; left: 0; z-index: 1; background: var(--bg-2);
   border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);

@@ -164,6 +164,7 @@ export function PrognosePage() {
                     withTooltip
                     unit=" u"
                     tooltipProps={{ wrapperStyle: { zIndex: 20 } }}
+                    xAxisProps={{ angle: -45, textAnchor: 'end', height: 60, interval: 0 }}
                     referenceLines={[{
                       y: capacityHours, color: 'red.6', label: `Capaciteit (${capacityHours} u)`,
                       strokeDasharray: '4 4', labelPosition: 'insideTopRight', ifOverflow: 'extendDomain',

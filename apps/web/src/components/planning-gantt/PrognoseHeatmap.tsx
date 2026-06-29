@@ -23,7 +23,9 @@ export function PrognoseHeatmap({ machines, periods, data, capacityPerPeriod }: 
     <div className="prog-hm-wrap">
       <div className="prog-hm-grid" style={{ gridTemplateColumns: `160px repeat(${periods.length}, minmax(34px, 1fr))` }}>
         <div className="prog-hm-corner">Machine</div>
-        {periods.map((p, i) => <div key={i} className="prog-hm-colhd">{p.label}</div>)}
+        {periods.map((p, i) => (
+          <div key={i} className="prog-hm-colhd"><span>{p.label}</span></div>
+        ))}
 
         {machines.map(m => (
           <Fragment key={m.id}>
