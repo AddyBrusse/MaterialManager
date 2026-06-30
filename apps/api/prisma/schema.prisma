@@ -349,6 +349,7 @@ model ZaagReservering {
   vlakToeslag    Decimal   @map("vlak_toeslag")
   machine        String
   priority       Int?
+  rush           Boolean   @default(false)
   status         String    @default("open")
   restLengteMm   Decimal?  @map("rest_lengte_mm")
   completedAt    DateTime? @map("completed_at")

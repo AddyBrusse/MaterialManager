@@ -1249,6 +1249,64 @@ tr:hover .row-actions { opacity: 1; }
 .zf-cta:disabled { opacity: 0.38; cursor: not-allowed; }
 .zf-cta svg { width: 16px; height: 16px; }
 
+/* ── Zaag planner (zplan-*) ── */
+.zplan-list {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 0 24px 24px; max-width: 760px;
+}
+.zplan-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 10px 14px 10px 8px;
+  box-shadow: var(--shadow-sm);
+  /* @hello-pangea/dnd sets inline transform/position; keep our own visuals minimal */
+}
+.zplan-row.dragging {
+  box-shadow: var(--shadow-pop); border-color: var(--accent);
+}
+.zplan-row.rush {
+  border-color: var(--danger); background: var(--danger-soft);
+}
+.zplan-handle {
+  display: grid; place-items: center; width: 26px; height: 36px;
+  color: var(--text-4); cursor: grab; flex-shrink: 0;
+}
+.zplan-handle:active { cursor: grabbing; }
+.zplan-handle:hover { color: var(--text-2); }
+.zplan-pos {
+  width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--bg-chip); color: var(--text-2);
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.zplan-row.rush .zplan-pos { background: var(--danger); color: #fff; }
+.zplan-main { flex: 1; min-width: 0; }
+.zplan-row-top {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 3px;
+}
+.zplan-calcnr { font-family: var(--font-mono); font-weight: 700; font-size: 14px; }
+.zplan-row-sub {
+  display: flex; gap: 16px; font-size: 12px; color: var(--text-3); flex-wrap: wrap;
+}
+.zplan-spoed-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 2px 7px; border-radius: 20px;
+  background: var(--danger); color: #fff;
+}
+.zplan-spoed-btn {
+  display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+  height: 28px; padding: 0 11px; border-radius: var(--radius);
+  border: 1px solid var(--border-input); background: var(--bg-2);
+  color: var(--text-2); font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: var(--font-sans);
+}
+.zplan-spoed-btn:hover { border-color: var(--danger); color: var(--danger); }
+.zplan-spoed-btn svg { width: 14px; height: 14px; }
+.zplan-spoed-btn.on {
+  background: var(--danger); border-color: var(--danger); color: #fff;
+}
+
 /* zaagbon preview card on the reserveringen page */
 .resv-zaagbon-wrap {
   background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius-lg);

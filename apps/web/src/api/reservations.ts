@@ -22,15 +22,17 @@ export interface ZaagReservation {
   vlakToeslag: number
   machine: string
   createdAt: string
-  priority: number | null
-  status: ReservationStatus
-  restLengteMm: number | null
+  priority: number | null      // planner sets order (1 = highest); null = no priority
+  rush: boolean                // planner "Spoed" flag — rush jobs jump the queue
+  status: ReservationStatus    // open → in_progress → done
+  restLengteMm: number | null  // measured rest after sawing (set when marking done)
   completedAt: string | null
 }
 
 function migrate(r: Partial<ZaagReservation>): ZaagReservation {
   return {
     priority: null,
+    rush: false,
     status: 'open',
     restLengteMm: null,
     completedAt: null,
@@ -53,6 +55,9 @@ function loadLocal(): ZaagReservation[] {
 
 function saveLocal(data: ZaagReservation[]): void {
   try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
+  // Notify same-tab listeners (e.g. sidebar count badges) — the native
+  // 'storage' event only fires in *other* tabs, so we emit our own.
+  try { window.dispatchEvent(new Event('sm-reservations-changed')) } catch {}
 }
 
 let cache: ZaagReservation[] = loadLocal()
@@ -67,7 +72,7 @@ export async function initReservations(): Promise<void> {
   }
 }
 
-type CreateInput = Omit<ZaagReservation, 'id' | 'createdAt' | 'priority' | 'status' | 'restLengteMm' | 'completedAt'>
+type CreateInput = Omit<ZaagReservation, 'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt'>
 
 export const reservationsStore = {
   list: () => cache,
@@ -78,6 +83,7 @@ export const reservationsStore = {
       id: `res_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
       createdAt: new Date().toISOString(),
       priority: null,
+      rush: false,
       status: 'open' as ReservationStatus,
       restLengteMm: null,
       completedAt: null,
@@ -101,6 +107,28 @@ export const reservationsStore = {
     apiFetch<ZaagReservation>(`/reservations/${id}/priority`, {
       method: 'PATCH', body: JSON.stringify({ priority }),
     }).catch(() => {})
+  },
+
+  // Apply a full planner ordering in one write: job at index i → priority i+1,
+  // plus its rush flag, on every reservation it contains. Reservations not in
+  // any listed job are left untouched.
+  applyPlan: async (jobs: { ids: string[]; rush: boolean }[]): Promise<void> => {
+    const plan = new Map<string, { priority: number; rush: boolean }>()
+    jobs.forEach((job, i) => {
+      for (const id of job.ids) plan.set(id, { priority: i + 1, rush: job.rush })
+    })
+    cache = cache.map(r => {
+      const p = plan.get(r.id)
+      return p ? { ...r, priority: p.priority, rush: p.rush } : r
+    })
+    saveLocal(cache)
+    try {
+      const { data } = await apiFetch<ZaagReservation[]>('/reservations/plan', {
+        method: 'POST', body: JSON.stringify({ jobs }),
+      })
+      cache = data
+      saveLocal(cache)
+    } catch {}
   },
 
   setStatus: async (id: string, status: ReservationStatus): Promise<void> => {

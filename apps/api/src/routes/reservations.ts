@@ -30,7 +30,7 @@ function serialize(r: {
   id: string; calculatieNr: string; barId: string; barCode: string; barLocation: string; barVorm: string
   pieces: number; productLen: unknown; sawLength: unknown; fysiekeLengte: unknown; materiaal: string
   diameter: unknown; werkstukLengte: unknown; steekbreedte: unknown; vlakToeslag: unknown; machine: string
-  priority: number | null; status: string; restLengteMm: unknown; completedAt: Date | null; createdAt: Date
+  priority: number | null; rush: boolean; status: string; restLengteMm: unknown; completedAt: Date | null; createdAt: Date
 }) {
   return {
     id: r.id,
@@ -50,6 +50,7 @@ function serialize(r: {
     vlakToeslag: toNum(r.vlakToeslag),
     machine: r.machine,
     priority: r.priority,
+    rush: r.rush,
     status: r.status,
     restLengteMm: r.restLengteMm != null ? toNum(r.restLengteMm) : null,
     completedAt: r.completedAt?.toISOString() ?? null,
@@ -104,6 +105,29 @@ router.patch(
       data: { priority },
     })
     res.json({ data: serialize(row) })
+  }),
+)
+
+const PlanSchema = z.object({
+  jobs: z.array(z.object({ ids: z.array(z.string()), rush: z.boolean() })),
+})
+
+router.post(
+  '/plan',
+  asyncHandler(async (req, res) => {
+    const { jobs } = PlanSchema.parse(req.body)
+    await prisma.$transaction(
+      jobs.flatMap((job, i) =>
+        job.ids.map(id =>
+          prisma.zaagReservering.update({
+            where: { id },
+            data: { priority: i + 1, rush: job.rush },
+          }),
+        ),
+      ),
+    )
+    const rows = await prisma.zaagReservering.findMany({ orderBy: { createdAt: 'desc' } })
+    res.json({ data: rows.map(serialize) })
   }),
 )
 
