@@ -16,6 +16,7 @@ import movementsRouter from './routes/movements'
 import locationsRouter from './routes/locations'
 import gradesRouter from './routes/grades'
 import profilesRouter from './routes/profiles'
+import surfaceFinishesRouter from './routes/surface-finishes'
 import labelsRouter from './routes/labels'
 import locksRouter from './routes/locks'
 import uploadsRouter from './routes/uploads'
@@ -62,6 +63,7 @@ app.use('/api/movements', movementsRouter)
 app.use('/api/locations', locationsRouter)
 app.use('/api/grades', gradesRouter)
 app.use('/api/profiles', profilesRouter)
+app.use('/api/surface-finishes', surfaceFinishesRouter)
 app.use('/api/labels', labelsRouter)
 app.use('/api/locks', locksRouter)
 app.use('/api/uploads', uploadsRouter)

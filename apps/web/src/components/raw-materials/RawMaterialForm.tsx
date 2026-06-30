@@ -7,6 +7,7 @@ import { IconX, IconLock } from '@tabler/icons-react'
 import { rawMaterialsApi } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
+import { surfaceFinishesApi } from '../../api/surface-finishes'
 import { locationsApi } from '../../api/locations'
 import { locksApi } from '../../api/locks'
 import type { RawMaterialRow } from '../../api/raw-materials'
@@ -24,6 +25,7 @@ type FormValues = {
   code: string
   gradeId: string
   profileId: string
+  surfaceFinishId: string
   dimensions: Record<string, number | string>
   lengthMm: number | ''
   locationSlotId: string
@@ -39,16 +41,17 @@ type Props = {
 }
 
 const EMPTY: FormValues = {
-  code: '', gradeId: '', profileId: '', dimensions: {},
+  code: '', gradeId: '', profileId: '', surfaceFinishId: '', dimensions: {},
   lengthMm: '', locationSlotId: '', minStock: '',
 }
 
 export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: Props) {
   const qc = useQueryClient()
 
-  const { data: gradesData }    = useQuery({ queryKey: ['grades'],    queryFn: gradesApi.list })
-  const { data: profilesData }  = useQuery({ queryKey: ['profiles'],  queryFn: profilesApi.list })
-  const { data: locationsData } = useQuery({ queryKey: ['locations'], queryFn: locationsApi.list })
+  const { data: gradesData }         = useQuery({ queryKey: ['grades'],          queryFn: gradesApi.list })
+  const { data: profilesData }       = useQuery({ queryKey: ['profiles'],        queryFn: profilesApi.list })
+  const { data: surfaceFinishesData } = useQuery({ queryKey: ['surface-finishes'], queryFn: surfaceFinishesApi.list })
+  const { data: locationsData }      = useQuery({ queryKey: ['locations'],       queryFn: locationsApi.list })
 
   const autoCode = useMemo(() => nextCode(allRows), [allRows])
 
@@ -101,6 +104,7 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
         code: item.code,
         gradeId: item.gradeId,
         profileId: item.profileId,
+        surfaceFinishId: item.surfaceFinish?.id ?? '',
         dimensions: Object.fromEntries(Object.entries(item.dimensions).map(([k, v]) => [k, v])),
         lengthMm: Number(item.lengthMm),
         locationSlotId: item.locationSlot?.id ?? '',
@@ -119,6 +123,7 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
       const base = {
         gradeId: v.gradeId,
         profileId: v.profileId,
+        surfaceFinishId: v.surfaceFinishId || undefined,
         dimensions: dims,
         lengthMm: Number(v.lengthMm),
         locationSlotId: v.locationSlotId || undefined,
@@ -217,6 +222,15 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
                   form.setFieldValue('dimensions', {})
                 }}
                 error={form.errors.profileId}
+              />
+
+              <Select
+                label="Afwerking"
+                placeholder="Optioneel"
+                size="sm"
+                clearable
+                data={(surfaceFinishesData?.data ?? []).map(s => ({ value: s.id, label: s.name }))}
+                {...form.getInputProps('surfaceFinishId')}
               />
 
               {activePrfl && activePrfl.dimensionSchema.length > 0 && (
