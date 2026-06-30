@@ -9,6 +9,8 @@ interface PrognoseHeatmapProps {
   capacityPerPeriod: number[]
   colWidth: number
   labelWidth: number
+  rowHeight: number
+  maxHeight: number
   scrollRef: RefObject<HTMLDivElement>
   onScroll: () => void
 }
@@ -24,10 +26,10 @@ function ratioColor(ratio: number): string {
 }
 
 export function PrognoseHeatmap({
-  machines, periods, data, capacityPerPeriod, colWidth, labelWidth, scrollRef, onScroll,
+  machines, periods, data, capacityPerPeriod, colWidth, labelWidth, rowHeight, maxHeight, scrollRef, onScroll,
 }: PrognoseHeatmapProps) {
   return (
-    <div className="prog-hm-wrap" ref={scrollRef} onScroll={onScroll}>
+    <div className="prog-hm-wrap" ref={scrollRef} onScroll={onScroll} style={{ maxHeight }}>
       <div className="prog-hm-grid" style={{ gridTemplateColumns: `${labelWidth}px repeat(${periods.length}, ${colWidth}px)` }}>
         <div className="prog-hm-corner" style={{ width: labelWidth }}>Machine</div>
         {periods.map((p, i) => (
@@ -36,7 +38,7 @@ export function PrognoseHeatmap({
 
         {machines.map(m => (
           <Fragment key={m.id}>
-            <div className="prog-hm-rowhd" style={{ width: labelWidth }}>{m.name}</div>
+            <div className="prog-hm-rowhd" style={{ width: labelWidth, height: rowHeight }} title={m.name}>{m.name}</div>
             {periods.map((p, i) => {
               const row = data[i]
               const load = Number(row?.[`${m.name}__total`] ?? 0)
@@ -45,8 +47,8 @@ export function PrognoseHeatmap({
               return (
                 <div
                   key={i} className="prog-hm-cell"
-                  style={{ background: ratioColor(ratio) }}
-                  title={`${m.name} · ${p.label}: ${load.toFixed(1)} u / ${cap.toFixed(1)} u (${Math.round(ratio * 100)}%)`}
+                  style={{ background: ratioColor(ratio), height: rowHeight }}
+                  data-tip={`${m.name} · ${p.label}: ${load.toFixed(1)} u / ${cap.toFixed(1)} u (${Math.round(ratio * 100)}%)`}
                 >
                   {load > 0 ? `${Math.round(ratio * 100)}` : ''}
                 </div>

@@ -36,6 +36,21 @@ export function getWindowStart(): Date {
   return d
 }
 
+// Prognose-only horizon: unlike the Gantt/Kanban boards (fixed window,
+// re-anchored weekly), the Prognose chart's far edge must always stay at
+// least this many days past "today" — recomputed live (see PrognosePage)
+// rather than baked into a fixed week count, so a browser tab left open for
+// weeks doesn't quietly run out of runway.
+const PROGNOSE_FUTURE_DAYS = 300
+
+export function prognoseTotalDays(windowStart: Date, today: Date = new Date()): number {
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const end = new Date(start)
+  end.setDate(end.getDate() + PROGNOSE_FUTURE_DAYS)
+  const daysNeeded = Math.ceil((end.getTime() - windowStart.getTime()) / 86400000)
+  return Math.max(TOTAL_DAYS, Math.ceil(daysNeeded / 7) * 7)
+}
+
 export function dayIndexForDate(dateStr: string, windowStart: Date): number {
   const d = new Date(dateStr + 'T00:00:00')
   return Math.round((d.getTime() - windowStart.getTime()) / 86400000)
@@ -234,6 +249,7 @@ export function berekenGhostBelasting(
   articles: Article[],
   machines: Machine[],
   windowStart: Date,
+  totalDays: number = TOTAL_DAYS,
 ): Map<string, Map<number, number>> {
   const result = new Map<string, Map<number, number>>()
   function add(machineNaam: string, weekIdx: number, min: number) {
@@ -244,7 +260,7 @@ export function berekenGhostBelasting(
   for (const project of projects) {
     if (!project.levertijdDatum) continue
     const dayIdx = dayIndexForDate(project.levertijdDatum, windowStart)
-    if (dayIdx < 0 || dayIdx >= TOTAL_DAYS) continue
+    if (dayIdx < 0 || dayIdx >= totalDays) continue
     const weekIdx = Math.floor(dayIdx / 7)
     for (const offerte of project.offertes) {
       if (offerte.status !== 'verzonden') continue

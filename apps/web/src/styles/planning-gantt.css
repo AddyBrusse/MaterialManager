@@ -381,31 +381,51 @@
 
 /* ===== Prognose heatmap ===== */
 .pg-root .prog-hm-wrap {
-  overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  /* overflow-y: hidden, not auto — PrognosePage sizes max-height to exactly
+     fit every machine row (the heatmap is documented to never scroll
+     vertically), with zero slack. With overflow:auto on both axes, sitting
+     exactly on that boundary let the browser flip-flop between "needs a
+     vertical scrollbar" (steals width, can trigger the horizontal
+     scrollbar) and "needs a horizontal scrollbar" (steals height, can
+     re-trigger the vertical one) — the classic CSS scrollbar paradox, which
+     also desynced this wrap's width from the bar chart's (see the linked
+     scrollLeft sync in PrognosePage) and showed as the two charts jittering
+     against each other. Locking out the vertical scrollbar removes the
+     paradox entirely; horizontal scroll (for the linked column scrolling)
+     still works via overflow-x.
+  */
+  overflow-x: auto; overflow-y: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
   background: var(--bg-2); max-height: 360px;
 }
 .pg-root .prog-hm-grid { display: grid; font-size: 11px; }
+/* box-sizing: border-box throughout — otherwise each cell's border-right
+   adds 1px beyond its specified width/height, and that 1px compounds across
+   many columns, drifting the grid out of sync with itself the further right
+   you scroll (visible as cells no longer lining up under their header). */
+.pg-root .prog-hm-grid * { box-sizing: border-box; }
 .pg-root .prog-hm-corner,
 .pg-root .prog-hm-colhd {
   position: sticky; top: 0; z-index: 2; background: var(--bg-2);
   border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
   font-weight: 600; color: var(--text-3);
+  height: 28px;
 }
 .pg-root .prog-hm-corner {
   left: 0; z-index: 3; padding: 6px 8px; text-align: left;
-  display: flex; align-items: flex-end;
+  display: flex; align-items: center;
 }
-/* Tilted column headers (45°) so a narrow day column still reads — the
-   label is anchored at the cell's bottom-center and rotated around that
-   anchor, so it climbs up-and-right from the middle of its own column
-   instead of being ellipsis-truncated or skewed toward one edge. */
+/* Column headers: horizontal, centered, lightweight — mirrors the bar
+   chart's bottom labels so the two stacked, scroll-linked charts read as
+   one. (Was a 45° tilt; the columns are wide enough — day view sizes them
+   to fit ~14 in view — that centered horizontal text reads cleanly.) */
 .pg-root .prog-hm-colhd {
-  height: 64px; overflow: visible;
+  overflow: hidden; font-weight: 400;
+  display: flex; align-items: center; justify-content: center;
 }
 .pg-root .prog-hm-colhd span {
-  position: absolute; bottom: 6px; left: 50%;
-  transform: rotate(-45deg); transform-origin: left bottom;
-  white-space: nowrap;
+  font-size: 10.5px; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 .pg-root .prog-hm-rowhd {
   position: sticky; left: 0; z-index: 1; background: var(--bg-2);
@@ -413,15 +433,30 @@
   padding: 6px 10px; font-weight: 500; color: var(--text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   display: flex; align-items: center;
+  height: 50px;
 }
 .pg-root .prog-hm-cell {
   border-bottom: 1px solid var(--border); border-right: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center;
-  min-height: 28px; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
-  color: var(--text-2); cursor: default;
+  height: 50px; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  color: var(--text-2); cursor: default; position: relative;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.pg-root .prog-hm-cell:hover {
+  /* No transform: scale here — the cell hosts the data-tip tooltip as its
+     own ::after pseudo-element, which is a descendant and would inherit
+     any geometric transform on the cell, distorting the tooltip box too. */
+  z-index: 4; box-shadow: inset 0 0 0 1.5px var(--text-2), var(--shadow-md);
+  filter: brightness(1.06);
 }
 
 /* ===== Prognose bars (plain CSS, shares column geometry with the heatmap) === */
+/* box-sizing: border-box — must match the heatmap's grid (both use the same
+   colWidth from PrognosePage for the linked-scroll alignment to hold); a
+   content-box border-right would inflate this chart's columns by 1px each
+   while the heatmap's stayed at the specified width, drifting the two charts
+   out of alignment by a growing number of pixels the further right you go. */
+.pg-root .prog-bars-wrap * { box-sizing: border-box; }
 .pg-root .prog-bars-legend { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
 .pg-root .prog-bars-legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-3); }
 .pg-root .prog-bars-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
@@ -429,11 +464,17 @@
 
 .pg-root .prog-bars-wrap {
   overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-2);
+  /* The top axis label sits centered ON the chart's 0%/100% gridlines
+     (translateY(50%) straddles the line, half above/half below), so the
+     topmost label pokes up past the chart's nominal top edge by design.
+     Without this padding that sliver falls outside the wrap's own box and
+     overflow:auto clips it — the number reads as cut off. */
+  padding-top: 14px;
 }
 .pg-root .prog-bars-inner { display: flex; }
 .pg-root .prog-bars-axis {
-  position: sticky; left: 0; z-index: 1; flex-shrink: 0; background: var(--bg-2);
-  border-right: 1px solid var(--border); position: relative;
+  position: sticky; left: 0; z-index: 2; flex-shrink: 0; background: var(--bg-2);
+  border-right: 1px solid var(--border);
 }
 .pg-root .prog-bars-axis span {
   position: absolute; left: 8px; transform: translateY(50%);
@@ -446,9 +487,38 @@
   display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding: 0 2px 2px;
 }
 .pg-root .prog-bars-capline {
-  position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px dashed var(--danger); opacity: 0.7;
+  position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--danger); opacity: 0.8;
 }
-.pg-root .prog-bars-bar { width: 6px; border-radius: 2px 2px 0 0; min-height: 2px; flex-shrink: 0; }
+.pg-root .prog-bars-bar {
+  width: 6px; border-radius: 2px 2px 0 0; min-height: 2px; flex-shrink: 0;
+  transition: filter .12s ease, box-shadow .12s ease;
+}
+/* No transform: scaleX here — the bar hosts the data-tip tooltip as its own
+   ::after pseudo-element, which is a descendant and would inherit any
+   geometric transform on the bar, stretching the tooltip box too. */
+.pg-root .prog-bars-bar:hover {
+  filter: brightness(1.25);
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.25);
+}
+
+/* x-axis date/period labels under the bars, horizontally centered in each
+   column (the column is wide enough — day view sizes columns to fit ~14 in
+   view, week/month are wider still — so a centered label reads cleanly
+   without the 45° tilt the cramped heatmap header needs). */
+.pg-root .prog-bars-labelrow { display: flex; }
+.pg-root .prog-bars-axis-spacer {
+  position: sticky; left: 0; z-index: 2; flex-shrink: 0; background: var(--bg-2);
+  border-right: 1px solid var(--border);
+}
+.pg-root .prog-bars-collabel {
+  flex-shrink: 0; height: 26px;
+  border-right: 1px solid var(--border); border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+.pg-root .prog-bars-collabel span {
+  font-size: 10.5px; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
 
 .pg-root .prog-bars-bar[data-color="0"], .pg-root .prog-bars-legend i[data-color="0"] { background: #2d6df6; }
 .pg-root .prog-bars-bar[data-color="1"], .pg-root .prog-bars-legend i[data-color="1"] { background: #0d9488; }
@@ -458,3 +528,44 @@
 .pg-root .prog-bars-bar[data-color="5"], .pg-root .prog-bars-legend i[data-color="5"] { background: #db2777; }
 .pg-root .prog-bars-bar[data-color="6"], .pg-root .prog-bars-legend i[data-color="6"] { background: #0891b2; }
 .pg-root .prog-bars-bar[data-color="7"], .pg-root .prog-bars-legend i[data-color="7"] { background: #ca8a04; }
+
+/* ===== Instant hover tooltip for chart cells/bars (data-tip attribute) =====
+   CSS-only rather than a JS tooltip component — consistent with the "plain
+   CSS, no charting library" approach used for these two charts, and avoids
+   mounting a tooltip per cell/bar (there can be hundreds across the
+   ~300-day Prognose window). */
+.pg-root [data-tip] { position: relative; }
+.pg-root [data-tip]::after {
+  content: attr(data-tip);
+  /* Anchored at the element's own left edge, growing rightward — NOT
+     centered. A centered tooltip on a column near the sticky left axis
+     extends back underneath that axis, which visually paints over (clips)
+     part of the tooltip regardless of z-index. Anchoring left means the
+     tooltip never reaches further left than the element it's attached to,
+     so it can't reach the axis at all. */
+  position: absolute; bottom: 100%; left: 0; z-index: 50;
+  transform: translateY(-4px) scale(0.96); transform-origin: bottom left;
+  background: var(--text); color: var(--bg);
+  font-size: 11px; font-weight: 500; line-height: 1.3;
+  padding: 5px 8px; border-radius: 6px;
+  /* width: 0/overflow: hidden by default (not max-content) — every chart
+     cell carries a [data-tip], including empty/zero-load ones, and even at
+     opacity:0 an absolutely-positioned box still counts toward its scroll
+     container's scrollWidth. With hundreds of cells per chart that phantom
+     width made the heatmap's wrap measurably wider (and thus more
+     horizontally scrollable) than the bar chart's wrap — which skips
+     rendering empty bars entirely — desyncing the two charts' linked
+     scrollLeft as soon as either was scrolled. Collapsing to 0 width until
+     hover removes that contribution; only the hovered tooltip (singular)
+     ever claims real layout space. */
+  width: 0; max-width: 170px; overflow: hidden; white-space: normal; text-align: left;
+  pointer-events: none; opacity: 0;
+  box-shadow: var(--shadow-pop);
+  transition: opacity .1s ease, transform .1s ease;
+  transition-delay: 0s;
+}
+.pg-root [data-tip]:hover::after {
+  width: max-content; overflow: visible;
+  opacity: 1; transform: translateY(-8px) scale(1);
+  transition-delay: .05s;
+}
