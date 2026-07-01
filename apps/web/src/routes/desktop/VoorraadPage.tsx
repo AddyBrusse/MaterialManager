@@ -9,7 +9,7 @@ import {
   IconChevronRight, IconFilter, IconLayoutGrid, IconList,
   IconEdit, IconTrash, IconArrowsExchange, IconFlame,
 } from '@tabler/icons-react'
-import { rawMaterialsApi, formatDimensions, formatLocation, MOCK_MATERIALS } from '../../api/raw-materials'
+import { rawMaterialsApi, formatDimensions, formatLocation } from '../../api/raw-materials'
 import { RawMaterialForm } from '../../components/raw-materials/RawMaterialForm'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
@@ -633,7 +633,7 @@ export function VoorraadPage() {
     onError: () => notifications.show({ color: 'red', message: 'Verwijderen mislukt' }),
   })
 
-  const source = data?.data?.length ? data.data : MOCK_MATERIALS
+  const source = data?.data ?? []
 
   const filtered = useMemo(() => {
     let f = source

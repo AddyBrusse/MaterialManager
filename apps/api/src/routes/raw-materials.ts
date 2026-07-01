@@ -55,7 +55,17 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const body = CreateRawMaterialSchema.parse(req.body)
-    const item = await prisma.rawMaterial.create({ data: body, include })
+    const item = await prisma.rawMaterial.create({
+      data: {
+        ...body,
+        // A new piece starts fully intact — currentStock = full length.
+        // CreateRawMaterialSchema intentionally omits currentStock (it's
+        // derived, not user-supplied), so we set it here rather than
+        // relying on the Prisma default of 0.
+        currentStock: body.lengthMm,
+      },
+      include,
+    })
     res.status(201).json({ data: withWeight(item) })
   })
 )

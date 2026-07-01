@@ -89,9 +89,17 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
   const form = useForm<FormValues>({
     initialValues: EMPTY,
     validate: {
-      gradeId:   (v) => !v ? 'Grade is verplicht' : null,
-      profileId: (v) => !v ? 'Profiel is verplicht' : null,
-      lengthMm:  (v) => (!v || Number(v) <= 0) ? 'Lengte moet positief zijn' : null,
+      gradeId:    (v) => !v ? 'Grade is verplicht' : null,
+      profileId:  (v) => !v ? 'Profiel is verplicht' : null,
+      lengthMm:   (v) => (!v || Number(v) <= 0) ? 'Lengte moet positief zijn' : null,
+      dimensions: (v, vals) => {
+        const prfl = profiles.find(p => p.id === vals.profileId)
+        if (!prfl || prfl.dimensionSchema.length === 0) return null
+        const missing = prfl.dimensionSchema.filter(f => !v[f.key] || Number(v[f.key]) <= 0)
+        return missing.length > 0
+          ? `Vul alle afmetingen in: ${missing.map(f => f.label).join(', ')}`
+          : null
+      },
     },
   })
 
@@ -110,8 +118,9 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
         locationSlotId: item.locationSlot?.id ?? '',
         minStock: item.minStock !== null ? Number(item.minStock) : '',
       })
+      form.clearErrors()
     } else {
-      form.setValues(EMPTY)
+      form.reset()
     }
   }, [opened, item?.id, mode])
 
