@@ -416,11 +416,11 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
             {/* Lines table */}
             {offerte.regels.length > 0 ? (
               <div style={{ overflowX: 'auto' }}>
-              <table className="st-tbl" style={{ fontSize: 12, tableLayout: 'fixed', minWidth: 1100 }}>
+              <table className="st-tbl" style={{ fontSize: 12, tableLayout: 'fixed', width: '100%', minWidth: 1100 }}>
                 <thead>
                   <tr>
                     <th style={{ width: 72 }}>Art. No.</th>
-                    <th style={{ width: 300 }}>Omschrijving</th>
+                    <th>Omschrijving</th>
                     <th style={{ width: 100 }}>Tekeningnummer</th>
                     <th style={{ width: 44 }}>Revisie</th>
                     <th style={{ width: 110 }}>Bewerkingen</th>
