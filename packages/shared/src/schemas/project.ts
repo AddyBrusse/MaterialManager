@@ -126,6 +126,25 @@ export const FactuurSchema = z.object({
 })
 export type Factuur = z.infer<typeof FactuurSchema>
 
+// ── Opdrachtbevestiging ───────────────────────────────────────────────────────
+
+export const OB_STATUSES = ['concept', 'verzonden'] as const
+export type OBStatus = typeof OB_STATUSES[number]
+
+export const OpdrachtbevestigingSchema = z.object({
+  id: z.string(),              // OB-YYYY-NNN
+  projectId: z.string(),
+  offerteId: z.string(),
+  regels: z.array(OfferteRegelSchema),   // frozen snapshot from accepted offerte
+  levertijdDatum: z.string().nullable(),
+  notities: z.string(),
+  status: z.enum(OB_STATUSES),
+  verzondenOp: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+export type Opdrachtbevestiging = z.infer<typeof OpdrachtbevestigingSchema>
+
 // ── Project (root document) ───────────────────────────────────────────────────
 
 export const ProjectSchema = z.object({
@@ -138,6 +157,7 @@ export const ProjectSchema = z.object({
   levertijdDatum: z.string().nullable(),
   notities: z.string(),
   offertes: z.array(OfferteSchema),
+  opdrachtbevestiging: OpdrachtbevestigingSchema.nullable(),
   productieOrders: z.array(ProductieOrderSchema),
   paklijst: PaklijstSchema.nullable(),
   factuur: FactuurSchema.nullable(),

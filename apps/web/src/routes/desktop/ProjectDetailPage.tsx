@@ -11,6 +11,7 @@ import { relatiesApi } from '../../api/relaties'
 import { useUserStore } from '../../stores/user'
 import { PROJECT_STATUS_CONFIG } from './ProjectenPage'
 import { OfferteTab } from '../../components/projecten/OfferteTab'
+import { OpdrachtbevestigingTab } from '../../components/projecten/OpdrachtbevestigingTab'
 import { ProductieTab } from '../../components/projecten/ProductieTab'
 import { PaklijstTab } from '../../components/projecten/PaklijstTab'
 import { FactuurTab } from '../../components/projecten/FactuurTab'
@@ -83,7 +84,7 @@ function toProjectMeta(p: Project): ProjectMeta {
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-type Tab = 'offertes' | 'productie' | 'paklijst' | 'factuur'
+type Tab = 'offertes' | 'opdrachtbevestiging' | 'productie' | 'paklijst' | 'factuur'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -414,6 +415,12 @@ export function ProjectDetailPage() {
           Offertes
           {project.offertes.length > 0 && <span className="tab-count">{project.offertes.length}</span>}
         </button>
+        <button data-active={tab === 'opdrachtbevestiging'} onClick={() => setTab('opdrachtbevestiging')}>
+          Opdrachtbevestiging
+          {project.opdrachtbevestiging && project.opdrachtbevestiging.status !== 'verzonden' && (
+            <span className="tab-count" style={{ background: 'var(--warning)', color: '#fff' }}>!</span>
+          )}
+        </button>
         <button data-active={tab === 'productie'} onClick={() => setTab('productie')}>
           Productie
           {project.productieOrders.length > 0 && <span className="tab-count">{project.productieOrders.length}</span>}
@@ -429,10 +436,11 @@ export function ProjectDetailPage() {
       </div>
 
       <div className="tab-body">
-        {tab === 'offertes'  && <OfferteTab   project={project} onChanged={rerender} />}
-        {tab === 'productie' && <ProductieTab  project={project} onChanged={rerender} />}
-        {tab === 'paklijst'  && <PaklijstTab   project={project} onChanged={() => { rerender() }} />}
-        {tab === 'factuur'   && <FactuurTab    project={project} onChanged={() => { rerender() }} />}
+        {tab === 'offertes'             && <OfferteTab               project={project} onChanged={rerender} />}
+        {tab === 'opdrachtbevestiging'  && <OpdrachtbevestigingTab   project={project} onChanged={rerender} />}
+        {tab === 'productie'            && <ProductieTab             project={project} onChanged={rerender} />}
+        {tab === 'paklijst'             && <PaklijstTab              project={project} onChanged={() => { rerender() }} />}
+        {tab === 'factuur'              && <FactuurTab               project={project} onChanged={() => { rerender() }} />}
       </div>
     </>
   )

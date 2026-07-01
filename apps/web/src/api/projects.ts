@@ -3,6 +3,7 @@ import type {
   Offerte, OfferteRegel, OfferteStatus,
   ProductieOrder,
   Paklijst, Factuur,
+  Opdrachtbevestiging, OBStatus,
 } from '@stockmanager/shared'
 import { notifications } from '@mantine/notifications'
 import { apiFetch } from './client'
@@ -44,6 +45,7 @@ function seedSequenceCounters(projects: Project[]): void {
   for (const p of projects) {
     track(p.id)
     for (const o of p.offertes) track(o.id)
+    if (p.opdrachtbevestiging) track(p.opdrachtbevestiging.id)
     for (const o of p.productieOrders) track(o.id)
     if (p.paklijst) track(p.paklijst.id)
     if (p.factuur) track(p.factuur.id)
@@ -149,6 +151,7 @@ export const projectsApi = {
       levertijdDatum: body.levertijdDatum,
       notities: body.notities,
       offertes: [],
+      opdrachtbevestiging: null,
       productieOrders: [],
       paklijst: null,
       factuur: null,
@@ -343,10 +346,24 @@ export const projectsApi = {
       }
     })
 
+    const ob: Opdrachtbevestiging | null = acceptedOfferte ? {
+      id: nextLocalDocId('OB'),
+      projectId,
+      offerteId,
+      regels: acceptedOfferte.regels,
+      levertijdDatum: p?.levertijdDatum ?? null,
+      notities: '',
+      status: 'concept' as OBStatus,
+      verzondenOp: null,
+      createdAt: now(),
+      updatedAt: now(),
+    } : null
+
     const updated = updateCache(projectId, p => ({
       ...p,
       status: 'bevestigd',
       updatedAt: now(),
+      opdrachtbevestiging: ob,
       offertes: p.offertes.map(o => {
         if (o.id === offerteId) return { ...o, status: 'geaccepteerd' as OfferteStatus, geaccepteerdOp: now(), updatedAt: now() }
         if (o.status !== 'geaccepteerd') return { ...o, status: 'vervallen' as OfferteStatus, updatedAt: now() }
@@ -549,6 +566,32 @@ export const projectsApi = {
       return { ...p, factuur: { ...p.factuur, verzondenOp: now() }, updatedAt: now() }
     })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur/verzend`, { method: 'POST' }), 'Factuur versturen mislukt')
+    return updated
+  },
+
+  // ── Opdrachtbevestiging ───────────────────────────────────────────────────
+
+  updateOB(projectId: string, patch: { notities?: string; levertijdDatum?: string | null }): Project {
+    const updated = updateCache(projectId, p => {
+      if (!p.opdrachtbevestiging) throw new Error('Geen opdrachtbevestiging')
+      return { ...p, updatedAt: now(), opdrachtbevestiging: { ...p.opdrachtbevestiging, ...patch, updatedAt: now() } }
+    })
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/opdrachtbevestiging`, {
+      method: 'PATCH', body: JSON.stringify(patch),
+    }), 'Opdrachtbevestiging bijwerken mislukt')
+    return updated
+  },
+
+  verzendOB(projectId: string): Project {
+    const updated = updateCache(projectId, p => {
+      if (!p.opdrachtbevestiging) throw new Error('Geen opdrachtbevestiging')
+      return {
+        ...p,
+        updatedAt: now(),
+        opdrachtbevestiging: { ...p.opdrachtbevestiging, status: 'verzonden' as OBStatus, verzondenOp: now(), updatedAt: now() },
+      }
+    })
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/opdrachtbevestiging/verzend`, { method: 'POST' }), 'Opdrachtbevestiging versturen mislukt')
     return updated
   },
 }

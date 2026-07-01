@@ -5,6 +5,7 @@ import {
   CreateProjectSchema, UpdateProjectSchema,
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
+  type Opdrachtbevestiging, type OBStatus,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
@@ -18,7 +19,7 @@ function now() { return new Date().toISOString() }
 
 type Db = typeof prisma | Prisma.TransactionClient
 
-async function nextDocId(db: Db, prefix: 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT'): Promise<string> {
+async function nextDocId(db: Db, prefix: 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT' | 'OB'): Promise<string> {
   const result = await db.$queryRaw<{ last_n: number }[]>`
     INSERT INTO doc_sequences (prefix, last_n) VALUES (${prefix}, 1)
     ON CONFLICT (prefix) DO UPDATE SET last_n = doc_sequences.last_n + 1
@@ -32,8 +33,8 @@ async function nextDocId(db: Db, prefix: 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT')
 type ProjectRow = {
   id: string; naam: string; relatieId: string | null; contactId: string | null
   klantRef: string | null; status: string; levertijdDatum: string | null
-  notities: string; offertes: unknown; productieOrders: unknown
-  paklijst: unknown; factuur: unknown
+  notities: string; offertes: unknown; opdrachtbevestiging: unknown
+  productieOrders: unknown; paklijst: unknown; factuur: unknown
   createdAt: Date; updatedAt: Date
 }
 
@@ -48,6 +49,7 @@ function serialize(row: ProjectRow): Project {
     levertijdDatum: row.levertijdDatum,
     notities: row.notities,
     offertes: (row.offertes as Offerte[]) ?? [],
+    opdrachtbevestiging: (row.opdrachtbevestiging as Opdrachtbevestiging | null) ?? null,
     productieOrders: (row.productieOrders as ProductieOrder[]) ?? [],
     paklijst: (row.paklijst as Paklijst | null) ?? null,
     factuur: (row.factuur as Factuur | null) ?? null,
@@ -88,6 +90,7 @@ async function withProject(
         levertijdDatum: next.levertijdDatum,
         notities: next.notities,
         offertes: next.offertes as object[],
+        opdrachtbevestiging: (next.opdrachtbevestiging as object) ?? null,
         productieOrders: next.productieOrders as object[],
         paklijst: (next.paklijst as object) ?? null,
         factuur: (next.factuur as object) ?? null,
@@ -345,10 +348,25 @@ router.post(
         })
       }
 
+      // Auto-create opdrachtbevestiging from the accepted offerte's regels
+      const ob: Opdrachtbevestiging = {
+        id: await nextDocId(tx, 'OB'),
+        projectId: p.id,
+        offerteId: req.params.offId,
+        regels: acceptedOfferte.regels,
+        levertijdDatum: p.levertijdDatum,
+        notities: '',
+        status: 'concept',
+        verzondenOp: null,
+        createdAt: now(),
+        updatedAt: now(),
+      }
+
       return {
         ...p,
         status: 'bevestigd',
         updatedAt: now(),
+        opdrachtbevestiging: ob,
         offertes: p.offertes.map(o => {
           if (o.id === req.params.offId) {
             return { ...o, status: 'geaccepteerd' as OfferteStatus, geaccepteerdOp: now(), updatedAt: now() }
@@ -359,6 +377,44 @@ router.post(
           return o
         }),
         productieOrders: [...p.productieOrders, ...newOrders],
+      }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+// ── Opdrachtbevestiging operations ────────────────────────────────────────────
+
+router.patch(
+  '/:id/opdrachtbevestiging',
+  asyncHandler(async (req, res) => {
+    const patch = z.object({ notities: z.string().optional(), levertijdDatum: z.string().nullable().optional() }).parse(req.body)
+    const updated = await withProject(req.params.id, (p) => {
+      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', 'Geen opdrachtbevestiging')
+      return {
+        ...p,
+        updatedAt: now(),
+        opdrachtbevestiging: { ...p.opdrachtbevestiging, ...patch, updatedAt: now() },
+      }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+router.post(
+  '/:id/opdrachtbevestiging/verzend',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', 'Geen opdrachtbevestiging')
+      return {
+        ...p,
+        updatedAt: now(),
+        opdrachtbevestiging: {
+          ...p.opdrachtbevestiging,
+          status: 'verzonden' as OBStatus,
+          verzondenOp: now(),
+          updatedAt: now(),
+        },
       }
     })
     res.json({ data: updated })

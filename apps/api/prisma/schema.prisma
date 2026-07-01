@@ -333,10 +333,11 @@ model Project {
   status         String   @default("concept")
   levertijdDatum String?  @map("levertijd_datum")
   notities       String   @default("")
-  offertes       Json     @default("[]")
-  productieOrders Json    @default("[]") @map("productie_orders")
-  paklijst       Json?
-  factuur        Json?
+  offertes                Json     @default("[]")
+  opdrachtbevestiging     Json?    @map("opdrachtbevestiging")
+  productieOrders         Json     @default("[]") @map("productie_orders")
+  paklijst                Json?
+  factuur                 Json?
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
