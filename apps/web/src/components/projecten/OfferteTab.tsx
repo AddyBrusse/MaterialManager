@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconPlus, IconTrash, IconPencil, IconSend, IconCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react'
+import { IconPlus, IconTrash, IconPencil, IconSend, IconCheck, IconChevronDown, IconChevronUp, IconMail } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { projectsApi, formatBedrag, formatDate } from '../../api/projects'
 import { articlesApi, KNOWN_OPERATIONS, type Article } from '../../api/articles'
@@ -8,7 +8,9 @@ import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
 import { buildEstimateCtx, computeEstimateTotals } from '../../api/estimate'
 import { relatiesApi } from '../../api/relaties'
-import { downloadOffertePdf } from '../../services/offerte-pdf'
+import { downloadOffertePdf, buildOffertePdf } from '../../services/offerte-pdf'
+import { sendViaMicrosoft365, pdfToBase64 } from '../../services/graph-mail'
+import { companyApi } from '../../api/company'
 import { useUserStore } from '../../stores/user'
 import { ArtikelPickerModal } from './ArtikelPickerModal'
 import type { Project, Offerte, OfferteRegel } from '@stockmanager/shared'
@@ -280,6 +282,97 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
     onChanged()
   }
 
+  const [mailSending, setMailSending] = useState(false)
+
+  async function handleMailVerstuur() {
+    if (offerte.regels.length === 0) {
+      notifications.show({ color: 'red', message: 'Voeg eerst artikelregels toe voordat je verzendt' })
+      return
+    }
+
+    const relaties = relatiesApi.listSync()
+    const relatie  = relaties.find(r => r.id === project.relatieId)
+    const contact  = relatie?.contacten.find(c => c.id === project.contactId)
+
+    // resolve recipient email: contact first, then relatie-level
+    const toEmail = contact?.email ?? relatie?.email ?? null
+    if (!toEmail) {
+      notifications.show({
+        color: 'red',
+        message: 'Geen e-mailadres bekend voor deze klant. Voeg toe via Relaties.',
+      })
+      return
+    }
+
+    if (!user?.email) {
+      notifications.show({
+        color: 'red',
+        message: 'Stel uw M365 e-mailadres in via Instellingen → Gebruikers.',
+      })
+      return
+    }
+
+    const co = companyApi.getSync()
+    if (!co.graphClientId || !co.graphTenantId) {
+      notifications.show({
+        color: 'red',
+        message: 'Configureer Microsoft 365 in Instellingen → Bedrijf.',
+      })
+      return
+    }
+
+    setMailSending(true)
+    try {
+      const doc = buildOffertePdf({
+        id:             project.id,
+        naam:           project.naam,
+        klantNaam:      relatie?.naam,
+        contactNaam:    contact?.naam,
+        klantRef:       project.klantRef,
+        levertijdDatum: project.levertijdDatum,
+      }, offerte)
+
+      const aanhef = contact?.naam ? `Geachte ${contact.naam}` : `Geachte relatie`
+      const handtekening = [user.name, user.achternaam].filter(Boolean).join(' ')
+      const bodyHtml = `
+        <p>${aanhef},</p>
+        <p>Bijgaand ontvangt u onze offerte <strong>${offerte.id}</strong> voor ${project.naam}.</p>
+        <p>Heeft u vragen, neem dan gerust contact met ons op.</p>
+        <p>Met vriendelijke groet,<br>
+        <strong>${handtekening}</strong>${user.titel ? `<br>${user.titel}` : ''}<br>
+        ${co.naam}${co.telefoon ? `<br>${co.telefoon}` : ''}${co.email ? `<br>${co.email}` : ''}</p>
+      `.trim()
+
+      await sendViaMicrosoft365({
+        to: toEmail,
+        subject: `Offerte ${offerte.id} — ${project.naam}`,
+        bodyHtml,
+        attachments: [{
+          name: `Offerte-${offerte.id}-v${offerte.versie}.pdf`,
+          contentBytes: pdfToBase64(doc),
+        }],
+        loginHint: user.email,
+      })
+
+      // mark as sent in the project
+      projectsApi.verzendOfferte(project.id, offerte.id)
+      notifications.show({
+        color: 'green',
+        title: 'Offerte verstuurd',
+        message: `Verzonden naar ${toEmail} · opgeslagen in Verzonden`,
+      })
+      onChanged()
+    } catch (e: unknown) {
+      notifications.show({
+        color: 'red',
+        title: 'Versturen mislukt',
+        message: e instanceof Error ? e.message : 'Onbekende fout',
+      })
+    } finally {
+      setMailSending(false)
+    }
+  }
+
   const [confirmAccept, setConfirmAccept] = useState(false)
 
   function handleAccepteer() {
@@ -430,9 +523,19 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
                 ↓ PDF
               </button>
               {offerte.status === 'concept' && (
-                <button className="st-btn sm" onClick={handleVerstuur}>
-                  <IconSend size={13} />Verstuur naar klant
-                </button>
+                <>
+                  <button
+                    className="st-btn sm primary"
+                    onClick={handleMailVerstuur}
+                    disabled={mailSending}
+                    title="PDF bouwen en direct e-mailen via Microsoft 365"
+                  >
+                    <IconMail size={13} />{mailSending ? 'Versturen…' : 'Verstuur via e-mail'}
+                  </button>
+                  <button className="st-btn sm ghost" onClick={handleVerstuur} title="Markeer als verzonden zonder e-mail te sturen">
+                    <IconSend size={13} />Markeer verzonden
+                  </button>
+                </>
               )}
               {offerte.status === 'verzonden' && !confirmAccept && (
                 <button className="st-btn sm primary" onClick={handleAccepteer}>

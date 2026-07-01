@@ -145,7 +145,7 @@ export interface OffertePdfProject {
   levertijdDatum: string | null
 }
 
-export function downloadOffertePdf(project: OffertePdfProject, offerte: Offerte) {
+export function buildOffertePdf(project: OffertePdfProject, offerte: Offerte): jsPDF {
   const co = companyApi.getSync()
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
 
@@ -289,6 +289,10 @@ export function downloadOffertePdf(project: OffertePdfProject, offerte: Offerte)
     { align: 'center' }
   )
 
-  // ── Save ──────────────────────────────────────────────────────────────────
+  return doc
+}
+
+export function downloadOffertePdf(project: OffertePdfProject, offerte: Offerte) {
+  const doc = buildOffertePdf(project, offerte)
   doc.save(`Offerte-${offerte.id}-v${offerte.versie}.pdf`)
 }

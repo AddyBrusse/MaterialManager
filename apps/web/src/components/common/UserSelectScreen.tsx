@@ -18,7 +18,10 @@ export function UserSelectScreen() {
 
   function handleConfirm() {
     const user = users.find((u) => u.id === selectedId)
-    if (user) setUser({ id: user.id, name: user.name, role: user.role as 'admin' | 'user' })
+    if (user) setUser({
+      id: user.id, name: user.name, role: user.role as 'admin' | 'user',
+      email: user.email, achternaam: user.achternaam, titel: user.titel,
+    })
   }
 
   return (

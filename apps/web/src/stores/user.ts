@@ -2,9 +2,11 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@stockmanager/shared'
 
+type StoredUser = Pick<User, 'id' | 'name' | 'role' | 'email' | 'achternaam' | 'titel'>
+
 interface UserStore {
-  user: Pick<User, 'id' | 'name' | 'role'> | null
-  setUser: (user: Pick<User, 'id' | 'name' | 'role'>) => void
+  user: StoredUser | null
+  setUser: (user: StoredUser) => void
   clearUser: () => void
 }
 
