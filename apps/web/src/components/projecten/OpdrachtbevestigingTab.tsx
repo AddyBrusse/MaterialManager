@@ -5,6 +5,11 @@ import { projectsApi, formatBedrag, formatDate } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
 import { companyApi } from '../../api/company'
 import { useUserStore } from '../../stores/user'
+import { articlesApi, type Article } from '../../api/articles'
+import { gradesApi } from '../../api/grades'
+import { profilesApi } from '../../api/profiles'
+import { machinesApi } from '../../api/machines'
+import { buildEstimateCtx, computeEstimateTotals } from '../../api/estimate'
 import {
   downloadOpdrachtbevestigingPdf,
   buildOpdrachtbevestigingPdf,
@@ -28,10 +33,10 @@ interface OBCardProps {
 }
 
 function OBCard({ project, ob, onChanged }: OBCardProps) {
-  const user = useUserStore(s => s.user)
+  const user     = useUserStore(s => s.user)
   const [expanded, setExpanded] = useState(true)
   const [mailSending, setMailSending] = useState(false)
-  const cfg = OB_STATUS[ob.status]
+  const cfg      = OB_STATUS[ob.status]
   const subtotaal = ob.regels.reduce((s, r) => s + r.totaal, 0)
   const btw       = Math.round(subtotaal * 0.21 * 100) / 100
   const totaal    = Math.round((subtotaal + btw) * 100) / 100
@@ -39,6 +44,32 @@ function OBCard({ project, ob, onChanged }: OBCardProps) {
   const relaties = relatiesApi.listSync()
   const relatie  = relaties.find(r => r.id === project.relatieId)
   const contact  = relatie?.contacten.find(c => c.id === project.contactId)
+
+  // Lookups for article info — same pattern as OfferteCard
+  const allArticles = articlesApi.list()
+  const grades      = gradesApi.listSync()
+  const profiles    = profilesApi.listSync()
+  const machines    = machinesApi.listSync()
+
+  function getArt(id: string | null): Article | null {
+    if (!id) return null
+    return allArticles.find(a => a.id === id) ?? null
+  }
+
+  function getKostprijs(art: Article | null): number {
+    if (!art?.estimate) return 0
+    try {
+      const ctx = buildEstimateCtx(art, grades, profiles, machines)
+      return computeEstimateTotals(art.estimate, ctx).cost
+    } catch { return 0 }
+  }
+
+  function getMateriaal(art: Article | null): string {
+    if (!art?.recipe) return '—'
+    const p = profiles.find(pr => pr.id === art.recipe!.profileId)
+    const g = grades.find(gr => gr.id === art.recipe!.gradeId)
+    return [p?.name, g?.name].filter(Boolean).join(' · ') || '—'
+  }
 
   function getPdfProject() {
     return {
@@ -142,43 +173,81 @@ function OBCard({ project, ob, onChanged }: OBCardProps) {
 
       {expanded && (
         <div className="prj-off-body">
-          {/* Regels table */}
+          {/* Regels table — identical column structure to OfferteTab */}
           <div style={{ overflowX: 'auto' }}>
-            <table className="st-tbl" style={{ fontSize: 12, tableLayout: 'fixed', minWidth: 700 }}>
+            <table className="st-tbl" style={{ fontSize: 12, tableLayout: 'fixed', minWidth: 1100 }}>
               <thead>
                 <tr>
-                  <th style={{ width: 32 }}>#</th>
-                  <th>Omschrijving</th>
-                  <th style={{ width: 80, textAlign: 'right' }}>Qty</th>
-                  <th style={{ width: 110, textAlign: 'right' }}>Prijs/stuk</th>
-                  <th style={{ width: 110, textAlign: 'right' }}>Totaal</th>
+                  <th style={{ width: 72 }}>Art. No.</th>
+                  <th style={{ width: 300 }}>Omschrijving</th>
+                  <th style={{ width: 100 }}>Tekeningnummer</th>
+                  <th style={{ width: 44 }}>Revisie</th>
+                  <th style={{ width: 110 }}>Bewerkingen</th>
+                  <th style={{ width: 90 }}>Materiaal</th>
+                  <th style={{ width: 82, textAlign: 'right' }}>Kostprijs</th>
+                  <th style={{ width: 68, textAlign: 'right' }}>Qty</th>
+                  <th style={{ width: 60, textAlign: 'right' }}>Marge %</th>
+                  <th style={{ width: 22 }} />
+                  <th style={{ width: 96, textAlign: 'right' }}>Verkoopprijs</th>
+                  <th style={{ width: 100, textAlign: 'right' }}>Totaal</th>
                 </tr>
               </thead>
               <tbody>
-                {ob.regels.map((r, i) => (
-                  <tr key={r.id}>
-                    <td className="cell-muted">{i + 1}</td>
-                    <td>
-                      <div className="cell-strong">{r.naam}</div>
-                      {r.omschrijving && <div className="cell-muted" style={{ fontSize: 11.5 }}>{r.omschrijving}</div>}
-                    </td>
-                    <td className="cell-num">{r.qty} {r.eenheid}</td>
-                    <td className="cell-num cell-mono">{formatBedrag(r.verkoopprijs)}</td>
-                    <td className="cell-num cell-mono cell-strong">{formatBedrag(r.totaal)}</td>
-                  </tr>
-                ))}
+                {ob.regels.map((r) => {
+                  const art      = getArt(r.artikelId)
+                  const kostprijs = getKostprijs(art)
+                  const marge    = kostprijs > 0 ? Math.round(((r.verkoopprijs / kostprijs) - 1) * 100) : null
+                  return (
+                    <tr key={r.id} style={{ cursor: 'default' }}>
+                      <td className="cell-muted cell-mono" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.artikelId ?? '—'}
+                      </td>
+                      <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span className="cell-strong">{r.naam}</span>
+                        {r.omschrijving && <div className="cell-muted" style={{ fontSize: 11.5 }}>{r.omschrijving}</div>}
+                      </td>
+                      <td className="cell-muted" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {art?.tekening ?? '—'}
+                      </td>
+                      <td className="cell-muted" style={{ fontSize: 11.5 }}>{art?.rev ?? '—'}</td>
+                      <td>
+                        {r.bewerkingen.length > 0
+                          ? <div className="op-chips">{r.bewerkingen.map((b, i) => <span key={i} className="op-chip">{b}</span>)}</div>
+                          : <span className="cell-muted" style={{ fontSize: 11.5 }}>—</span>}
+                      </td>
+                      <td className="cell-muted" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {getMateriaal(art)}
+                      </td>
+                      <td className="cell-num cell-muted cell-mono" style={{ fontSize: 11.5 }}>
+                        {kostprijs > 0 ? formatBedrag(kostprijs) : '—'}
+                      </td>
+                      <td className="cell-num">{r.qty} {r.eenheid}</td>
+                      <td className="cell-num cell-muted" style={{ fontSize: 11.5 }}>
+                        {marge != null ? `${marge}%` : '—'}
+                      </td>
+                      <td style={{ textAlign: 'center', color: 'var(--text-3)' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ display: 'block', margin: '0 auto' }}>
+                          <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
+                          <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
+                        </svg>
+                      </td>
+                      <td className="cell-num cell-mono">{formatBedrag(r.verkoopprijs)}</td>
+                      <td className="cell-num cell-mono cell-strong">{formatBedrag(r.totaal)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot>
                 <tr style={{ background: 'var(--bg)' }}>
-                  <td colSpan={4} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>Subtotaal excl. BTW</td>
+                  <td colSpan={11} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>Subtotaal excl. BTW</td>
                   <td className="cell-num cell-mono" style={{ padding: '7px 12px' }}>{formatBedrag(subtotaal)}</td>
                 </tr>
                 <tr style={{ background: 'var(--bg)' }}>
-                  <td colSpan={4} style={{ padding: '4px 12px 7px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>BTW 21%</td>
+                  <td colSpan={11} style={{ padding: '4px 12px 7px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>BTW 21%</td>
                   <td className="cell-num cell-mono" style={{ padding: '4px 12px 7px' }}>{formatBedrag(btw)}</td>
                 </tr>
                 <tr style={{ background: 'var(--bg-sidebar)', borderTop: '2px solid var(--border-strong)' }}>
-                  <td colSpan={4} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>Totaal incl. BTW</td>
+                  <td colSpan={11} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>Totaal incl. BTW</td>
                   <td className="cell-num cell-mono" style={{ padding: '9px 12px', fontWeight: 700, fontSize: 13 }}>{formatBedrag(totaal)}</td>
                 </tr>
               </tfoot>
