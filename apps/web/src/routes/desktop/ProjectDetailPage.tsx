@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconArrowLeft, IconCheck, IconPencil,
   IconBulb, IconFileText, IconCircleCheck, IconTool,
-  IconPackage, IconSend, IconReceipt,
+  IconPackage, IconSend, IconReceipt, IconArrowBackUp,
 } from '@tabler/icons-react'
+import { notifications } from '@mantine/notifications'
 import { projectsApi, formatBedrag, formatDate, getAcceptedOfferte, getProjectSubtotaal, allOrdersGereed } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
 import { useUserStore } from '../../stores/user'
@@ -108,8 +109,9 @@ export function ProjectDetailPage() {
     retryDelay: 300,
   })
 
-  const [tab, setTab]       = useState<Tab>('offertes')
-  const [editMode, setEdit] = useState(false)
+  const [tab, setTab]           = useState<Tab>('offertes')
+  const [editMode, setEdit]     = useState(false)
+  const [confirmRevert, setConfirmRevert] = useState(false)
   const [meta, setMetaState] = useState<ProjectMeta>({ naam: '', relatieId: null, contactId: null, klantRef: '', levertijdDatum: '' })
   const qc = useQueryClient()
   const [, forceUpdate] = useState(0)
@@ -213,6 +215,70 @@ export function ProjectDetailPage() {
     return null
   }
 
+  // Map each status to what it reverts to and which API call to make
+  const REVERT_CONFIG: Partial<Record<Project['status'], {
+    label: string
+    guard?: string   // shown instead of button when blocked
+    blocked?: boolean
+    fn: () => void
+  }>> = {
+    bevestigd: {
+      label: 'Terug naar offerte',
+      blocked: project.productieOrders.some(o => o.stappen.some(s => s.gereedOp)),
+      guard: 'Stappen zijn al afgevinkt',
+      fn: () => { projectsApi.revertBevestigd(id); rerender(); setTab('offertes') },
+    },
+    productie: {
+      label: 'Terug naar bevestigd',
+      blocked: project.productieOrders.some(o => o.status === 'gereed'),
+      guard: 'Orders zijn al gereedgemeld',
+      fn: () => { projectsApi.revertProductie(id); rerender(); setTab('opdrachtbevestiging') },
+    },
+    paklijst: {
+      label: 'Terug naar productie',
+      blocked: !!project.paklijst?.verzondenOp,
+      guard: 'Paklijst is al verzonden',
+      fn: () => { projectsApi.revertPaklijst(id); rerender(); setTab('productie') },
+    },
+    verzonden: {
+      label: 'Terug naar paklijst',
+      fn: () => { projectsApi.revertVerzonden(id); rerender(); setTab('paklijst') },
+    },
+    gefactureerd: {
+      label: 'Terug naar verzonden',
+      fn: () => { projectsApi.revertGefactureerd(id); rerender(); setTab('factuur') },
+    },
+  }
+
+  const revertCfg = REVERT_CONFIG[project.status]
+
+  function RevertBtn() {
+    if (!revertCfg || project!.status === 'on_hold' || project!.status === 'geannuleerd') return null
+    if (revertCfg.blocked) {
+      return (
+        <span style={{ fontSize: 11.5, color: 'var(--text-4)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <IconArrowBackUp size={13} />{revertCfg.guard}
+        </span>
+      )
+    }
+    if (confirmRevert) {
+      return (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: 'var(--danger)' }}>Zeker weten?</span>
+          <button className="st-btn sm ghost" onClick={() => setConfirmRevert(false)}>Annuleer</button>
+          <button className="st-btn sm danger" onClick={() => { setConfirmRevert(false); revertCfg.fn(); notifications.show({ color: 'orange', message: revertCfg.label }) }}>
+            Ja, terugzetten
+          </button>
+        </div>
+      )
+    }
+    return (
+      <button className="st-btn sm ghost" onClick={() => setConfirmRevert(true)} title={revertCfg.label}>
+        <IconArrowBackUp size={13} />{revertCfg.label}
+      </button>
+    )
+  }
+
   return (
     <>
       {/* Header */}
@@ -267,6 +333,7 @@ export function ProjectDetailPage() {
         ) : (
           <>
             {isAdmin && <button className="btn" onClick={startEdit}><IconPencil size={13} />Bewerken</button>}
+            <RevertBtn />
             <NextActionBtn />
           </>
         )}

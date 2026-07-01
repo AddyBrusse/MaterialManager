@@ -569,6 +569,72 @@ export const projectsApi = {
     return updated
   },
 
+  // ── Revert operations ─────────────────────────────────────────────────────
+  // Each call optimistically updates the cache, then lets the server confirm.
+  // The server enforces the guards (e.g. no stappen checked off); if it
+  // rejects, syncProject surfaces the error toast and the next re-fetch
+  // reconciles the cache back to the authoritative state.
+
+  revertBevestigd(projectId: string): Project {
+    const updated = updateCache(projectId, p => {
+      const offertes = p.offertes.map(o => {
+        if (o.status === 'geaccepteerd')
+          return { ...o, status: (o.verzondenOp ? 'verzonden' : 'concept') as OfferteStatus, geaccepteerdOp: null, updatedAt: now() }
+        if (o.status === 'vervallen')
+          return { ...o, status: 'concept' as OfferteStatus, updatedAt: now() }
+        return o
+      })
+      const hasVerzonden = offertes.some(o => o.status === 'verzonden')
+      return {
+        ...p,
+        status: hasVerzonden ? 'offerte' : 'concept',
+        opdrachtbevestiging: null,
+        productieOrders: [],
+        offertes,
+        updatedAt: now(),
+      }
+    })
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/bevestigd`, { method: 'POST' }), 'Terugkeren naar offerte mislukt')
+    return updated
+  },
+
+  revertProductie(projectId: string): Project {
+    const updated = updateCache(projectId, p => ({
+      ...p,
+      status: 'bevestigd',
+      productieOrders: p.productieOrders.map(o => ({
+        ...o, status: 'gepland' as const,
+        stappen: o.stappen.map(s => ({ ...s, gereedOp: null, gereedDoor: null })),
+        updatedAt: now(),
+      })),
+      updatedAt: now(),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/productie`, { method: 'POST' }), 'Terugkeren naar bevestigd mislukt')
+    return updated
+  },
+
+  revertPaklijst(projectId: string): Project {
+    const updated = updateCache(projectId, p => ({ ...p, status: 'productie', paklijst: null, updatedAt: now() }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/paklijst`, { method: 'POST' }), 'Terugkeren naar productie mislukt')
+    return updated
+  },
+
+  revertVerzonden(projectId: string): Project {
+    const updated = updateCache(projectId, p => ({
+      ...p, status: 'paklijst',
+      paklijst: p.paklijst ? { ...p.paklijst, verzondenOp: null } : null,
+      updatedAt: now(),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/verzonden`, { method: 'POST' }), 'Terugkeren naar paklijst mislukt')
+    return updated
+  },
+
+  revertGefactureerd(projectId: string): Project {
+    const updated = updateCache(projectId, p => ({ ...p, status: 'verzonden', factuur: null, updatedAt: now() }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/gefactureerd`, { method: 'POST' }), 'Terugkeren naar verzonden mislukt')
+    return updated
+  },
+
   // ── Opdrachtbevestiging ───────────────────────────────────────────────────
 
   updateOB(projectId: string, patch: { notities?: string; levertijdDatum?: string | null }): Project {

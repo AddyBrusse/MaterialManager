@@ -630,4 +630,110 @@ router.post(
   }),
 )
 
+// ── Revert operations ─────────────────────────────────────────────────────────
+// Each endpoint reverts the project exactly one step backwards.
+// Guards are enforced server-side so reverting never silently discards
+// in-progress production work.
+
+// Bevestigd/OB → Offerte
+// Blocked if any production step has been checked off.
+router.post(
+  '/:id/revert/bevestigd',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      if (!['bevestigd', 'productie'].includes(p.status)) {
+        throw new AppError(400, 'BAD_REQUEST', 'Project is niet in bevestigd of productie status')
+      }
+      const hasWork = p.productieOrders.some(o => o.stappen.some(s => s.gereedOp))
+      if (hasWork) {
+        throw new AppError(409, 'CONFLICT', 'Kan niet terugkeren: er zijn al productie stappen afgevinkt')
+      }
+      // Revert accepted offerte → concept/verzonden, lift vervallen offertes back to concept
+      const offertes = p.offertes.map(o => {
+        if (o.status === 'geaccepteerd') {
+          return { ...o, status: (o.verzondenOp ? 'verzonden' : 'concept') as OfferteStatus, geaccepteerdOp: null, updatedAt: now() }
+        }
+        if (o.status === 'vervallen') {
+          return { ...o, status: 'concept' as OfferteStatus, updatedAt: now() }
+        }
+        return o
+      })
+      const hasVerzonden = offertes.some(o => o.status === 'verzonden')
+      return {
+        ...p,
+        status: hasVerzonden ? 'offerte' : 'concept',
+        opdrachtbevestiging: null,
+        productieOrders: [],
+        offertes,
+        updatedAt: now(),
+      }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+// Productie → Bevestigd
+// Blocked if any order is marked gereed.
+router.post(
+  '/:id/revert/productie',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      if (p.status !== 'productie') throw new AppError(400, 'BAD_REQUEST', 'Project is niet in productie status')
+      const hasGereed = p.productieOrders.some(o => o.status === 'gereed')
+      if (hasGereed) {
+        throw new AppError(409, 'CONFLICT', 'Kan niet terugkeren: er zijn al orders gereedgemeld')
+      }
+      const productieOrders = p.productieOrders.map(o => ({
+        ...o,
+        status: 'gepland' as const,
+        stappen: o.stappen.map(s => ({ ...s, gereedOp: null, gereedDoor: null })),
+        updatedAt: now(),
+      }))
+      return { ...p, status: 'bevestigd', productieOrders, updatedAt: now() }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+// Paklijst → Productie
+// Blocked if paklijst is already verzonden.
+router.post(
+  '/:id/revert/paklijst',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      if (p.status !== 'paklijst') throw new AppError(400, 'BAD_REQUEST', 'Project is niet in paklijst status')
+      if (p.paklijst?.verzondenOp) {
+        throw new AppError(409, 'CONFLICT', 'Kan niet terugkeren: paklijst is al verzonden')
+      }
+      return { ...p, status: 'productie', paklijst: null, updatedAt: now() }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+// Verzonden → Paklijst
+router.post(
+  '/:id/revert/verzonden',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      if (p.status !== 'verzonden') throw new AppError(400, 'BAD_REQUEST', 'Project is niet in verzonden status')
+      const paklijst = p.paklijst ? { ...p.paklijst, verzondenOp: null } : null
+      return { ...p, status: 'paklijst', paklijst, updatedAt: now() }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+// Gefactureerd → Verzonden
+router.post(
+  '/:id/revert/gefactureerd',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      if (p.status !== 'gefactureerd') throw new AppError(400, 'BAD_REQUEST', 'Project is niet gefactureerd')
+      return { ...p, status: 'verzonden', factuur: null, updatedAt: now() }
+    })
+    res.json({ data: updated })
+  }),
+)
+
 export default router
