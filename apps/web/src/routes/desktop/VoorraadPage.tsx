@@ -824,6 +824,7 @@ export function VoorraadPage() {
                   <SortTh k="reserved"     sort={sort} onSort={handleSort} align="right">Gereserveerd</SortTh>
                   <th style={{ minWidth: 160 }}>Niveau</th>
                   <SortTh k="locatie"      sort={sort} onSort={handleSort}>Locatie</SortTh>
+                  <th>Status</th>
                   <SortTh k="updatedAt"    sort={sort} onSort={handleSort}>Laatste mutatie</SortTh>
                   <th style={{ width: 80 }} />
                 </tr>
@@ -876,7 +877,9 @@ export function VoorraadPage() {
                       </td>
                       <td><span className="cell-muted">{formatLocation(row.locationSlot)}</span></td>
                       <td>
-                        <span className={`st-badge ${st.cls}`} style={{ marginRight: 8 }}><span className="dot" />{st.label}</span>
+                        <span className={`st-badge ${st.cls}`}><span className="dot" />{st.label}</span>
+                      </td>
+                      <td>
                         <span className="cell-muted" style={{ fontSize: 11.5 }}>{formatRelative(row.updatedAt)}</span>
                       </td>
                       <td className="col-actions" onClick={(e) => e.stopPropagation()}>
@@ -909,7 +912,7 @@ export function VoorraadPage() {
                   )
                 })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={12} className="st-empty">Geen artikelen gevonden voor deze filters.</td></tr>
+                  <tr><td colSpan={13} className="st-empty">Geen artikelen gevonden voor deze filters.</td></tr>
                 )}
               </tbody>
             </table>
