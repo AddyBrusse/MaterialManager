@@ -175,14 +175,14 @@ function OBCard({ project, ob, onChanged }: OBCardProps) {
         <div className="prj-off-body">
           {/* Regels table — identical column structure to OfferteTab */}
           <div style={{ overflowX: 'auto' }}>
-            <table className="st-tbl" style={{ fontSize: 12, tableLayout: 'fixed', width: '100%', minWidth: 1100 }}>
+            <table className="st-tbl" style={{ fontSize: 12, tableLayout: 'fixed', width: '100%', minWidth: 1200 }}>
               <thead>
                 <tr>
                   <th style={{ width: 72 }}>Art. No.</th>
                   <th>Omschrijving</th>
-                  <th style={{ width: 100 }}>Tekeningnummer</th>
+                  <th style={{ width: 115 }}>Tekeningnummer</th>
                   <th style={{ width: 44 }}>Revisie</th>
-                  <th style={{ width: 110 }}>Bewerkingen</th>
+                  <th style={{ width: 145 }}>Bewerkingen</th>
                   <th style={{ width: 90 }}>Materiaal</th>
                   <th style={{ width: 82, textAlign: 'right' }}>Kostprijs</th>
                   <th style={{ width: 68, textAlign: 'right' }}>Qty</th>
@@ -204,7 +204,6 @@ function OBCard({ project, ob, onChanged }: OBCardProps) {
                       </td>
                       <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <span className="cell-strong">{r.naam}</span>
-                        {r.omschrijving && <div className="cell-muted" style={{ fontSize: 11.5 }}>{r.omschrijving}</div>}
                       </td>
                       <td className="cell-muted" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {art?.tekening ?? '—'}
