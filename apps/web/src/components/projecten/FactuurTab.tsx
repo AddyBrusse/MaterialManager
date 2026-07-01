@@ -13,8 +13,8 @@ export function FactuurTab({ project, onChanged }: Props) {
 
   function handleCreate() {
     try {
-      projectsApi.createFactuur(project.id)
-      notifications.show({ color: 'green', message: `Factuur ${project.factuur?.id ?? ''} aangemaakt` })
+      const updated = projectsApi.createFactuur(project.id)
+      notifications.show({ color: 'green', message: `Factuur ${updated.factuur?.id ?? ''} aangemaakt` })
       onChanged()
     } catch (e: any) {
       notifications.show({ color: 'red', message: e.message })

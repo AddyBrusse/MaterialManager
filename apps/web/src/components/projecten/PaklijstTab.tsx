@@ -15,8 +15,8 @@ export function PaklijstTab({ project, onChanged }: Props) {
 
   function handleCreate() {
     try {
-      projectsApi.createPaklijst(project.id)
-      notifications.show({ color: 'green', message: `Paklijst ${project.paklijst?.id ?? ''} aangemaakt` })
+      const updated = projectsApi.createPaklijst(project.id)
+      notifications.show({ color: 'green', message: `Paklijst ${updated.paklijst?.id ?? ''} aangemaakt` })
       onChanged()
     } catch (e: any) {
       notifications.show({ color: 'red', message: e.message })

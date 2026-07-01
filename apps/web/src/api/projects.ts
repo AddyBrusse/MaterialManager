@@ -4,8 +4,8 @@ import type {
   ProductieOrder,
   Paklijst, Factuur,
 } from '@stockmanager/shared'
+import { notifications } from '@mantine/notifications'
 import { apiFetch } from './client'
-import { articlesApi, KNOWN_OPERATIONS } from './articles'
 
 // ── Cache layer ────────────────────────────────────────────────────────────────
 
@@ -25,11 +25,42 @@ function saveLocal(data: Project[]): void {
 
 let cache: Project[] = loadLocal()
 
+// The PRJ/OFF/PROD/PL/FACT counters below are per-browser (localStorage), but
+// IDs must be unique across the whole shop. A fresh browser profile, a
+// cleared cache, or simply a different machine starts every counter back at
+// 0 — which immediately collides with whatever the server already has (e.g.
+// generating "PRJ-2026-001" again when that ID was used months ago) and the
+// create request fails with a Postgres unique-constraint error. Re-seed every
+// counter from the actual IDs already on the server on every load, so the
+// next locally-generated ID is always ahead of anything that exists.
+function seedSequenceCounters(projects: Project[]): void {
+  const maxByPrefix = new Map<string, number>()
+  const track = (id: string) => {
+    const m = /^([A-Z]+)-\d{4}-(\d+)$/.exec(id)
+    if (!m) return
+    const n = parseInt(m[2], 10)
+    if (n > (maxByPrefix.get(m[1]) ?? 0)) maxByPrefix.set(m[1], n)
+  }
+  for (const p of projects) {
+    track(p.id)
+    for (const o of p.offertes) track(o.id)
+    for (const o of p.productieOrders) track(o.id)
+    if (p.paklijst) track(p.paklijst.id)
+    if (p.factuur) track(p.factuur.id)
+  }
+  for (const [prefix, max] of maxByPrefix) {
+    const key = `sm_seq_${prefix.toLowerCase()}`
+    const current = parseInt(localStorage.getItem(key) ?? '0', 10)
+    if (current < max) localStorage.setItem(key, String(max))
+  }
+}
+
 export async function initProjects(): Promise<void> {
   try {
     const { data } = await apiFetch<Project[]>('/projects')
     cache = data
     saveLocal(data)
+    seedSequenceCounters(data)
   } catch {
     cache = loadLocal()
   }
@@ -51,22 +82,34 @@ function updateCache(id: string, fn: (p: Project) => Project): Project {
   return updated
 }
 
-function buildStappen(artikelId: string | null) {
-  if (!artikelId) return []
-  const artikel = articlesApi.get(artikelId)
-  if (!artikel || artikel.operations.length === 0) return []
-  return artikel.operations.map((op, i) => ({
-    id: `stap_${Date.now()}_${i}`,
-    volgorde: i + 1,
-    naam: KNOWN_OPERATIONS.find(ko => ko.id === op.type)?.name ?? op.type,
-    machine: null,
-    gereedOp: null,
-    gereedDoor: null,
-  }))
+// Every mutation writes to the in-memory cache synchronously, then fires this
+// in the background to persist to the API and reconcile the cache with the
+// authoritative server result. If that background call fails, the optimistic
+// change silently stays in the cache and localStorage but was never actually
+// saved server-side — surface that to the user instead of swallowing it, so a
+// failed save doesn't masquerade as a successful one until the next reload
+// quietly reverts it.
+function syncProject(
+  projectId: string,
+  promise: Promise<{ data: Project }>,
+  failMessage: string,
+): void {
+  promise
+    .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
+    .catch(() => {
+      notifications.show({ color: 'red', message: `${failMessage} — wijziging is niet opgeslagen op de server.` })
+    })
 }
 
 // ── Sequential numbering (localStorage-backed) ────────────────────────────────
-// Client-generated IDs work for a 4-user shop. The API uses these same IDs.
+// Client-generated IDs work for a 4-user shop. They're sent to the API on
+// create so client and server always agree on the ID immediately — the API
+// only falls back to its own sequence if no ID is supplied (see
+// apps/api/src/routes/projects.ts). Without this, the client's optimistic ID
+// and the server's independently-generated one would diverge as soon as the
+// background sync resolves, which (since these IDs are used as React list
+// keys and passed as props into open dialogs like ArtikelPickerModal) could
+// force-remount components and silently drop in-progress user input.
 
 function nextLocalDocId(prefix: string): string {
   const year = new Date().getFullYear()
@@ -74,21 +117,6 @@ function nextLocalDocId(prefix: string): string {
   const n = parseInt(localStorage.getItem(key) ?? '0') + 1
   localStorage.setItem(key, String(n))
   return `${prefix}-${year}-${String(n).padStart(3, '0')}`
-}
-
-// Background: push project state to API (fire-and-forget).
-// Components never wait on this — cache is the source of truth.
-function syncToApi(p: Project) {
-  apiFetch<Project>(`/projects/${p.id}`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      naam: p.naam, relatieId: p.relatieId, contactId: p.contactId,
-      klantRef: p.klantRef, status: p.status, levertijdDatum: p.levertijdDatum,
-      notities: p.notities,
-    }),
-  }).catch(() => {})
-  // The above only persists top-level fields. For nested JSONB documents we
-  // store the full project via a dedicated endpoint (handled per-operation below).
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
@@ -129,23 +157,22 @@ export const projectsApi = {
     }
     cache = [...cache, p]
     saveLocal(cache)
-    apiFetch<Project>('/projects', { method: 'POST', body: JSON.stringify({ ...body, id }) })
-      .then(r => { cache = cache.map(x => x.id === id ? r.data : x); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(id, apiFetch<Project>('/projects', { method: 'POST', body: JSON.stringify({ ...body, id }) }), `Project ${id} aanmaken mislukt`)
     return p
   },
 
   update(id: string, patch: UpdateProject): Project {
     const updated = updateCache(id, p => ({ ...p, ...patch, updatedAt: now() }))
-    apiFetch<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
-      .catch(() => {})
+    syncProject(id, apiFetch<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }), `Project ${id} bijwerken mislukt`)
     return updated
   },
 
   remove(id: string): void {
     cache = cache.filter(p => p.id !== id)
     saveLocal(cache)
-    apiFetch<void>(`/projects/${id}`, { method: 'DELETE' }).catch(() => {})
+    apiFetch<void>(`/projects/${id}`, { method: 'DELETE' }).catch(() => {
+      notifications.show({ color: 'red', message: `Project ${id} verwijderen mislukt op de server.` })
+    })
   },
 
   // ── Offerte operations ─────────────────────────────────────────────────────
@@ -153,8 +180,9 @@ export const projectsApi = {
   addOfferte(projectId: string): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
+    const id = nextLocalDocId('OFF')
     const off: Offerte = {
-      id: nextLocalDocId('OFF'),
+      id,
       projectId,
       versie: p.offertes.length + 1,
       status: 'concept',
@@ -167,9 +195,9 @@ export const projectsApi = {
       updatedAt: now(),
     }
     const updated = updateCache(projectId, p => ({ ...p, offertes: [...p.offertes, off], updatedAt: now() }))
-    apiFetch<Project>(`/projects/${projectId}/offertes`, { method: 'POST' })
-      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes`, {
+      method: 'POST', body: JSON.stringify({ id }),
+    }), 'Nieuwe offerte aanmaken mislukt')
     return updated
   },
 
@@ -186,11 +214,12 @@ export const projectsApi = {
       bewerkingen: string[]
     },
   ): Project {
+    const id = `regel_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
     const updated = updateCache(projectId, p => {
       const off = p.offertes.find(o => o.id === offerteId)
       if (!off) return p
       const regel: OfferteRegel = {
-        id: `regel_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        id,
         sortOrder: off.regels.length + 1,
         artikelId: data.artikelId,
         naam: data.naam,
@@ -209,10 +238,9 @@ export const projectsApi = {
         ),
       }
     })
-    apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels`, {
-      method: 'POST', body: JSON.stringify(data),
-    }).then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels`, {
+      method: 'POST', body: JSON.stringify({ ...data, id }),
+    }), `Artikel "${data.naam}" toevoegen mislukt`)
     return updated
   },
 
@@ -239,10 +267,9 @@ export const projectsApi = {
         }
       }),
     }))
-    apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels/${regelId}`, {
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels/${regelId}`, {
       method: 'PATCH', body: JSON.stringify(patch),
-    }).then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    }), 'Regel bijwerken mislukt')
     return updated
   },
 
@@ -256,7 +283,9 @@ export const projectsApi = {
       ),
     }))
     apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels/${regelId}`, { method: 'DELETE' })
-      .catch(() => {})
+      .catch(() => {
+        notifications.show({ color: 'red', message: 'Regel verwijderen mislukt op de server.' })
+      })
     return updated
   },
 
@@ -271,9 +300,7 @@ export const projectsApi = {
           : o,
       ),
     }))
-    apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/verzend`, { method: 'POST' })
-      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/verzend`, { method: 'POST' }), 'Offerte versturen mislukt')
     return updated
   },
 
@@ -283,6 +310,12 @@ export const projectsApi = {
     const acceptedOfferte = p.offertes.find(o => o.id === offerteId)
     if (!acceptedOfferte) throw new Error('Offerte niet gevonden')
 
+    // Mirrors the server's logic exactly (see accepteer handler in
+    // apps/api/src/routes/projects.ts): stappen come only from the regel's
+    // frozen `bewerkingen` snapshot, never re-derived from the article's
+    // current (possibly since-changed) operations. Diverging from that would
+    // optimistically show different steps than what the server persists,
+    // flashing/replacing them once the background sync resolves.
     const newOrders: ProductieOrder[] = acceptedOfferte.regels.map(regel => {
       const stappen = regel.bewerkingen.length > 0
         ? regel.bewerkingen.map((naam, i) => ({
@@ -293,7 +326,7 @@ export const projectsApi = {
             gereedOp: null,
             gereedDoor: null,
           }))
-        : buildStappen(regel.artikelId)
+        : []
 
       return {
         id: nextLocalDocId('PROD'),
@@ -322,10 +355,9 @@ export const projectsApi = {
       productieOrders: [...p.productieOrders, ...newOrders],
     }))
 
-    apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/accepteer`, {
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/accepteer`, {
       method: 'POST', body: JSON.stringify({ userName }),
-    }).then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    }), 'Offerte accepteren mislukt')
 
     return updated
   },
@@ -347,10 +379,9 @@ export const projectsApi = {
       const status = p.status === 'bevestigd' ? 'productie' : p.status
       return { ...p, productieOrders: orders, status, updatedAt: now() }
     })
-    apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/check`, {
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/check`, {
       method: 'POST', body: JSON.stringify({ userName }),
-    }).then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    }), 'Stap afvinken mislukt')
     return updated
   },
 
@@ -368,9 +399,7 @@ export const projectsApi = {
       })
       return { ...p, productieOrders: orders, updatedAt: now() }
     })
-    apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/uncheck`, { method: 'POST' })
-      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/uncheck`, { method: 'POST' }), 'Stap terugzetten mislukt')
     return updated
   },
 
@@ -394,10 +423,9 @@ export const projectsApi = {
         },
       ),
     }))
-    apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/plan`, {
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/plan`, {
       method: 'PATCH', body: JSON.stringify({ geplandDatum, geplandMachine }),
-    }).then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    }), 'Stap inplannen mislukt')
     return updated
   },
 
@@ -415,7 +443,9 @@ export const projectsApi = {
         },
       ),
     }))
-    apiFetch(`/projects/${projectId}/orders/${orderId}/unplan`, { method: 'POST' }).catch(() => {})
+    apiFetch(`/projects/${projectId}/orders/${orderId}/unplan`, { method: 'POST' }).catch(() => {
+      notifications.show({ color: 'red', message: 'Order deplannen mislukt op de server.' })
+    })
     return updated
   },
 
@@ -428,9 +458,7 @@ export const projectsApi = {
       status: p.status === 'bevestigd' ? 'productie' : p.status,
       updatedAt: now(),
     }))
-    apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/gereed`, { method: 'POST' })
-      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/gereed`, { method: 'POST' }), 'Order gereed melden mislukt')
     return updated
   },
 
@@ -457,9 +485,7 @@ export const projectsApi = {
       createdAt: now(),
     }
     const updated = updateCache(projectId, p => ({ ...p, paklijst, status: 'paklijst', updatedAt: now() }))
-    apiFetch<Project>(`/projects/${projectId}/paklijst`, { method: 'POST' })
-      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/paklijst`, { method: 'POST' }), 'Paklijst aanmaken mislukt')
     return updated
   },
 
@@ -468,9 +494,7 @@ export const projectsApi = {
       if (!p.paklijst) throw new Error('Geen paklijst')
       return { ...p, paklijst: { ...p.paklijst, verzondenOp: now() }, status: 'verzonden', updatedAt: now() }
     })
-    apiFetch<Project>(`/projects/${projectId}/paklijst/verzend`, { method: 'POST' })
-      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/paklijst/verzend`, { method: 'POST' }), 'Paklijst versturen mislukt')
     return updated
   },
 
@@ -515,9 +539,7 @@ export const projectsApi = {
     }
 
     const updated = updateCache(projectId, p => ({ ...p, factuur, status: 'gefactureerd', updatedAt: now() }))
-    apiFetch<Project>(`/projects/${projectId}/factuur`, { method: 'POST', body: JSON.stringify({ btwPct }) })
-      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur`, { method: 'POST', body: JSON.stringify({ btwPct }) }), 'Factuur aanmaken mislukt')
     return updated
   },
 
@@ -526,9 +548,7 @@ export const projectsApi = {
       if (!p.factuur) throw new Error('Geen factuur')
       return { ...p, factuur: { ...p.factuur, verzondenOp: now() }, updatedAt: now() }
     })
-    apiFetch<Project>(`/projects/${projectId}/factuur/verzend`, { method: 'POST' })
-      .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-      .catch(() => {})
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur/verzend`, { method: 'POST' }), 'Factuur versturen mislukt')
     return updated
   },
 }
