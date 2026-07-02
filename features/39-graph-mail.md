@@ -6,7 +6,7 @@ Emails land in the user's **Verzonden** folder automatically (Graph sendMail doe
 ## Prerequisites (done by admin, once)
 
 1. Azure Portal → Azure Active Directory → App registrations → **New registration**
-   - Name: `StaalTrack`
+   - Name: `ShopCommand`
    - Supported account type: **Accounts in this organizational directory only**
    - Redirect URI: **Single-page application (SPA)**
      - `http://localhost:5173` (dev)

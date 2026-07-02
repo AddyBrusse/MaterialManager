@@ -361,7 +361,7 @@ function GebruikersTab() {
         <div>
           <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Team</h3>
           <p style={{ color: 'var(--text-3)', margin: '2px 0 0', fontSize: 12.5 }}>
-            Beheer wie toegang heeft tot StaalTrack en stel e-mailadressen in voor Microsoft 365.
+            Beheer wie toegang heeft tot ShopCommand en stel e-mailadressen in voor Microsoft 365.
           </p>
         </div>
       </div>

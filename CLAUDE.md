@@ -1,8 +1,8 @@
-# CLAUDE.md — StockManager
+# CLAUDE.md — ShopCommand
 
 ## What this repo is
 
-**StockManager** — an internal inventory app for a small CNC shop (~4 users). Docs and code live together in this directory.
+**ShopCommand** — an internal shop management app for a small CNC shop (~4 users): inventory, quoting/offertes, production planning, and relaties. Docs and code live together in this directory. (Formerly "StockManager" — kept the npm package scope `@stockmanager/*` and repo name as-is; see [decisions/90-decisions-log.md](./decisions/90-decisions-log.md).)
 
 ## Read these first (in order)
 

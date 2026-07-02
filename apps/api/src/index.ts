@@ -90,5 +90,5 @@ if (!config.isDev) {
 app.use(errorMiddleware)
 
 app.listen(config.port, () => {
-  console.log(`StockManager API running on port ${config.port} (${config.nodeEnv})`)
+  console.log(`ShopCommand API running on port ${config.port} (${config.nodeEnv})`)
 })

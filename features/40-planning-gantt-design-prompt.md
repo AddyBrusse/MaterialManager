@@ -5,7 +5,7 @@
 > mockup exists, the actual build should get its own doc/decision entry.
 
 ## App context
-StockManager — internal inventory + production app for a small CNC/metal
+ShopCommand — internal inventory + production app for a small CNC/metal
 shop (~4 users), Dutch UI, Mantine v7, high-density `xs` sizing, LAN-only.
 This is a redesign of an existing planning board (current implementation:
 day-column drag/drop grid), not a green-field screen — keep all current

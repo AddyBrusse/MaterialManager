@@ -31,7 +31,7 @@ export function MobileLayout() {
     <AppShell footer={{ height: 56 }}>
       <AppShell.Header p="xs" h={44}>
         <Group justify="space-between">
-          <Text fw={600} size="sm">StockManager</Text>
+          <Text fw={600} size="sm">ShopCommand</Text>
           <Text size="xs" c="dimmed">{user?.name}</Text>
         </Group>
       </AppShell.Header>

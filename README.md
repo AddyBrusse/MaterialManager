@@ -1,6 +1,6 @@
-# StockManager — Documentation Index
+# ShopCommand — Documentation Index
 
-Internal inventory system for a small CNC shop (4 users). This folder is the source of truth for the agent (Claude Code) building the project.
+Internal shop management system (inventory, quoting, production planning) for a small CNC shop (4 users). This folder is the source of truth for the agent (Claude Code) building the project.
 
 ## How to use these docs
 
