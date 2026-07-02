@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
+import { Menu } from '@mantine/core'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
-  IconClipboardList, IconChartBar, IconLayoutKanban, IconArrowsSort,
+  IconClipboardList, IconChartBar, IconLayoutKanban, IconArrowsSort, IconCheck, IconLogout,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -13,6 +14,9 @@ import { initRelaties } from '../../api/relaties'
 import { initArticles } from '../../api/articles'
 import { initProjects } from '../../api/projects'
 import { initReservations, reservationsStore } from '../../api/reservations'
+import { usersApi } from '../../api/users'
+import type { User } from '@stockmanager/shared'
+import logoBoers from '../../assets/logo-boers.png'
 import { VoorraadPage } from '../../routes/desktop/VoorraadPage'
 import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
 import { ArtikelDetailPage } from '../../routes/desktop/ArtikelDetailPage'
@@ -55,8 +59,18 @@ function readReservationCounts(): { reservationCount: number; zaagflowCount: num
 }
 
 function Sidebar() {
-  const { user, clearUser } = useUserStore()
+  const { user, setUser, clearUser } = useUserStore()
   const location = useLocation()
+
+  const { data: usersData } = useQuery({ queryKey: ['users'], queryFn: () => usersApi.list() })
+  const users: User[] = usersData?.data ?? []
+
+  function handleSelectUser(u: User) {
+    setUser({
+      id: u.id, name: u.name, role: u.role as 'admin' | 'user',
+      email: u.email, achternaam: u.achternaam, titel: u.titel,
+    })
+  }
 
   // Live counts
   const { data: rawData } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
@@ -120,18 +134,34 @@ function Sidebar() {
   return (
     <aside className="st-sidebar">
       <div className="st-sb-brand">
-        <div className="st-sb-brand-mark">ST</div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="st-sb-brand-name">StaalTrack</div>
-          <div className="st-sb-brand-sub">Voorraadbeheer</div>
-        </div>
+        <img src={logoBoers} alt="Boers Metaalbewerking" className="st-sb-brand-mark" />
       </div>
 
-      <div className="st-sb-org">
-        <span className="dot"></span>
-        <span>Van Dijk Staal B.V.</span>
-        <span className="chev"><IconChevronDown size={12} /></span>
-      </div>
+      <Menu position="bottom-start" width={220} shadow="sm">
+        <Menu.Target>
+          <div className="st-sb-org">
+            <span className="dot"></span>
+            <span>{user?.name ?? 'Gebruiker'}</span>
+            <span className="chev"><IconChevronDown size={12} /></span>
+          </div>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>Wissel gebruiker</Menu.Label>
+          {users.map((u) => (
+            <Menu.Item
+              key={u.id}
+              leftSection={u.id === user?.id ? <IconCheck size={14} /> : <span style={{ width: 14, display: 'inline-block' }} />}
+              onClick={() => handleSelectUser(u)}
+            >
+              {u.name}
+            </Menu.Item>
+          ))}
+          <Menu.Divider />
+          <Menu.Item leftSection={<IconLogout size={14} />} onClick={clearUser}>
+            Uitloggen
+          </Menu.Item>
+        </Menu.Dropdown>
+      </Menu>
 
       <nav className="st-sb-nav">
         {NAV.map((group) => (

@@ -109,16 +109,12 @@ html, body {
   overflow: hidden;
 }
 .st-sb-brand {
-  display: flex; align-items: center; gap: 10px;
-  padding: 14px 14px 12px; height: 56px; flex-shrink: 0;
+  display: flex; align-items: center;
+  padding: 10px 14px; height: 64px; flex-shrink: 0;
 }
 .st-sb-brand-mark {
-  width: 28px; height: 28px; border-radius: 6px;
-  background: linear-gradient(135deg, #1f2937, #0f1116);
-  display: grid; place-items: center;
-  color: #fff; font-family: var(--font-mono);
-  font-weight: 600; font-size: 12px; letter-spacing: -0.02em;
-  flex-shrink: 0; border: 1px solid rgba(255,255,255,0.06);
+  height: 100%; width: auto; max-width: 100%;
+  object-fit: contain; flex-shrink: 0;
 }
 .st-sb-brand-name {
   font-weight: 600; font-size: 14px; letter-spacing: -0.01em;
@@ -1861,8 +1857,10 @@ tr:hover .row-actions { opacity: 1; }
 /* ===== Tablet ===== */
 @media (max-width: 1100px) {
   .st-app { grid-template-columns: 72px 1fr; }
-  .st-sb-brand-name, .st-sb-brand-sub, .st-sb-org, .st-sb-group-lbl,
+  .st-sb-org, .st-sb-group-lbl,
   .st-sb-item span:not(.count), .st-sb-user, .st-sb-user-sub { display: none; }
+  .st-sb-brand { justify-content: center; padding: 10px 8px; }
+  .st-sb-brand-mark { height: auto; width: 100%; }
   .st-sb-item { justify-content: center; padding: 8px; }
   .st-stats { grid-template-columns: repeat(3, 1fr); }
   .st-recv-grid { grid-template-columns: 1fr; }
