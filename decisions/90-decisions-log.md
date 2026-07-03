@@ -163,6 +163,20 @@ exists in the Zod schema but not yet in `schema.prisma`).
 **Decision:** Stock movements bypass the per-item edit lock.  
 **Why:** Stock adjust is the primary shop-floor action. Locking it would block production. Concurrency handled at DB-row level instead.
 
+## 2026-07-02 — Todo email reminders deferred to v2
+**Decision:** The new shared Todo board ships with a `notifyOnDue` boolean field (unused in v1) but no actual email sending. Due-date reminders wait until v2.  
+**Why:** The existing M365 mail integration (`graph-mail.ts`) is interactive/delegated-only — it needs a logged-in browser session to pop up an MSAL consent prompt. A background reminder job would need new server-side app-only Graph credentials (client secret, admin-consented app permissions), which is a bigger and more security-sensitive change than this feature warranted.  
+**Trade-off:** `notifyOnDue` ships now specifically so v2 needs no new migration — just wiring, once the credentials question is revisited.
+
+## 2026-07-02 — Todo "claim" is a lightweight toggle, not an assignment
+**Decision:** Any of the 4 users can claim or unclaim any open todo (`PATCH /api/todos/:id/claim`); there's no hard "assigned to" field, no permission check beyond being a logged-in user.  
+**Why:** This is a shared shop-wide board, not per-user task management — the goal is visibility into who's picked something up, not enforcing ownership.
+
+## 2026-07-02 — Operational alerts computed live, never stored
+**Decision:** Low-stock / due-date-risk / production-overrun alerts on the Todo page (`utils/todoAlerts.ts`) are computed client-side on every fetch from already-loaded data (raw materials, finished goods, projects, articles) — never written as rows to the `todos` table.  
+**Why:** This app has no scheduler (single Express process, no cron), so a periodic "insert an alert row" job wasn't feasible without new infrastructure. Live computation is always accurate and self-clears the instant the underlying condition resolves — it also mirrors how low-stock indicators already work elsewhere in the app (client-side from `minStock`/`currentStock`, not the parked `/api/low-stock` endpoint).  
+**Trade-off:** Alerts aren't visible/actionable unless someone has the Todo page open; a "Zet als taak" button lets a user convert one into a real, trackable Todo row on demand.
+
 ---
 
 (Template for new entries)

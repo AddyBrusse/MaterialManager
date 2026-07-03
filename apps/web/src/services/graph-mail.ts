@@ -24,9 +24,8 @@ async function getMsal(): Promise<PublicClientApplication> {
   return msalInstance
 }
 
-async function acquireToken(loginHint?: string | null): Promise<string> {
+export async function acquireToken(scopes: string[], loginHint?: string | null): Promise<string> {
   const msal = await getMsal()
-  const scopes = ['Mail.Send']
   const accounts = msal.getAllAccounts()
 
   if (accounts.length > 0) {
@@ -59,7 +58,7 @@ export interface MailOptions {
 }
 
 export async function sendViaMicrosoft365(opts: MailOptions): Promise<void> {
-  const token = await acquireToken(opts.loginHint)
+  const token = await acquireToken(['Mail.Send'], opts.loginHint)
 
   const message = {
     subject: opts.subject,
