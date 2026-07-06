@@ -5,6 +5,7 @@ import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
   IconClipboardList, IconChartBar, IconLayoutKanban, IconArrowsSort, IconCheck, IconLogout,
+  IconChecklist,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -33,6 +34,8 @@ import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
 import { PlanningPage } from '../../routes/desktop/PlanningPage'
 import { PlanningKanbanPage } from '../../routes/desktop/PlanningKanbanPage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
+import { TodosPage } from '../../routes/desktop/TodosPage'
+import { todosApi } from '../../api/todos'
 
 function getInitials(name: string) {
   const parts = name.trim().split(' ')
@@ -93,7 +96,16 @@ function Sidebar() {
   }, [])
   const { reservationCount, zaagflowCount } = counts
 
+  const { data: todosData } = useQuery({ queryKey: ['todos'], queryFn: todosApi.list, refetchInterval: 20000 })
+  const openTodoCount = todosData?.data?.filter(t => !t.done).length ?? 0
+
   const NAV = [
+    {
+      label: 'Algemeen',
+      items: [
+        { to: '/todos', label: 'Todo lijst', Icon: IconChecklist, count: openTodoCount || null },
+      ],
+    },
     {
       label: 'Materiaal beheer',
       items: [
@@ -212,6 +224,7 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/planning':        ['Productie',        'Planning'],
   '/planning-kanban': ['Planning',         'Planning (KanBan)'],
   '/prognose':        ['Planning',         'Prognose'],
+  '/todos':           ['Algemeen',         'Todo lijst'],
 }
 
 function Topbar() {
@@ -291,6 +304,7 @@ export function AppLayout() {
             <Route path="/planning"        element={<PlanningPage />} />
             <Route path="/planning-kanban" element={<PlanningKanbanPage />} />
             <Route path="/prognose"        element={<PrognosePage />} />
+            <Route path="/todos"           element={<TodosPage />} />
             <Route path="*"               element={<Navigate to="/voorraad" replace />} />
           </Routes>
         </div>

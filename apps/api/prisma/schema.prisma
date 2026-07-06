@@ -41,6 +41,12 @@ enum LabelStatus {
   voided
 }
 
+enum TodoPriority {
+  low
+  normal
+  high
+}
+
 model Company {
   id            String   @id @default("default")
   naam          String   @default("")
@@ -76,6 +82,8 @@ model User {
   locks        Lock[]
   lockRequests LockRequest[]
   labels       Label[]
+  createdTodos Todo[] @relation("TodoCreatedBy")
+  claimedTodos Todo[] @relation("TodoClaimedBy")
 
   @@map("users")
 }
@@ -369,4 +377,26 @@ model ZaagReservering {
   createdAt      DateTime  @default(now()) @map("created_at")
 
   @@map("zaag_reserveringen")
+}
+
+model Todo {
+  id              String       @id @default(uuid())
+  title           String
+  dueDate         DateTime?    @map("due_date")
+  priority        TodoPriority @default(normal)
+  done            Boolean      @default(false)
+  completedAt     DateTime?    @map("completed_at")
+  createdByUserId String       @map("created_by_user_id")
+  claimedByUserId String?      @map("claimed_by_user_id")
+  claimedAt       DateTime?    @map("claimed_at")
+  calendarEventId String?      @map("calendar_event_id")
+  notifyOnDue     Boolean      @default(false) @map("notify_on_due")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  createdBy User  @relation("TodoCreatedBy", fields: [createdByUserId], references: [id])
+  claimedBy User? @relation("TodoClaimedBy", fields: [claimedByUserId], references: [id])
+
+  @@index([done, dueDate])
+  @@map("todos")
 }

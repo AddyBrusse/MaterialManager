@@ -322,10 +322,11 @@ function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
 function GebruikersTab() {
   const qc = useQueryClient()
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['users'],
-    queryFn: () => usersApi.list().then(r => r.data),
+    queryFn: () => usersApi.list(),
   })
+  const users: User[] = data?.data ?? []
 
   const updateUser = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Partial<User> }) =>
