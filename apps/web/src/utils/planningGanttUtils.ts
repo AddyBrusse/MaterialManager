@@ -241,9 +241,17 @@ export function machineWeekLoadFromItems(items: PlanningStapItem[], machineNaam:
 // Open (verzonden) offerte regels haven't been turned into productie orders
 // yet, so their operations aren't assigned to a machine/date. We approximate:
 // split the regel's estimated duration evenly across its frozen `bewerkingen`
-// (operation names), match each to a machine by name, and bucket the result
-// into the week containing the project's deadline (a no-deadline regel can't
-// be placed on the timeline, so it's skipped).
+// (operation names), match each to a machine by name, and backward-schedule
+// each operation's minutes from the project's deadline — ending GHOST_MARGIN_DAYS
+// before it, one machine-day of EFFECTIEVE_MIN capacity at a time, oldest day
+// first, so a job bigger than one day's capacity spills its remainder onto the
+// following day(s) instead of resting entirely on the day nearest the deadline
+// (a no-deadline regel can't be placed on the timeline, so it's skipped).
+// Ghost minutes stack with each other (and with real scheduled load) day by
+// day — this is a forecast, not a real reservation, so overlapping jobs on
+// the same machine/day just add up rather than being queued.
+const GHOST_MARGIN_DAYS = 2
+
 export function berekenGhostBelasting(
   projects: Project[],
   articles: Article[],
@@ -252,16 +260,15 @@ export function berekenGhostBelasting(
   totalDays: number = TOTAL_DAYS,
 ): Map<string, Map<number, number>> {
   const result = new Map<string, Map<number, number>>()
-  function add(machineNaam: string, weekIdx: number, min: number) {
+  function add(machineNaam: string, dayIdx: number, min: number) {
+    if (dayIdx < 0 || dayIdx >= totalDays) return
     if (!result.has(machineNaam)) result.set(machineNaam, new Map())
     const m = result.get(machineNaam)!
-    m.set(weekIdx, (m.get(weekIdx) ?? 0) + min)
+    m.set(dayIdx, (m.get(dayIdx) ?? 0) + min)
   }
   for (const project of projects) {
     if (!project.levertijdDatum) continue
-    const dayIdx = dayIndexForDate(project.levertijdDatum, windowStart)
-    if (dayIdx < 0 || dayIdx >= totalDays) continue
-    const weekIdx = Math.floor(dayIdx / 7)
+    const deadlineDay = dayIndexForDate(project.levertijdDatum, windowStart)
     for (const offerte of project.offertes) {
       if (offerte.status !== 'verzonden') continue
       for (const regel of offerte.regels) {
@@ -276,7 +283,15 @@ export function berekenGhostBelasting(
         const perOp = min / regel.bewerkingen.length
         for (const bewerking of regel.bewerkingen) {
           const machine = machines.find(m => matchesMachineNaam(bewerking, m.name))
-          add(machine ? machine.name : '', weekIdx, perOp)
+          const machineNaam = machine ? machine.name : ''
+          const daysNeeded = Math.max(1, Math.ceil(perOp / EFFECTIEVE_MIN))
+          const startDay = deadlineDay - GHOST_MARGIN_DAYS - daysNeeded
+          let remaining = perOp
+          for (let d = startDay; remaining > 0; d++) {
+            const amount = Math.min(remaining, EFFECTIEVE_MIN)
+            add(machineNaam, d, amount)
+            remaining -= amount
+          }
         }
       }
     }
@@ -290,16 +305,16 @@ function matchesMachineNaam(bewerkingNaam: string, machineNaam: string): boolean
   return a === b || a.includes(b) || b.includes(a)
 }
 
-export function ghostLoadFor(ghostMap: Map<string, Map<number, number>>, machineNaam: string, weekIdx: number): number {
-  return Math.round(ghostMap.get(machineNaam)?.get(weekIdx) ?? 0)
+export function ghostLoadFor(ghostMap: Map<string, Map<number, number>>, machineNaam: string, dayIdx: number): number {
+  return Math.round(ghostMap.get(machineNaam)?.get(dayIdx) ?? 0)
 }
 
-/** Sum of ghost (forecast) minutes for a machine across a range of week indices — used to bucket the weekly ghost map into wider (e.g. monthly) chart periods. */
+/** Sum of ghost (forecast) minutes for a machine across a [startDay, endDay) range — used to bucket the day-level ghost map into wider (e.g. weekly/monthly) chart periods. */
 export function ghostLoadInRange(
-  ghostMap: Map<string, Map<number, number>>, machineNaam: string, startWeekIdx: number, endWeekIdx: number,
+  ghostMap: Map<string, Map<number, number>>, machineNaam: string, startDay: number, endDay: number,
 ): number {
   let min = 0
-  for (let w = startWeekIdx; w < endWeekIdx; w++) min += ghostLoadFor(ghostMap, machineNaam, w)
+  for (let d = startDay; d < endDay; d++) min += ghostLoadFor(ghostMap, machineNaam, d)
   return min
 }
 

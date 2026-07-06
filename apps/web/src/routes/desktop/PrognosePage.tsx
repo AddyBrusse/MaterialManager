@@ -57,6 +57,14 @@ const HEADER_H = 28
 // amount of chart-shrinking would have helped anyway.
 const MIN_CHART_H = 48
 const MAX_CHART_H = 320
+// The heatmap wrap always has a horizontal scrollbar (there are always more
+// day/week/month columns than fit onscreen). With overflow-y:hidden and
+// max-height sized to exactly the row stack, the browser still reserves this
+// scrollbar's track inside the box, shrinking the visible (client) area and
+// clipping the bottom slice of the last machine row. Padding the max-height
+// out by the scrollbar's own thickness gives that reserved strip back to the
+// last row instead of eating into it.
+const SCROLLBAR_H = 17
 // Everything in the charts column besides the heatmap's row stack and the
 // bar chart's column height: both section titles, the bar legend, the gap
 // between the two sections, and each wrap's own chrome (borders/header row/
@@ -65,21 +73,17 @@ const MAX_CHART_H = 320
 // overflow:auto as a fallback if this under-estimates.
 const CHARTS_FIXED_OVERHEAD = 166
 
-interface Period { label: string; startDay: number; endDay: number; weekStart: number; weekEnd: number }
+interface Period { label: string; startDay: number; endDay: number }
 
-// Monthly buckets are derived from the same per-week ghost map the board
-// uses, so a week is wholly attributed to the month its first day falls in —
-// a minor approximation at month boundaries, consistent with the ghost map
-// itself already being an estimate (see berekenGhostBelasting). Day buckets
-// reuse that same per-week ghost figure for every day in the week, for the
-// same reason. Weekends are included throughout — this shop schedules
-// weekend work too, so every calendar day counts the same.
+// The ghost map (see berekenGhostBelasting) is keyed by day already, so day/
+// week/month periods all read it the same way via [startDay, endDay) — no
+// per-granularity approximation needed. Weekends are included throughout —
+// this shop schedules weekend work too, so every calendar day counts the same.
 function buildPeriods(granularity: Granularity, windowStart: Date, totalDays: number): Period[] {
   if (granularity === 'day') {
     const days: Period[] = []
     for (let d = 0; d < totalDays; d++) {
-      const week = Math.floor(d / 7)
-      days.push({ label: fmtDayShort(d, windowStart), startDay: d, endDay: d + 1, weekStart: week, weekEnd: week + 1 })
+      days.push({ label: fmtDayShort(d, windowStart), startDay: d, endDay: d + 1 })
     }
     return days
   }
@@ -87,7 +91,7 @@ function buildPeriods(granularity: Granularity, windowStart: Date, totalDays: nu
     const weeks = totalDays / 7
     return Array.from({ length: weeks }, (_, w) => ({
       label: `wk ${weekNrForIdx(w * 7, windowStart)}`,
-      startDay: w * 7, endDay: w * 7 + 7, weekStart: w, weekEnd: w + 1,
+      startDay: w * 7, endDay: w * 7 + 7,
     }))
   }
   const periods: Period[] = []
@@ -99,10 +103,10 @@ function buildPeriods(granularity: Granularity, windowStart: Date, totalDays: nu
       last.endDay = d + 1
     } else {
       const label = date.toLocaleDateString('nl-NL', { month: 'short', year: '2-digit' })
-      periods.push(Object.assign({ label, startDay: d, endDay: d + 1, weekStart: 0, weekEnd: 0 }, { key }))
+      periods.push(Object.assign({ label, startDay: d, endDay: d + 1 }, { key }))
     }
   }
-  return periods.map(p => ({ ...p, weekStart: Math.floor(p.startDay / 7), weekEnd: Math.ceil(p.endDay / 7) }))
+  return periods
 }
 
 // Effective capacity (hours) for a period — every calendar day counts
@@ -202,7 +206,7 @@ export function PrognosePage() {
     // available space, shrinking down to MIN_CHART_H before the page falls
     // back to its own overflow:auto (only reachable with far more machines
     // than the screen has room for).
-    const heatmapHeight = Math.max(machines.length, 1) * ROW_H + HEADER_H
+    const heatmapHeight = Math.max(machines.length, 1) * ROW_H + HEADER_H + SCROLLBAR_H
     const available = areaRect.height - CHARTS_FIXED_OVERHEAD
     const remainingForChart = available - heatmapHeight
     const chartHeight = remainingForChart >= MAX_CHART_H ? MAX_CHART_H : Math.max(MIN_CHART_H, remainingForChart)
@@ -218,7 +222,7 @@ export function PrognosePage() {
     const row: Record<string, string | number> = { period: p.label }
     for (const m of machines) {
       const planned = machineLoadInRange(allItems, m.name, p.startDay, p.endDay, windowStart) / 60
-      const outstanding = ghostLoadInRange(ghostMap, m.name, p.weekStart, p.weekEnd) / 60
+      const outstanding = ghostLoadInRange(ghostMap, m.name, p.startDay, p.endDay) / 60
       row[`${m.name}__total`] = Math.round((planned + outstanding) * 10) / 10
     }
     return row

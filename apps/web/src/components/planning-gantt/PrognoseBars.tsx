@@ -54,7 +54,12 @@ export function PrognoseBars({
       <div className="prog-bars-wrap" ref={scrollRef} onScroll={onScroll}>
         <div className="prog-bars-inner">
           <div className="prog-bars-axis" style={{ width: labelWidth, height: chartHeight }}>
-            <span style={{ bottom: 0 }}>0 u</span>
+            {/* Unlike the other axis labels, this one isn't centered on its
+                gridline (no translateY(50%)) — at the very bottom of the
+                axis, straddling the 0-line would push half the text below
+                the axis box and into the date-label row that sits directly
+                underneath, which paints over it. */}
+            <span style={{ bottom: 0, transform: 'none' }}>0 u</span>
             <span style={{ bottom: `${capPct}%` }} className="prog-bars-caplabel">{capacityHours} u</span>
             {showPeakLabel && (
               <span style={{ bottom: `${peakPct}%` }}>{maxLabel} u</span>
