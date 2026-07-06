@@ -9,8 +9,8 @@ Emails land in the user's **Verzonden** folder automatically (Graph sendMail doe
    - Name: `ShopCommand`
    - Supported account type: **Accounts in this organizational directory only**
    - Redirect URI: **Single-page application (SPA)**
-     - `http://localhost:5173` (dev)
-     - Production URL (e.g. `http://192.168.1.x:3000`)
+     - `http://localhost:5173/auth-popup.html` (dev)
+     - Production URL + `/auth-popup.html` (e.g. `http://192.168.1.x:3000/auth-popup.html`)
 2. **API permissions** → Add → Microsoft Graph → Delegated → `Mail.Send`
    - No admin consent needed for this permission
 3. **Authentication** → Enable **Allow public client flows** → Yes
@@ -27,6 +27,13 @@ npm install @azure/msal-browser -w apps/web
 ```
 
 ## Files to create
+
+### `apps/web/public/auth-popup.html`
+
+Empty static HTML page, served at `/auth-popup.html`. Used as the MSAL popup
+`redirectUri` instead of the app origin, so the OAuth popup doesn't re-boot
+the full SPA (and its router) inside itself — MSAL just reads the auth
+response off the popup's URL and closes it.
 
 ### `apps/web/src/services/graph-mail.ts`
 
@@ -46,7 +53,7 @@ function getMsal(): PublicClientApplication {
     auth: {
       clientId: co.graphClientId,
       authority: `https://login.microsoftonline.com/${co.graphTenantId}`,
-      redirectUri: window.location.origin,
+      redirectUri: `${window.location.origin}/auth-popup.html`,
     },
     cache: { cacheLocation: 'sessionStorage' },
   })

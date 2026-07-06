@@ -208,6 +208,11 @@ exists in the Zod schema but not yet in `schema.prisma`).
 **Why:** This app has no scheduler (single Express process, no cron), so a periodic "insert an alert row" job wasn't feasible without new infrastructure. Live computation is always accurate and self-clears the instant the underlying condition resolves — it also mirrors how low-stock indicators already work elsewhere in the app (client-side from `minStock`/`currentStock`, not the parked `/api/low-stock` endpoint).  
 **Trade-off:** Alerts aren't visible/actionable unless someone has the Todo page open; a "Zet als taak" button lets a user convert one into a real, trackable Todo row on demand.
 
+## 2026-07-06 — MSAL popup redirects to a static blank page, not the app origin
+**Decision:** `graph-mail.ts`'s `redirectUri` points to `apps/web/public/auth-popup.html` (empty static page) instead of `window.location.origin`.
+**Why:** With the redirect at the app origin, the OAuth popup re-booted the full SPA after login. Since OAuth popups are narrower than the mobile breakpoint, `App.tsx` rendered the stub `MobileLayout` instead of the desktop app, whose catch-all route (`routes/mobile/index.tsx`) navigated to `/raw` — stripping the auth hash from the URL before MSAL could read it and close the popup. Users saw the app's unbuilt "Grondstoffen — nog te bouwen" placeholder stuck open instead of the popup auto-closing.
+**Trade-off:** Azure App registration's SPA redirect URI must be updated to `.../auth-popup.html` (was the bare origin) — an admin needs to add this in Azure Portal, existing token cache/sessions are unaffected.
+
 ---
 
 (Template for new entries)

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>ShopCommand — inloggen</title>
+  </head>
+  <body>
+    <!--
+      MSAL redirect target for acquireTokenPopup. Kept intentionally blank and
+      outside the SPA router: MSAL closes this popup itself once it reads the
+      auth response from the URL. Redirecting popups to the app origin instead
+      re-boots the whole SPA inside the popup, which can race MSAL's hash
+      detection and leave the popup stuck open on an app page.
+    -->
+  </body>
+</html>

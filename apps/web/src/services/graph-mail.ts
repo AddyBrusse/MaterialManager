@@ -15,7 +15,7 @@ async function getMsal(): Promise<PublicClientApplication> {
     auth: {
       clientId: co.graphClientId,
       authority: `https://login.microsoftonline.com/${co.graphTenantId}`,
-      redirectUri: window.location.origin,
+      redirectUri: `${window.location.origin}/auth-popup.html`,
     },
     cache: { cacheLocation: 'sessionStorage' },
   })
