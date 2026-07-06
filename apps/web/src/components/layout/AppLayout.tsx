@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
-import { Menu } from '@mantine/core'
+import { Menu, Tooltip } from '@mantine/core'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
@@ -101,41 +101,36 @@ function Sidebar() {
 
   const NAV = [
     {
-      label: 'Algemeen',
+      label: 'Planning',
       items: [
-        { to: '/todos', label: 'Todo lijst', Icon: IconChecklist, count: openTodoCount || null },
-      ],
-    },
-    {
-      label: 'Materiaal beheer',
-      items: [
-        { to: '/voorraad',     label: 'Voorraad',      Icon: IconLayersLinked, count: voorraadCount || null },
-        { to: '/binnenboeken', label: 'Binnen boeken',  Icon: IconInbox,        count: null },
-        { to: '/instellingen', label: 'Instellingen',   Icon: IconSettings,     count: null },
-      ],
-    },
-    {
-      label: 'Artikelen',
-      items: [
-        { to: '/artikelen', label: 'Artikelen', Icon: IconList,  count: null },
-        { to: '/relaties',  label: 'Relaties',  Icon: IconUsers, count: null },
+        { to: '/planning-kanban', label: 'KanBan',   Icon: IconLayoutKanban, count: null },
+        { to: '/prognose',        label: 'Prognose', Icon: IconChartBar,     count: null },
+        { to: '/todos',           label: 'ToDo',      Icon: IconChecklist,   count: openTodoCount || null },
       ],
     },
     {
       label: 'Productie',
       items: [
-        { to: '/zaagcalculator',  label: 'Zaag calculator', Icon: IconCut,        count: null },
-        { to: '/reserveringen',   label: 'Reserveringen',   Icon: IconBookmark,   count: reservationCount || null },
-        { to: '/zaagplanner',     label: 'Zaag planner',    Icon: IconArrowsSort, count: zaagflowCount || null },
-        { to: '/zaagflow',        label: 'Zaagflow',        Icon: IconListCheck,  count: zaagflowCount || null },
-        { to: '/projecten',       label: 'Projecten',       Icon: IconClipboardList, count: null },
+        { to: '/projecten',       label: 'Projecten',      Icon: IconClipboardList, count: null },
+        { to: '/zaagcalculator',  label: 'Zaagcalculator', Icon: IconCut,           count: null },
+        { to: '/zaagplanner',     label: 'Zaagplanner',    Icon: IconArrowsSort,    count: zaagflowCount || null, disabled: true, disabledReason: 'Hiervoor gaan we een andere applicatie gebruiken' },
+        { to: '/zaagflow',        label: 'ZaagFlow',       Icon: IconListCheck,     count: zaagflowCount || null },
       ],
     },
     {
-      label: 'Planning',
+      label: 'Materiaalbeheer',
       items: [
-        { to: '/planning-kanban', label: 'Planning (KanBan)', Icon: IconLayoutKanban, count: null },
-        { to: '/prognose',        label: 'Prognose',          Icon: IconChartBar,     count: null },
+        { to: '/voorraad',       label: 'Voorraad',      Icon: IconLayersLinked, count: voorraadCount || null },
+        { to: '/reserveringen',  label: 'Reserveringen', Icon: IconBookmark,     count: reservationCount || null },
+        { to: '/binnenboeken',   label: 'Binnen boeken', Icon: IconInbox,        count: null },
+      ],
+    },
+    {
+      label: 'Stamgegevens',
+      items: [
+        { to: '/artikelen',    label: 'Artikelen',    Icon: IconList,     count: null },
+        { to: '/relaties',     label: 'Relaties',     Icon: IconUsers,    count: null },
+        { to: '/instellingen', label: 'Instellingen', Icon: IconSettings, count: null },
       ],
     },
   ]
@@ -180,17 +175,29 @@ function Sidebar() {
           <div key={group.label}>
             <div className="st-sb-group-lbl">{group.label}</div>
             {group.items.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) => `st-sb-item${isActive ? ' active' : ''}`}
-              >
-                <item.Icon size={16} />
-                <span>{item.label}</span>
-                {item.count != null && (
-                  <span className="count">{item.count}</span>
-                )}
-              </NavLink>
+              item.disabled ? (
+                <Tooltip key={item.to} label={item.disabledReason} position="right" withArrow>
+                  <div className="st-sb-item disabled">
+                    <item.Icon size={16} />
+                    <span>{item.label}</span>
+                    {item.count != null && (
+                      <span className="count">{item.count}</span>
+                    )}
+                  </div>
+                </Tooltip>
+              ) : (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  className={({ isActive }) => `st-sb-item${isActive ? ' active' : ''}`}
+                >
+                  <item.Icon size={16} />
+                  <span>{item.label}</span>
+                  {item.count != null && (
+                    <span className="count">{item.count}</span>
+                  )}
+                </NavLink>
+              )
             ))}
           </div>
         ))}
@@ -211,30 +218,29 @@ function Sidebar() {
 }
 
 const ROUTE_LABELS: Record<string, [string, string]> = {
-  '/voorraad':        ['Materiaal beheer', 'Voorraad'],
-  '/binnenboeken':    ['Materiaal beheer', 'Binnen boeken'],
-  '/instellingen':    ['Materiaal beheer', 'Instellingen'],
-  '/artikelen':       ['Artikelen',        'Artikelen'],
-  '/relaties':        ['Artikelen',        'Relaties'],
-  '/zaagcalculator':  ['Productie',        'Zaag calculator'],
-  '/reserveringen':   ['Productie',        'Reserveringen'],
-  '/zaagplanner':     ['Productie',        'Zaag planner'],
-  '/zaagflow':        ['Productie',        'Zaagflow'],
-  '/projecten':       ['Productie',        'Projecten'],
-  '/planning':        ['Productie',        'Planning'],
-  '/planning-kanban': ['Planning',         'Planning (KanBan)'],
-  '/prognose':        ['Planning',         'Prognose'],
-  '/todos':           ['Algemeen',         'Todo lijst'],
+  '/planning-kanban': ['Planning',       'KanBan'],
+  '/prognose':        ['Planning',       'Prognose'],
+  '/todos':           ['Planning',       'ToDo'],
+  '/projecten':       ['Productie',      'Projecten'],
+  '/zaagcalculator':  ['Productie',      'Zaagcalculator'],
+  '/zaagplanner':     ['Productie',      'Zaagplanner'],
+  '/zaagflow':        ['Productie',      'ZaagFlow'],
+  '/voorraad':        ['Materiaalbeheer', 'Voorraad'],
+  '/reserveringen':   ['Materiaalbeheer', 'Reserveringen'],
+  '/binnenboeken':    ['Materiaalbeheer', 'Binnen boeken'],
+  '/artikelen':       ['Stamgegevens',   'Artikelen'],
+  '/relaties':        ['Stamgegevens',   'Relaties'],
+  '/instellingen':    ['Stamgegevens',   'Instellingen'],
 }
 
 function Topbar() {
   const location = useLocation()
   const detail = location.pathname.startsWith('/artikelen/')
-    ? (['Artikelen', 'Artikel'] as [string, string])
+    ? (['Stamgegevens', 'Artikel'] as [string, string])
     : location.pathname.startsWith('/projecten/')
     ? (['Productie', 'Project detail'] as [string, string])
     : location.pathname.startsWith('/relaties/')
-    ? (['Artikelen', 'Relatie detail'] as [string, string])
+    ? (['Stamgegevens', 'Relatie detail'] as [string, string])
     : undefined
   const [section, page] = detail ?? ROUTE_LABELS[location.pathname] ?? ['', '']
 

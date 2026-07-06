@@ -159,6 +159,8 @@ html, body {
 }
 .st-sb-item svg { width: 16px; height: 16px; color: var(--text-3); flex-shrink: 0; }
 .st-sb-item.active svg { color: var(--text); }
+.st-sb-item.disabled { opacity: 0.45; cursor: not-allowed; }
+.st-sb-item.disabled:hover { background: transparent; color: var(--text-2); }
 .st-sb-item .count {
   margin-left: auto; font-family: var(--font-mono);
   font-size: 11px; color: var(--text-3); background: var(--bg-chip);
