@@ -1,8 +1,8 @@
-# CLAUDE.md — StockManager
+# CLAUDE.md — ShopCommand
 
 ## What this repo is
 
-**StockManager** — an internal inventory app for a small CNC shop (~4 users). Docs and code live together in this directory.
+**ShopCommand** — an internal shop management app for a small CNC shop (~4 users): inventory, quoting/offertes, production planning, and relaties. Docs and code live together in this directory. (Formerly "StockManager" — kept the npm package scope `@stockmanager/*` and repo name as-is; see [decisions/90-decisions-log.md](./decisions/90-decisions-log.md).)
 
 ## Read these first (in order)
 
@@ -66,7 +66,7 @@ shouldn't need revisiting.
 |---|---|
 | Backend | `backend/20-backend-overview.md` · `21-api-design.md` · `22-database-schema.md` · `23-users-roles.md` · `24-locking.md` · `25-file-storage.md` · `26-deployment.md` |
 | Frontend | `frontend/10-frontend-overview.md` · `11-routing.md` · `12-state-management.md` · `13-components.md` · `14-mobile-view.md` · `15-desktop-view.md` · `16-forms-validation.md` · `17-styling-theme.md` · **`18-design-patterns.md`** ← code patterns · **`19-visual-design.md`** ← visual spec (read before touching UI) |
-| Features | `features/30-items-raw.md` · `31-items-finished.md` · `32-stock-movements.md` · `33-locations.md` · `34-grades-profiles.md` · `35-labels.md` · `36-search.md` · `37-low-stock.md` · **`38-article-calculator.md`** ← calculator modal/UI patterns |
+| Features | `features/30-items-raw.md` · `31-items-finished.md` · `32-stock-movements.md` · `33-locations.md` · `34-grades-profiles.md` · `35-labels.md` · `36-search.md` · `37-low-stock.md` · **`38-article-calculator.md`** ← calculator modal/UI patterns · `39-graph-mail.md` · **`50-operator-terminal.md`** ← parked tablet/kiosk app |
 | Workflows | `workflows/40-user-flows.md` · `41-receive-material.md` · `42-adjust-stock.md` · `43-edit-locking-flow.md` · `44-mobile-scan-flow.md` |
 | Decisions | `decisions/90-decisions-log.md` |
 | Parked | `03-parked.md` — things not decided yet, do not implement |

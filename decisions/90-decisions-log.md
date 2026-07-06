@@ -4,6 +4,37 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-07-02 — Product renamed to "ShopCommand" (user-facing only)
+
+**Decision:** The app is now branded **ShopCommand** in every user-facing
+surface: browser `<title>`, sidebar/login screens, Instellingen copy, API
+startup log, and current (non-archival) docs — `README.md`, `CLAUDE.md`,
+`features/39-graph-mail.md` (Azure app registration name suggestion),
+`features/40-planning-gantt-design-prompt.md`, `features/50-operator-terminal.md`.
+Old name was "StaalTrack" (in-app brand) / "StockManager" (doc title).
+
+**Explicitly NOT renamed:** the npm workspace scope (`@stockmanager/web`,
+`@stockmanager/api`, `@stockmanager/shared`), the repo folder name, and the
+GitHub remote. Renaming the npm scope touches every import across
+`apps/web`, `apps/api`, and `packages/shared` for no functional benefit —
+purely mechanical risk with no user-visible upside. Archival design-handoff
+docs (`design_handoff_staaltrack/`, `frontend/17-styling-theme.md`,
+`frontend/19-visual-design.md`) also keep the old "StaalTrack" name since
+they document a historical design source, not the live product identity.
+
+**Why:** The app started as a pure inventory tracker ("StockManager" /
+"StaalTrack") but has grown to cover the full order lifecycle — offertes,
+opdrachtbevestiging, production planning (zaag calculator/planner/flow),
+relaties, and Graph-based email — so the original name undersold its scope.
+"ShopCommand" was chosen in English (per user request) to reflect owning
+the entire shop process end-to-end, not just stock levels.
+
+**How to apply:** If a rename to the npm scope or repo name is wanted later,
+treat it as a separate, larger decision — it's mechanical but touches
+100+ files and needs a full build/test pass after.
+
+---
+
 ## 2026-06-22 — Mock phase ended: build straight against the DB from now on
 
 **Decision:** The 2026-06-15 "build frontend-first as localStorage mocks"

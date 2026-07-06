@@ -28,7 +28,7 @@ export function UserSelectScreen() {
     <Center h="100vh" bg="gray.0">
       <Paper p="xl" shadow="sm" w={320}>
         <Stack gap="md">
-          <Title order={3}>StockManager</Title>
+          <Title order={3}>ShopCommand</Title>
           <Text size="sm" c="dimmed">Selecteer wie je bent</Text>
           <Select
             placeholder="Kies gebruiker..."

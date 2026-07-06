@@ -12,6 +12,11 @@ Open decisions to revisit. Do not block initial build on these.
 - Font, sizing on the physical label
 - Whether to support multiple templates later
 
+## Operator terminal app
+- Tablet kiosk for shop-floor operators (queue, files, time tracking, "stap gereed")
+- Full plan in `features/50-operator-terminal.md`
+- Do not start until user explicitly picks it up
+
 ## Backup strategy
 - Postgres dump schedule (nightly?)
 - Uploads folder snapshot (rsync to NAS share?)
