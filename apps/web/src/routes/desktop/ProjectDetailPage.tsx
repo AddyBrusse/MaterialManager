@@ -485,7 +485,11 @@ export function ProjectDetailPage() {
         <button data-active={tab === 'opdrachtbevestiging'} onClick={() => setTab('opdrachtbevestiging')}>
           Opdrachtbevestiging
           {project.opdrachtbevestiging && project.opdrachtbevestiging.status !== 'verzonden' && (
-            <span className="tab-count" style={{ background: 'var(--warning)', color: '#fff' }}>!</span>
+            <span
+              className="tab-count"
+              style={{ background: 'var(--warning)', color: '#fff' }}
+              title="Opdrachtbevestiging staat nog op concept en is nog niet verzonden naar de klant"
+            >!</span>
           )}
         </button>
         <button data-active={tab === 'productie'} onClick={() => setTab('productie')}>

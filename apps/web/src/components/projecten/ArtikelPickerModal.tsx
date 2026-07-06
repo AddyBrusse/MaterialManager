@@ -333,11 +333,11 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
             <table className="st-tbl" style={{ tableLayout: 'fixed' }}>
               <thead>
                 <tr>
-                  <th style={{ width: 78 }}>Art. No.</th>
+                  <th style={{ width: 88 }}>Art. No.</th>
                   <th style={{ width: 130 }}>Omschrijving</th>
                   <th style={{ width: 110 }}>Tekeningnummer</th>
-                  <th style={{ width: 52 }}>Revisie</th>
-                  <th style={{ width: 120 }}>Bewerkingen</th>
+                  <th style={{ width: 56 }}>Revisie</th>
+                  <th style={{ width: 170 }}>Bewerkingen</th>
                   <th style={{ width: 100 }}>Materiaal</th>
                   <th style={{ width: 90, textAlign: 'right' }}>Kostprijs</th>
                   <th style={{ width: 100, textAlign: 'center' }}>Qty</th>
