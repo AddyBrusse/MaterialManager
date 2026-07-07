@@ -6,7 +6,7 @@ interface PrognoseHeatmapProps {
   machines: Machine[]
   periods: { label: string }[]
   data: Record<string, string | number>[]
-  capacityPerPeriod: number[]
+  capacityPerPeriod: Record<string, number[]>
   colWidth: number
   labelWidth: number
   rowHeight: number
@@ -42,7 +42,7 @@ export function PrognoseHeatmap({
             {periods.map((p, i) => {
               const row = data[i]
               const load = Number(row?.[`${m.name}__total`] ?? 0)
-              const cap = capacityPerPeriod[i] || 0
+              const cap = capacityPerPeriod[m.name]?.[i] || 0
               const ratio = cap > 0 ? load / cap : 0
               return (
                 <div

@@ -7,7 +7,7 @@ import { machinesApi, initMachines } from '../../api/machines'
 import {
   buildStapItems, berekenGhostBelasting, machineLoadInRange, ghostLoadInRange,
   getWindowStart, prognoseTotalDays, toDateStr, dateForDayIndex, weekNrForIdx, fmtDayShort,
-  EFFECTIEVE_MIN,
+  machineCapacityMinPerDay,
 } from '../../utils/planningGanttUtils'
 import { PrognoseHeatmap } from '../../components/planning-gantt/PrognoseHeatmap'
 import { PrognoseBars } from '../../components/planning-gantt/PrognoseBars'
@@ -109,12 +109,15 @@ function buildPeriods(granularity: Granularity, windowStart: Date, totalDays: nu
   return periods
 }
 
-// Effective capacity (hours) for a period — every calendar day counts
-// equally now (weekend work included), so this is just day-count * rate.
-function avgCapacityHours(periods: Period[]): number {
+// Average day-count per period — every calendar day counts equally (weekend
+// work included), so a machine's capacity for "one period" is just this
+// times that machine's own effective hours/day (see machineCapacityMinPerDay
+// — each machine can have its own Bezetting%/uren-per-dag from Instellingen
+// → Bedrijfskosten, so capacity is computed per machine, not once globally).
+function avgDaysPerPeriod(periods: Period[]): number {
   if (periods.length === 0) return 0
   const totalDays = periods.reduce((s, p) => s + (p.endDay - p.startDay), 0)
-  return (totalDays / periods.length) * EFFECTIEVE_MIN / 60
+  return totalDays / periods.length
 }
 
 export function PrognosePage() {
@@ -212,11 +215,23 @@ export function PrognosePage() {
     const chartHeight = remainingForChart >= MAX_CHART_H ? MAX_CHART_H : Math.max(MIN_CHART_H, remainingForChart)
     return { heatmapMaxHeight: heatmapHeight, chartHeight }
   }, [areaRect.height, machines.length])
-  const capacityHours = useMemo(() => Math.round(avgCapacityHours(periods) * 10) / 10, [periods])
-  const capacityPerPeriod = useMemo(
-    () => periods.map(p => (p.endDay - p.startDay) * EFFECTIEVE_MIN / 60),
-    [periods],
-  )
+  const capacityByMachine = useMemo(() => {
+    const avgDays = avgDaysPerPeriod(periods)
+    const result: Record<string, number> = {}
+    for (const m of machines) {
+      const perDayHours = machineCapacityMinPerDay(m).effectiveMin / 60
+      result[m.name] = Math.round(avgDays * perDayHours * 10) / 10
+    }
+    return result
+  }, [periods, machines])
+  const capacityPerPeriod = useMemo(() => {
+    const result: Record<string, number[]> = {}
+    for (const m of machines) {
+      const perDayHours = machineCapacityMinPerDay(m).effectiveMin / 60
+      result[m.name] = periods.map(p => (p.endDay - p.startDay) * perDayHours)
+    }
+    return result
+  }, [periods, machines])
 
   const data = useMemo(() => periods.map(p => {
     const row: Record<string, string | number> = { period: p.label }
@@ -261,7 +276,7 @@ export function PrognosePage() {
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Werklast per machine (gepland + prognose)</div>
             <PrognoseBars
-              machines={machines} periods={periods} data={data} capacityHours={capacityHours}
+              machines={machines} periods={periods} data={data} capacityByMachine={capacityByMachine}
               colWidth={colWidth} labelWidth={LABEL_W} chartHeight={chartHeight}
               scrollRef={barsScrollRef} onScroll={onBarsScroll}
             />

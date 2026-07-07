@@ -6,6 +6,7 @@
 import type { Project, ProductieOrder, ProductieStap, Relatie } from '@stockmanager/shared'
 import type { Article } from '../api/articles'
 import type { Machine } from '../api/machines'
+import { overheadApi, DEFAULT_MACHINE_ROW } from '../api/overhead'
 import {
   EFFECTIEVE_MIN, MAX_MIN, toDateStr, getMaandag,
   berekenStapMin, berekenOrderMin,
@@ -17,6 +18,26 @@ export {
   EFFECTIEVE_MIN, MAX_MIN, toDateStr,
 } from './planningUtils'
 export type { PlanningStapItem } from './planningUtils'
+
+// ── Per-machine capacity (Prognose-only) ────────────────────────────────────
+// The Gantt/KanBan boards still use the shared EFFECTIEVE_MIN/MAX_MIN
+// constants above — this reads each machine's own Bezetting%/uren-per-dag
+// from Instellingen → Bedrijfskosten (apps/web/src/api/overhead.ts) so
+// Prognose's capacity actually reflects what's configured per machine,
+// instead of one fixed number applied to every machine alike. Falls back to
+// the shop-wide default hours/day and the settings page's own default
+// utilization (70%) for a machine with no configured overhead row yet.
+export function machineCapacityMinPerDay(machine: Machine): { effectiveMin: number; maxMin: number } {
+  const cfg = overheadApi.load()
+  const row = cfg.machines.find(m => m.machineId === machine.id)
+  const hpd = row?.hoursPerDayOverride != null && row.hoursPerDayOverride > 0
+    ? row.hoursPerDayOverride
+    : cfg.shop.hoursPerDay
+  const utilizationPct = Math.min(100, Math.max(1, row?.utilizationPct ?? DEFAULT_MACHINE_ROW.utilizationPct))
+  const maxMin = hpd * 60
+  const effectiveMin = maxMin * (utilizationPct / 100)
+  return { effectiveMin, maxMin }
+}
 
 // ── Continuous timeline window ──────────────────────────────────────────────
 // Rolling window anchored on "this week": a couple of weeks of history (so
@@ -237,19 +258,31 @@ export function machineWeekLoadFromItems(items: PlanningStapItem[], machineNaam:
   return machineLoadInRange(items, machineNaam, weekStartIdx, weekStartIdx + 7, windowStart)
 }
 
-// ── Ghost / Prognose workload from open offertes ────────────────────────────
-// Open (verzonden) offerte regels haven't been turned into productie orders
-// yet, so their operations aren't assigned to a machine/date. We approximate:
-// split the regel's estimated duration evenly across its frozen `bewerkingen`
-// (operation names), match each to a machine by name, and backward-schedule
-// each operation's minutes from the project's deadline — ending GHOST_MARGIN_DAYS
-// before it, one machine-day of EFFECTIEVE_MIN capacity at a time, oldest day
-// first, so a job bigger than one day's capacity spills its remainder onto the
-// following day(s) instead of resting entirely on the day nearest the deadline
-// (a no-deadline regel can't be placed on the timeline, so it's skipped).
-// Ghost minutes stack with each other (and with real scheduled load) day by
-// day — this is a forecast, not a real reservation, so overlapping jobs on
-// the same machine/day just add up rather than being queued.
+// ── Ghost / Prognose workload from unscheduled work ─────────────────────────
+// Two kinds of work aren't on the real timeline yet, but should still show up
+// as forecast load rather than silently vanishing from Prognose:
+//   1. Open (verzonden) offerte regels — no productie order exists yet, so
+//      there's no stap/machine to read a duration from. We approximate: split
+//      the regel's estimated duration evenly across its frozen `bewerkingen`
+//      (operation names) and match each to a machine by name.
+//   2. Accepted offertes' real productie-order stappen that haven't been
+//      scheduled yet (no geplandDatum — nobody's dragged them onto a day on
+//      the Planning board). These already have a real machine/duration, so
+//      no estimation is needed — they just aren't a *real* scheduled load
+//      until they have a date, so they're ghosted the same way in the
+//      meantime instead of dropping out of Prognose the moment the offerte
+//      is accepted.
+// Both are backward-scheduled from the project's deadline — ending
+// GHOST_MARGIN_DAYS before it, one machine-day of capacity at a time (that
+// machine's own Bezetting%/uren-per-dag from Overhead settings — see
+// machineCapacityMinPerDay — falling back to EFFECTIEVE_MIN for an unmatched
+// bewerking with no machine), oldest day first, so a job bigger than one
+// day's capacity spills its remainder onto the following day(s) instead of
+// resting entirely on the day nearest the deadline (a no-deadline project
+// can't be placed on the timeline, so it's skipped). Ghost minutes stack
+// with each other (and with real scheduled load) day by day — this is a
+// forecast, not a real reservation, so overlapping jobs on the same
+// machine/day just add up rather than being queued.
 const GHOST_MARGIN_DAYS = 2
 
 export function berekenGhostBelasting(
@@ -266,9 +299,22 @@ export function berekenGhostBelasting(
     const m = result.get(machineNaam)!
     m.set(dayIdx, (m.get(dayIdx) ?? 0) + min)
   }
+  function backfillFromDeadline(machineNaam: string, deadlineDay: number, minutes: number) {
+    const machine = machines.find(m => m.name === machineNaam)
+    const perDayMin = machine ? machineCapacityMinPerDay(machine).effectiveMin : EFFECTIEVE_MIN
+    const daysNeeded = Math.max(1, Math.ceil(minutes / perDayMin))
+    const startDay = deadlineDay - GHOST_MARGIN_DAYS - daysNeeded
+    let remaining = minutes
+    for (let d = startDay; remaining > 0; d++) {
+      const amount = Math.min(remaining, perDayMin)
+      add(machineNaam, d, amount)
+      remaining -= amount
+    }
+  }
   for (const project of projects) {
     if (!project.levertijdDatum) continue
     const deadlineDay = dayIndexForDate(project.levertijdDatum, windowStart)
+
     for (const offerte of project.offertes) {
       if (offerte.status !== 'verzonden') continue
       for (const regel of offerte.regels) {
@@ -283,16 +329,17 @@ export function berekenGhostBelasting(
         const perOp = min / regel.bewerkingen.length
         for (const bewerking of regel.bewerkingen) {
           const machine = machines.find(m => matchesMachineNaam(bewerking, m.name))
-          const machineNaam = machine ? machine.name : ''
-          const daysNeeded = Math.max(1, Math.ceil(perOp / EFFECTIEVE_MIN))
-          const startDay = deadlineDay - GHOST_MARGIN_DAYS - daysNeeded
-          let remaining = perOp
-          for (let d = startDay; remaining > 0; d++) {
-            const amount = Math.min(remaining, EFFECTIEVE_MIN)
-            add(machineNaam, d, amount)
-            remaining -= amount
-          }
+          backfillFromDeadline(machine ? machine.name : '', deadlineDay, perOp)
         }
+      }
+    }
+
+    for (const order of project.productieOrders) {
+      if (order.status === 'gereed') continue
+      for (const stap of order.stappen) {
+        if (stap.geplandDatum != null || stap.gereedOp) continue
+        const { min } = berekenStapMin(stap, order, articles)
+        backfillFromDeadline(effectiveMachine(stap), deadlineDay, min)
       }
     }
   }
