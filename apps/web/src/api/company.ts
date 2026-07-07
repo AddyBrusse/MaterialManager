@@ -57,6 +57,11 @@ export const companyApi = {
   },
 }
 
+// Without this, getSync() is stuck on cache=null → loadLocal() forever —
+// real settings (KVK/BTW/IBAN, Graph client/tenant id) never reach the PDF
+// generators or the offerte/opdrachtbevestiging email-send checks that read
+// getSync() directly. Called from AppLayout's startup effect, mirroring
+// initMachines()/initGrades() etc.
 export async function loadCompany(): Promise<Company> {
   const result = await companyApi.get()
   cache = result.data
