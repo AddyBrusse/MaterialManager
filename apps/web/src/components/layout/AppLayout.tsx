@@ -17,6 +17,7 @@ import { initProjects } from '../../api/projects'
 import { initReservations, reservationsStore } from '../../api/reservations'
 import { initGrades } from '../../api/grades'
 import { initProfiles } from '../../api/profiles'
+import { loadCompany } from '../../api/company'
 import { usersApi } from '../../api/users'
 import type { User } from '@stockmanager/shared'
 import logoBoers from '../../assets/logo-boers.png'
@@ -281,6 +282,7 @@ export function AppLayout() {
       initReservations(),
       initGrades(),
       initProfiles(),
+      loadCompany(),
     ]).then(() => {
       qc.invalidateQueries({ queryKey: ['machines'] })
       qc.invalidateQueries({ queryKey: ['relaties'] })
@@ -289,6 +291,7 @@ export function AppLayout() {
       qc.invalidateQueries({ queryKey: ['reservations'] })
       qc.invalidateQueries({ queryKey: ['grades'] })
       qc.invalidateQueries({ queryKey: ['profiles'] })
+      qc.invalidateQueries({ queryKey: ['company'] })
     })
   }, [qc])
 
