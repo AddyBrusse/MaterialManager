@@ -79,22 +79,38 @@ export function machineMinutes(node: Pick<EstimateNode, 'setupMin' | 'steps'>): 
   return (node.setupMin || 0) + (node.steps ?? []).reduce((s, st) => s + (st.cycleMin || 0), 0)
 }
 
-/** Per-piece flat totals: materiaalTotaal + bewerkingTotaal + uitbestedingTotaal → kostprijs → verkoopprijs. */
-export function computeEstimateTotals(est: ArticleEstimate, ctx: EstimateCtx): EstimateTotals {
-  let materialTotal = 0, machiningTotal = 0, externalTotal = 0, timeMin = 0
+/**
+ * Per-unit totals for an order of `qty` pieces (default 1 — the article's
+ * own "per piece" price before it's tied to any order size, e.g. on the
+ * article detail/calculator pages). Setup time (once per machine, however
+ * many pieces run through it in one production run) and external/
+ * outsourcing cost (once per operation, e.g. one batch sent to a coating
+ * vendor) are one-time costs for the whole batch: they're charged once,
+ * then divided across `qty` here — NOT multiplied by qty the way material
+ * cost and per-piece cycle time are. At qty=1 this is identical to charging
+ * everything once, so existing single-piece quotes are unaffected.
+ */
+export function computeEstimateTotals(est: ArticleEstimate, ctx: EstimateCtx, qty = 1): EstimateTotals {
+  const n = Math.max(1, qty)
+  let materialTotal = 0, cyclePerPiece = 0, setupTotal = 0, externalBatchTotal = 0, timeMin = 0
 
   for (const node of est.nodes) {
     if (node.type === 'material') {
       materialTotal += (node.qty ?? 1) * materialCostPerPiece(node, ctx)
     } else if (node.type === 'machine') {
-      const min = machineMinutes(node)
-      timeMin += min
-      machiningTotal += (min / 60) * machineRatePerHour(node, ctx)
+      const setupMin = node.setupMin || 0
+      const cycleMin = (node.steps ?? []).reduce((s, st) => s + (st.cycleMin || 0), 0)
+      const rate = machineRatePerHour(node, ctx)
+      setupTotal += (setupMin / 60) * rate
+      cyclePerPiece += (cycleMin / 60) * rate
+      timeMin += setupMin + n * cycleMin
     } else if (node.type === 'external') {
-      externalTotal += (node.qty ?? 1) * (node.externalCost ?? 0)
+      externalBatchTotal += (node.qty ?? 1) * (node.externalCost ?? 0)
     }
   }
 
+  const machiningTotal = cyclePerPiece + setupTotal / n
+  const externalTotal = externalBatchTotal / n
   const cost = materialTotal + machiningTotal + externalTotal
   const marginPct = est.marginPct || 0
   const sell = cost * (1 + marginPct / 100)

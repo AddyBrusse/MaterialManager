@@ -52,6 +52,21 @@ function saveStore(data: Profile[]): void {
 
 let mockProfiles: Profile[] = loadStore()
 
+// Without this, listSync() (used wherever a real API round-trip isn't
+// practical, e.g. cost calculations) is stuck forever on the localStorage/
+// hardcoded seed above — list() fetches the real DB rows but never writes
+// them back into mockProfiles. Called from AppLayout's startup effect,
+// mirroring initMachines()/initArticles() etc.
+export async function initProfiles(): Promise<void> {
+  try {
+    const { data } = await apiFetch<Profile[]>('/profiles')
+    mockProfiles = data
+    saveStore(data)
+  } catch {
+    mockProfiles = loadStore()
+  }
+}
+
 export const profilesApi = {
   list: () =>
     apiFetch<Profile[]>('/profiles').catch(() => ({ data: mockProfiles })),

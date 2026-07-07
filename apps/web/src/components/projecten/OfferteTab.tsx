@@ -243,11 +243,11 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
     return allArticles.find(a => a.id === id) ?? null
   }
 
-  function getKostprijs(art: Article | null): number {
+  function getKostprijs(art: Article | null, qty = 1): number {
     if (!art?.estimate) return 0
     try {
       const ctx = buildEstimateCtx(art, grades, profiles, machines)
-      return computeEstimateTotals(art.estimate, ctx).cost
+      return computeEstimateTotals(art.estimate, ctx, qty).cost
     } catch { return 0 }
   }
 
@@ -437,7 +437,7 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
                 <tbody>
                   {offerte.regels.map((r) => {
                     const art = getArt(r.artikelId)
-                    const kostprijs = getKostprijs(art)
+                    const kostprijs = getKostprijs(art, r.qty)
                     const marge = kostprijs > 0
                       ? Math.round(((r.verkoopprijs / kostprijs) - 1) * 100)
                       : null
