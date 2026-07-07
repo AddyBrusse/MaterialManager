@@ -80,7 +80,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
 
   // ── Compute cost from estimate ──────────────────────────────────────────────
 
-  function getKostprijs(article: Article): number {
+  function getKostprijs(article: Article, qty = 1): number {
     if (!article.estimate) return 0
     try {
       const ctx = buildEstimateCtx(
@@ -89,7 +89,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
         profiles.map(p => ({ id: p.id, volumeFormula: p.volumeFormula })),
         machines,
       )
-      return computeEstimateTotals(article.estimate, ctx).cost
+      return computeEstimateTotals(article.estimate, ctx, qty).cost
     } catch { return 0 }
   }
 
@@ -130,7 +130,16 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
     if (isNaN(value)) return
     setStaged(prev => prev.map(s => {
       if (s.artikelId !== artikelId) return s
-      if (field === 'qty') return { ...s, qty: Math.max(1, Math.round(value)) }
+      if (field === 'qty') {
+        const qty = Math.max(1, Math.round(value))
+        // Setup/external costs are one-time per batch, not per piece, so the
+        // per-unit kostprijs shrinks as qty grows — must be recomputed here,
+        // not just carried over from the qty=1 value it was staged at.
+        const article = articles.find(a => a.id === artikelId)
+        const kostprijs = article ? getKostprijs(article, qty) : s.kostprijs
+        const verkoopprijs = Math.round(kostprijs * (1 + s.marge / 100) * 100) / 100
+        return { ...s, qty, kostprijs, verkoopprijs }
+      }
       if (field === 'marge') {
         const marge = Math.round(value)
         const verkoopprijs = Math.round(s.kostprijs * (1 + marge / 100) * 100) / 100
