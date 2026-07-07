@@ -460,7 +460,6 @@
 .pg-root .prog-bars-legend { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
 .pg-root .prog-bars-legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-3); }
 .pg-root .prog-bars-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex-shrink: 0; }
-.pg-root .prog-bars-leg-capline { width: 14px; height: 0; border-top: 1.5px dashed var(--danger); border-radius: 0; }
 
 .pg-root .prog-bars-wrap {
   overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-2);
@@ -480,25 +479,35 @@
   position: absolute; left: 8px; transform: translateY(50%);
   font-size: 10.5px; color: var(--text-3); white-space: nowrap;
 }
-.pg-root .prog-bars-caplabel { color: var(--danger); }
 .pg-root .prog-bars-days { display: flex; }
 .pg-root .prog-bars-col {
   flex-shrink: 0; position: relative; border-right: 1px solid var(--border);
   display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding: 0 2px 2px;
 }
-.pg-root .prog-bars-capline {
-  position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--danger); opacity: 0.8;
-}
-.pg-root .prog-bars-bar {
-  width: 6px; border-radius: 2px 2px 0 0; min-height: 2px; flex-shrink: 0;
+/* Each bar is a column-stacked pair: the hatched "over capacity" segment (if
+   any) sits on top, the machine-colored "within capacity" segment sits below
+   it, flush with the day-column baseline — see PrognoseBars for why capacity
+   is drawn INTO the bar instead of as a separate reference line (machines
+   can each have a different capacity, so one shared line stopped meaning
+   the same thing for every bar). */
+.pg-root .prog-bars-bar-wrap {
+  width: 6px; min-height: 2px; flex-shrink: 0; border-radius: 2px 2px 0 0; overflow: hidden;
+  display: flex; flex-direction: column;
   transition: filter .12s ease, box-shadow .12s ease;
 }
-/* No transform: scaleX here — the bar hosts the data-tip tooltip as its own
+/* No transform: scaleX here — the wrap hosts the data-tip tooltip as its own
    ::after pseudo-element, which is a descendant and would inherit any
-   geometric transform on the bar, stretching the tooltip box too. */
-.pg-root .prog-bars-bar:hover {
+   geometric transform on the wrap, stretching the tooltip box too. */
+.pg-root .prog-bars-bar-wrap:hover {
   filter: brightness(1.25);
   box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.25);
+}
+.pg-root .prog-bars-bar-over {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--danger) 0, var(--danger) 3px,
+    color-mix(in srgb, var(--danger) 55%, var(--bg-2)) 3px, color-mix(in srgb, var(--danger) 55%, var(--bg-2)) 6px
+  );
 }
 
 /* x-axis date/period labels under the bars, horizontally centered in each
@@ -528,6 +537,15 @@
 .pg-root .prog-bars-bar[data-color="5"], .pg-root .prog-bars-legend i[data-color="5"] { background: #db2777; }
 .pg-root .prog-bars-bar[data-color="6"], .pg-root .prog-bars-legend i[data-color="6"] { background: #0891b2; }
 .pg-root .prog-bars-bar[data-color="7"], .pg-root .prog-bars-legend i[data-color="7"] { background: #ca8a04; }
+
+.pg-root .prog-bars-leg-over { margin-left: auto; }
+.pg-root .prog-bars-leg-overswatch {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--danger) 0, var(--danger) 3px,
+    color-mix(in srgb, var(--danger) 55%, var(--bg-2)) 3px, color-mix(in srgb, var(--danger) 55%, var(--bg-2)) 6px
+  );
+}
 
 /* ===== Instant hover tooltip for chart cells/bars (data-tip attribute) =====
    CSS-only rather than a JS tooltip component — consistent with the "plain
