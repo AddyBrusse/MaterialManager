@@ -492,10 +492,15 @@
    different capacity, so one shared line stopped meaning the same thing for
    every bar). */
 .pg-root .prog-bars-bar-wrap {
-  width: 6px; min-height: 2px; flex-shrink: 0; border-radius: 2px 2px 0 0; overflow: hidden;
+  width: 6px; min-height: 2px; flex-shrink: 0;
   display: flex; flex-direction: column;
   transition: filter .12s ease, box-shadow .12s ease;
 }
+/* Rounded top corners live on the topmost segment itself, NOT as
+   border-radius + overflow:hidden on the wrap — the wrap is the containing
+   block for the [data-tip]::after tooltip, so overflow:hidden there clips
+   the tooltip into invisibility. */
+.pg-root .prog-bars-bar-wrap > :first-child { border-radius: 2px 2px 0 0; }
 /* No transform: scaleX here — the wrap hosts the data-tip tooltip as its own
    ::after pseudo-element, which is a descendant and would inherit any
    geometric transform on the wrap, stretching the tooltip box too. */
@@ -590,7 +595,10 @@
      scrollLeft as soon as either was scrolled. Collapsing to 0 width until
      hover removes that contribution; only the hovered tooltip (singular)
      ever claims real layout space. */
-  width: 0; max-width: 170px; overflow: hidden; white-space: normal; text-align: left;
+  /* pre-line, not normal: the bar chart's detail tooltip is multi-line
+     (newlines in the data-tip attribute); single-line tips elsewhere are
+     unaffected since they contain no newlines. */
+  width: 0; max-width: 170px; overflow: hidden; white-space: pre-line; text-align: left;
   pointer-events: none; opacity: 0;
   box-shadow: var(--shadow-pop);
   transition: opacity .1s ease, transform .1s ease;

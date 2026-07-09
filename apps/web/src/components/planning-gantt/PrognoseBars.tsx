@@ -83,7 +83,15 @@ export function PrognoseBars({
                   const overV = v - normalV
                   const confirmedSeg = Math.min(confirmed, normalV)
                   const offerteSeg = normalV - confirmedSeg
-                  const tip = `${m.name} · ${p.label}: ${v.toFixed(1)} u${offerte > 0 ? ` (waarvan ${offerte.toFixed(1)} u offerte)` : ''}${cap > 0 ? ` / ${cap.toFixed(1)} u` : ''}`
+                  // Multi-line detail tooltip — newlines survive as-is in the
+                  // data-tip attribute and render via white-space: pre-line
+                  // on the shared [data-tip]::after rule.
+                  const tip = [
+                    `${m.name} · ${p.label}`,
+                    `Capaciteit: ${cap.toFixed(1)} u`,
+                    `Bevestigd: ${confirmed.toFixed(1)} u`,
+                    `Offerte: ${offerte.toFixed(1)} u`,
+                  ].join('\n')
                   return (
                     <div
                       key={m.id} className="prog-bars-bar-wrap"
