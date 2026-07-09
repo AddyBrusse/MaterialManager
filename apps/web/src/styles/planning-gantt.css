@@ -484,12 +484,13 @@
   flex-shrink: 0; position: relative; border-right: 1px solid var(--border);
   display: flex; align-items: flex-end; justify-content: center; gap: 2px; padding: 0 2px 2px;
 }
-/* Each bar is a column-stacked pair: the hatched "over capacity" segment (if
-   any) sits on top, the machine-colored "within capacity" segment sits below
-   it, flush with the day-column baseline — see PrognoseBars for why capacity
-   is drawn INTO the bar instead of as a separate reference line (machines
-   can each have a different capacity, so one shared line stopped meaning
-   the same thing for every bar). */
+/* Each bar is a column stack: the hatched "over capacity" segment (if any)
+   sits on top, the faded "offerte" (quoting-stage) segment under it, and the
+   solid machine-colored "confirmed" segment at the bottom, flush with the
+   day-column baseline — see PrognoseBars for why capacity is drawn INTO the
+   bar instead of as a separate reference line (machines can each have a
+   different capacity, so one shared line stopped meaning the same thing for
+   every bar). */
 .pg-root .prog-bars-bar-wrap {
   width: 6px; min-height: 2px; flex-shrink: 0; border-radius: 2px 2px 0 0; overflow: hidden;
   display: flex; flex-direction: column;
@@ -509,6 +510,12 @@
     color-mix(in srgb, var(--danger) 55%, var(--bg-2)) 3px, color-mix(in srgb, var(--danger) 55%, var(--bg-2)) 6px
   );
 }
+/* Quoting-stage (offerte) forecast — same machine color as the confirmed
+   segment below it, just faded, so the bar still reads as one machine's
+   stack with a tentative top. Opacity instead of a second hatch: at 6px
+   bar width another hatch would be indistinguishable from the red
+   over-capacity one. */
+.pg-root .prog-bars-bar-offerte { opacity: .4; }
 
 /* x-axis date/period labels under the bars, horizontally centered in each
    column (the column is wide enough — day view sizes columns to fit ~14 in
@@ -538,7 +545,14 @@
 .pg-root .prog-bars-bar[data-color="6"], .pg-root .prog-bars-legend i[data-color="6"] { background: #0891b2; }
 .pg-root .prog-bars-bar[data-color="7"], .pg-root .prog-bars-legend i[data-color="7"] { background: #ca8a04; }
 
-.pg-root .prog-bars-leg-over { margin-left: auto; }
+/* margin-left:auto on the offerte item pushes it AND the over item after it
+   to the right edge together, keeping the machine swatches grouped left and
+   the two "state" swatches grouped right. */
+.pg-root .prog-bars-leg-offerte { margin-left: auto; }
+/* Neutral gray at the same 40% fade as the bar segments — the offerte
+   segment takes each machine's own color, so the legend shows the fade
+   itself rather than any one machine's tint. */
+.pg-root .prog-bars-leg-offerteswatch { background: var(--text-3); opacity: .4; }
 .pg-root .prog-bars-leg-overswatch {
   background: repeating-linear-gradient(
     135deg,

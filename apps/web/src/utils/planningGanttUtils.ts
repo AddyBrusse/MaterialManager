@@ -285,21 +285,34 @@ export function machineWeekLoadFromItems(items: PlanningStapItem[], machineNaam:
 // machine/day just add up rather than being queued.
 const GHOST_MARGIN_DAYS = 2
 
+// The two ghost sources above differ in how firm they are — verzonden
+// offertes may never land, while accepted orders' unscheduled stappen are
+// committed work — so they're kept in separate maps. Prognose stacks them
+// as "offerte" vs "confirmed"; callers that only care about total forecast
+// pressure sum the two.
+export interface GhostBelasting {
+  /** Open (verzonden) offerte regels — quoting stage, not yet won. */
+  offerte: Map<string, Map<number, number>>
+  /** Accepted orders' stappen without a geplandDatum — confirmed, just not on the board yet. */
+  ongepland: Map<string, Map<number, number>>
+}
+
 export function berekenGhostBelasting(
   projects: Project[],
   articles: Article[],
   machines: Machine[],
   windowStart: Date,
   totalDays: number = TOTAL_DAYS,
-): Map<string, Map<number, number>> {
-  const result = new Map<string, Map<number, number>>()
-  function add(machineNaam: string, dayIdx: number, min: number) {
+): GhostBelasting {
+  const offerteMap = new Map<string, Map<number, number>>()
+  const ongeplandMap = new Map<string, Map<number, number>>()
+  function add(target: Map<string, Map<number, number>>, machineNaam: string, dayIdx: number, min: number) {
     if (dayIdx < 0 || dayIdx >= totalDays) return
-    if (!result.has(machineNaam)) result.set(machineNaam, new Map())
-    const m = result.get(machineNaam)!
+    if (!target.has(machineNaam)) target.set(machineNaam, new Map())
+    const m = target.get(machineNaam)!
     m.set(dayIdx, (m.get(dayIdx) ?? 0) + min)
   }
-  function backfillFromDeadline(machineNaam: string, deadlineDay: number, minutes: number) {
+  function backfillFromDeadline(target: Map<string, Map<number, number>>, machineNaam: string, deadlineDay: number, minutes: number) {
     const machine = machines.find(m => m.name === machineNaam)
     const perDayMin = machine ? machineCapacityMinPerDay(machine).effectiveMin : EFFECTIEVE_MIN
     const daysNeeded = Math.max(1, Math.ceil(minutes / perDayMin))
@@ -307,7 +320,7 @@ export function berekenGhostBelasting(
     let remaining = minutes
     for (let d = startDay; remaining > 0; d++) {
       const amount = Math.min(remaining, perDayMin)
-      add(machineNaam, d, amount)
+      add(target, machineNaam, d, amount)
       remaining -= amount
     }
   }
@@ -329,7 +342,7 @@ export function berekenGhostBelasting(
         const perOp = min / regel.bewerkingen.length
         for (const bewerking of regel.bewerkingen) {
           const machine = machines.find(m => matchesMachineNaam(bewerking, m.name))
-          backfillFromDeadline(machine ? machine.name : '', deadlineDay, perOp)
+          backfillFromDeadline(offerteMap, machine ? machine.name : '', deadlineDay, perOp)
         }
       }
     }
@@ -339,11 +352,11 @@ export function berekenGhostBelasting(
       for (const stap of order.stappen) {
         if (stap.geplandDatum != null || stap.gereedOp) continue
         const { min } = berekenStapMin(stap, order, articles)
-        backfillFromDeadline(effectiveMachine(stap), deadlineDay, min)
+        backfillFromDeadline(ongeplandMap, effectiveMachine(stap), deadlineDay, min)
       }
     }
   }
-  return result
+  return { offerte: offerteMap, ongepland: ongeplandMap }
 }
 
 function matchesMachineNaam(bewerkingNaam: string, machineNaam: string): boolean {

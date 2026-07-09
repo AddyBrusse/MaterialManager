@@ -27,11 +27,12 @@ const HEADROOM = 1.12
 // Capacity is per-machine (Bezetting%/uren-per-dag in Instellingen →
 // Bedrijfskosten), so a single shared reference line no longer means the
 // same thing for every bar — and one line per distinct value got cluttered
-// fast once a couple of machines differed. Instead each bar is two-tone:
-// solid machine color up to that machine's own capacity, a hatched overflow
-// segment stacked on top for the portion above it. Capacity is still legible
-// (per-machine, in the legend and the tooltip) without drawing anything
-// extra on the chart itself.
+// fast once a couple of machines differed. Instead each bar is a stack:
+// solid machine color for confirmed work, a faded segment of the same color
+// for quoting-stage (offerte) forecast, and a hatched overflow segment on
+// top for whatever exceeds that machine's own capacity. Capacity is still
+// legible (per-machine, in the legend and the tooltip) without drawing
+// anything extra on the chart itself.
 export function PrognoseBars({
   machines, periods, data, capacityByMachine, colWidth, labelWidth, chartHeight, scrollRef, onScroll,
 }: PrognoseBarsProps) {
@@ -49,6 +50,7 @@ export function PrognoseBars({
         {machines.map((m, i) => (
           <span key={m.id}><i data-color={i % N_COLORS} />{m.name} ({(capacityByMachine[m.name] ?? 0).toFixed(1)} u)</span>
         ))}
+        <span className="prog-bars-leg-offerte"><i className="prog-bars-leg-offerteswatch" />offerte (onbevestigd)</span>
         <span className="prog-bars-leg-over"><i className="prog-bars-leg-overswatch" />boven capaciteit</span>
       </div>
 
@@ -69,10 +71,19 @@ export function PrognoseBars({
                 {machines.map((m, mi) => {
                   const v = Number(data[i]?.[`${m.name}__total`] ?? 0)
                   if (v <= 0) return null
+                  const confirmed = Number(data[i]?.[`${m.name}__confirmed`] ?? 0)
+                  const offerte = Number(data[i]?.[`${m.name}__offerte`] ?? 0)
                   const cap = capacityByMachine[m.name] ?? 0
+                  // Stacked bottom-up: confirmed (solid) → offerte (faded) →
+                  // over-capacity (red hatch). The hatch marks whatever part
+                  // of the stack exceeds capacity, regardless of which of the
+                  // two series pushed it over — capacity pressure is about
+                  // the total, not the source.
                   const normalV = Math.min(v, cap)
                   const overV = v - normalV
-                  const tip = `${m.name} · ${p.label}: ${v.toFixed(1)} u${cap > 0 ? ` / ${cap.toFixed(1)} u` : ''}`
+                  const confirmedSeg = Math.min(confirmed, normalV)
+                  const offerteSeg = normalV - confirmedSeg
+                  const tip = `${m.name} · ${p.label}: ${v.toFixed(1)} u${offerte > 0 ? ` (waarvan ${offerte.toFixed(1)} u offerte)` : ''}${cap > 0 ? ` / ${cap.toFixed(1)} u` : ''}`
                   return (
                     <div
                       key={m.id} className="prog-bars-bar-wrap"
@@ -80,7 +91,8 @@ export function PrognoseBars({
                       data-tip={tip}
                     >
                       {overV > 0 && <div className="prog-bars-bar-over" style={{ flex: `${overV} 0 0` }} />}
-                      {normalV > 0 && <div className="prog-bars-bar" data-color={mi % N_COLORS} style={{ flex: `${normalV} 0 0` }} />}
+                      {offerteSeg > 0 && <div className="prog-bars-bar prog-bars-bar-offerte" data-color={mi % N_COLORS} style={{ flex: `${offerteSeg} 0 0` }} />}
+                      {confirmedSeg > 0 && <div className="prog-bars-bar" data-color={mi % N_COLORS} style={{ flex: `${confirmedSeg} 0 0` }} />}
                     </div>
                   )
                 })}
