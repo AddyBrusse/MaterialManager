@@ -10,7 +10,11 @@ Emails land in the user's **Verzonden** folder automatically (Graph sendMail doe
    - Supported account type: **Accounts in this organizational directory only**
    - Redirect URI: **Single-page application (SPA)**
      - `http://localhost:5173/auth-popup.html` (dev)
-     - Production URL + `/auth-popup.html` (e.g. `http://192.168.1.x:3000/auth-popup.html`)
+     - `https://shop.<companydomain>.nl/auth-popup.html` (prod — the app is
+       served over HTTPS since 2026-07; Azure AD only allows plain `http` for
+       localhost anyway)
+     - If an old `http://192.168.1.x:3000/auth-popup.html` entry exists,
+       remove it after the HTTPS cutover
 2. **API permissions** → Add → Microsoft Graph → Delegated → `Mail.Send`
    - No admin consent needed for this permission
 3. **Authentication** → Enable **Allow public client flows** → Yes
