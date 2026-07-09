@@ -233,12 +233,22 @@ export function PrognosePage() {
     return result
   }, [periods, machines])
 
+  // Two series per machine: __confirmed is work that will definitely happen
+  // (scheduled stappen + accepted orders' not-yet-scheduled stappen),
+  // __offerte is quoting-stage forecast (verzonden offertes) that may never
+  // land. The charts stack/annotate them so the two are distinguishable;
+  // __total drives shared scaling and the heatmap's pressure color.
   const data = useMemo(() => periods.map(p => {
     const row: Record<string, string | number> = { period: p.label }
     for (const m of machines) {
       const planned = machineLoadInRange(allItems, m.name, p.startDay, p.endDay, windowStart) / 60
-      const outstanding = ghostLoadInRange(ghostMap, m.name, p.startDay, p.endDay) / 60
-      row[`${m.name}__total`] = Math.round((planned + outstanding) * 10) / 10
+      const ongepland = ghostLoadInRange(ghostMap.ongepland, m.name, p.startDay, p.endDay) / 60
+      const offerte = ghostLoadInRange(ghostMap.offerte, m.name, p.startDay, p.endDay) / 60
+      const confirmed = Math.round((planned + ongepland) * 10) / 10
+      const offerteR = Math.round(offerte * 10) / 10
+      row[`${m.name}__confirmed`] = confirmed
+      row[`${m.name}__offerte`] = offerteR
+      row[`${m.name}__total`] = Math.round((confirmed + offerteR) * 10) / 10
     }
     return row
   }), [periods, machines, allItems, ghostMap, windowStart])

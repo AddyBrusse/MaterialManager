@@ -42,13 +42,14 @@ export function PrognoseHeatmap({
             {periods.map((p, i) => {
               const row = data[i]
               const load = Number(row?.[`${m.name}__total`] ?? 0)
+              const offerte = Number(row?.[`${m.name}__offerte`] ?? 0)
               const cap = capacityPerPeriod[m.name]?.[i] || 0
               const ratio = cap > 0 ? load / cap : 0
               return (
                 <div
                   key={i} className="prog-hm-cell"
                   style={{ background: ratioColor(ratio), height: rowHeight }}
-                  data-tip={`${m.name} · ${p.label}: ${load.toFixed(1)} u / ${cap.toFixed(1)} u (${Math.round(ratio * 100)}%)`}
+                  data-tip={`${m.name} · ${p.label}: ${load.toFixed(1)} u${offerte > 0 ? ` (waarvan ${offerte.toFixed(1)} u offerte)` : ''} / ${cap.toFixed(1)} u (${Math.round(ratio * 100)}%)`}
                 >
                   {load > 0 ? `${Math.round(ratio * 100)}` : ''}
                 </div>
