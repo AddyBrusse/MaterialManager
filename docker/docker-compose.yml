@@ -6,8 +6,8 @@ services:
       POSTGRES_USER: stockmanager
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: stockmanager
-    ports:
-      - "5432:5432"
+    # No published ports: the DB is only reachable on the compose network.
+    # For ad-hoc access use: docker compose exec db psql -U stockmanager
     volumes:
       - pgdata:/var/lib/postgresql/data
 
@@ -23,11 +23,37 @@ services:
       NODE_ENV: production
       PORT: 3000
       UPLOADS_DIR: /data/uploads
-    ports:
-      - "${PORT:-3000}:3000"
+    # Only the proxy reaches the app; not published to the LAN.
+    expose:
+      - "3000"
     volumes:
       - uploads:/data/uploads
+
+  proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+      args:
+        CADDY_DNS_MODULE: ${CADDY_DNS_MODULE:-github.com/caddy-dns/cloudflare}
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+      DNS_API_TOKEN: ${DNS_API_TOKEN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates + ACME account live in caddy_data — must persist
+      # across recreates or Caddy re-requests certs (rate limits!).
+      - caddy_data:/data
+      - caddy_config:/config
 
 volumes:
   pgdata:
   uploads:
+  caddy_data:
+  caddy_config:

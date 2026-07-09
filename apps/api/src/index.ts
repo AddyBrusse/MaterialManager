@@ -34,6 +34,10 @@ import todosRouter from './routes/todos'
 
 const app = express()
 
+// In production the app sits behind the Caddy TLS proxy (one hop) —
+// makes req.ip/req.protocol reflect the real client. Inert in dev.
+app.set('trust proxy', 1)
+
 // Ensure upload directories exist
 for (const dir of ['photos', 'drawings']) {
   fs.mkdirSync(path.join(config.uploadsDir, dir), { recursive: true })

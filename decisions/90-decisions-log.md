@@ -4,6 +4,42 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-07-09 — HTTPS via Caddy reverse proxy + Let's Encrypt DNS-01
+
+**Decision:** The app is served over HTTPS at `https://shop.<companydomain>.nl`
+(internal split-horizon DNS record → NAS LAN IP). TLS is terminated by a
+**Caddy** container (`docker/Dockerfile.caddy` + `docker/Caddyfile`) in front
+of the Express container; certificates come from **Let's Encrypt via the
+DNS-01 challenge**, so the app stays LAN-only — nothing is opened to the
+internet, and renewal is fully automatic. Requested by the IT admin.
+
+**Why these choices:**
+- *Proxy termination over Node `https`*: cert issuance/renewal/redirects live
+  in one battle-tested container; the Express app stays untouched on `:3000`.
+- *Caddy over nginx+certbot / Traefik*: built-in ACME (issue + renew, no
+  cron), automatic HTTP→HTTPS redirect, ~10-line config. nginx+certbot is two
+  moving parts; Traefik's router model is overkill for one backend.
+- *DNS-01 over HTTP-01*: HTTP-01 requires the server to be reachable from the
+  internet on port 80 — ours is not and should not be. DNS-01 proves ownership
+  via a TXT record through the DNS provider's API (`DNS_API_TOKEN`).
+- *Caveat*: stock Caddy images ship no DNS modules — the image is custom-built
+  with `xcaddy` and the provider module (`CADDY_DNS_MODULE` build arg, e.g.
+  `caddy-dns/cloudflare` or `caddy-dns/transip`). Fallback if the registrar
+  has no module: CNAME-delegate `_acme-challenge` to a free Cloudflare zone.
+
+**Bundled hardening:** `db` (5432) and `app` (3000) are no longer published to
+the LAN — only the proxy's 80/443 are; the DB password was rotated away from
+the old default. Express got `app.set('trust proxy', 1)`.
+
+**How to apply:** Rollout steps (internal DNS record, DNS API token, moving
+the QTS admin UI off 443, Azure redirect-URI swap to
+`https://.../auth-popup.html`) are in `backend/26-deployment.md` and
+`features/39-graph-mail.md`. Frontend needed zero changes (relative API URLs,
+header auth). HTTPS also unblocks the parked mobile camera-scan flow
+(`getUserMedia` needs a secure context).
+
+---
+
 ## 2026-07-02 — Product renamed to "ShopCommand" (user-facing only)
 
 **Decision:** The app is now branded **ShopCommand** in every user-facing

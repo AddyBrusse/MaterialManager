@@ -7,40 +7,36 @@
 
 ## docker-compose (prod)
 
-Two services:
+Three services — see `docker/docker-compose.yml` (the source of truth):
 
-```yaml
-services:
-  db:
-    image: postgres:16
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: inventaris
-      POSTGRES_PASSWORD: <strong-password>
-      POSTGRES_DB: inventaris
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    # not exposed to host — only reachable from app
+- **`db`** — postgres:16, persistent `pgdata` volume. **Not published to the
+  host**: only reachable on the compose network. Ad-hoc access:
+  `docker compose exec db psql -U stockmanager`.
+- **`app`** — the Express+React image (see Dockerfile below). **Not published
+  to the host** either (`expose: 3000` only); reached exclusively via the proxy.
+- **`proxy`** — Caddy (custom image `docker/Dockerfile.caddy`, built with the
+  DNS provider module via `xcaddy`). Publishes host ports 80/443
+  (`HTTP_PORT`/`HTTPS_PORT` overridable). Config in `docker/Caddyfile`
+  (bind-mounted, editable without rebuild).
 
-  app:
-    build: .
-    restart: unless-stopped
-    depends_on:
-      - db
-    environment:
-      DATABASE_URL: postgres://inventaris:<pw>@db:5432/inventaris
-      NODE_ENV: production
-      PORT: 3000
-      UPLOADS_DIR: /data/uploads
-    ports:
-      - "3000:3000"
-    volumes:
-      - uploads:/data/uploads
+## TLS / certificaten
 
-volumes:
-  pgdata:
-  uploads:
-```
+- **Caddy terminates TLS** and reverse-proxies to `app:3000`. Port 80 serves
+  only 301 redirects to the https URL.
+- **Let's Encrypt, DNS-01 challenge**: Caddy proves domain ownership by
+  writing a TXT record via the DNS provider's API (`DNS_API_TOKEN` in
+  `docker/.env`). Nothing is exposed to the internet; app stays LAN-only.
+- **Renewal is automatic** — Caddy renews at ⅔ of cert lifetime, no cron.
+- **`caddy_data` volume must persist**: it holds the certs and the ACME
+  account. Losing it forces re-issuance and can hit Let's Encrypt rate limits.
+- **First-run tip**: uncomment the staging `acme_ca` line in the Caddyfile
+  while debugging DNS/token issues, then switch back and
+  `docker compose restart proxy`.
+- The DNS provider module is a build arg (`CADDY_DNS_MODULE`). Fallback if the
+  registrar has no caddy-dns module: CNAME-delegate
+  `_acme-challenge.shop.<domein>.nl` to a zone that does (e.g. free Cloudflare).
+- **QNAP note**: the QTS admin UI claims 443 by default — move it (e.g. to
+  8443) in Control Panel → General Settings so the app can own 80/443.
 
 ## Dockerfile
 
@@ -58,16 +54,18 @@ Single image builds both web and api:
 ## Env
 
 - `.env.development` — local dev
-- `.env.production` — referenced by docker-compose
-- Never commit secrets; provide `.env.example`
+- `docker/.env` — prod values, referenced by docker-compose (git-ignored)
+- Template: `docker/.env.example` — documents `DB_PASSWORD`, `DOMAIN`,
+  `ACME_EMAIL`, `DNS_API_TOKEN`, `CADDY_DNS_MODULE`, `HTTP_PORT`/`HTTPS_PORT`
+- Never commit secrets (the DNS API token and DB password live only on the NAS)
 
 ## Updating in prod
 
 ```
-cd /share/Container/inventaris
+cd /share/Container/stockmanager
 git pull
-docker-compose build app
-docker-compose up -d app
+docker compose build        # builds app + proxy images
+docker compose up -d
 ```
 
 DB upgrades automatically via migration on start.

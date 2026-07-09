@@ -138,7 +138,8 @@ function BedrijfTab() {
           }}>
             <strong style={{ color: 'var(--text-2)' }}>Instelling:</strong> Registreer een SPA-app in Azure AD met permissie{' '}
             <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>Mail.Send</code> (delegated).
-            Voeg <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>http://localhost:5173</code> en het productie-URL toe als Redirect URI.
+            Voeg <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>http://localhost:5173/auth-popup.html</code> (dev) en{' '}
+            <code style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>https://shop.&lt;domein&gt;.nl/auth-popup.html</code> (productie) toe als Redirect URI.
             Gebruikers loggen eenmalig in via een popup wanneer ze voor het eerst een e-mail versturen.
           </div>
         </div>

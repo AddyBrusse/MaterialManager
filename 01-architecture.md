@@ -7,15 +7,20 @@
 │  Browsers on LAN (PC, tablet, phone)                │
 │  - Auto-detect → mobile or desktop UI                │
 └─────────────────────────────────────────────────────┘
-                       │ HTTP (LAN)
+                       │ HTTPS (LAN) — https://shop.<domein>.nl
                        ▼
 ┌─────────────────────────────────────────────────────┐
 │  QNAP TS-253D — Container Station                   │
-│  ┌──────────────────────┐  ┌──────────────────────┐ │
+│  ┌──────────────────────┐                           │
+│  │ proxy (Caddy)        │  TLS termination,         │
+│  │ :80 → redirect       │  Let's Encrypt DNS-01     │
+│  │ :443 → app:3000      │                           │
+│  └──────────┬───────────┘                           │
+│  ┌──────────▼───────────┐  ┌──────────────────────┐ │
 │  │ app                  │  │ db                   │ │
 │  │ Node + Express       │──│ PostgreSQL           │ │
 │  │ Serves built React   │  │ Persistent volume    │ │
-│  │ /uploads volume      │  │                      │ │
+│  │ /uploads volume      │  │ (not published)      │ │
 │  └──────────────────────┘  └──────────────────────┘ │
 └─────────────────────────────────────────────────────┘
 ```
@@ -31,9 +36,19 @@ Same codebase, environment selected by `.env.development` / `.env.production`.
 
 ## Network
 
-- LAN-only for now (no internet exposure)
-- No HTTPS required initially (consider later if ever exposed)
-- Clients reach the app at `http://<qnap-ip>:<port>`
+- LAN-only (no internet exposure) — this does **not** change with HTTPS
+- **HTTPS since 2026-07**: a Caddy container terminates TLS in front of the app
+  (see `backend/26-deployment.md` and `decisions/90-decisions-log.md`)
+- Clients reach the app at `https://shop.<companydomain>.nl` — an **internal**
+  DNS A record (split-horizon) points that name at the NAS LAN IP
+- Certificates: Let's Encrypt via the **DNS-01 challenge** (proof of domain
+  ownership via a TXT record at the DNS provider), so no port is ever opened
+  to the internet; renewal is automatic (Caddy)
+- Plain-HTTP requests (old bookmarks, raw IP) get a 301 to the https URL
+- Extra motivation: the future mobile scan flow (`workflows/44-mobile-scan-flow.md`)
+  needs `getUserMedia`, which browsers only allow in a secure context
+- Hardening bundled with the HTTPS change: Postgres (5432) and the app (3000)
+  are no longer published to the LAN — only the proxy's 80/443 are
 
 ## Single-process app
 
@@ -41,7 +56,8 @@ The Express server hosts both:
 1. REST API under `/api/*`
 2. Static frontend (Vite build output) under `/`
 
-No nginx, no separate frontend server. Simpler for 4 users on LAN.
+No separate frontend server. The Caddy proxy in front is TLS-termination
+only — it holds no app logic and serves no files. Simpler for 4 users on LAN.
 
 ## Realtime strategy
 
