@@ -1,26 +1,10 @@
-{
-	email {$ACME_EMAIL}
-	# Uncomment on first run to test against the Let's Encrypt staging CA
-	# (avoids production rate limits while debugging DNS/token issues):
-	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
-}
+# TLS is NOT auto-managed by Caddy here — no ACME account, no DNS module,
+# no third-party service ever sees any credential. Certificates are obtained
+# manually (see docker/renew-cert.sh) and Caddy just serves the resulting
+# files, reloading itself on restart when they're renewed.
 
 {$DOMAIN} {
-	tls {
-		# Versio has no DNS-01 API support, so ownership is proven via
-		# acme-dns instead: Versio holds one static CNAME record
-		# (_acme-challenge.{$DOMAIN} → the fulldomain below), and acme-dns
-		# answers the actual TXT challenge using these credentials.
-		dns acmedns {
-			username {$ACMEDNS_USERNAME}
-			password {$ACMEDNS_PASSWORD}
-			subdomain {$ACMEDNS_SUBDOMAIN}
-			server_url {$ACMEDNS_SERVER_URL}
-		}
-		# ACME propagation checks must use public DNS — the NAS's own resolver
-		# is the split-horizon internal DNS and won't see the TXT record.
-		resolvers 1.1.1.1
-	}
+	tls /certs/live/{$DOMAIN}/fullchain.pem /certs/live/{$DOMAIN}/privkey.pem
 	encode gzip
 	reverse_proxy app:3000
 }

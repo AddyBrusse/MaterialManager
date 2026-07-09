@@ -4,7 +4,52 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-07-09 — Certificate renewal is manual: no DNS/ACME credential stored anywhere
+
+**Decision:** Superseding the acme-dns entry directly below (same day):
+after reviewing it, the user rejected sending *any* credential — even one
+scoped to a single meaningless TXT record — to a public third-party service
+they have no relationship with. Certificates are now obtained **manually**
+via `docker/renew-cert.sh`: a one-off `certbot --manual --preferred-challenges
+dns` container prints a TXT value, a human adds it at Versio by hand, presses
+Enter, and the resulting cert files are bind-mounted into Caddy. Caddy itself
+now runs the **stock `caddy:2` image** — no `xcaddy` build, no DNS module, no
+ACME account, since it never talks to Let's Encrypt or any DNS API itself.
+`docker/Dockerfile.caddy` was deleted.
+
+**Why not the alternatives:**
+- *Self-hosted acme-dns on the NAS* — considered and offered, but rejected:
+  it would need port 53 open to the internet, which — while a narrow,
+  purpose-built responder rather than the app itself — is still a new
+  inbound exposure the user didn't want to take on.
+- *Traefik + Versio's native API* — rejected earlier the same day once
+  checked: Versio's REST API authenticates with the **actual account login
+  password** (same one used at versio.nl), not a scoped token. That's a
+  *broader* credential on the NAS than acme-dns's single-purpose token would
+  have been, not narrower.
+- *HTTP-01 challenge* — would require port 80 reachable from the public
+  internet, contradicting the LAN-only requirement from the start.
+
+**Trade-off accepted knowingly:** renewal is no longer automatic. Let's
+Encrypt certs last 90 days; the script should be re-run roughly every 60.
+Nothing in the app warns when a cert is close to expiring — this depends on
+a human remembering (a calendar reminder is recommended in
+`backend/26-deployment.md`). If this proves unreliable in practice, revisit
+either the self-hosted-acme-dns or Traefik options above rather than letting
+certs silently expire.
+
+**How to apply:** Full script + runbook in `docker/renew-cert.sh` and
+`backend/26-deployment.md` ("TLS / certificaten"). The very first cert must
+be obtained before `docker compose up -d` starts `proxy`, since Caddy needs
+a cert file on disk to bind port 443.
+
+---
+
 ## 2026-07-09 — Versio has no Caddy DNS module: delegate the challenge via acme-dns
+
+**Note (superseded same day):** this entry's acme-dns approach was replaced
+by fully manual renewal — see the entry above. Kept for the reasoning trail
+(why Cloudflare/Traefik were rejected first) rather than deleted.
 
 **Decision:** Our registrar is **Versio**. Checked both the `caddy-dns`
 module registry (97 providers) and the underlying `libdns` library directly

@@ -4,5 +4,6 @@ dist/
 .env.production
 *.env
 uploads/
+docker/certs/
 .DS_Store
 01-design files claude design/
