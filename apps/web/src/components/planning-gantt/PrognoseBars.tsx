@@ -92,10 +92,16 @@ export function PrognoseBars({
                     `Bevestigd: ${confirmed.toFixed(1)} u`,
                     `Offerte: ${offerte.toFixed(1)} u`,
                   ].join('\n')
+                  const heightPct = Math.min(100, (v / maxVal) * 100)
+                  // The 4-line tooltip is ~75px tall; when the bar leaves
+                  // less headroom than that above itself, flip the tooltip
+                  // below the bar's top so the chart's scroll container
+                  // can't clip it — see .prog-tip-down in planning-gantt.css.
+                  const tipDown = chartHeight * (1 - heightPct / 100) < 80
                   return (
                     <div
-                      key={m.id} className="prog-bars-bar-wrap"
-                      style={{ height: `${Math.min(100, (v / maxVal) * 100)}%` }}
+                      key={m.id} className={`prog-bars-bar-wrap${tipDown ? ' prog-tip-down' : ''}`}
+                      style={{ height: `${heightPct}%` }}
                       data-tip={tip}
                     >
                       {overV > 0 && <div className="prog-bars-bar-over" style={{ flex: `${overV} 0 0` }} />}

@@ -572,6 +572,12 @@
    mounting a tooltip per cell/bar (there can be hundreds across the
    ~300-day Prognose window). */
 .pg-root [data-tip] { position: relative; }
+/* The hovered element itself must rise, not just its ::after — the hover
+   filter (brightness) on bars creates a stacking context, which traps the
+   tooltip's own z-index inside the bar; without this, every later-painted
+   sibling bar/column draws straight over the tooltip. Max z so nothing in
+   the charts (bars, cells, sticky axis/headers) can paint above it. */
+.pg-root [data-tip]:hover { z-index: 2147483647; }
 .pg-root [data-tip]::after {
   content: attr(data-tip);
   /* Anchored at the element's own left edge, growing rightward — NOT
@@ -580,7 +586,7 @@
      part of the tooltip regardless of z-index. Anchoring left means the
      tooltip never reaches further left than the element it's attached to,
      so it can't reach the axis at all. */
-  position: absolute; bottom: 100%; left: 0; z-index: 50;
+  position: absolute; bottom: 100%; left: 0; z-index: 2147483647;
   transform: translateY(-4px) scale(0.96); transform-origin: bottom left;
   background: var(--text); color: var(--bg);
   font-size: 11px; font-weight: 500; line-height: 1.3;
@@ -609,3 +615,13 @@
   opacity: 1; transform: translateY(-8px) scale(1);
   transition-delay: .05s;
 }
+/* Tall bars leave no headroom above them, so an above-the-bar tooltip
+   would poke past the scroll container's top edge and get clipped by its
+   overflow:auto (z-index can't beat an overflow clip). PrognoseBars adds
+   .prog-tip-down to those bars: pin the tooltip to the bar's top and grow
+   it DOWNWARD over the bar — a tall bar always has room below its top. */
+.pg-root .prog-tip-down::after {
+  bottom: auto; top: 0;
+  transform: translateY(4px) scale(0.96); transform-origin: top left;
+}
+.pg-root .prog-tip-down:hover::after { transform: translateY(8px) scale(1); }
