@@ -1,10 +1,11 @@
 # Caddy with a DNS provider module for the Let's Encrypt DNS-01 challenge.
 # The stock caddy image ships no DNS modules — build one in via xcaddy.
-# CADDY_DNS_MODULE is set from docker-compose (docker/.env), e.g.:
-#   github.com/caddy-dns/cloudflare
-#   github.com/caddy-dns/transip
+#
+# Our registrar (Versio) has no direct Caddy/libdns module, so we delegate
+# just the _acme-challenge subdomain to the acme-dns service (one CNAME
+# record at Versio) — see docker/.env.example and backend/26-deployment.md.
 FROM caddy:2-builder AS builder
-ARG CADDY_DNS_MODULE=github.com/caddy-dns/cloudflare
+ARG CADDY_DNS_MODULE=github.com/caddy-dns/acmedns
 RUN xcaddy build --with ${CADDY_DNS_MODULE}
 
 FROM caddy:2

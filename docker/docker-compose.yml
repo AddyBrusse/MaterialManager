@@ -34,7 +34,7 @@ services:
       context: .
       dockerfile: Dockerfile.caddy
       args:
-        CADDY_DNS_MODULE: ${CADDY_DNS_MODULE:-github.com/caddy-dns/cloudflare}
+        CADDY_DNS_MODULE: ${CADDY_DNS_MODULE:-github.com/caddy-dns/acmedns}
     restart: unless-stopped
     depends_on:
       - app
@@ -44,7 +44,10 @@ services:
     environment:
       DOMAIN: ${DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL}
-      DNS_API_TOKEN: ${DNS_API_TOKEN}
+      ACMEDNS_USERNAME: ${ACMEDNS_USERNAME}
+      ACMEDNS_PASSWORD: ${ACMEDNS_PASSWORD}
+      ACMEDNS_SUBDOMAIN: ${ACMEDNS_SUBDOMAIN}
+      ACMEDNS_SERVER_URL: ${ACMEDNS_SERVER_URL}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Certificates + ACME account live in caddy_data — must persist
