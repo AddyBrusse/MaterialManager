@@ -41,9 +41,9 @@ Same codebase, environment selected by `.env.development` / `.env.production`.
   (see `backend/26-deployment.md` and `decisions/90-decisions-log.md`)
 - Clients reach the app at `https://shop.<companydomain>.nl` — an **internal**
   DNS A record (split-horizon) points that name at the NAS LAN IP
-- Certificates: Let's Encrypt via the **DNS-01 challenge** (proof of domain
-  ownership via a TXT record at the DNS provider), so no port is ever opened
-  to the internet; renewal is automatic (Caddy)
+- Certificates: Let's Encrypt via the **DNS-01 challenge**, obtained
+  **manually** roughly every 60 days (`docker/renew-cert.sh`) — no DNS/ACME
+  credential of any kind is stored on the NAS or sent to any third party
 - Plain-HTTP requests (old bookmarks, raw IP) get a 301 to the https URL
 - Extra motivation: the future mobile scan flow (`workflows/44-mobile-scan-flow.md`)
   needs `getUserMedia`, which browsers only allow in a secure context

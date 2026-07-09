@@ -30,11 +30,7 @@ services:
       - uploads:/data/uploads
 
   proxy:
-    build:
-      context: .
-      dockerfile: Dockerfile.caddy
-      args:
-        CADDY_DNS_MODULE: ${CADDY_DNS_MODULE:-github.com/caddy-dns/acmedns}
+    image: caddy:2
     restart: unless-stopped
     depends_on:
       - app
@@ -43,20 +39,14 @@ services:
       - "${HTTPS_PORT:-443}:443"
     environment:
       DOMAIN: ${DOMAIN}
-      ACME_EMAIL: ${ACME_EMAIL}
-      ACMEDNS_USERNAME: ${ACMEDNS_USERNAME}
-      ACMEDNS_PASSWORD: ${ACMEDNS_PASSWORD}
-      ACMEDNS_SUBDOMAIN: ${ACMEDNS_SUBDOMAIN}
-      ACMEDNS_SERVER_URL: ${ACMEDNS_SERVER_URL}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Certificates + ACME account live in caddy_data — must persist
-      # across recreates or Caddy re-requests certs (rate limits!).
-      - caddy_data:/data
+      # Certificates from the manual renew-cert.sh flow — no ACME state of
+      # Caddy's own to persist, since it never talks to Let's Encrypt itself.
+      - ./certs:/certs:ro
       - caddy_config:/config
 
 volumes:
   pgdata:
   uploads:
-  caddy_data:
   caddy_config:
