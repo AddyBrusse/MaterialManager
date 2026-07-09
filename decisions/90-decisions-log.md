@@ -4,6 +4,40 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-07-09 — Versio has no Caddy DNS module: delegate the challenge via acme-dns
+
+**Decision:** Our registrar is **Versio**. Checked both the `caddy-dns`
+module registry (97 providers) and the underlying `libdns` library directly
+against the GitHub API — **neither has a Versio module**, so the plan below
+("DNS provider module... `caddy-dns/transip`") doesn't work as originally
+written. Fix: delegate just the ACME challenge to the
+[acme-dns](https://github.com/joohoi/acme-dns) service (public instance at
+`auth.acme-dns.io`) via `caddy-dns/acmedns`, instead of a direct provider
+token. `docker/Caddyfile`, `docker/Dockerfile.caddy`, `docker/.env.example`,
+and `docker/docker-compose.yml` were updated accordingly (`DNS_API_TOKEN` →
+`ACMEDNS_USERNAME`/`PASSWORD`/`SUBDOMAIN`/`SERVER_URL`).
+
+**Why acme-dns over the alternatives considered:**
+- *Full Cloudflare account + CNAME* (the fallback this repo's 2026-07-09
+  entry below originally anticipated) would need a *second* domain hosted at
+  Cloudflare just to anchor the CNAME target — nothing we have.
+- *Self-hosting acme-dns on the NAS* would require opening port 53 to the
+  internet — reintroducing the exact exposure DNS-01 was chosen to avoid.
+- *Switching the whole proxy to Traefik* (which bundles `lego`, and `lego`
+  does support Versio directly) was considered and rejected: it would trade
+  Caddy's ~10-line config for Traefik's more complex label/router model, to
+  fix a gap acme-dns already closes without touching the proxy at all.
+- *acme-dns* needs one static CNAME record at Versio
+  (`_acme-challenge.<DOMAIN>` → the acme-dns `fulldomain`) and credentials
+  that can only ever write that one challenge record — narrower blast radius
+  than a full DNS API token, and no exposure from our own infrastructure.
+
+**How to apply:** Registration + CNAME steps are in `backend/26-deployment.md`
+under "TLS / certificaten". This is a same-day follow-up to the entry below —
+read together.
+
+---
+
 ## 2026-07-09 — HTTPS via Caddy reverse proxy + Let's Encrypt DNS-01
 
 **Decision:** The app is served over HTTPS at `https://shop.<companydomain>.nl`

@@ -7,9 +7,16 @@
 
 {$DOMAIN} {
 	tls {
-		# Cloudflare form. For TransIP the block differs:
-		#   dns transip { account_name <name>  private_key_path /path/key.pem }
-		dns cloudflare {$DNS_API_TOKEN}
+		# Versio has no DNS-01 API support, so ownership is proven via
+		# acme-dns instead: Versio holds one static CNAME record
+		# (_acme-challenge.{$DOMAIN} → the fulldomain below), and acme-dns
+		# answers the actual TXT challenge using these credentials.
+		dns acmedns {
+			username {$ACMEDNS_USERNAME}
+			password {$ACMEDNS_PASSWORD}
+			subdomain {$ACMEDNS_SUBDOMAIN}
+			server_url {$ACMEDNS_SERVER_URL}
+		}
 		# ACME propagation checks must use public DNS — the NAS's own resolver
 		# is the split-horizon internal DNS and won't see the TXT record.
 		resolvers 1.1.1.1
