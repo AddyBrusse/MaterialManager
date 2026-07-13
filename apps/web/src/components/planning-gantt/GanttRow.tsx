@@ -32,7 +32,7 @@ export function GanttRow({
   for (let i = 0; i < TOTAL_DAYS; i++) {
     grid.push(
       <div
-        key={i} className={`lane-daycol${isWeekendIdx(i, windowStart) ? ' weekend' : ''}`}
+        key={i} className={`lane-daycol${isWeekendIdx(i, windowStart) && !row.worksWeekends ? ' weekend' : ''}`}
         style={{ left: i * pxDay, width: pxDay }}
       />,
     )

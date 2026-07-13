@@ -6,6 +6,7 @@ export const MachineSchema = z.object({
   machineRatePerHour: z.number(),
   operatorRatePerHour: z.number(),
   defaultSetupMin: z.number().int(),
+  worksWeekends: z.boolean(),
   createdAt: z.string(),
 })
 export type Machine = z.infer<typeof MachineSchema>
@@ -15,6 +16,7 @@ export const CreateMachineSchema = z.object({
   machineRatePerHour: z.number().nonnegative(),
   operatorRatePerHour: z.number().nonnegative(),
   defaultSetupMin: z.number().int().nonnegative(),
+  worksWeekends: z.boolean().default(false),
 })
 export type CreateMachine = z.infer<typeof CreateMachineSchema>
 

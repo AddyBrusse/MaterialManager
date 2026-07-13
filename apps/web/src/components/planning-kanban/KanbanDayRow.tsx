@@ -6,7 +6,7 @@ import type { Article } from '../../api/articles'
 import {
   type PlanningStapItem, type KanbanLayout,
   EFFECTIEVE_MIN, cellCapStatus, getCellItems, minToUren, tekeningFor,
-  dateForDayIndex, fmtDayShort, weekdayLetter,
+  dateForDayIndex, fmtDayShort, weekdayLetter, isCellOpen,
 } from '../../utils/planningKanbanUtils'
 import { KanbanCard } from './KanbanCard'
 
@@ -61,10 +61,11 @@ export function KanbanDayRow({
         const status = cellCapStatus(load)
         const pct = Math.min(100, (load / EFFECTIEVE_MIN) * 100)
         const isDrop = !!(dropCell && dropCell.day === dayIdx && dropCell.m === m.name)
+        const open = isCellOpen(dayIdx, m, windowStart)
         return (
           <div
             key={m.id}
-            className={`kb-cell${status === 'over' ? ' over' : ''}${isDrop ? ' dropok' : ''}`}
+            className={`kb-cell${status === 'over' ? ' over' : ''}${isDrop ? ' dropok' : ''}${!open ? ' closed' : ''}`}
             onDragOver={e => onCellDragOver(e, dayIdx, m.name)}
             onDragLeave={e => onCellDragLeave(e, dayIdx, m.name)}
             onDrop={e => onCellDrop(e, dayIdx, m.name)}

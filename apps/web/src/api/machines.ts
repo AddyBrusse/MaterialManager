@@ -5,8 +5,8 @@ export type { Machine }
 export type MachineInput = CreateMachine
 
 export const MOCK_MACHINES: Machine[] = [
-  { id: 'mach_dmg',    name: 'DMG',    machineRatePerHour: 75, operatorRatePerHour: 55, defaultSetupMin: 20, createdAt: '' },
-  { id: 'mach_doosan', name: 'Doosan', machineRatePerHour: 65, operatorRatePerHour: 55, defaultSetupMin: 20, createdAt: '' },
+  { id: 'mach_dmg',    name: 'DMG',    machineRatePerHour: 75, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, createdAt: '' },
+  { id: 'mach_doosan', name: 'Doosan', machineRatePerHour: 65, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, createdAt: '' },
 ]
 
 const LS_KEY = 'sm_machines'
