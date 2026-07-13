@@ -27,6 +27,77 @@ export function isCellOpen(dayIdx: number, machine: Machine, windowStart: Date):
   return !isWeekendIdx(dayIdx, windowStart) || machine.worksWeekends
 }
 
+// ── Multi-day span computation ──────────────────────────────────────────────
+// A stap whose duration exceeds one day's realistic capacity (EFFECTIEVE_MIN)
+// spans multiple days on its machine. Walk forward from its scheduled start
+// day, consuming up to EFFECTIEVE_MIN minutes per open day. The start day
+// always counts as open (a planner's explicit weekend drop is honored), but
+// days after that skip a non-weekend machine's closed Sat/Sun entirely —
+// which splits the walk into separate segments ("pause over the weekend,
+// continue Monday") instead of painting straight through.
+export interface SpanDayChunk { dayIdx: number; min: number }
+export interface SpanSegment { chunks: SpanDayChunk[] }
+export interface StapSpan { segments: SpanSegment[] }
+
+export function computeStapSpan(
+  startDayIdx: number,
+  duurMin: number,
+  machine: Machine | undefined,
+  windowStart: Date,
+): StapSpan {
+  const worksWeekends = machine?.worksWeekends ?? false
+  const segments: SpanSegment[] = []
+  let chunks: SpanDayChunk[] = []
+  let remaining = duurMin
+  let dayIdx = startDayIdx
+  while (remaining > 0 && dayIdx < TOTAL_DAYS) {
+    const open = dayIdx === startDayIdx || worksWeekends || !isWeekendIdx(dayIdx, windowStart)
+    if (open) {
+      const min = Math.min(remaining, EFFECTIEVE_MIN)
+      chunks.push({ dayIdx, min })
+      remaining -= min
+    } else if (chunks.length > 0) {
+      segments.push({ chunks })
+      chunks = []
+    }
+    dayIdx++
+  }
+  if (chunks.length > 0) segments.push({ chunks })
+  return { segments }
+}
+
+// ── Unified per-(day, machine) load map ─────────────────────────────────────
+// Single source of truth for "how loaded is this cell" — single-day items
+// contribute their full duurMin to their one day; multi-day items contribute
+// their per-day chunks (via computeStapSpan) across every day they touch.
+// Used by both the board layout (capacity bars, over-marks) and the KPI
+// strip's countOverbookedCells, so the two can never silently disagree.
+export function buildLoadMap(
+  scheduledItems: PlanningStapItem[],
+  machines: Machine[],
+  windowStart: Date,
+): Map<string, number> {
+  const loadMap = new Map<string, number>()
+  function add(dayIdx: number, machineNaam: string, min: number) {
+    const key = cellKey(dayIdx, machineNaam)
+    loadMap.set(key, (loadMap.get(key) ?? 0) + min)
+  }
+  for (const item of scheduledItems) {
+    if (item.stap.geplandDatum == null) continue
+    const machineNaam = effectiveMachine(item.stap)
+    if (!machineNaam) continue
+    const dayIdx = dayIndexForDate(item.stap.geplandDatum, windowStart)
+    if (item.duurMin <= EFFECTIEVE_MIN) {
+      add(dayIdx, machineNaam, item.duurMin)
+    } else {
+      const machine = machines.find(m => m.name === machineNaam)
+      const span = computeStapSpan(dayIdx, item.duurMin, machine, windowStart)
+      for (const seg of span.segments) for (const c of seg.chunks) add(c.dayIdx, machineNaam, c.min)
+    }
+  }
+  return loadMap
+}
+
 // ── Baked layout constants (compact density, "rand" card style) ────────────
 export const RULER_H = 56
 export const WEEKBAND_H = 26
@@ -65,17 +136,10 @@ export function tekeningFor(order: ProductieOrder, articles: Article[]): string 
 // Lighter-weight than the full board layout (no pixel geometry) — mirrors
 // how the Gantt page computes its own KPI summary separately from the
 // board's internal layout.
-export function countOverbookedCells(scheduledItems: PlanningStapItem[]): number {
-  const load = new Map<string, number>()
-  for (const item of scheduledItems) {
-    if (item.stap.geplandDatum == null) continue
-    const machineNaam = effectiveMachine(item.stap)
-    if (!machineNaam) continue
-    const key = `${item.stap.geplandDatum}:${machineNaam}`
-    load.set(key, (load.get(key) ?? 0) + item.duurMin)
-  }
+export function countOverbookedCells(scheduledItems: PlanningStapItem[], machines: Machine[], windowStart: Date): number {
+  const loadMap = buildLoadMap(scheduledItems, machines, windowStart)
   let n = 0
-  for (const min of load.values()) if (min > MAX_MIN) n++
+  for (const min of loadMap.values()) if (min > MAX_MIN) n++
   return n
 }
 
@@ -120,6 +184,12 @@ export function workdaysLeft(deadline: string | null | undefined, windowStart: D
 export interface MiniBlock { mi: number; color: string; yAbs: number; hAbs: number }
 export interface OverMark { mi: number; yAbs: number }
 
+// One rendered segment of a multi-day span block — a contiguous run of open
+// days, in absolute board pixels (a job crossing a closed weekend for a
+// non-weekend machine produces two segments with a gap between them).
+export interface SpanBlockSegment { top: number; height: number; startDayIdx: number; endDayIdx: number; minMin: number }
+export interface SpanBlock { item: PlanningStapItem; mi: number; machineNaam: string; segments: SpanBlockSegment[]; totalMin: number }
+
 export interface KanbanLayout {
   rowH: number[]
   rowAbsTop: number[]
@@ -130,6 +200,8 @@ export interface KanbanLayout {
   weekLines: number[]
   todayAbs: number
   cellMap: Map<string, PlanningStapItem[]>
+  loadMap: Map<string, number>
+  spanBlocks: SpanBlock[]
 }
 
 function cellKey(dayIdx: number, machineNaam: string): string {
@@ -140,17 +212,33 @@ export function getCellItems(layout: KanbanLayout, dayIdx: number, machineNaam: 
   return layout.cellMap.get(cellKey(dayIdx, machineNaam)) ?? []
 }
 
+export function getCellLoad(layout: KanbanLayout, dayIdx: number, machineNaam: string): number {
+  return layout.loadMap.get(cellKey(dayIdx, machineNaam)) ?? 0
+}
+
 export function computeKanbanLayout(
   scheduledItems: PlanningStapItem[],
   machines: Machine[],
   windowStart: Date,
 ): KanbanLayout {
-  const cellMap = new Map<string, PlanningStapItem[]>()
+  // Staps that fit in one day render as a normal card in cellMap, exactly as
+  // before. Staps needing more than one day are excluded from cellMap/rowMaxN
+  // entirely (so row heights stay driven only by real single-day cards) and
+  // instead become an absolutely-positioned spanBlock, computed in a second
+  // pass once row geometry is known.
+  const singleDayItems: PlanningStapItem[] = []
+  const spanningItems: PlanningStapItem[] = []
   for (const item of scheduledItems) {
     if (item.stap.geplandDatum == null) continue
+    if (!effectiveMachine(item.stap)) continue
+    if (item.duurMin <= EFFECTIEVE_MIN) singleDayItems.push(item)
+    else spanningItems.push(item)
+  }
+
+  const cellMap = new Map<string, PlanningStapItem[]>()
+  for (const item of singleDayItems) {
     const machineNaam = effectiveMachine(item.stap)
-    if (!machineNaam) continue
-    const dayIdx = dayIndexForDate(item.stap.geplandDatum, windowStart)
+    const dayIdx = dayIndexForDate(item.stap.geplandDatum!, windowStart)
     const key = cellKey(dayIdx, machineNaam)
     const arr = cellMap.get(key)
     if (arr) arr.push(item)
@@ -159,6 +247,8 @@ export function computeKanbanLayout(
   for (const arr of cellMap.values()) {
     arr.sort((a, b) => (a.order.id === b.order.id ? a.stap.volgorde - b.stap.volgorde : a.order.id.localeCompare(b.order.id)))
   }
+
+  const loadMap = buildLoadMap(scheduledItems, machines, windowStart)
 
   const rowMaxN = new Array(TOTAL_DAYS).fill(0)
   for (const [key, arr] of cellMap) {
@@ -189,15 +279,20 @@ export function computeKanbanLayout(
       rowAbsTop[dayIdx] = y
 
       machines.forEach((m, mi) => {
+        // Load/over-marks come from the unified loadMap (single-day cards +
+        // spanning chunks) — a cell can be overbooked purely from a spanning
+        // item's chunk even with zero cellMap cards that day.
+        const load = loadMap.get(cellKey(dayIdx, m.name)) ?? 0
+        if (load > 0) {
+          dayLoad[dayIdx] += load
+          if (load > MAX_MIN) overMarks.push({ mi, yAbs: y + 5 })
+        }
         const cell = cellMap.get(cellKey(dayIdx, m.name))
         if (!cell || !cell.length) return
-        const load = cell.reduce((s, i) => s + i.duurMin, 0)
-        dayLoad[dayIdx] += load
         const cellTop = y + CELL_PAD + CAP_BLOCK
         cell.forEach((item, si) => {
           miniBlocks.push({ mi, color: projectKleur(item.project.id), yAbs: cellTop + si * (CARD_H + CARD_GAP), hAbs: CARD_H })
         })
-        if (load > MAX_MIN) overMarks.push({ mi, yAbs: y + 5 })
       })
 
       if (dayIdx === todayIdx) todayAbs = y
@@ -205,5 +300,37 @@ export function computeKanbanLayout(
     }
   }
 
-  return { rowH, rowAbsTop, dayLoad, totalAbs: y, miniBlocks, overMarks, weekLines, todayAbs, cellMap }
+  // Second pass: now that rowAbsTop/rowH are known for every day, translate
+  // each spanning item's segments (from computeStapSpan) into absolute pixel
+  // ranges. minimap blocks reuse the exact same top/height so the two can
+  // never drift apart.
+  const spanBlocks: SpanBlock[] = []
+  for (const item of spanningItems) {
+    const machineNaam = effectiveMachine(item.stap)
+    const mi = machines.findIndex(m => m.name === machineNaam)
+    if (mi === -1) continue
+    const startDayIdx = dayIndexForDate(item.stap.geplandDatum!, windowStart)
+    const span = computeStapSpan(startDayIdx, item.duurMin, machines[mi], windowStart)
+    if (span.segments.length === 0) continue
+
+    const segments: SpanBlockSegment[] = span.segments.map(seg => {
+      const first = seg.chunks[0].dayIdx
+      const last = seg.chunks[seg.chunks.length - 1].dayIdx
+      const minMin = seg.chunks.reduce((s, c) => s + c.min, 0)
+      return {
+        top: rowAbsTop[first],
+        height: rowAbsTop[last] + rowH[last] - rowAbsTop[first],
+        startDayIdx: first,
+        endDayIdx: last,
+        minMin,
+      }
+    })
+    spanBlocks.push({ item, mi, machineNaam, segments, totalMin: item.duurMin })
+
+    for (const seg of segments) {
+      miniBlocks.push({ mi, color: projectKleur(item.project.id), yAbs: seg.top, hAbs: seg.height })
+    }
+  }
+
+  return { rowH, rowAbsTop, dayLoad, totalAbs: y, miniBlocks, overMarks, weekLines, todayAbs, cellMap, loadMap, spanBlocks }
 }

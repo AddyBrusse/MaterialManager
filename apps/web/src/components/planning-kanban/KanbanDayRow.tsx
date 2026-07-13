@@ -5,7 +5,7 @@ import type { Machine } from '../../api/machines'
 import type { Article } from '../../api/articles'
 import {
   type PlanningStapItem, type KanbanLayout,
-  EFFECTIEVE_MIN, cellCapStatus, getCellItems, minToUren, tekeningFor,
+  EFFECTIEVE_MIN, cellCapStatus, getCellItems, getCellLoad, minToUren, tekeningFor,
   dateForDayIndex, fmtDayShort, weekdayLetter, isCellOpen,
 } from '../../utils/planningKanbanUtils'
 import { KanbanCard } from './KanbanCard'
@@ -57,7 +57,7 @@ export function KanbanDayRow({
 
       {machines.map(m => {
         const cell = getCellItems(layout, dayIdx, m.name)
-        const load = cell.reduce((s, i) => s + i.duurMin, 0)
+        const load = getCellLoad(layout, dayIdx, m.name)
         const status = cellCapStatus(load)
         const pct = Math.min(100, (load / EFFECTIEVE_MIN) * 100)
         const isDrop = !!(dropCell && dropCell.day === dayIdx && dropCell.m === m.name)
@@ -70,7 +70,7 @@ export function KanbanDayRow({
             onDragLeave={e => onCellDragLeave(e, dayIdx, m.name)}
             onDrop={e => onCellDrop(e, dayIdx, m.name)}
           >
-            {cell.length > 0 && (
+            {load > 0 && (
               <div className="kb-cap">
                 <div className="bar"><i className={status} style={{ width: `${pct}%` }} /></div>
                 <span className={`lab${status !== 'ok' ? ' ' + status : ''}`}>{minToUren(load)}/{minToUren(EFFECTIEVE_MIN)}</span>
