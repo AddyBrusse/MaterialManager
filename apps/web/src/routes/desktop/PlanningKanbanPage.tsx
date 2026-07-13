@@ -103,7 +103,7 @@ export function PlanningKanbanPage() {
   const scheduledItems = useMemo(() => allItems.filter(i => i.stap.geplandDatum != null), [allItems])
   const backlogItems = useMemo(() => allItems.filter(i => i.stap.geplandDatum == null), [allItems])
   const plannedMin = useMemo(() => scheduledItems.reduce((s, i) => s + i.duurMin, 0), [scheduledItems])
-  const overCount = useMemo(() => countOverbookedCells(scheduledItems), [scheduledItems])
+  const overCount = useMemo(() => countOverbookedCells(scheduledItems, machines, windowStart), [scheduledItems, machines, windowStart])
   const selectedArticle = selectedStep?.order.artikelId ? articles.find(a => a.id === selectedStep.order.artikelId) ?? null : null
 
   return (

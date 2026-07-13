@@ -6,18 +6,20 @@ import type { Machine } from '../../api/machines'
 import type { Article } from '../../api/articles'
 import {
   type PlanningStapItem,
-  computeKanbanLayout, projectKleur, minToUren, fmtDayShort, weekNrForIdx,
+  computeKanbanLayout, projectKleur, minToUren, fmtDayShort, weekNrForIdx, tekeningFor,
   todayIndex, dateStrForDayIndex, EFFECTIEVE_MIN,
   RULER_H, LABEL_W, COL_W, CARD_H, CARD_GAP, CELL_PAD, MIN_ROW, WEEKS,
 } from '../../utils/planningKanbanUtils'
 import type { SelStyle } from './KanbanToolbar'
 import { KanbanDayRow } from './KanbanDayRow'
+import { KanbanSpanBlock } from './KanbanSpanBlock'
 import { KanbanMinimap, type MinimapMetrics } from './KanbanMinimap'
 
 export interface KanbanScrollApi { toToday: () => void }
 
 interface ConnPoint { vol: number; x: number; y: number }
 interface DropCell { day: number; m: string }
+interface ColRect { left: number; width: number }
 
 interface KanbanBoardProps {
   scheduledItems: PlanningStapItem[]
@@ -53,12 +55,28 @@ export function KanbanBoard({
   const [metrics, setMetrics] = useState<MinimapMetrics>({ scrollTop: 0, viewH: 0, scrollH: 0, miniH: 0 })
   const [dropCell, setDropCell] = useState<DropCell | null>(null)
   const [conn, setConn] = useState<ConnPoint[] | null>(null)
+  const [colRects, setColRects] = useState<Record<string, ColRect>>({})
   const didInit = useRef(false)
 
+  // .kb-mhead/.kb-cell both flex-grow past COL_W to fill available width, so
+  // span blocks can't be positioned from LABEL_W + mi*COL_W constants — they'd
+  // misalign on any screen wider than label + N*col. Measure the always-
+  // rendered header cells instead (same rect-measurement pattern as the
+  // connector overlay below), keyed by machine name.
   const measure = useCallback(() => {
     const s = scrollRef.current, m = miniRef.current
     if (!s || !m) return
     setMetrics({ scrollTop: s.scrollTop, viewH: s.clientHeight, scrollH: s.scrollHeight, miniH: m.clientHeight })
+    const inner = innerRef.current
+    if (inner) {
+      const base = inner.getBoundingClientRect()
+      const next: Record<string, ColRect> = {}
+      inner.querySelectorAll<HTMLElement>('.kb-mhead[data-machine]').forEach(el => {
+        const r = el.getBoundingClientRect()
+        next[el.dataset.machine!] = { left: r.left - base.left, width: r.width }
+      })
+      setColRects(next)
+    }
   }, [])
 
   useEffect(() => {
@@ -98,7 +116,7 @@ export function KanbanBoard({
     if (!inner) { setConn(null); return }
     const base = inner.getBoundingClientRect()
     const sel = CSS.escape(selectedOrderId)
-    const els = Array.from(inner.querySelectorAll<HTMLElement>(`.kb-cell .kc[data-order-id="${sel}"]`))
+    const els = Array.from(inner.querySelectorAll<HTMLElement>(`.kb-cell .kc[data-order-id="${sel}"], .kb-span-head[data-order-id="${sel}"]`))
     if (els.length < 1) { setConn(null); return }
     const pts = els
       .map(el => {
@@ -148,7 +166,7 @@ export function KanbanBoard({
               <span className="s">{WEEKS} wk vooruit</span>
             </div>
             {machines.map(m => (
-              <div key={m.id} className="kb-mhead">
+              <div key={m.id} className="kb-mhead" data-machine={m.name}>
                 <div className="kb-mhead-top">
                   <span className="ico"><IconCpu size={13} /></span>
                   <span className="nm">{m.name}</span>
@@ -187,6 +205,23 @@ export function KanbanBoard({
               </Fragment>
             )
           })}
+
+          {layout.spanBlocks.map(block => (
+            <KanbanSpanBlock
+              key={block.item.stap.id}
+              block={block}
+              relaties={relaties}
+              tekening={tekeningFor(block.item.order, articles)}
+              windowStart={windowStart}
+              colRect={colRects[block.machineNaam]}
+              selected={selectedId === block.item.stap.id}
+              dimmed={!!(selectedOrderId && dimOthers && block.item.order.id !== selectedOrderId)}
+              linked={!!(selectedOrderId && ringLinked && block.item.order.id === selectedOrderId && block.item.stap.id !== selectedId)}
+              onSelect={onSelect}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+            />
+          ))}
 
           {conn && conn.length > 0 && (() => {
             const color = projectKleur(selectedOrderId!)
