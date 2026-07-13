@@ -281,13 +281,13 @@
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--c, var(--accent)) 7%, transparent);
   opacity: 0.7;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; align-items: flex-start; justify-content: flex-start;
+  padding: 7px 8px;
 }
 .kb-span-cont.dimmed { opacity: 0.18; }
 .kb-span-cont-lab {
-  font-family: var(--font-mono); font-size: 10px; color: var(--text-3);
-  writing-mode: vertical-rl; text-orientation: mixed;
-  white-space: nowrap; overflow: hidden;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
 }
 
 /* ===== Selection: animated bezier connectors ===== */

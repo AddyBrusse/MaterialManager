@@ -70,7 +70,14 @@ export function KanbanDayRow({
             onDragLeave={e => onCellDragLeave(e, dayIdx, m.name)}
             onDrop={e => onCellDrop(e, dayIdx, m.name)}
           >
-            {load > 0 && (
+            {/* A pure spanning-chunk day (no real card in this cell) can never
+                alone exceed EFFECTIEVE_MIN (computeStapSpan caps each day's
+                chunk at exactly that), so it's always 'ok' and this bar would
+                be pure noise bleeding through the translucent span block on
+                top of it — only show it when there's an actual card here
+                (single-day, or a single-day card sharing the cell with a
+                spanning chunk, where the combined total does matter). */}
+            {cell.length > 0 && (
               <div className="kb-cap">
                 <div className="bar"><i className={status} style={{ width: `${pct}%` }} /></div>
                 <span className={`lab${status !== 'ok' ? ' ' + status : ''}`}>{minToUren(load)}/{minToUren(EFFECTIEVE_MIN)}</span>
