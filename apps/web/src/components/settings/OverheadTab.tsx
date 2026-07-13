@@ -153,7 +153,7 @@ export function OverheadTab() {
   }
 
   async function addMachine() {
-    const res = await machinesApi.create({ name: 'Nieuwe machine', machineRatePerHour: 0, operatorRatePerHour: 0, defaultSetupMin: 20 })
+    const res = await machinesApi.create({ name: 'Nieuwe machine', machineRatePerHour: 0, operatorRatePerHour: 0, defaultSetupMin: 20, worksWeekends: false })
     persist({ ...cfg, machines: [...cfg.machines, { machineId: res.data.id, ...DEFAULT_MACHINE_ROW }] })
     qc.invalidateQueries({ queryKey: ['machines'] })
   }
@@ -189,6 +189,23 @@ export function OverheadTab() {
             accent={opts?.accent?.(m, r)} />
         )
       })}
+      <td />
+    </tr>
+  )
+
+  const checkRow = (
+    label: string,
+    getValue: (m: Machine) => boolean,
+    setValue: (id: string, v: boolean) => void,
+    opts?: { title?: string },
+  ) => (
+    <tr style={{ cursor: 'default' }}>
+      <L text={label} title={opts?.title} />
+      {machines.map(m => (
+        <td key={m.id} style={{ padding: '1px 3px', textAlign: 'center' }}>
+          <input type="checkbox" checked={getValue(m)} onChange={e => setValue(m.id, e.target.checked)} />
+        </td>
+      ))}
       <td />
     </tr>
   )
@@ -285,6 +302,7 @@ export function OverheadTab() {
               <Sec label="Machine configuratie" cols={mc} />
               {inputRow('Machine tarief',  (m) => m.machineRatePerHour,  (id, v) => saveMachine(id, { machineRatePerHour:  v ?? 0 }), { step: 1, ph: '0' })}
               {inputRow('Operator (€/u)',  (m) => m.operatorRatePerHour, (id, v) => saveMachine(id, { operatorRatePerHour: v ?? 0 }), { step: 1, ph: '0' })}
+              {checkRow('Werkt in weekend', (m) => m.worksWeekends, (id, v) => saveMachine(id, { worksWeekends: v }), { title: 'Machine draait onbemand door op zaterdag/zondag' })}
               {/* Totaal tarief row — warns when overhead < machine tarief */}
               <tr style={{ cursor: 'default' }}>
                 <L text="Totaal" bold />

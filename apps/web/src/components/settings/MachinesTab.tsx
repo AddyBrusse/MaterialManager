@@ -5,11 +5,11 @@ import { IconPlus, IconEdit, IconTrash, IconX, IconCheck } from '@tabler/icons-r
 import { machinesApi, type Machine, type MachineInput } from '../../api/machines'
 
 type Num = number | ''
-type Row = { name: string; machineRatePerHour: Num; operatorRatePerHour: Num; defaultSetupMin: Num }
+type Row = { name: string; machineRatePerHour: Num; operatorRatePerHour: Num; defaultSetupMin: Num; worksWeekends: boolean }
 type EditState = (Row & { id: string }) | null
 type AddState  = Row | null
 
-const EMPTY: Row = { name: '', machineRatePerHour: '', operatorRatePerHour: '', defaultSetupMin: 20 }
+const EMPTY: Row = { name: '', machineRatePerHour: '', operatorRatePerHour: '', defaultSetupMin: 20, worksWeekends: false }
 
 export function MachinesTab() {
   const qc = useQueryClient()
@@ -45,6 +45,7 @@ export function MachinesTab() {
       machineRatePerHour: Number(r.machineRatePerHour),
       operatorRatePerHour: Number(r.operatorRatePerHour),
       defaultSetupMin: Number(r.defaultSetupMin) || 0,
+      worksWeekends: r.worksWeekends,
     }
   }
   function saveEdit() { const v = edit && toInput(edit); if (v && edit) updateMut.mutate({ id: edit.id, ...v }) }
@@ -79,6 +80,7 @@ export function MachinesTab() {
               <th style={{ textAlign: 'right' }}>Machine (€/u)</th>
               <th style={{ textAlign: 'right' }}>Operator (€/u)</th>
               <th style={{ textAlign: 'right' }}>Setup (min)</th>
+              <th style={{ textAlign: 'center' }}>Weekend</th>
               <th style={{ width: 72 }} />
             </tr>
           </thead>
@@ -94,6 +96,9 @@ export function MachinesTab() {
                   <td>{numInput(edit.machineRatePerHour, v => setEdit({ ...edit, machineRatePerHour: v }), e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEdit(null) })}</td>
                   <td>{numInput(edit.operatorRatePerHour, v => setEdit({ ...edit, operatorRatePerHour: v }), e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEdit(null) })}</td>
                   <td>{numInput(edit.defaultSetupMin, v => setEdit({ ...edit, defaultSetupMin: v }), e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEdit(null) })}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <input type="checkbox" checked={edit.worksWeekends} onChange={e => setEdit({ ...edit, worksWeekends: e.target.checked })} />
+                  </td>
                   <td>
                     <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                       <button className="st-icon-btn" title="Opslaan" onClick={saveEdit}><IconCheck size={14} /></button>
@@ -103,7 +108,7 @@ export function MachinesTab() {
                 </tr>
               ) : deleteId === m.id ? (
                 <tr key={m.id} style={{ background: 'rgba(184,39,12,0.04)' }}>
-                  <td colSpan={4}>
+                  <td colSpan={5}>
                     <span style={{ fontSize: 12.5, color: 'var(--text-2)' }}><strong>{m.name}</strong> verwijderen?</span>
                   </td>
                   <td>
@@ -119,10 +124,13 @@ export function MachinesTab() {
                   <td className="cell-num cell-mono">€ {m.machineRatePerHour.toFixed(2)}</td>
                   <td className="cell-num cell-mono">€ {m.operatorRatePerHour.toFixed(2)}</td>
                   <td className="cell-num cell-mono">{m.defaultSetupMin}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <input type="checkbox" checked={m.worksWeekends} disabled />
+                  </td>
                   <td>
                     <div className="row-actions" style={{ justifyContent: 'flex-end' }}>
                       <button className="st-icon-btn" title="Bewerken"
-                        onClick={() => { setEdit({ id: m.id, name: m.name, machineRatePerHour: m.machineRatePerHour, operatorRatePerHour: m.operatorRatePerHour, defaultSetupMin: m.defaultSetupMin }); setAdd(null) }}>
+                        onClick={() => { setEdit({ id: m.id, name: m.name, machineRatePerHour: m.machineRatePerHour, operatorRatePerHour: m.operatorRatePerHour, defaultSetupMin: m.defaultSetupMin, worksWeekends: m.worksWeekends }); setAdd(null) }}>
                         <IconEdit size={14} />
                       </button>
                       <button className="st-icon-btn danger" title="Verwijderen" onClick={() => setDeleteId(m.id)}>
@@ -144,6 +152,9 @@ export function MachinesTab() {
                 <td>{numInput(add.machineRatePerHour, v => setAdd({ ...add, machineRatePerHour: v }), e => { if (e.key === 'Enter') saveAdd(); if (e.key === 'Escape') setAdd(null) }, '75')}</td>
                 <td>{numInput(add.operatorRatePerHour, v => setAdd({ ...add, operatorRatePerHour: v }), e => { if (e.key === 'Enter') saveAdd(); if (e.key === 'Escape') setAdd(null) }, '55')}</td>
                 <td>{numInput(add.defaultSetupMin, v => setAdd({ ...add, defaultSetupMin: v }), e => { if (e.key === 'Enter') saveAdd(); if (e.key === 'Escape') setAdd(null) }, '20')}</td>
+                <td style={{ textAlign: 'center' }}>
+                  <input type="checkbox" checked={add.worksWeekends} onChange={e => setAdd({ ...add, worksWeekends: e.target.checked })} />
+                </td>
                 <td>
                   <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                     <button className="st-icon-btn" title="Toevoegen" onClick={saveAdd}><IconCheck size={14} /></button>

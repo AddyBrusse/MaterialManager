@@ -10,15 +10,22 @@ import type { Article } from '../api/articles'
 import {
   type PlanningStapItem,
   EFFECTIEVE_MIN, MAX_MIN, TOTAL_DAYS,
-  todayIndex, dayIndexForDate, projectKleur, effectiveMachine, klantNaam,
+  todayIndex, dayIndexForDate, projectKleur, effectiveMachine, klantNaam, isWeekendIdx,
 } from './planningGanttUtils'
 
 export {
   type PlanningStapItem, buildStapItems, getWindowStart, toDateStr,
   dayIndexForDate, dateForDayIndex, dateStrForDayIndex, todayIndex,
   fmtDayShort, fmtDayFull, weekdayLetter, weekNrForIdx, projectKleur, minToUren, klantNaam,
-  effectiveMachine, EFFECTIEVE_MIN, MAX_MIN, TOTAL_DAYS,
+  effectiveMachine, EFFECTIEVE_MIN, MAX_MIN, TOTAL_DAYS, isWeekendIdx,
 } from './planningGanttUtils'
+
+// ── Weekend cell openness ───────────────────────────────────────────────────
+// A (day, machine) cell is only "open" on a weekend if that machine is
+// flagged as working weekends — everything else is a normal workday.
+export function isCellOpen(dayIdx: number, machine: Machine, windowStart: Date): boolean {
+  return !isWeekendIdx(dayIdx, windowStart) || machine.worksWeekends
+}
 
 // ── Baked layout constants (compact density, "rand" card style) ────────────
 export const RULER_H = 56
@@ -160,8 +167,6 @@ export function computeKanbanLayout(
   }
 
   const todayIdx = todayIndex(windowStart)
-  const todayDow = ((todayIdx % 7) + 7) % 7
-  const effectiveTodayIdx = todayDow >= 5 ? todayIdx + (7 - todayDow) : todayIdx
 
   const rowH: number[] = new Array(TOTAL_DAYS).fill(0)
   const rowAbsTop: number[] = new Array(TOTAL_DAYS).fill(0)
@@ -175,7 +180,7 @@ export function computeKanbanLayout(
   for (let w = 0; w < WEEKS; w++) {
     weekLines.push(y)
     y += WEEKBAND_H + 1
-    for (let dd = 0; dd < 5; dd++) {
+    for (let dd = 0; dd < 7; dd++) {
       const dayIdx = w * 7 + dd
       const n = rowMaxN[dayIdx]
       const contentH = n > 0 ? CELL_PAD * 2 + CAP_BLOCK + n * CARD_H + (n - 1) * CARD_GAP : 0
@@ -195,7 +200,7 @@ export function computeKanbanLayout(
         if (load > MAX_MIN) overMarks.push({ mi, yAbs: y + 5 })
       })
 
-      if (dayIdx === effectiveTodayIdx) todayAbs = y
+      if (dayIdx === todayIdx) todayAbs = y
       y += h + 1
     }
   }

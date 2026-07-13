@@ -136,7 +136,7 @@ export const LABEL_W = 196
 // ── Machine rows ─────────────────────────────────────────────────────────────
 // Steps store the machine as a NAME string (matching the existing
 // PlanningPage convention), not an id. "" / null = unassigned.
-export interface GanttMachineRow { naam: string; sub: string; isGeen: boolean }
+export interface GanttMachineRow { naam: string; sub: string; isGeen: boolean; worksWeekends: boolean }
 
 export function buildMachineRows(machines: Machine[]): GanttMachineRow[] {
   return [
@@ -144,8 +144,9 @@ export function buildMachineRows(machines: Machine[]): GanttMachineRow[] {
       naam: m.name,
       sub: `€ ${m.machineRatePerHour.toFixed(2)} / u`,
       isGeen: false,
+      worksWeekends: m.worksWeekends,
     })),
-    { naam: '', sub: 'Niet toegewezen', isGeen: true },
+    { naam: '', sub: 'Niet toegewezen', isGeen: true, worksWeekends: false },
   ]
 }
 

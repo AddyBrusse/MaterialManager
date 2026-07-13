@@ -260,6 +260,7 @@ model Machine {
   machineRatePerHour  Decimal  @map("machine_rate_per_hour")
   operatorRatePerHour Decimal  @map("operator_rate_per_hour")
   defaultSetupMin     Int      @map("default_setup_min")
+  worksWeekends       Boolean  @default(false) @map("works_weekends")
   createdAt           DateTime @default(now()) @map("created_at")
 
   @@map("machines")

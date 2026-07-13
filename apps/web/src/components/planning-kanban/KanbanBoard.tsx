@@ -167,11 +167,11 @@ export function KanbanBoard({
                   <div className="kb-weekband"><span className="wk">wk {weekNrForIdx(firstDay, windowStart)}</span></div>
                   <div className="fill" style={{ paddingLeft: 14 }}>
                     <span className="rng" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                      {fmtDayShort(firstDay, windowStart)} – {fmtDayShort(firstDay + 4, windowStart)}
+                      {fmtDayShort(firstDay, windowStart)} – {fmtDayShort(firstDay + 6, windowStart)}
                     </span>
                   </div>
                 </div>
-                {[0, 1, 2, 3, 4].map(dd => {
+                {[0, 1, 2, 3, 4, 5, 6].map(dd => {
                   const dayIdx = firstDay + dd
                   return (
                     <KanbanDayRow
