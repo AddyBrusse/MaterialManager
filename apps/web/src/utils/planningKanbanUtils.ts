@@ -99,6 +99,9 @@ export function buildLoadMap(
 }
 
 // ── Baked layout constants (compact density, "rand" card style) ────────────
+// These are the 100%-zoom baseline. RULER_H/WEEKBAND_H/LABEL_W/COL_W are
+// board "chrome" and never scale with zoom — only the per-day row metrics
+// (below, via zoomedMetrics) do, since zoom is vertical-only.
 export const RULER_H = 56
 export const WEEKBAND_H = 26
 export const LABEL_W = 128
@@ -107,8 +110,37 @@ export const CARD_H = 110
 export const CARD_GAP = 5
 export const CELL_PAD = 8
 export const MIN_ROW = 122
-export const CAP_BLOCK = 18 // capacity meter row height + margin
+export const CAP_H = 12 // capacity meter bar height
+export const CAP_MB = 6 // capacity meter bottom margin
+export const CAP_BLOCK = CAP_H + CAP_MB // total vertical space the meter reserves
 export const WEEKS = TOTAL_DAYS / 7
+
+// ── Vertical zoom ────────────────────────────────────────────────────────────
+export const ZOOM_LEVELS = [100, 75, 50, 25] as const
+export type ZoomLevel = typeof ZOOM_LEVELS[number]
+
+export interface ZoomedMetrics {
+  minRow: number
+  cardH: number
+  cardGap: number
+  cellPad: number
+  capH: number
+  capMb: number
+  capBlock: number
+}
+
+export function zoomedMetrics(zoom: ZoomLevel): ZoomedMetrics {
+  const f = zoom / 100
+  const capH = Math.max(6, Math.round(CAP_H * f))
+  const capMb = Math.max(3, Math.round(CAP_MB * f))
+  return {
+    minRow: Math.round(MIN_ROW * f),
+    cardH: Math.round(CARD_H * f),
+    cardGap: Math.max(2, Math.round(CARD_GAP * f)),
+    cellPad: Math.max(3, Math.round(CELL_PAD * f)),
+    capH, capMb, capBlock: capH + capMb,
+  }
+}
 
 // ── Minimap geometry ─────────────────────────────────────────────────────────
 export const MINI_USABLE_W = 70
@@ -220,7 +252,9 @@ export function computeKanbanLayout(
   scheduledItems: PlanningStapItem[],
   machines: Machine[],
   windowStart: Date,
+  zoom: ZoomLevel = 100,
 ): KanbanLayout {
+  const { minRow, cardH, cardGap, cellPad, capBlock } = zoomedMetrics(zoom)
   // Staps that fit in one day render as a normal card in cellMap, exactly as
   // before. Staps needing more than one day are excluded from cellMap/rowMaxN
   // entirely (so row heights stay driven only by real single-day cards) and
@@ -273,8 +307,8 @@ export function computeKanbanLayout(
     for (let dd = 0; dd < 7; dd++) {
       const dayIdx = w * 7 + dd
       const n = rowMaxN[dayIdx]
-      const contentH = n > 0 ? CELL_PAD * 2 + CAP_BLOCK + n * CARD_H + (n - 1) * CARD_GAP : 0
-      const h = Math.max(MIN_ROW, contentH)
+      const contentH = n > 0 ? cellPad * 2 + capBlock + n * cardH + (n - 1) * cardGap : 0
+      const h = Math.max(minRow, contentH)
       rowH[dayIdx] = h
       rowAbsTop[dayIdx] = y
 
@@ -289,9 +323,9 @@ export function computeKanbanLayout(
         }
         const cell = cellMap.get(cellKey(dayIdx, m.name))
         if (!cell || !cell.length) return
-        const cellTop = y + CELL_PAD + CAP_BLOCK
+        const cellTop = y + cellPad + capBlock
         cell.forEach((item, si) => {
-          miniBlocks.push({ mi, color: projectKleur(item.project.id), yAbs: cellTop + si * (CARD_H + CARD_GAP), hAbs: CARD_H })
+          miniBlocks.push({ mi, color: projectKleur(item.project.id), yAbs: cellTop + si * (cardH + cardGap), hAbs: cardH })
         })
       })
 

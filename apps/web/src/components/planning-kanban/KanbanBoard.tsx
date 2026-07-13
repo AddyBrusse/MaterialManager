@@ -1,14 +1,14 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties, DragEvent, MutableRefObject } from 'react'
+import type { CSSProperties, DragEvent, MutableRefObject, WheelEvent as ReactWheelEvent } from 'react'
 import { IconCpu } from '@tabler/icons-react'
 import type { Relatie } from '@stockmanager/shared'
 import type { Machine } from '../../api/machines'
 import type { Article } from '../../api/articles'
 import {
-  type PlanningStapItem,
+  type PlanningStapItem, type ZoomLevel,
   computeKanbanLayout, projectKleur, minToUren, fmtDayShort, weekNrForIdx, tekeningFor,
-  todayIndex, dateStrForDayIndex, EFFECTIEVE_MIN,
-  RULER_H, LABEL_W, COL_W, CARD_H, CARD_GAP, CELL_PAD, MIN_ROW, WEEKS,
+  todayIndex, dateStrForDayIndex, EFFECTIEVE_MIN, zoomedMetrics, ZOOM_LEVELS,
+  RULER_H, LABEL_W, COL_W, WEEKS,
 } from '../../utils/planningKanbanUtils'
 import type { SelStyle } from './KanbanToolbar'
 import { KanbanDayRow } from './KanbanDayRow'
@@ -36,18 +36,22 @@ interface KanbanBoardProps {
   onDragEnd: () => void
   onDrop: (item: PlanningStapItem, machineNaam: string, geplandDatum: string) => void
   scrollApiRef: MutableRefObject<KanbanScrollApi | null>
+  zoom: ZoomLevel
+  onZoomChange: (zoom: ZoomLevel) => void
 }
 
 export function KanbanBoard({
   scheduledItems, machines, articles, relaties, windowStart, selStyle,
   selectedId, selectedOrderId, onSelect,
   draggingItem, onDragStart, onDragEnd, onDrop, scrollApiRef,
+  zoom, onZoomChange,
 }: KanbanBoardProps) {
   const dimOthers = selStyle === 'dimmen' || selStyle === 'lijnen'
   const ringLinked = selStyle === 'markeren' || selStyle === 'lijnen'
   const todayIdx = todayIndex(windowStart)
 
-  const layout = useMemo(() => computeKanbanLayout(scheduledItems, machines, windowStart), [scheduledItems, machines, windowStart])
+  const layout = useMemo(() => computeKanbanLayout(scheduledItems, machines, windowStart, zoom), [scheduledItems, machines, windowStart, zoom])
+  const zm = zoomedMetrics(zoom)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -134,6 +138,24 @@ export function KanbanBoard({
     if (scrollRef.current) scrollRef.current.scrollTop = Math.max(0, Math.min(top, layout.totalAbs))
   }
 
+  // Shift+scroll steps through ZOOM_LEVELS one at a time — throttled so a
+  // single trackpad/wheel gesture (which fires many small events) doesn't
+  // blow through several levels at once. Plain scroll (no shift) is left
+  // alone for normal vertical scrolling.
+  const lastZoomAt = useRef(0)
+  function onWheel(e: ReactWheelEvent) {
+    if (!e.shiftKey) return
+    e.preventDefault()
+    const now = Date.now()
+    if (now - lastZoomAt.current < 150) return
+    const idx = ZOOM_LEVELS.indexOf(zoom)
+    const nextIdx = e.deltaY < 0 ? Math.max(0, idx - 1) : Math.min(ZOOM_LEVELS.length - 1, idx + 1)
+    if (nextIdx !== idx) {
+      lastZoomAt.current = now
+      onZoomChange(ZOOM_LEVELS[nextIdx])
+    }
+  }
+
   function onCellDragOver(e: DragEvent, dayIdx: number, machineNaam: string) {
     if (!draggingItem) return
     e.preventDefault()
@@ -152,13 +174,14 @@ export function KanbanBoard({
 
   const styleVars = {
     '--label-w': `${LABEL_W}px`, '--col-w': `${COL_W}px`, '--ruler-h': `${RULER_H}px`,
-    '--min-row': `${MIN_ROW}px`, '--card-h': `${CARD_H}px`, '--card-gap': `${CARD_GAP}px`, '--cell-pad': `${CELL_PAD}px`,
+    '--min-row': `${zm.minRow}px`, '--card-h': `${zm.cardH}px`, '--card-gap': `${zm.cardGap}px`, '--cell-pad': `${zm.cellPad}px`,
+    '--cap-h': `${zm.capH}px`, '--cap-mb': `${zm.capMb}px`,
     '--machine-count': Math.max(machines.length, 1),
   } as CSSProperties
 
   return (
     <div className="kb-board-area">
-      <div className="kb-board-scroll" ref={scrollRef} onScroll={onScroll}>
+      <div className="kb-board-scroll" ref={scrollRef} onScroll={onScroll} onWheel={onWheel}>
         <div className="kb-board kb-board-inner" style={styleVars} ref={innerRef}>
           <div className="kb-ruler">
             <div className="kb-ruler-corner">

@@ -9,7 +9,7 @@ import { articlesApi, initArticles } from '../../api/articles'
 import { machinesApi, initMachines } from '../../api/machines'
 import { relatiesApi, initRelaties } from '../../api/relaties'
 import {
-  type PlanningStapItem, type KanbanSort,
+  type PlanningStapItem, type KanbanSort, type ZoomLevel,
   buildStapItems, effectiveMachine, countOverbookedCells,
   getWindowStart, toDateStr, fmtDayShort, dayIndexForDate,
 } from '../../utils/planningKanbanUtils'
@@ -34,6 +34,7 @@ export function PlanningKanbanPage() {
   const scrollApiRef = useRef<KanbanScrollApi | null>(null)
 
   const [selStyle, setSelStyle] = useLocalStorage<SelStyle>({ key: 'sm_kb_selstyle', defaultValue: 'dimmen' })
+  const [zoom, setZoom] = useLocalStorage<ZoomLevel>({ key: 'sm_kb_zoom', defaultValue: 100 })
 
   const [windowStart, setWindowStart] = useState(getWindowStart)
   useEffect(() => {
@@ -128,6 +129,7 @@ export function PlanningKanbanPage() {
 
       <KanbanToolbar
         selStyle={selStyle} onSelStyle={setSelStyle}
+        zoom={zoom} onZoomChange={setZoom}
         backlogCount={backlogItems.length} plannedMin={plannedMin} overCount={overCount}
       />
 
@@ -146,6 +148,7 @@ export function PlanningKanbanPage() {
           onSelect={onSelect}
           draggingItem={draggingItem} onDragStart={onDragStart} onDragEnd={onDragEnd}
           onDrop={dropPlan} scrollApiRef={scrollApiRef}
+          zoom={zoom} onZoomChange={setZoom}
         />
         <KanbanDetails
           item={selectedStep} article={selectedArticle} relaties={relaties} windowStart={windowStart}
