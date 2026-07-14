@@ -5,7 +5,7 @@ import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
   IconClipboardList, IconChartBar, IconLayoutKanban, IconArrowsSort, IconCheck, IconLogout,
-  IconChecklist,
+  IconChecklist, IconTimeline,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -36,6 +36,7 @@ import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
 import { PlanningPage } from '../../routes/desktop/PlanningPage'
 import { PlanningKanbanPage } from '../../routes/desktop/PlanningKanbanPage'
+import { PlanningGanttPage } from '../../routes/desktop/PlanningGanttPage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { todosApi } from '../../api/todos'
@@ -107,6 +108,7 @@ function Sidebar() {
       label: 'Planning',
       items: [
         { to: '/planning-kanban', label: 'KanBan',   Icon: IconLayoutKanban, count: null },
+        { to: '/planning-gantt',  label: 'Gantt',    Icon: IconTimeline,     count: null },
         { to: '/prognose',        label: 'Prognose', Icon: IconChartBar,     count: null },
         { to: '/todos',           label: 'ToDo',      Icon: IconChecklist,   count: openTodoCount || null },
       ],
@@ -222,6 +224,7 @@ function Sidebar() {
 
 const ROUTE_LABELS: Record<string, [string, string]> = {
   '/planning-kanban': ['Planning',       'KanBan'],
+  '/planning-gantt':  ['Planning',       'Gantt'],
   '/prognose':        ['Planning',       'Prognose'],
   '/todos':           ['Planning',       'ToDo'],
   '/projecten':       ['Productie',      'Projecten'],
@@ -318,6 +321,7 @@ export function AppLayout() {
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
             <Route path="/planning"        element={<PlanningPage />} />
             <Route path="/planning-kanban" element={<PlanningKanbanPage />} />
+            <Route path="/planning-gantt"  element={<PlanningGanttPage />} />
             <Route path="/prognose"        element={<PrognosePage />} />
             <Route path="/todos"           element={<TodosPage />} />
             <Route path="*"               element={<Navigate to="/voorraad" replace />} />
