@@ -268,29 +268,33 @@
 
 /* ===== Multi-day span block ===== */
 /* head segment — the stap's actual start day, draggable/selectable, same
-   .kc look but translucent ("look-through") and tall enough to visually
-   cover every day it occupies */
+   .kc look, tall enough to visually cover every day it occupies. Fully
+   opaque (dimmed/selected states still adjust opacity intentionally to
+   de-emphasize/highlight relative to other cards). */
 .kb-span-head {
-  z-index: 2; opacity: 0.82; box-sizing: border-box;
+  z-index: 2; opacity: 1; box-sizing: border-box;
 }
-.kb-span-head:hover { opacity: 0.94; box-shadow: var(--shadow-md); }
+.kb-span-head:hover { box-shadow: var(--shadow-md); }
 .kb-span-head.dragging { opacity: 0.35; }
-.kb-span-head.is-selected { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--c), var(--shadow-md); opacity: 0.94; }
+.kb-span-head.is-selected { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--c), var(--shadow-md); }
 .kb-span-head.linked { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--c); }
 .kb-span-head.dimmed { opacity: 0.22; }
 
 /* continuation segment(s) — same job, after a closed-weekend gap for a
-   non-weekend machine. Inert: no drag/select, cells underneath stay
-   droppable for other items. */
+   non-weekend machine. Clickable (selects the step, same as the head) but
+   not draggable — dragging still originates from the head/start day. */
 .kb-span-cont {
-  z-index: 2; box-sizing: border-box; pointer-events: none;
+  z-index: 2; box-sizing: border-box; pointer-events: auto; cursor: pointer;
   border: 1px dashed color-mix(in srgb, var(--c, var(--accent)) 45%, var(--border));
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--c, var(--accent)) 7%, transparent);
-  opacity: 0.7;
+  opacity: 1;
   display: flex; align-items: flex-start; justify-content: flex-start;
   padding: 7px 8px;
 }
+.kb-span-cont:hover { box-shadow: var(--shadow-sm); }
+.kb-span-cont.is-selected { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--c); }
+.kb-span-cont.linked { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--c); }
 .kb-span-cont.dimmed { opacity: 0.18; }
 .kb-span-cont-lab {
   font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-3);

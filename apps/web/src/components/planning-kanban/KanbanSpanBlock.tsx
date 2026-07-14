@@ -23,12 +23,13 @@ interface KanbanSpanBlockProps {
   onDragEnd: () => void
 }
 
-// Multi-day version of KanbanCard — one translucent block per segment
-// (a job crossing a closed weekend for a non-weekend machine renders as two
-// segments with a visible gap). Only the first segment (the stap's actual
-// geplandDatum) is draggable/selectable; later segments are inert visual
-// continuations so the cells underneath stay droppable for other items and
-// only one DOM node per stap carries data-order-id for the connector lines.
+// Multi-day version of KanbanCard — one block per segment (a job crossing a
+// closed weekend for a non-weekend machine renders as two segments with a
+// visible gap). Only the first segment (the stap's actual geplandDatum) is
+// draggable, and only it carries data-order-id/data-vol for the connector
+// lines — but every segment is clickable to select the step and show its
+// details, since a tall multi-week block reads as one job regardless of
+// which part of it you click.
 export function KanbanSpanBlock({
   block, relaties, tekening, windowStart, colRect,
   selected, dimmed, linked, onSelect, onDragStart, onDragEnd,
@@ -94,7 +95,8 @@ export function KanbanSpanBlock({
             key={si}
             className={`kb-span-cont ${stateClasses}`}
             style={style}
-            title={`${order.id} · vervolg`}
+            onClick={e => { e.stopPropagation(); onSelect(item) }}
+            title={`${order.id} · ${order.artikelNaam} · vervolg`}
           >
             <span className="kb-span-cont-lab">{order.id} · {minToUren(seg.minMin)}</span>
           </div>
