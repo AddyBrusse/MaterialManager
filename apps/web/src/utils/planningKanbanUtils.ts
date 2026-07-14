@@ -299,7 +299,16 @@ export function computeKanbanLayout(
   const overMarks: OverMark[] = []
   const weekLines: number[] = []
   let todayAbs = 0
-  let y = RULER_H + 1
+  // box-sizing: border-box is applied globally (tokens.css). .kb-row and
+  // .kb-ruler both set an explicit height, so their 1px border-bottom is
+  // already included in that height — it does NOT add an extra pixel to the
+  // real rendered layout. .kb-weekrow is different: it has no explicit
+  // height (sized by its children) plus its own border-bottom, which DOES
+  // add a real extra pixel (26px child + 1px border = 27px rendered). Mixing
+  // up these two cases is what caused every row's absolute position to
+  // phantom-drift by ~1px, compounding to tens of pixels by the time a
+  // multi-day span block reaches its later segments.
+  let y = RULER_H
 
   for (let w = 0; w < WEEKS; w++) {
     weekLines.push(y)
@@ -330,7 +339,7 @@ export function computeKanbanLayout(
       })
 
       if (dayIdx === todayIdx) todayAbs = y
-      y += h + 1
+      y += h
     }
   }
 
