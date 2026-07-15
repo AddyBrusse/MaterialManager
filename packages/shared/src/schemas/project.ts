@@ -25,6 +25,15 @@ export const ProductieStapSchema = z.object({
   gereedDoor: z.string().nullable(),  // user name
   geplandDatum: z.string().nullable().optional(),   // 'YYYY-MM-DD'
   geplandMachine: z.string().nullable().optional(), // machine name override
+  // Wachtrij (priority-queue planning) — see features/design_handoff_planning_page.
+  // Float position for O(1) reordering (fractional indexing: inserting between
+  // two neighbors only ever touches this one step's own value, never siblings'),
+  // which matters because a machine's queue can span steps that live in many
+  // different Project rows. null = not queued (backlog).
+  queuePosition: z.number().nullable().optional(),
+  // "Niet eerder dan" hold — material lead time / curing. A hard floor on this
+  // step's derived start date, independent of queue order.
+  notBefore: z.string().nullable().optional(), // 'YYYY-MM-DD'
 })
 export type ProductieStap = z.infer<typeof ProductieStapSchema>
 

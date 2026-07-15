@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
@@ -15,5 +15,9 @@ export default defineConfig({
       '/api': 'http://localhost:3000',
       '/uploads': 'http://localhost:3000',
     },
+  },
+  test: {
+    environment: 'node',
+    globals: false,
   },
 })

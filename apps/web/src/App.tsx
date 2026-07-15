@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, useLocation } from 'react-router-dom'
 import { UserSelectScreen } from './components/common/UserSelectScreen'
 import { AppLayout } from './components/layout/AppLayout'
+import { PopoutShell } from './components/layout/PopoutShell'
 import { MobileLayout } from './routes/mobile'
 import { useUserStore } from './stores/user'
 
 const MOBILE_BREAKPOINT = 900
+
+// A /pop/* URL is a detached ("popped out") window for a single page — see
+// utils/popout.ts. It gets its own minimal shell instead of the main
+// sidebar layout, whether opened on desktop or (in principle) mobile width.
+function RootShell({ isMobile }: { isMobile: boolean }) {
+  const location = useLocation()
+  if (location.pathname.startsWith('/pop/')) return <PopoutShell />
+  return isMobile ? <MobileLayout /> : <AppLayout />
+}
 
 export default function App() {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= MOBILE_BREAKPOINT)
@@ -21,7 +31,7 @@ export default function App() {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      {isMobile ? <MobileLayout /> : <AppLayout />}
+      <RootShell isMobile={isMobile} />
     </BrowserRouter>
   )
 }

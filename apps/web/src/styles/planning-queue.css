@@ -1,0 +1,177 @@
+/* Planning Wachtrij (priority-queue) page — see the handoff at
+   "01-design files claude design/design_handoff_planning_page/README.md".
+   Additive on top of tokens.css. The page root also carries "pg-root" so
+   it gets the Gantt board's toolbar/kpi/node/connector primitives (.seg,
+   .tgl, .kpi-row, .node, .gantt-connectors, .plan-toast) for free — this
+   file only adds what's new: the three-pane backlog|wachtrij|tijdlijn body,
+   numbered queue cards, and the docked-under-the-timeline details strip.
+   Card look (.kc, .kc-head, .kc-prodnr, …) is reused unscoped from
+   planning-kanban.css, same as backlog cards there. */
+
+.wq { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
+
+/* ===== Body split: backlog | wachtrij | tijdlijn+docked details ===== */
+.wq-body { flex: 1; min-height: 0; display: flex; border-top: 1px solid var(--border); }
+
+/* ===== Backlog (reuses .kb-backlog look, narrower) ===== */
+.wq-backlog {
+  width: 220px; flex-shrink: 0; display: flex; flex-direction: column;
+  border-right: 1px solid var(--border); background: var(--bg-sidebar); min-height: 0;
+}
+.wq-panel-head { padding: 12px 12px 8px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+.wq-panel-head .t {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3);
+}
+.wq-panel-head .n {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-3);
+  background: var(--bg-chip); border-radius: 999px; padding: 1px 7px; font-weight: 500;
+}
+.wq-list {
+  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px 10px 14px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.wq-list.drop-active { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.wq-empty { color: var(--text-3); font-size: 12px; text-align: center; padding: 20px 8px; line-height: 1.5; }
+.wq-drophint {
+  border: 1px dashed var(--border-strong); border-radius: var(--radius);
+  padding: 10px; text-align: center; font-size: 11px; color: var(--text-4);
+  flex-shrink: 0;
+}
+
+/* ===== Wachtrij (queue) panel ===== */
+.wq-queue {
+  width: 290px; flex-shrink: 0; display: flex; flex-direction: column;
+  border-right: 1px solid var(--border); background: var(--bg); min-height: 0;
+}
+.wq-queue-head { padding: 12px 14px 10px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+.wq-machine-select {
+  height: 27px; padding: 0 8px; width: 100%;
+  background: var(--bg-input); border: 1px solid var(--border-input);
+  border-radius: var(--radius); color: var(--text); font-size: 12.5px; font-weight: 500;
+  font-family: var(--font-sans); cursor: pointer; outline: 0;
+}
+.wq-machine-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.wq-machine-meta { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-3); }
+.wq-machine-meta .sw { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+/* numbered draggable queue card — a thin rail (rank badge + drag handle)
+   to the left of the reused .kc card body */
+.wq-qrow { display: flex; align-items: stretch; gap: 6px; }
+.wq-qrow.dragging { opacity: 0.35; }
+.wq-qrow.drop-before { box-shadow: 0 -2px 0 var(--accent); }
+.wq-qrail { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; padding-top: 2px; width: 16px; }
+.wq-qrank {
+  width: 16px; height: 16px; border-radius: 4px; background: var(--bg-chip); color: var(--text-2);
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.wq-qgrip { color: var(--text-4); cursor: grab; line-height: 0; }
+.wq-qgrip:active { cursor: grabbing; }
+.wq-qrow .kc { flex: 1; min-width: 0; }
+.wq-qrow .kc.is-selected { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--c), var(--shadow-md); }
+
+.wq-badgerow { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.wq-badge {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500;
+  padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+}
+.wq-badge svg { width: 10px; height: 10px; }
+.wq-badge.risk { color: var(--danger); background: var(--danger-soft); }
+.wq-badge.deadline { color: var(--text-3); background: var(--bg-chip); }
+.wq-badge.group { color: var(--warning); background: var(--warning-soft); }
+.wq-badge.notbefore { color: var(--accent); background: var(--accent-soft); }
+
+/* ===== Tijdlijn (timeline) column ===== */
+.wq-timeline-col { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+.wq-tl-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.wq-tl-head .t { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); }
+
+.wq-tl-scroll { flex: 1; overflow: auto; position: relative; min-height: 0; }
+.wq-tl-inner { position: relative; }
+
+.wq-tl-ruler {
+  position: sticky; top: 0; z-index: 6; display: flex; height: 30px;
+  background: var(--bg-2); border-bottom: 1px solid var(--border);
+}
+.wq-tl-corner {
+  width: var(--wq-label-w, 180px); flex-shrink: 0; position: sticky; left: 0; z-index: 7;
+  background: var(--bg-2); border-right: 1px solid var(--border);
+}
+.wq-tl-day {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  border-right: 1px solid var(--border); font-size: 11px; color: var(--text-3); font-family: var(--font-mono);
+}
+.wq-tl-day.weekend { background: var(--bg-chip); }
+
+.wq-tl-row { display: flex; border-bottom: 1px solid var(--border); height: var(--wq-row-h, 68px); }
+.wq-tl-label {
+  width: var(--wq-label-w, 180px); flex-shrink: 0; position: sticky; left: 0; z-index: 4;
+  background: var(--bg-2); border-right: 1px solid var(--border);
+  padding: 8px 12px; display: flex; flex-direction: column; gap: 5px; justify-content: center;
+}
+.wq-tl-label-top { display: flex; align-items: center; gap: 7px; }
+.wq-tl-label .sw { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.wq-tl-label .nm { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wq-tl-label .bezetting-bar { height: 4px; border-radius: 999px; background: var(--bg-chip); overflow: hidden; }
+.wq-tl-label .bezetting-bar > i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.wq-tl-label .bezetting-bar > i.warn { background: var(--warning); }
+.wq-tl-label .bezetting-bar > i.over { background: var(--danger); }
+.wq-tl-label .pct { font-size: 10px; color: var(--text-3); font-family: var(--font-mono); }
+
+.wq-tl-lane { position: relative; flex-shrink: 0; }
+.wq-tl-daycol { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--border); }
+.wq-tl-daycol.weekend { background: var(--bg-chip); opacity: 0.5; }
+
+/* node badges (group/risk decorations, -6px overhang like the design) */
+.wq-node-badge {
+  position: absolute; top: -6px; width: 15px; height: 15px; border-radius: 50%;
+  display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg); z-index: 2;
+}
+.wq-node-badge.risk { right: -6px; background: var(--danger); color: #fff; }
+.wq-node-badge.group { left: -6px; background: var(--warning); color: #fff; }
+.wq-node-badge svg { width: 9px; height: 9px; }
+
+/* ===== Docked details strip — spans only the Tijdlijn column's width ===== */
+.wq-details {
+  flex-shrink: 0; height: 180px; border-top: 1px solid var(--border);
+  background: var(--bg-2); overflow-x: auto; overflow-y: hidden;
+}
+.wq-details-empty {
+  height: 100%; display: flex; align-items: center; justify-content: center;
+  color: var(--text-4); font-size: 12.5px;
+}
+.wq-details-row { height: 100%; display: flex; align-items: stretch; min-width: max-content; position: relative; }
+.wq-details-col {
+  flex-shrink: 0; padding: 14px 18px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 6px; justify-content: center; min-width: 150px;
+}
+.wq-details-col.callout.notbefore { background: var(--accent-soft); }
+.wq-details-col.callout.group { background: var(--warning-soft); }
+.wq-details-col .lbl {
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3);
+}
+.wq-details-col .big { font-size: 15px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
+.wq-details-col .v { font-size: 12.5px; color: var(--text); font-weight: 500; }
+.wq-details-col .sub { font-size: 11px; color: var(--text-3); }
+.wq-details-actions { margin-left: auto; display: flex; flex-direction: column; gap: 6px; justify-content: center; padding: 14px 18px; min-width: 150px; }
+.wq-details-actions .btn { width: 100%; justify-content: center; }
+.wq-details-close { position: absolute; top: 8px; right: 8px; }
+
+/* ===== Suggest-schedule modal ===== */
+.wq-suggest-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.wq-suggest-card {
+  border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px;
+  display: flex; flex-direction: column; gap: 10px; background: var(--bg-2);
+}
+.wq-suggest-card .t { font-size: 13.5px; font-weight: 600; }
+.wq-suggest-card .d { font-size: 11.5px; color: var(--text-3); }
+.wq-suggest-metric { display: flex; align-items: baseline; justify-content: space-between; font-size: 12px; }
+.wq-suggest-metric .k { color: var(--text-3); }
+.wq-suggest-metric .old { color: var(--text-4); text-decoration: line-through; margin-right: 6px; font-family: var(--font-mono); }
+.wq-suggest-metric .new { font-weight: 700; font-family: var(--font-mono); }
+.wq-suggest-metric .new.better { color: var(--success); }
+.wq-suggest-metric .new.worse { color: var(--danger); }
+.wq-suggest-card .btn { justify-content: center; margin-top: auto; }

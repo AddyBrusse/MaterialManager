@@ -1,23 +1,20 @@
 import { useState, useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import { Menu, Tooltip } from '@mantine/core'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
   IconClipboardList, IconChartBar, IconLayoutKanban, IconArrowsSort, IconCheck, IconLogout,
-  IconChecklist, IconTimeline,
+  IconChecklist, IconTimeline, IconListNumbers, IconExternalLink,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import { useInitAppData } from '../../hooks/useInitAppData'
+import { usePopoutRoutes } from '../../hooks/usePopout'
+import { openPopout, focusPopout, requestClosePopout, POPOUT_ROUTES } from '../../utils/popout'
 import { rawMaterialsApi } from '../../api/raw-materials'
-import { initMachines } from '../../api/machines'
-import { initRelaties } from '../../api/relaties'
-import { initArticles } from '../../api/articles'
-import { initProjects } from '../../api/projects'
-import { initReservations, reservationsStore } from '../../api/reservations'
-import { initGrades } from '../../api/grades'
-import { initProfiles } from '../../api/profiles'
-import { loadCompany } from '../../api/company'
+import { reservationsStore } from '../../api/reservations'
 import { usersApi } from '../../api/users'
 import type { User } from '@stockmanager/shared'
 import logoBoers from '../../assets/logo-boers.png'
@@ -37,6 +34,7 @@ import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
 import { PlanningPage } from '../../routes/desktop/PlanningPage'
 import { PlanningKanbanPage } from '../../routes/desktop/PlanningKanbanPage'
 import { PlanningGanttPage } from '../../routes/desktop/PlanningGanttPage'
+import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { todosApi } from '../../api/todos'
@@ -65,7 +63,7 @@ function readReservationCounts(): { reservationCount: number; zaagflowCount: num
   return { reservationCount: list.length, zaagflowCount }
 }
 
-function Sidebar() {
+function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   const { user, setUser, clearUser } = useUserStore()
   const location = useLocation()
 
@@ -107,6 +105,7 @@ function Sidebar() {
     {
       label: 'Planning',
       items: [
+        { to: '/planning-queue',  label: 'Wachtrij', Icon: IconListNumbers,  count: null },
         { to: '/planning-kanban', label: 'KanBan',   Icon: IconLayoutKanban, count: null },
         { to: '/planning-gantt',  label: 'Gantt',    Icon: IconTimeline,     count: null },
         { to: '/prognose',        label: 'Prognose', Icon: IconChartBar,     count: null },
@@ -201,6 +200,16 @@ function Sidebar() {
                   {item.count != null && (
                     <span className="count">{item.count}</span>
                   )}
+                  {POPOUT_ROUTES.includes(item.to) && (
+                    <button
+                      type="button"
+                      className={`st-sb-popout-btn${openRoutes.has(item.to) ? ' is-open' : ''}`}
+                      title={openRoutes.has(item.to) ? 'Venster tonen' : 'Openen in apart venster'}
+                      onClick={e => { e.preventDefault(); e.stopPropagation(); openRoutes.has(item.to) ? focusPopout(item.to) : openPopout(item.to) }}
+                    >
+                      <IconExternalLink size={13} />
+                    </button>
+                  )}
                 </NavLink>
               )
             ))}
@@ -223,6 +232,7 @@ function Sidebar() {
 }
 
 const ROUTE_LABELS: Record<string, [string, string]> = {
+  '/planning-queue':  ['Planning',       'Wachtrij'],
   '/planning-kanban': ['Planning',       'KanBan'],
   '/planning-gantt':  ['Planning',       'Gantt'],
   '/prognose':        ['Planning',       'Prognose'],
@@ -237,6 +247,25 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/artikelen':       ['Stamgegevens',   'Artikelen'],
   '/relaties':        ['Stamgegevens',   'Relaties'],
   '/instellingen':    ['Stamgegevens',   'Instellingen'],
+}
+
+// Shown in the main window's content area instead of the real page, for
+// whichever Planning route is currently detached into its own window — same
+// idea as Outlook keeping a "this message is open in a separate window"
+// placeholder instead of the compose form once you've popped it out.
+function PopoutAware({ path, label, openRoutes, children }: { path: string; label: string; openRoutes: Set<string>; children: ReactNode }) {
+  if (!openRoutes.has(path)) return <>{children}</>
+  return (
+    <div className="st-popout-placeholder">
+      <div className="ic"><IconExternalLink size={22} /></div>
+      <div className="t">{label} is open in een apart venster</div>
+      <div className="d">Gebruik dat venster, of haal de pagina terug naar het hoofdvenster.</div>
+      <div className="actions">
+        <button className="btn" onClick={() => focusPopout(path)}>Venster tonen</button>
+        <button className="btn primary" onClick={() => requestClosePopout(path)}>Sluit venster, toon hier</button>
+      </div>
+    </div>
+  )
 }
 
 function Topbar() {
@@ -266,41 +295,12 @@ function Topbar() {
 }
 
 export function AppLayout() {
-  const qc = useQueryClient()
-
-  useEffect(() => {
-    // Populate all in-memory caches from API on startup. These modules expose
-    // a synchronous list()/listSync() read of an in-memory cache that starts
-    // out seeded from localStorage (or hardcoded mock defaults) — pages that
-    // read it via useQuery get that stale snapshot immediately on mount, and
-    // nothing tells them to re-render once the real fetch below resolves.
-    // Invalidate every query relying on these caches so they pick up the
-    // real DB data as soon as it's in, instead of getting stuck showing
-    // whatever was cached/seeded before this load.
-    Promise.all([
-      initMachines(),
-      initRelaties(),
-      initArticles(),
-      initProjects(),
-      initReservations(),
-      initGrades(),
-      initProfiles(),
-      loadCompany(),
-    ]).then(() => {
-      qc.invalidateQueries({ queryKey: ['machines'] })
-      qc.invalidateQueries({ queryKey: ['relaties'] })
-      qc.invalidateQueries({ queryKey: ['articles'] })
-      qc.invalidateQueries({ queryKey: ['projects'] })
-      qc.invalidateQueries({ queryKey: ['reservations'] })
-      qc.invalidateQueries({ queryKey: ['grades'] })
-      qc.invalidateQueries({ queryKey: ['profiles'] })
-      qc.invalidateQueries({ queryKey: ['company'] })
-    })
-  }, [qc])
+  useInitAppData()
+  const openRoutes = usePopoutRoutes()
 
   return (
     <div className="st-app">
-      <Sidebar />
+      <Sidebar openRoutes={openRoutes} />
       <div className="st-main">
         <Topbar />
         <div className="st-content">
@@ -320,10 +320,11 @@ export function AppLayout() {
             <Route path="/projecten"       element={<ProjectenPage />} />
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
             <Route path="/planning"        element={<PlanningPage />} />
-            <Route path="/planning-kanban" element={<PlanningKanbanPage />} />
-            <Route path="/planning-gantt"  element={<PlanningGanttPage />} />
-            <Route path="/prognose"        element={<PrognosePage />} />
-            <Route path="/todos"           element={<TodosPage />} />
+            <Route path="/planning-queue"  element={<PopoutAware path="/planning-queue" label="Wachtrij" openRoutes={openRoutes}><PlanningQueuePage /></PopoutAware>} />
+            <Route path="/planning-kanban" element={<PopoutAware path="/planning-kanban" label="KanBan" openRoutes={openRoutes}><PlanningKanbanPage /></PopoutAware>} />
+            <Route path="/planning-gantt"  element={<PopoutAware path="/planning-gantt" label="Gantt" openRoutes={openRoutes}><PlanningGanttPage /></PopoutAware>} />
+            <Route path="/prognose"        element={<PopoutAware path="/prognose" label="Prognose" openRoutes={openRoutes}><PrognosePage /></PopoutAware>} />
+            <Route path="/todos"           element={<PopoutAware path="/todos" label="ToDo" openRoutes={openRoutes}><TodosPage /></PopoutAware>} />
             <Route path="*"               element={<Navigate to="/voorraad" replace />} />
           </Routes>
         </div>

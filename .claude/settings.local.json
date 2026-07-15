@@ -84,7 +84,8 @@
       "Bash(curl -s -X POST http://localhost:3000/api/projects/PRJ-2026-002/offertes/OFF-2026-004/regels -H 'x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08' -H 'Content-Type: application/json' -d '{\"artikelId\":\"ART-0003\",\"naam\":\"Draai onderdeel op 2 machines\",\"omschrijving\":\"verify\",\"qty\":1,\"eenheid\":\"st.\",\"verkoopprijs\":100,\"bewerkingen\":[\"DMG 450TC EcoLine\",\"Doosan LYNX 2100 LSYB\"]}' -o ./_debug_regel.json)",
       "Bash(curl -s -X POST http://localhost:3000/api/projects/PRJ-2026-002/offertes/OFF-2026-004/verzend -H 'x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08' -H 'Content-Type: application/json' -o ./_debug_verzend.json)",
       "Bash(curl -s -X POST http://localhost:3000/api/projects/PRJ-2026-002/offertes/OFF-2026-004/accepteer -H 'x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08' -H 'Content-Type: application/json' -d '{\"userName\":\"Admin\"}' -o ./_debug_accept.json)",
-      "Bash(curl -s -X DELETE http://localhost:3000/api/projects/PRJ-2026-002 -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\" -o /dev/null -w \"DELETE status: %{http_code}\\\\n\")"
+      "Bash(curl -s -X DELETE http://localhost:3000/api/projects/PRJ-2026-002 -H \"x-user-id: 55b923aa-4a8e-40dc-9ce5-64af2ec43f08\" -o /dev/null -w \"DELETE status: %{http_code}\\\\n\")",
+      "PowerShell(git checkout -b feat/https-caddy)"
     ]
   }
 }

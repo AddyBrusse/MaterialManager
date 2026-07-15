@@ -426,7 +426,12 @@ export const projectsApi = {
     stapId: string,
     geplandDatum: string | null,
     geplandMachine: string | null,
+    // Only the Wachtrij page passes this. `undefined` = leave the step's
+    // current queuePosition alone (Kanban/Gantt drag never touches it).
+    queuePosition?: number | null,
   ): Project {
+    const hasQueuePosition = queuePosition !== undefined
+    const clearingQueueState = geplandDatum == null && geplandMachine == null
     const updated = updateCache(projectId, p => ({
       ...p,
       updatedAt: now(),
@@ -434,15 +439,39 @@ export const projectsApi = {
         o.id !== orderId ? o : {
           ...o,
           updatedAt: now(),
-          stappen: o.stappen.map(s =>
-            s.id !== stapId ? s : { ...s, geplandDatum, geplandMachine },
-          ),
+          stappen: o.stappen.map(s => {
+            if (s.id !== stapId) return s
+            const next = { ...s, geplandDatum, geplandMachine }
+            if (hasQueuePosition) next.queuePosition = queuePosition
+            if (clearingQueueState) { next.queuePosition = null; next.notBefore = null }
+            return next
+          }),
         },
       ),
     }))
+    const body: Record<string, unknown> = { geplandDatum, geplandMachine }
+    if (hasQueuePosition) body.queuePosition = queuePosition
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/plan`, {
-      method: 'PATCH', body: JSON.stringify({ geplandDatum, geplandMachine }),
+      method: 'PATCH', body: JSON.stringify(body),
     }), 'Stap inplannen mislukt')
+    return updated
+  },
+
+  setHold(projectId: string, orderId: string, stapId: string, notBefore: string | null): Project {
+    const updated = updateCache(projectId, p => ({
+      ...p,
+      updatedAt: now(),
+      productieOrders: p.productieOrders.map(o =>
+        o.id !== orderId ? o : {
+          ...o,
+          updatedAt: now(),
+          stappen: o.stappen.map(s => s.id !== stapId ? s : { ...s, notBefore }),
+        },
+      ),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/hold`, {
+      method: 'PATCH', body: JSON.stringify({ notBefore }),
+    }), 'Hold instellen mislukt')
     return updated
   },
 
@@ -455,7 +484,7 @@ export const projectsApi = {
           ...o,
           updatedAt: now(),
           stappen: o.stappen.map(s =>
-            s.gereedOp ? s : { ...s, geplandDatum: null, geplandMachine: null },
+            s.gereedOp ? s : { ...s, geplandDatum: null, geplandMachine: null, queuePosition: null, notBefore: null },
           ),
         },
       ),

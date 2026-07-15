@@ -472,17 +472,55 @@ router.post(
 const PlanStapSchema = z.object({
   geplandDatum: z.string().nullable(),
   geplandMachine: z.string().nullable(),
+  // Optional — only the Wachtrij page sends this. Omitted (not merely
+  // `null`) means "leave whatever queuePosition this step already has
+  // alone", so Kanban/Gantt's own plan/unplan calls (which never send this
+  // field) don't accidentally wipe out a queue position the Wachtrij page
+  // is tracking for the same step.
+  queuePosition: z.number().nullable().optional(),
 })
 
 router.patch(
   '/:id/orders/:orderId/stap/:stapId/plan',
   asyncHandler(async (req, res) => {
-    const { geplandDatum, geplandMachine } = PlanStapSchema.parse(req.body)
+    const body = PlanStapSchema.parse(req.body)
+    const updated = await withProject(req.params.id, (p) => {
+      const productieOrders = p.productieOrders.map(o => {
+        if (o.id !== req.params.orderId) return o
+        const stappen = o.stappen.map(s => {
+          if (s.id !== req.params.stapId) return s
+          const next = { ...s, geplandDatum: body.geplandDatum, geplandMachine: body.geplandMachine }
+          if ('queuePosition' in body) next.queuePosition = body.queuePosition
+          // Unplanning (both null) always clears queue state too, even if
+          // the caller didn't explicitly say so — a backlog item can't
+          // still hold a rank in a machine's queue.
+          if (body.geplandDatum == null && body.geplandMachine == null) {
+            next.queuePosition = null
+            next.notBefore = null
+          }
+          return next
+        })
+        return { ...o, stappen, updatedAt: now() }
+      })
+      return { ...p, productieOrders, updatedAt: now() }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+const SetHoldSchema = z.object({
+  notBefore: z.string().nullable(),
+})
+
+router.patch(
+  '/:id/orders/:orderId/stap/:stapId/hold',
+  asyncHandler(async (req, res) => {
+    const { notBefore } = SetHoldSchema.parse(req.body)
     const updated = await withProject(req.params.id, (p) => {
       const productieOrders = p.productieOrders.map(o => {
         if (o.id !== req.params.orderId) return o
         const stappen = o.stappen.map(s =>
-          s.id === req.params.stapId ? { ...s, geplandDatum, geplandMachine } : s,
+          s.id === req.params.stapId ? { ...s, notBefore } : s,
         )
         return { ...o, stappen, updatedAt: now() }
       })
@@ -499,7 +537,7 @@ router.post(
       const productieOrders = p.productieOrders.map(o => {
         if (o.id !== req.params.orderId) return o
         const stappen = o.stappen.map(s =>
-          s.gereedOp ? s : { ...s, geplandDatum: null, geplandMachine: null },
+          s.gereedOp ? s : { ...s, geplandDatum: null, geplandMachine: null, queuePosition: null, notBefore: null },
         )
         return { ...o, stappen, updatedAt: now() }
       })
