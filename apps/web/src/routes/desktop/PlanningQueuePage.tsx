@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { DragEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useLocalStorage } from '@mantine/hooks'
 import { notifications } from '@mantine/notifications'
 import { projectsApi, initProjects } from '../../api/projects'
@@ -35,6 +35,7 @@ interface PendingCascade {
 
 export function PlanningQueuePage() {
   const navigate = useNavigate()
+  const isPopout = useLocation().pathname.startsWith('/pop')
 
   const [rev, setRev] = useState(0)
   const bump = () => setRev(r => r + 1)
@@ -93,10 +94,6 @@ export function PlanningQueuePage() {
 
   const selectedMachine = machines.find(m => m.name === selectedMachineName)
   const selectedQueueJobs = machineQueues.get(selectedMachineName) ?? []
-  const selectedBezetting = useMemo(() => {
-    const totalMin = selectedQueueJobs.filter(j => !j.gereed).reduce((s, j) => s + j.duurMin, 0)
-    return Math.round((totalMin / (EFFECTIEVE_MIN * 5)) * 100)
-  }, [selectedQueueJobs])
 
   const timelineRows = useMemo(() => machines.map(m => {
     const jobs = machineQueues.get(m.name) ?? []
@@ -104,7 +101,12 @@ export function PlanningQueuePage() {
     return { machine: m, jobs, bezettingPct: Math.round((totalMin / (EFFECTIEVE_MIN * 5)) * 100) }
   }), [machines, machineQueues])
 
-  const selectedSlot = selectedJob ? schedule.get(selectedJob.id) : undefined
+  // v2 restyle — the vertical machine-tab switcher shows every machine's
+  // bezetting at once, not just the selected one.
+  const bezettingByMachine = useMemo(
+    () => new Map(timelineRows.map(r => [r.machine.name, r.bezettingPct])),
+    [timelineRows],
+  )
 
   function flash(msg: string) {
     notifications.show({ message: msg })
@@ -234,12 +236,14 @@ export function PlanningQueuePage() {
         zoom={zoom} onZoom={setZoom}
         showKpi={showKpi} onToggleKpi={() => setShowKpi(v => !v)}
         onSuggest={() => setSuggestOpen(true)}
+        onClose={isPopout ? () => window.close() : undefined}
       />
       {showKpi && <QueueKpiStrip kpis={kpis} />}
 
       <div className="wq-body">
         <QueueBacklog
           jobs={backlog}
+          machines={machines}
           selectedId={selectedJob?.id ?? null}
           onSelect={setSelectedJob}
           onDragStart={handleDragStart}
@@ -254,7 +258,7 @@ export function PlanningQueuePage() {
           machines={machines}
           selectedMachine={selectedMachine}
           onSelectMachine={setSelectedMachineName}
-          bezettingPct={selectedBezetting}
+          bezettingByMachine={bezettingByMachine}
           jobs={selectedQueueJobs}
           allJobs={allJobs}
           schedule={schedule}
@@ -282,13 +286,16 @@ export function PlanningQueuePage() {
             onToggleConnections={() => setShowConnections(v => !v)}
             selectedId={selectedJob?.id ?? null}
             onSelectJob={setSelectedJob}
+            onDeselect={() => setSelectedJob(null)}
           />
           <QueueDetails
             job={selectedJob}
-            slot={selectedSlot}
+            schedule={schedule}
             verplichtKlaar={verplichtKlaar}
             allJobs={allJobs}
             windowStart={windowStart}
+            machines={machines}
+            articles={articles}
             onClose={() => setSelectedJob(null)}
             onUnplan={handleUnplan}
             onOpenProject={handleOpenProject}

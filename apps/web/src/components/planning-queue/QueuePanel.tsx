@@ -1,14 +1,19 @@
+import { useState } from 'react'
 import type { CSSProperties, DragEvent } from 'react'
 import { IconGripVertical, IconAlertTriangle, IconLock, IconLink } from '@tabler/icons-react'
 import type { Machine } from '../../api/machines'
 import { minToUren, projectKleur } from '../../utils/planningUtils'
-import { type QueueJob, type DerivedSlot, isAtRisk, getGroupInfo } from '../../utils/planningQueueUtils'
+import { type QueueJob, type DerivedSlot, isAtRisk, getGroupInfo, machineAccentColor } from '../../utils/planningQueueUtils'
+
+// Sentinel for "the insert line sits below the last card" (append), distinct
+// from any real job id.
+const DROP_END = '__end__'
 
 interface QueuePanelProps {
   machines: Machine[]
   selectedMachine: Machine | undefined
   onSelectMachine: (name: string) => void
-  bezettingPct: number
+  bezettingByMachine: Map<string, number>
   jobs: QueueJob[]
   allJobs: QueueJob[]
   schedule: Map<string, DerivedSlot>
@@ -24,47 +29,77 @@ interface QueuePanelProps {
 }
 
 export function QueuePanel({
-  machines, selectedMachine, onSelectMachine, bezettingPct, jobs, allJobs, schedule, verplichtKlaar, windowStart,
+  machines, selectedMachine, onSelectMachine, bezettingByMachine, jobs, allJobs, schedule, verplichtKlaar, windowStart,
   selectedId, onSelect, draggingId, onDragStart, onDragEnd, onDropOnCard, onDropAtEnd,
 }: QueuePanelProps) {
+  // Purely-visual drop indicator: id of the card the insert-line sits above,
+  // or DROP_END for the bottom of the list. Local state — it never affects the
+  // committed order, only where the preview line renders.
+  const [dropBefore, setDropBefore] = useState<string | null>(null)
+  const clearDrop = () => setDropBefore(null)
+
   return (
     <div className="wq-queue">
-      <div className="wq-queue-head">
-        <select className="wq-machine-select" value={selectedMachine?.name ?? ''} onChange={e => onSelectMachine(e.target.value)}>
-          {machines.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-        </select>
+      <div className="wq-machine-picker">
+        <div className="wq-picker-head">Selecteer machine</div>
+        <div className="wq-machine-tabs">
+          {machines.map(m => (
+            <button
+              key={m.id}
+              type="button"
+              className="wq-machine-tab"
+              data-active={m.name === selectedMachine?.name}
+              onClick={() => onSelectMachine(m.name)}
+            >
+              <span className="dot" style={{ background: machineAccentColor(m.name, m.id) }} />
+              <span className="nm">{m.name}</span>
+              <span className="pct">{bezettingByMachine.get(m.name) ?? 0}%</span>
+            </button>
+          ))}
+        </div>
         {selectedMachine && (
           <div className="wq-machine-meta">
-            <span className="sw" style={{ background: bezettingPct > 100 ? 'var(--danger)' : bezettingPct > 85 ? 'var(--warning)' : 'var(--success)' }} />
-            bezetting {bezettingPct}% · {selectedMachine.worksWeekends ? 'werkt in weekend' : 'niet in weekend'}
+            {selectedMachine.worksWeekends ? 'werkt in weekend' : 'niet in weekend'}
           </div>
         )}
       </div>
 
       <div className="wq-panel-head">
         <span className="t">Wachtrij</span>
+        {selectedMachine && <span className="machine-name">{selectedMachine.name}</span>}
         <span className="n">{jobs.length}</span>
       </div>
 
-      <div className="wq-list" onDragOver={e => e.preventDefault()} onDrop={onDropAtEnd}>
+      <div
+        className="wq-list"
+        onDragOver={e => { if (draggingId) { e.preventDefault(); setDropBefore(DROP_END) } }}
+        onDrop={e => { clearDrop(); onDropAtEnd(e) }}
+      >
         {jobs.length === 0 && <div className="wq-empty">Geen items in de wachtrij</div>}
         {jobs.map((job, i) => {
           const slot = schedule.get(job.id)
           const risk = isAtRisk(job, slot, verplichtKlaar, windowStart)
           const group = getGroupInfo(job, allJobs)
           const required = verplichtKlaar.get(job.id)
+          const dropAbove = dropBefore === job.id
+          const dropBelowEnd = dropBefore === DROP_END && i === jobs.length - 1
           return (
             <div
               key={job.id}
-              className={`wq-qrow${draggingId === job.id ? ' dragging' : ''}`}
-              onDragOver={e => e.preventDefault()}
-              onDrop={e => { e.stopPropagation(); onDropOnCard(e, job.id) }}
+              className={`wq-qrow${draggingId === job.id ? ' dragging' : ''}${dropAbove ? ' drop-before' : ''}${dropBelowEnd ? ' drop-after' : ''}`}
+              draggable
+              onDragStart={e => onDragStart(e, job)}
+              onDragEnd={() => { clearDrop(); onDragEnd() }}
+              onDragOver={e => {
+                if (!draggingId) return
+                e.preventDefault(); e.stopPropagation()
+                setDropBefore(job.id)
+              }}
+              onDrop={e => { e.stopPropagation(); clearDrop(); onDropOnCard(e, job.id) }}
             >
               <div className="wq-qrail">
                 <span className="wq-qrank">{i + 1}</span>
-                <span className="wq-qgrip" draggable onDragStart={e => onDragStart(e, job)} onDragEnd={onDragEnd}>
-                  <IconGripVertical size={13} />
-                </span>
+                <span className="wq-qgrip"><IconGripVertical size={13} /></span>
               </div>
               <div
                 className={`kc${selectedId === job.id ? ' is-selected' : ''}${group ? ' linked' : ''}`}

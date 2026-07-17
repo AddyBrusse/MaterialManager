@@ -4,6 +4,18 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-07-17 — Article attachments (drawings, step-files, NC-programs) stored per-article-folder under `UPLOADS_DIR`, real bytes now
+
+**Decision:** `ArticleFilesTab` previously only stored attachment *metadata* (name/size, `path: null`) — a "backend not built yet" stub. Built the real upload path: `POST/DELETE /api/uploads/attachment/:articleId` (`apps/api/src/routes/uploads.ts`) writes to `UPLOADS_DIR/attachments/{articleId}/{timestamp}-{sanitizedName}`, one folder per article, and returns the path already prefixed `/uploads/...` so it's directly usable as a URL (served by the existing `express.static(config.uploadsDir)` mount — no new serving route needed). No new upload subtype per file kind (NC/drawing/step/photo/other) — one generic `/attachment` route for all of them, since `ArticleAttachment.kind` already carries that distinction client-side.
+
+Planning → Wachtrij's node-details panel (`QueueDetails` → `StepFileViewer`) resolves an order's real `.step`/`.stp` files by looking up its article's `attachments` and filtering by extension — replacing an earlier hardcoded demo file used to build the three.js/`occt-import-js` viewer itself.
+
+**Why:** This was the explicit ask — wire the 3D preview to real per-order files — plus reuse the same storage system when the app moves to the QNAP NAS ([[00-overview]], [[01-architecture]]), matching the existing "files on filesystem, paths in DB" decision below instead of inventing a second convention.
+
+**Migration path to NAS:** the *only* thing that changes is `config.uploadsDir` (`apps/api/src/config.ts`, `UPLOADS_DIR` env var — currently defaults to local `./uploads`). Point it at a mounted NAS share and every route, the static mount, and every already-stored `attachment.path` keep working unchanged — no code change, no data migration. The per-article folder layout (`attachments/ART-0002/…`) is also deliberately browsable directly over SMB from the NAS side, not just through the app.
+
+**Trade-off:** No thumbnail/preview generation server-side — the browser (three.js/occt-import-js for STEP, `<img>` for photos) does all rendering client-side from the raw uploaded file. Fine at 4-user LAN scale; would need revisiting if files got large enough that client-side parsing became slow.
+
 ## 2026-07-09 — Certificate renewal is manual: no DNS/ACME credential stored anywhere
 
 **Decision:** Superseding the acme-dns entry directly below (same day):

@@ -1,4 +1,4 @@
-import { IconArrowBackUp, IconArrowForwardUp, IconSparkles, IconEye, IconEyeOff } from '@tabler/icons-react'
+import { IconArrowBackUp, IconArrowForwardUp, IconSparkles, IconPictureInPictureOff } from '@tabler/icons-react'
 import type { QueueZoom } from '../../utils/planningQueueUtils'
 
 interface QueueToolbarProps {
@@ -7,11 +7,12 @@ interface QueueToolbarProps {
   showKpi: boolean
   onToggleKpi: () => void
   onSuggest: () => void
+  onClose?: () => void
 }
 
 const ZOOM_OPTS: [QueueZoom, string][] = [['dag', 'Dag'], ['week', 'Week'], ['maand', 'Maand']]
 
-export function QueueToolbar({ zoom, onZoom, showKpi, onToggleKpi, onSuggest }: QueueToolbarProps) {
+export function QueueToolbar({ zoom, onZoom, showKpi, onToggleKpi, onSuggest, onClose }: QueueToolbarProps) {
   return (
     <div className="plan-toolbar">
       <span className="tb-label" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>Planning</span>
@@ -24,12 +25,6 @@ export function QueueToolbar({ zoom, onZoom, showKpi, onToggleKpi, onSuggest }: 
       </div>
       <div className="tb-divider" />
 
-      <button className="tgl" data-on={showKpi} onClick={onToggleKpi}>
-        {showKpi ? <IconEye size={14} /> : <IconEyeOff size={14} />} Toon KPI's
-      </button>
-
-      <div className="sp" />
-
       <button className="icon-btn" disabled title="Ongedaan maken (nog niet beschikbaar)">
         <IconArrowBackUp size={14} />
       </button>
@@ -38,6 +33,17 @@ export function QueueToolbar({ zoom, onZoom, showKpi, onToggleKpi, onSuggest }: 
       </button>
       <button className="btn primary" onClick={onSuggest}>
         <IconSparkles size={14} /> Stel schema voor
+      </button>
+      {onClose && (
+        <button className="icon-btn" title="Terug naar hoofdvenster" onClick={onClose}>
+          <IconPictureInPictureOff size={14} />
+        </button>
+      )}
+
+      <div className="sp" />
+
+      <button className="tgl" data-on={showKpi} onClick={onToggleKpi}>
+        <span className="sw" /> Toon KPI's
       </button>
     </div>
   )

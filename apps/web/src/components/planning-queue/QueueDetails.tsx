@@ -1,26 +1,53 @@
-import { useState } from 'react'
-import { IconX, IconFolder, IconArchive, IconLock, IconLink } from '@tabler/icons-react'
-import { minToUren, toDateStr } from '../../utils/planningUtils'
+import { useState, useMemo } from 'react'
+import { toDateStr, minToUren } from '../../utils/planningUtils'
 import {
-  type QueueJob, type DerivedSlot, dateForOffset, isAtRisk, getGroupInfo,
+  type QueueJob, type DerivedSlot, dateForOffset, machineAccentColor,
 } from '../../utils/planningQueueUtils'
+import { type Machine } from '../../api/machines'
+import { type Article } from '../../api/articles'
+import { StepFileViewer, type StepFileRef } from './StepFileViewer'
+
+const STEP_FILE_RE = /\.(step|stp)$/i
 
 interface QueueDetailsProps {
   job: QueueJob | null
-  slot: DerivedSlot | undefined
+  schedule: Map<string, DerivedSlot>
   verplichtKlaar: Map<string, string>
   allJobs: QueueJob[]
   windowStart: Date
+  machines: Machine[]
+  articles: Article[]
   onClose: () => void
   onUnplan: (job: QueueJob) => void
   onOpenProject: (job: QueueJob) => void
   onSetHold: (job: QueueJob, notBefore: string | null) => void
 }
 
+// dd-mm-yyyy — plain, no day-name prefix (per explicit request).
+function fmtDDMMYYYY(dateStr: string): string {
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return dateStr
+  const [year, month, day] = parts
+  return `${day}-${month}-${year}`
+}
+
 export function QueueDetails({
-  job, slot, verplichtKlaar, allJobs, windowStart, onClose, onUnplan, onOpenProject, onSetHold,
+  job, schedule, verplichtKlaar, allJobs, windowStart, machines, articles, onOpenProject,
 }: QueueDetailsProps) {
-  const [editingHold, setEditingHold] = useState(false)
+  const [shiftDays, setShiftDays] = useState<Map<string, number>>(new Map())
+
+  // Real per-order step files: resolved from the order's article attachments
+  // (see ArticleFilesTab / uploads.ts /attachment route) — not a hardcoded
+  // demo file. An order with no artikelId, or an article with no .step/.stp
+  // attachments, correctly falls back to the "geen bestand" placeholder.
+  const stepFiles: StepFileRef[] = useMemo(() => {
+    if (!job) return []
+    const article = articles.find(a => a.id === job.item.order.artikelId)
+    if (!article) return []
+    return article.attachments
+      .filter(a => a.path && STEP_FILE_RE.test(a.name))
+      .map(a => ({ name: a.name, url: a.path as string }))
+  }, [job, articles])
 
   if (!job) {
     return (
@@ -30,90 +57,116 @@ export function QueueDetails({
     )
   }
 
-  const risk = isAtRisk(job, slot, verplichtKlaar, windowStart)
-  const startStr = slot ? toDateStr(dateForOffset(windowStart, Math.floor(slot.startOffsetDays))) : '—'
-  const finishStr = slot ? toDateStr(dateForOffset(windowStart, Math.ceil(slot.finishOffsetDays))) : '—'
+  const orderId = job.orderId
+  const orderSteps = allJobs.filter(j => j.orderId === orderId).sort((a, b) => a.volgorde - b.volgorde)
   const required = verplichtKlaar.get(job.id)
-  const group = getGroupInfo(job, allJobs)
+
+  const isLate = !!(required && job.deadline && required < job.deadline)
+  const statusBg = isLate ? '#fee2e2' : '#dcfce7'
+  const statusText = isLate ? '#dc2626' : '#15803d'
+  const statusLabel = isLate ? 'Te laat' : 'Op schema'
 
   return (
     <div className="wq-details">
-      <div className="wq-details-row">
-        <button className="icon-btn wq-details-close" onClick={onClose}><IconX size={15} /></button>
-
-        <div className="wq-details-col">
-          <span className="lbl">Order</span>
-          <span className="big">{job.orderId}</span>
-          <span className={`badge sm ${risk ? 'danger' : 'ok'}`}>{risk ? 'Risico' : 'Op tijd'}</span>
-          <span className="sub">{job.klant}</span>
-        </div>
-
-        <div className="wq-details-col">
-          <span className="lbl">Tekening</span>
-          <span className="v">{job.tekening ?? '—'}</span>
-          <span className="lbl" style={{ marginTop: 6 }}>Machine</span>
-          <span className="v">{job.machineNaam || '—'}</span>
-        </div>
-
-        <div className="wq-details-col">
-          <span className="lbl">Bewerkingstijd</span>
-          <span className="v">{minToUren(job.duurMin)}</span>
-          <span className="lbl" style={{ marginTop: 6 }}>Wachtrijpositie</span>
-          <span className="v">{job.queuePosition != null ? `#${Math.round(job.queuePosition)}` : '—'}</span>
-        </div>
-
-        <div className="wq-details-col">
-          <span className="lbl">Start – Klaar</span>
-          <span className="v">{startStr} – {finishStr}</span>
-          <span className="lbl" style={{ marginTop: 6 }}>Deadline</span>
-          <span className="v">{job.deadline ?? '—'}{required && required !== job.deadline ? ` (moet klaar: ${required})` : ''}</span>
-        </div>
-
-        {job.notBefore || editingHold ? (
-          <div className="wq-details-col callout notbefore">
-            <span className="lbl"><IconLock size={11} style={{ marginRight: 4 }} />Niet eerder dan</span>
-            {editingHold ? (
-              <input
-                type="date"
-                className="st-input"
-                style={{ height: 26, fontSize: 12 }}
-                defaultValue={job.notBefore ?? ''}
-                autoFocus
-                onBlur={e => { setEditingHold(false); onSetHold(job, e.target.value || null) }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') { setEditingHold(false); onSetHold(job, (e.target as HTMLInputElement).value || null) }
-                  if (e.key === 'Escape') setEditingHold(false)
-                }}
-              />
-            ) : (
-              <span className="v" style={{ cursor: 'pointer' }} onClick={() => setEditingHold(true)} title="Wijzig">{job.notBefore}</span>
-            )}
-            {job.notBefore && !editingHold && (
-              <button className="btn xs" style={{ marginTop: 4 }} onClick={() => onSetHold(job, null)}>Verwijder hold</button>
-            )}
+      <div className="wq-details-panel">
+        {/* Section 1: Article & Project details */}
+        <div className="wq-dp-section1">
+          <div className="wq-dp-header">
+            <div>
+              <div className="wq-dp-artname">{job.artikel}</div>
+              <div className="wq-dp-tekno">{job.tekening ?? '—'}</div>
+              <div className="wq-dp-rfq">{job.orderId}</div>
+            </div>
+            <span className="wq-dp-status-pill" style={{ background: statusBg, color: statusText }}>
+              {statusLabel}
+            </span>
           </div>
-        ) : (
-          <div className="wq-details-col">
-            <span className="lbl">Hold</span>
-            <button className="btn xs" onClick={() => setEditingHold(true)}>+ niet eerder dan…</button>
-          </div>
-        )}
 
-        {group && (
-          <div className="wq-details-col callout group">
-            <span className="lbl"><IconLink size={11} style={{ marginRight: 4 }} />Groep</span>
-            <span className="v">{group.label}</span>
-            <span className="sub">zonder onderbreking door naar volgende machine</span>
+          <div className="wq-dp-fields">
+            <div className="wq-dp-field">
+              <span className="wq-dp-label">AANTAL</span>
+              <span className="wq-dp-value">{job.item.order.qty} {job.item.order.eenheid}</span>
+            </div>
+            <div className="wq-dp-field">
+              <span className="wq-dp-label">KLANT</span>
+              <span className="wq-dp-value">{job.klant}</span>
+            </div>
+            <div className="wq-dp-field">
+              <span className="wq-dp-label">LEVERDATUM</span>
+              <span className="wq-dp-value">{job.deadline ? fmtDDMMYYYY(job.deadline) : '—'}</span>
+            </div>
+            <div className="wq-dp-field">
+              <span className="wq-dp-label">VERWACHT</span>
+              <span className="wq-dp-value">{required ? fmtDDMMYYYY(required) : '—'}</span>
+            </div>
           </div>
-        )}
 
-        <div className="wq-details-actions">
-          <button className="btn" onClick={() => onOpenProject(job)}>
-            <IconFolder size={14} /> Open project
-          </button>
-          <button className="btn" style={{ color: 'var(--warning)' }} onClick={() => onUnplan(job)}>
-            <IconArchive size={14} /> Terug naar backlog
-          </button>
+          <div className="wq-dp-actions">
+            <button className="wq-dp-btn primary" onClick={() => onOpenProject(job)}>Project</button>
+            <button className="wq-dp-btn">Artikel</button>
+            <button className="wq-dp-btn">Tekening</button>
+            <button className="wq-dp-btn">Verkenner</button>
+          </div>
+        </div>
+
+        {/* Section 2: Step details table */}
+        <div className="wq-dp-section2">
+          <table className="wq-dp-table">
+            <thead>
+              <tr>
+                <th>MACHINE</th>
+                <th>START</th>
+                <th>EIND</th>
+                <th>SCHEMA</th>
+                <th>SHIFT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orderSteps.map(step => {
+                const stepSlot = schedule.get(step.id)
+                const startStr = stepSlot ? fmtDDMMYYYY(toDateStr(dateForOffset(windowStart, Math.floor(stepSlot.startOffsetDays)))) : '—'
+                const endStr = stepSlot ? fmtDDMMYYYY(toDateStr(dateForOffset(windowStart, Math.ceil(stepSlot.finishOffsetDays)))) : '—'
+                const machine = machines.find(m => m.name === step.machineNaam)
+                const machineColor = machine ? machineAccentColor(machine.name, machine.id) : '#ccc'
+                const stepRequired = verplichtKlaar.get(step.id)
+                const stepLate = !!(stepRequired && step.deadline && stepRequired < step.deadline)
+                const currentShift = shiftDays.get(step.id) ?? 0
+
+                return (
+                  <tr key={step.id}>
+                    <td className="wq-dp-machine">
+                      <span className="wq-dp-dot" style={{ background: machineColor }} />
+                      {step.machineNaam || '—'}
+                    </td>
+                    <td className="wq-dp-date">
+                      <div>{startStr}</div>
+                      <div className="wq-dp-time">{minToUren(step.duurMin)}</div>
+                    </td>
+                    <td className="wq-dp-date">
+                      <div>{endStr}</div>
+                    </td>
+                    <td className="wq-dp-schema">
+                      <span className="wq-dp-dot" style={{ background: stepLate ? '#dc2626' : '#16a34a' }} />
+                    </td>
+                    <td className="wq-dp-shift">
+                      <input
+                        type="number"
+                        min="0"
+                        value={currentShift}
+                        onChange={e => setShiftDays(new Map(shiftDays).set(step.id, parseInt(e.target.value) || 0))}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Section 3: Drawing / step-file preview */}
+        <div className="wq-dp-section3">
+          <div className="wq-dp-label">TEKENING / STEP-FILE</div>
+          <StepFileViewer files={stepFiles} />
         </div>
       </div>
     </div>

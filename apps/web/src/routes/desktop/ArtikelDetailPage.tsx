@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconArrowLeft } from '@tabler/icons-react'
+import { IconArrowLeft, IconUpload } from '@tabler/icons-react'
 import { articlesApi, type Article, type ArticleEstimate } from '../../api/articles'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
@@ -10,6 +10,8 @@ import { relatiesApi } from '../../api/relaties'
 import { formatDimensions } from '../../api/raw-materials'
 import { buildEstimateCtx, computeEstimateTotals } from '../../api/estimate'
 import { useUserStore } from '../../stores/user'
+import { useArticleAttachmentUpload } from '../../hooks/useArticleAttachmentUpload'
+import { useWholePageDrop } from '../../hooks/useWholePageDrop'
 import { ArticleCalculator } from '../../components/articles/ArticleCalculator'
 import { ArticleInfoStrip, toArticleMeta, type ArticleMeta } from '../../components/articles/ArticleInfoStrip'
 import { ArticleFilesTab } from '../../components/articles/ArticleFilesTab'
@@ -60,6 +62,17 @@ export function ArtikelDetailPage() {
   const { data: relatiesData }    = useQuery({ queryKey: ['relaties'], queryFn: relatiesApi.list })
 
   const article = articles.find(a => a.id === id) ?? null
+
+  // Whole-article-page drop target: the article is already open (this IS
+  // the page you land on right after creating one), so instead of a
+  // dedicated dropzone buried in a tab, any drop anywhere on this page
+  // attaches the file(s) — see useWholePageDrop for why that's a window
+  // listener rather than a wrapping <div>.
+  const attachmentUpload = useArticleAttachmentUpload(article)
+  const dragging = useWholePageDrop(isAdmin && !!article, files => {
+    attachmentUpload.uploadFiles(files)
+    setTab('bestanden')
+  })
 
   const [meta, setMetaState] = useState<ArticleMeta>(() => article ? toArticleMeta(article) : BLANK_META)
   useEffect(() => {
@@ -154,6 +167,14 @@ export function ArtikelDetailPage() {
 
   return (
     <>
+      {dragging && (
+        <div className="art-page-drop-overlay">
+          <div className="art-page-drop-hint">
+            <IconUpload size={28} />
+            <span>Zet bestand(en) neer om toe te voegen aan {article.naam}</span>
+          </div>
+        </div>
+      )}
       <div className="detail-head">
         <button className="detail-back" onClick={() => navigate(returnTo ?? '/artikelen')}><Ic d={Icon.chevronRight} />{returnTo ? 'Terug naar offerte' : 'Artikelen'}</button>
         <div className="detail-top">
@@ -212,7 +233,15 @@ export function ArtikelDetailPage() {
 
       <div className="tab-body">
         {tab === 'calculatie' && <ArticleCalculator article={article} est={est} onEstChange={setEst} />}
-        {tab === 'bestanden' && <ArticleFilesTab article={article} />}
+        {tab === 'bestanden' && (
+          <ArticleFilesTab
+            article={article}
+            uploading={attachmentUpload.uploading}
+            uploadFiles={attachmentUpload.uploadFiles}
+            removeAttachment={attachmentUpload.removeAttachment}
+            setMachine={attachmentUpload.setMachine}
+          />
+        )}
         {tab === 'historie' && <ArticleHistoryTab events={historyEvents} />}
       </div>
     </>

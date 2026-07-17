@@ -7,3 +7,6 @@ uploads/
 docker/certs/
 .DS_Store
 01-design files claude design/
+
+# Local-dev-only DB port publish (never deploy this — see file header)
+docker/docker-compose.override.yml

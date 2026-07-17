@@ -1,6 +1,6 @@
 // Articles = make-to-stock manufactured products (recipe + routing), MES-bound.
 
-import { apiFetch } from './client'
+import { apiFetch, apiUpload } from './client'
 
 const LS_KEY = 'sm_articles'
 
@@ -239,4 +239,21 @@ export const articlesApi = {
     saveLocal(cache)
     apiFetch<void>(`/articles/${id}`, { method: 'DELETE' }).catch(() => {})
   },
+}
+
+// ── Attachment file storage ─────────────────────────────────────────────────
+// Real bytes on disk (uploadsDir/attachments/{articleId}/…) — the attachment
+// metadata itself still lives in Article.attachments (see ArticleFilesTab).
+
+export async function uploadArticleAttachmentFile(
+  articleId: string, file: File,
+): Promise<{ path: string; sizeBytes: number }> {
+  const { data } = await apiUpload<{ path: string; sizeBytes: number }>(`/uploads/attachment/${articleId}`, file)
+  return data
+}
+
+export async function deleteArticleAttachmentFile(articleId: string, filePath: string): Promise<void> {
+  const filename = filePath.split('/').pop()
+  if (!filename) return
+  await apiFetch<{ ok: boolean }>(`/uploads/attachment/${articleId}/${filename}`, { method: 'DELETE' }).catch(() => {})
 }

@@ -1,11 +1,10 @@
 import { useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { Select } from '@mantine/core'
 import {
   IconFileCode, IconPhoto, IconFileText, IconPaperclip, IconTrash, IconUpload,
 } from '@tabler/icons-react'
 import {
-  articlesApi, inferAttachmentKind, NC_MACHINES, ATTACHMENT_KIND_LABELS,
+  NC_MACHINES, ATTACHMENT_KIND_LABELS,
   type Article, type ArticleAttachment, type AttachmentKind,
 } from '../../api/articles'
 import { useUserStore } from '../../stores/user'
@@ -22,36 +21,28 @@ const KIND_ICON: Record<AttachmentKind, React.ReactNode> = {
   drawing: <IconFileText size={16} />, document: <IconFileText size={16} />, other: <IconPaperclip size={16} />,
 }
 
-export function ArticleFilesTab({ article }: { article: Article }) {
-  const qc = useQueryClient()
+interface ArticleFilesTabProps {
+  article: Article
+  uploading: boolean
+  uploadFiles: (files: FileList | File[]) => void
+  removeAttachment: (attId: string) => void
+  setMachine: (attId: string, machine: string | null) => void
+}
+
+// Upload/remove logic itself lives in useArticleAttachmentUpload — shared
+// with ArtikelDetailPage's whole-page drop target so both report the same
+// `uploading` state and never diverge in how an attachment gets built. This
+// component is just the list view + its own explicit dropzone (still useful
+// as a click-to-browse target and a discoverable "you can drop here" hint).
+export function ArticleFilesTab({ article, uploading, uploadFiles, removeAttachment, setMachine }: ArticleFilesTabProps) {
   const isAdmin = useUserStore(s => s.user?.role === 'admin')
   const fileRef = useRef<HTMLInputElement>(null)
   const [dragOver, setDragOver] = useState(false)
 
-  function saveAttachments(next: ArticleAttachment[]) {
-    articlesApi.update(article.id, { attachments: next })
-    qc.invalidateQueries({ queryKey: ['articles'] })
-  }
   function onFilesPicked(files: FileList | null) {
     if (!files || files.length === 0) return
-    const added: ArticleAttachment[] = Array.from(files).map((f, i) => ({
-      id: `att_${Date.now()}_${i}`,
-      kind: inferAttachmentKind(f.name),
-      name: f.name,
-      sizeBytes: f.size,
-      machine: null,
-      note: null,
-      path: null, // metadata only — bytes uploaded once the backend exists
-      uploadedAt: new Date().toISOString(),
-    }))
-    saveAttachments([...article.attachments, ...added])
+    uploadFiles(files)
     if (fileRef.current) fileRef.current.value = ''
-  }
-  function setMachine(attId: string, machine: string | null) {
-    saveAttachments(article.attachments.map(a => a.id === attId ? { ...a, machine } : a))
-  }
-  function removeAttachment(attId: string) {
-    saveAttachments(article.attachments.filter(a => a.id !== attId))
   }
 
   // group attachments for display
@@ -71,7 +62,11 @@ export function ArticleFilesTab({ article }: { article: Article }) {
     return (
       <div className="art-att-row">
         <span className="art-att-icon">{KIND_ICON[a.kind]}</span>
-        <span className="art-att-name">{a.name}</span>
+        {a.path ? (
+          <a className="art-att-name" href={a.path} target="_blank" rel="noreferrer">{a.name}</a>
+        ) : (
+          <span className="art-att-name">{a.name}</span>
+        )}
         {a.sizeBytes != null && <span className="art-att-size">{fmtSize(a.sizeBytes)}</span>}
         {showMachine && isAdmin && (
           <Select
@@ -106,15 +101,15 @@ export function ArticleFilesTab({ article }: { article: Article }) {
 
       {isAdmin && (
         <div
-          className={`art-dropzone${dragOver ? ' over' : ''}`}
-          onClick={() => fileRef.current?.click()}
-          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+          className={`art-dropzone${dragOver ? ' over' : ''}${uploading ? ' uploading' : ''}`}
+          onClick={() => !uploading && fileRef.current?.click()}
+          onDragOver={e => { e.preventDefault(); if (!uploading) setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}
-          onDrop={e => { e.preventDefault(); setDragOver(false); onFilesPicked(e.dataTransfer.files) }}
+          onDrop={e => { e.preventDefault(); setDragOver(false); if (!uploading) onFilesPicked(e.dataTransfer.files) }}
         >
-          <input ref={fileRef} type="file" multiple hidden onChange={e => onFilesPicked(e.target.files)} />
+          <input ref={fileRef} type="file" multiple hidden disabled={uploading} onChange={e => onFilesPicked(e.target.files)} />
           <IconUpload size={18} />
-          <span>Sleep bestanden hierheen of klik om te uploaden</span>
+          <span>{uploading ? 'Uploaden…' : 'Sleep bestanden hierheen of klik om te uploaden — of overal op deze pagina'}</span>
         </div>
       )}
 
@@ -143,9 +138,6 @@ export function ArticleFilesTab({ article }: { article: Article }) {
           )}
         </div>
       )}
-      <div className="cell-muted" style={{ fontSize: 11, marginTop: 12 }}>
-        Bestanden worden nu als verwijzing (naam/grootte) opgeslagen — de echte upload volgt met de server.
-      </div>
     </div>
   )
 }

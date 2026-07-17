@@ -26,6 +26,15 @@
   font-family: var(--font-mono); font-size: 11px; color: var(--text-3);
   background: var(--bg-chip); border-radius: 999px; padding: 1px 7px; font-weight: 500;
 }
+.wq-panel-head .machine-name {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 700; /* slightly heavier than surrounding headings */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .wq-list {
   flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 6px 10px 14px;
   display: flex; flex-direction: column; gap: 6px;
@@ -43,22 +52,54 @@
   width: 290px; flex-shrink: 0; display: flex; flex-direction: column;
   border-right: 1px solid var(--border); background: var(--bg); min-height: 0;
 }
-.wq-queue-head { padding: 12px 14px 10px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
-.wq-machine-select {
-  height: 27px; padding: 0 8px; width: 100%;
-  background: var(--bg-input); border: 1px solid var(--border-input);
-  border-radius: var(--radius); color: var(--text); font-size: 12.5px; font-weight: 500;
-  font-family: var(--font-sans); cursor: pointer; outline: 0;
+/* Machine picker — its own visually distinct block (tinted bg + a thicker
+   bottom divider) so it reads as a required "pick a machine first" step,
+   separate from the queue below it. */
+.wq-machine-picker {
+  padding: 10px 14px 12px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--bg-sidebar); border-bottom: 2px solid var(--border);
 }
-.wq-machine-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.wq-machine-meta { display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-3); }
-.wq-machine-meta .sw { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.wq-picker-head {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-3);
+}
+
+/* v2 restyle — vertical machine-tab switcher replacing the <select>: all
+   machines visible and one click away, not tucked behind a dropdown. */
+.wq-machine-tabs { display: flex; flex-direction: column; gap: 3px; }
+.wq-machine-tab {
+  display: flex; align-items: center; gap: 7px; width: 100%; height: 28px;
+  padding: 0 8px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  background: transparent; cursor: pointer; font-size: 11.5px; font-weight: 500;
+  color: var(--text-2); text-align: left; font-family: var(--font-sans);
+}
+.wq-machine-tab:hover { background: var(--bg-hover); }
+.wq-machine-tab .dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+.wq-machine-tab .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wq-machine-tab .pct { font-size: 10px; color: var(--text-3); flex-shrink: 0; font-family: var(--font-mono); }
+.wq-machine-tab[data-active="true"] {
+  background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent); font-weight: 600;
+}
+.wq-machine-tab[data-active="true"] .pct { color: var(--accent); }
+.wq-machine-meta { font-size: 11px; color: var(--text-3); }
 
 /* numbered draggable queue card — a thin rail (rank badge + drag handle)
-   to the left of the reused .kc card body */
-.wq-qrow { display: flex; align-items: stretch; gap: 6px; }
+   to the left of the reused .kc card body. The WHOLE row is draggable (grab
+   cursor); the grip glyph is just an affordance. */
+.wq-qrow { position: relative; display: flex; align-items: stretch; gap: 6px; cursor: grab; }
+.wq-qrow:active { cursor: grabbing; }
 .wq-qrow.dragging { opacity: 0.35; }
-.wq-qrow.drop-before { box-shadow: 0 -2px 0 var(--accent); }
+/* insert-preview line: a rounded accent bar in the gap above the hovered card
+   (drop-before) or below the last card when appending (drop-after). */
+.wq-qrow.drop-before::before,
+.wq-qrow.drop-after::after {
+  content: ""; position: absolute; left: 0; right: 0; height: 2px;
+  background: var(--accent); border-radius: 999px; z-index: 3; pointer-events: none;
+}
+.wq-qrow.drop-before::before { top: -4px; }
+.wq-qrow.drop-after::after { bottom: -4px; }
 .wq-qrail { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; padding-top: 2px; width: 16px; }
 .wq-qrank {
   width: 16px; height: 16px; border-radius: 4px; background: var(--bg-chip); color: var(--text-2);
@@ -69,6 +110,15 @@
 .wq-qgrip:active { cursor: grabbing; }
 .wq-qrow .kc { flex: 1; min-width: 0; }
 .wq-qrow .kc.is-selected { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--c), var(--shadow-md); }
+
+/* v2 restyle — calmer backlog/queue cards: no color-tinted fill (that's the
+   Kanban board's look), thinner accent bar. Queue-panel cards additionally
+   drop the accent bar entirely (only the backlog thread carries machine
+   color; every card in a queue already belongs to the one selected machine,
+   so a per-card accent there would be redundant). */
+.wq-backlog .kc, .wq-qrow .kc { --tint: 0%; }
+.wq-backlog .kc { --sliver: 3px; }
+.wq-qrow .kc { border-left: 1px solid var(--border); }
 
 .wq-badgerow { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
 .wq-badge {
@@ -113,52 +163,335 @@
   padding: 8px 12px; display: flex; flex-direction: column; gap: 5px; justify-content: center;
 }
 .wq-tl-label-top { display: flex; align-items: center; gap: 7px; }
-.wq-tl-label .sw { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.wq-tl-label .nm { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wq-tl-label .bezetting-bar { height: 4px; border-radius: 999px; background: var(--bg-chip); overflow: hidden; }
-.wq-tl-label .bezetting-bar > i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
-.wq-tl-label .bezetting-bar > i.warn { background: var(--warning); }
-.wq-tl-label .bezetting-bar > i.over { background: var(--danger); }
-.wq-tl-label .pct { font-size: 10px; color: var(--text-3); font-family: var(--font-mono); }
+.wq-tl-label .sw { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.wq-tl-label .nm { font-size: 11.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* template's mini utilization bar — always the row's own machine color
+   (never a red/amber status color), width capped and clipped at 100%. */
+.wq-tl-label .bezetting-bar { height: 4px; border-radius: 2px; background: var(--bg-chip); overflow: hidden; }
+.wq-tl-label .bezetting-bar > i { display: block; height: 100%; border-radius: inherit; }
+.wq-tl-label .pct { font-size: 9.5px; color: var(--text-3); font-family: var(--font-mono); }
 
 .wq-tl-lane { position: relative; flex-shrink: 0; }
 .wq-tl-daycol { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--border); }
 .wq-tl-daycol.weekend { background: var(--bg-chip); opacity: 0.5; }
 
-/* node badges (group/risk decorations, -6px overhang like the design) */
-.wq-node-badge {
-  position: absolute; top: -6px; width: 15px; height: 15px; border-radius: 50%;
-  display: grid; place-items: center; box-shadow: 0 0 0 2px var(--bg); z-index: 2;
+/* v2 restyle — Gantt blocks: white card, thin border, 3px machine-colored
+   left accent, square corners, small shadow. Group/risk are small inline
+   glyphs ahead of the label, not overhanging corner badges. */
+.wq-tl-lane .node {
+  flex-direction: row; align-items: center; gap: 5px; padding: 0 7px;
 }
-.wq-node-badge.risk { right: -6px; background: var(--danger); color: #fff; }
-.wq-node-badge.group { left: -6px; background: var(--warning); color: #fff; }
-.wq-node-badge svg { width: 9px; height: 9px; }
+.wq-tl-lane .node svg { flex-shrink: 0; }
 
-/* ===== Docked details strip — spans only the Tijdlijn column's width ===== */
+/* today marker — muted red per the design handoff (distinct from the actual
+   Gantt board's own blue "vandaag" line in planning-gantt.css; scoped here
+   so that unrelated page is untouched). */
+/* z-index 3: below the sticky machine-label column (z4) and the sticky day
+   ruler (z6) so the line slides BEHIND them when today scrolls into their
+   area — but above the lane weekend shading and job blocks (z1) so it still
+   reads as a "now" line across the chart. (Was z5, which painted the line on
+   top of the machine names.) */
+.wq-today-line {
+  position: absolute; top: 0; width: 1.5px; background: #e8767a; z-index: 3; pointer-events: none;
+}
+/* Downward-pointing triangle sitting AT the top of the line (in the empty
+   strip above the first row's blocks), pointing down along it — so "today"
+   reads as a marker planted on the timeline. It must grow DOWN from the line
+   top, not up: the line lives inside the horizontally-scrolling .wq-tl-scroll,
+   whose top edge clips anything positioned above it (an earlier version put
+   the flag above the line and it was invisibly clipped). */
+.wq-today-line::before {
+  content: ""; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 7px solid #e8767a;
+}
+/* "nu" pill next to the triangle, offset to the right so it doesn't sit on
+   the line; also within the visible top strip. */
+.wq-today-line .tag {
+  position: absolute; top: -1px; left: 5px;
+  background: #e8767a; color: #fff; font-size: 9px; font-weight: 600;
+  padding: 0 4px; border-radius: 3px; line-height: 1.5; white-space: nowrap;
+}
+
+/* ===== Timeline block hover tooltip (always light-themed, per request) ===== */
+.wq-tip {
+  position: fixed; z-index: 1000; pointer-events: none;
+  background: #ffffff; color: #1f2328;
+  border: 1px solid #e2e4e6; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.08);
+  padding: 10px 12px;
+  font-family: var(--font-sans); font-size: 12px; line-height: 1.5;
+}
+.wq-tip-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 7px; padding-bottom: 7px; border-bottom: 1px solid #eef0f1;
+}
+.wq-tip-title { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: #111418; }
+.wq-tip-status {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+}
+.wq-tip-status.ok { color: #2b7a3f; background: #e9f6ec; }
+.wq-tip-status.late { color: #b23b3b; background: #fbecec; }
+.wq-tip-row { display: flex; gap: 8px; }
+.wq-tip-row + .wq-tip-row { margin-top: 3px; }
+.wq-tip-row .k { color: #6c7075; width: 128px; flex-shrink: 0; }
+.wq-tip-row .v { flex: 1; min-width: 0; color: #1f2328; font-weight: 500; word-break: break-word; }
+
+/* ===== Connector SVG overlay ===== */
+.gantt-connectors { position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none; overflow: visible; }
+.gantt-connectors path { fill: none; stroke-width: 2; stroke-linecap: round; opacity: 0.85; }
+.gantt-connectors circle { stroke-width: 2; }
+
+/* ===== Details Panel (v2 redesign) — docked under the Tijdlijn column.
+   Fixed height (not min-height): the panel must never grow past 350px and
+   push its bottom edge out of the viewport, so every section scrolls its
+   own overflow internally instead of stretching this box. ===== */
 .wq-details {
-  flex-shrink: 0; height: 180px; border-top: 1px solid var(--border);
-  background: var(--bg-2); overflow-x: auto; overflow-y: hidden;
+  flex-shrink: 0; height: 350px; border-top: 1px solid var(--border);
+  background: #fff; overflow: hidden; display: flex; flex-direction: column;
 }
 .wq-details-empty {
   height: 100%; display: flex; align-items: center; justify-content: center;
   color: var(--text-4); font-size: 12.5px;
 }
-.wq-details-row { height: 100%; display: flex; align-items: stretch; min-width: max-content; position: relative; }
-.wq-details-col {
-  flex-shrink: 0; padding: 14px 18px; border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 6px; justify-content: center; min-width: 150px;
+
+.wq-details-panel {
+  flex: 1; min-height: 0; display: flex; gap: 0;
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+  margin: 12px;
 }
-.wq-details-col.callout.notbefore { background: var(--accent-soft); }
-.wq-details-col.callout.group { background: var(--warning-soft); }
-.wq-details-col .lbl {
-  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3);
+
+/* ===== Section 1: Article & Project details ===== */
+.wq-dp-section1 {
+  width: 24%; padding: 20px; border-right: 1px solid #eef0f2;
+  display: flex; flex-direction: column; gap: 12px; background: #fafbfc;
+  overflow-y: auto; min-height: 0;
 }
-.wq-details-col .big { font-size: 15px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); }
-.wq-details-col .v { font-size: 12.5px; color: var(--text); font-weight: 500; }
-.wq-details-col .sub { font-size: 11px; color: var(--text-3); }
-.wq-details-actions { margin-left: auto; display: flex; flex-direction: column; gap: 6px; justify-content: center; padding: 14px 18px; min-width: 150px; }
-.wq-details-actions .btn { width: 100%; justify-content: center; }
-.wq-details-close { position: absolute; top: 8px; right: 8px; }
+
+.wq-dp-header {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+}
+
+.wq-dp-artname {
+  font-size: 20px; font-weight: 800; color: #111827; line-height: 1.15;
+}
+
+.wq-dp-tekno {
+  font-size: 14px; font-weight: 700; color: #4b5563; margin-top: 3px;
+}
+
+.wq-dp-rfq {
+  font-size: 11px; color: #9ca3af; margin-top: 2px;
+}
+
+.wq-dp-status-pill {
+  font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 12px;
+  white-space: nowrap; flex-shrink: 0;
+}
+
+.wq-dp-fields {
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+.wq-dp-field {
+  display: flex; justify-content: space-between; gap: 8px;
+}
+
+.wq-dp-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; color: #9ca3af;
+  text-transform: uppercase;
+}
+
+.wq-dp-value {
+  font-size: 13px; font-weight: 600; color: #111827; text-align: right;
+}
+
+.wq-dp-actions {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: auto;
+}
+
+.wq-dp-btn {
+  font-size: 11px; font-weight: 600; padding: 7px 4px; border-radius: 5px;
+  cursor: pointer; border: 1px solid #e5e7eb; background: #fff; color: #374151;
+  transition: all 0.15s;
+}
+
+.wq-dp-btn:hover { background: #f3f4f6; }
+
+.wq-dp-btn.primary {
+  background: #2563eb; color: #fff; border-color: #2563eb;
+}
+
+.wq-dp-btn.primary:hover { background: #1d4ed8; }
+
+/* ===== Section 2: Step details table ===== */
+.wq-dp-section2 {
+  width: 38%; padding: 20px; border-right: 1px solid #eef0f2;
+  overflow-y: auto; overflow-x: hidden; min-height: 0;
+}
+
+.wq-dp-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+
+.wq-dp-table thead tr {
+  text-align: left; color: #9ca3af; font-size: 10px; letter-spacing: 0.04em;
+}
+
+.wq-dp-table thead th {
+  font-weight: 700; padding: 0 6px 8px 0;
+}
+
+.wq-dp-table tbody tr {
+  border-top: 1px solid #f0f0f1;
+}
+
+.wq-dp-table tbody td {
+  padding: 9px 6px; color: #374151;
+}
+
+.wq-dp-machine {
+  font-weight: 600; color: #111827; display: flex; align-items: center; gap: 7px;
+}
+
+.wq-dp-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block;
+}
+
+.wq-dp-date {
+  font-size: 12px;
+}
+
+.wq-dp-time {
+  font-size: 11px; color: #9ca3af; margin-top: 2px;
+}
+
+.wq-dp-schema {
+  text-align: center;
+}
+
+.wq-dp-shift {
+  text-align: center;
+}
+
+.wq-dp-shift input {
+  width: 50px; padding: 4px 6px; border: 1px solid #e5e7eb;
+  border-radius: 4px; font-size: 12px; font-family: var(--font-mono);
+}
+
+/* ===== Section 3: Drawing / step-file preview ===== */
+.wq-dp-section3 {
+  width: 38%; padding: 20px; display: flex; flex-direction: column; gap: 8px;
+  overflow: hidden; min-height: 0;
+}
+
+.wq-dp-preview {
+  flex: 1; border: 1px solid #e5e7eb; border-radius: 8px;
+  background: linear-gradient(135deg, #f8fafc, #eef1f4);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; position: relative; min-height: 190px;
+}
+
+/* ===== 3D step-file viewer (three.js canvas) =====
+   .wq-step-viewer is the sized, bordered box (StepFileViewer's outer wrapper
+   — flex:1 against its own flex-column parent). .wq-step-fill is StepViewer's
+   own root: it fills whatever positioned ancestor it's placed in via
+   position:absolute/inset, NOT flex:1 — it doesn't get to assume its parent
+   is a flex container (nesting two flex:1 boxes collapsed the canvas to
+   zero height, since the inner one had no flex parent to size against). */
+.wq-step-viewer {
+  flex: 1; min-height: 0; border: 1px solid #e5e7eb; border-radius: 8px;
+  position: relative; overflow: hidden; background: #f1f3f5;
+}
+.wq-step-fill { position: absolute; inset: 0; }
+.wq-step-canvas { width: 100%; height: 100%; }
+.wq-step-canvas canvas { display: block; }
+.wq-step-overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: #6b7280; background: rgba(241, 243, 245, 0.9); text-align: center; padding: 0 16px;
+}
+.wq-step-overlay.error { color: #dc2626; }
+
+.wq-dp-preview-empty {
+  text-align: center; color: #9ca3af; font-size: 12px;
+}
+
+.wq-dp-preview-empty > div:last-child {
+  font-size: 11px; margin-top: 2px;
+}
+
+.wq-dp-preview-hint {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 10px; color: #9ca3af; background: #fff;
+  border: 1px solid #e5e7eb; padding: 2px 6px; border-radius: 4px;
+}
+
+.wq-dp-file-nav {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.6);
+  padding: 6px 12px; border-radius: 6px; color: #fff;
+}
+
+.wq-dp-nav-btn {
+  background: transparent; border: none; color: #fff; cursor: pointer;
+  display: flex; align-items: center; padding: 2px; line-height: 0;
+  transition: opacity 0.15s;
+}
+
+.wq-dp-nav-btn:hover:not(:disabled) { opacity: 0.8; }
+.wq-dp-nav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.wq-dp-file-count {
+  font-size: 11px; font-weight: 600; min-width: 30px; text-align: center;
+}
+
+/* ===== File Preview Modal ===== */
+.wq-dp-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.wq-dp-modal-content {
+  background: #fff; border-radius: 12px; position: relative;
+  max-width: 90vw; max-height: 90vh; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.wq-dp-modal-close {
+  position: absolute; top: 12px; right: 12px; width: 32px; height: 32px;
+  border: none; background: rgba(0,0,0,0.1); border-radius: 6px;
+  font-size: 18px; cursor: pointer; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; transition: background 0.15s;
+}
+
+.wq-dp-modal-close:hover { background: rgba(0,0,0,0.2); }
+
+.wq-dp-modal-viewer {
+  flex: 1; overflow: auto; display: flex; align-items: center;
+  justify-content: center; padding: 20px; min-height: 400px;
+}
+
+.wq-dp-modal-nav {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  padding: 12px 20px; border-top: 1px solid #e5e7eb;
+  background: #fafbfc;
+}
+
+.wq-dp-modal-nav button {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 6px;
+  padding: 8px 12px; cursor: pointer; display: flex; align-items: center;
+  justify-content: center; color: #374151; transition: all 0.15s;
+}
+
+.wq-dp-modal-nav button:hover:not(:disabled) {
+  background: #f3f4f6; border-color: #d1d5db;
+}
+
+.wq-dp-modal-nav button:disabled {
+  opacity: 0.5; cursor: not-allowed;
+}
 
 /* ===== Suggest-schedule modal ===== */
 .wq-suggest-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }

@@ -1,9 +1,11 @@
 import type { CSSProperties, DragEvent } from 'react'
-import { minToUren, projectKleur } from '../../utils/planningUtils'
-import type { QueueJob } from '../../utils/planningQueueUtils'
+import { minToUren } from '../../utils/planningUtils'
+import { type QueueJob, machineAccentColor } from '../../utils/planningQueueUtils'
+import type { Machine } from '../../api/machines'
 
 interface QueueBacklogProps {
   jobs: QueueJob[]
+  machines: Machine[]
   selectedId: string | null
   onSelect: (job: QueueJob) => void
   onDragStart: (e: DragEvent, job: QueueJob) => void
@@ -15,7 +17,7 @@ interface QueueBacklogProps {
 }
 
 export function QueueBacklog({
-  jobs, selectedId, onSelect, onDragStart, onDragEnd,
+  jobs, machines, selectedId, onSelect, onDragStart, onDragEnd,
   isDropTarget, onDragOver, onDragLeave, onDrop,
 }: QueueBacklogProps) {
   return (
@@ -29,11 +31,17 @@ export function QueueBacklog({
         onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
       >
         {jobs.length === 0 && <div className="wq-empty">Niets te plannen</div>}
-        {jobs.map(job => (
+        {jobs.map(job => {
+          // v2 restyle — accent bar threads to the job's proposed machine
+          // (same color the Gantt board/queue use for that machine), not the
+          // project, so a backlog card visually previews where it'll land.
+          const mach = machines.find(m => m.name === job.machineNaam)
+          const accent = mach ? machineAccentColor(mach.name, mach.id) : 'var(--border-strong)'
+          return (
           <div
             key={job.id}
             className={`kc${selectedId === job.id ? ' is-selected' : ''}`}
-            style={{ '--c': projectKleur(job.item.project.id) } as CSSProperties}
+            style={{ '--c': accent } as CSSProperties}
             draggable
             onDragStart={e => onDragStart(e, job)}
             onDragEnd={onDragEnd}
@@ -50,7 +58,8 @@ export function QueueBacklog({
               {job.deadline && <span className="m dl">lvr {job.deadline}</span>}
             </div>
           </div>
-        ))}
+          )
+        })}
         <div className="wq-drophint">Sleep naar wachtrij om in te plannen</div>
       </div>
     </div>

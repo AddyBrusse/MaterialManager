@@ -29,7 +29,7 @@
 import type { Project } from '@stockmanager/shared'
 import type { Machine } from '../api/machines'
 import type { Article } from '../api/articles'
-import { type PlanningStapItem, toDateStr } from './planningUtils'
+import { type PlanningStapItem, toDateStr, projectKleur } from './planningUtils'
 import { effectiveMachine } from './planningGanttUtils'
 import { tekeningFor } from './planningKanbanUtils'
 
@@ -484,6 +484,27 @@ export const QUEUE_VISIBLE_DAYS = 24
 export const QUEUE_LABEL_WIDTH = 180
 export const QUEUE_ROW_HEIGHT = 68
 export const QUEUE_HEADER_HEIGHT = 30
+// Days rendered before windowStart (today) so the timeline can scroll back
+// into the past, not just forward — the view still opens scrolled to today.
+// ~2 months, per request.
+export const QUEUE_PAST_DAYS = 60
+
+// Exact accent colors per the design handoff (design_handoff_planning_page/
+// README.md, "Gantt block anatomy") for the shop's real machines — used only
+// as thin accent bars/dots, never as fills. Any machine outside this fixed
+// set (none exist today, but new machines might be added) falls back to the
+// generic per-id hash color used for project/job identity elsewhere.
+const QUEUE_MACHINE_ACCENT: Record<string, string> = {
+  'Amada Zaag': '#339af0',
+  'DMG 450TC EcoLine': '#4c6ef5',
+  'DMG DMU50 Ecoline': '#12b886',
+  'Doosan LYNX 2100 LSYB': '#f76707',
+  'Haas VF4 SS': '#15aabf',
+}
+
+export function machineAccentColor(machineName: string, fallbackId: string): string {
+  return QUEUE_MACHINE_ACCENT[machineName] ?? projectKleur(fallbackId)
+}
 
 export function fmtOffsetDay(windowStart: Date, dayIdx: number): string {
   const d = dateForOffset(windowStart, dayIdx)
