@@ -190,7 +190,9 @@ export function deriveShopSchedule(
   machineQueues: Map<string, QueueJob[]>,
   machines: Machine[],
   windowStart: Date,
+  opts: { honorLockedDates?: boolean } = {},
 ): Map<string, DerivedSlot> {
+  const honorLockedDates = opts.honorLockedDates ?? false
   const result = new Map<string, DerivedSlot>()
   const machineByName = new Map(machines.map(m => [m.name, m]))
   const cursor = new Map<string, number>()
@@ -220,26 +222,37 @@ export function deriveShopSchedule(
       if (scheduled.has(job.id)) { pointer.set(machineName, ptr + 1); progressed = true; continue }
 
       const pred = byOrderVolgorde.get(`${job.orderId}:${job.volgorde - 1}`)
-      let predFinish = 0
+      let predFinish = -Infinity // -Infinity = "no real cross-machine constraint", not a floor
       if (pred && pred.machineNaam && pred.machineNaam !== machineName && !pred.gereed) {
         if (!scheduled.has(pred.id)) continue // not ready — try the next machine this pass
-        predFinish = result.get(pred.id)?.finishOffsetDays ?? 0
+        predFinish = result.get(pred.id)?.finishOffsetDays ?? -Infinity
       }
 
       const machine = machineByName.get(machineName)
       const worksWeekends = machine?.worksWeekends ?? false
       const machineFree = cursor.get(machineName) ?? 0
       const ghostStart = Math.max(machineFree, predFinish)
+      // Locked mode: a job that already has a committed geplandDatum keeps that
+      // as its anchor instead of the live "machine free since windowStart"
+      // cursor — this is what stops the whole board re-anchoring to "today" on
+      // every reload. machineFree is deliberately NOT used as a floor here: for
+      // the first job in a queue it's just an init sentinel (0), not a real
+      // constraint, and clamping to it would drag an overdue locked job back to
+      // today exactly like the bug being fixed. predFinish (a real cross-machine
+      // dependency) still applies.
+      const lockedDateStr = honorLockedDates ? (job.item.stap.geplandDatum ?? null) : null
+      const lockedStart = lockedDateStr != null ? dayOffsetForDateStr(lockedDateStr, windowStart) : null
+      const baseStart = lockedStart != null ? Math.max(lockedStart, predFinish) : ghostStart
       const holdDay = job.notBefore ? dayOffsetForDateStr(job.notBefore, windowStart) : -Infinity
-      const actualStart = Math.max(ghostStart, holdDay)
+      const actualStart = Math.max(baseStart, holdDay)
 
       const finish = walkForward(actualStart, job.duurMin, worksWeekends, windowStart)
       result.set(job.id, {
         startOffsetDays: actualStart,
         durationDays: Math.max(finish - actualStart, job.duurMin / DAY_MIN, 0.12),
         finishOffsetDays: finish,
-        ghostOffsetDays: ghostStart,
-        heldByNotBefore: holdDay > ghostStart + 0.01,
+        ghostOffsetDays: baseStart,
+        heldByNotBefore: holdDay > baseStart + 0.01,
       })
       cursor.set(machineName, finish)
       scheduled.add(job.id)
@@ -250,6 +263,37 @@ export function deriveShopSchedule(
   }
 
   return result
+}
+
+/**
+ * Computes the committed start date each job in `queues` should be locked to
+ * (geplandDatum), after `changedMachines`' queues just had their order or
+ * membership change. Jobs on an untouched machine keep honoring whatever
+ * geplandDatum they already have — passing through this function is a no-op
+ * for them, so a reorder on one machine never re-anchors an unrelated
+ * machine's already-committed jobs to "today". Jobs on a changed machine are
+ * recomputed fresh from windowStart (their queue position just moved, any old
+ * lock is stale); a cross-machine dependent picks up a fresh date too only if
+ * its predecessor's finish genuinely shifted.
+ */
+export function computeRelockedDates(
+  queues: Map<string, QueueJob[]>,
+  changedMachines: Set<string>,
+  machines: Machine[],
+  windowStart: Date,
+): Map<string, string> {
+  const view = new Map<string, QueueJob[]>()
+  for (const [name, jobs] of queues) {
+    view.set(name, changedMachines.has(name)
+      ? jobs.map(j => ({ ...j, item: { ...j.item, stap: { ...j.item.stap, geplandDatum: null } } }))
+      : jobs)
+  }
+  const schedule = deriveShopSchedule(view, machines, windowStart, { honorLockedDates: true })
+  const dates = new Map<string, string>()
+  for (const [id, slot] of schedule) {
+    dates.set(id, toDateStr(dateForOffset(windowStart, Math.floor(slot.startOffsetDays))))
+  }
+  return dates
 }
 
 // ── Backward-planned per-step required-finish date (verplichtKlaar) ────────

@@ -14,6 +14,7 @@ import {
   computeCascadeImpact,
   computeQueueKpis,
   computeSuggestOptions,
+  computeRelockedDates,
   isBacklogJob,
 } from './planningQueueUtils'
 
@@ -258,6 +259,97 @@ describe('deriveShopSchedule', () => {
     expect(schedule.has(done.id)).toBe(false)
     // pending starts at day 0 since the completed job consumes no capacity
     expect(schedule.get(pending.id)!.startOffsetDays).toBe(0)
+  })
+})
+
+// ── deriveShopSchedule with honorLockedDates ────────────────────────────────
+// Regression coverage for the "nodes keep shifting, startdate is always
+// today" bug: a job with a committed geplandDatum must keep that date across
+// renders/days, instead of the live simulation re-anchoring it to windowStart.
+
+describe('deriveShopSchedule honorLockedDates', () => {
+  it('anchors a job to its stored geplandDatum instead of windowStart', () => {
+    const job = makeJob({ orderId: 'A', machineNaam: 'Zaag', queuePosition: 1000, duurMin: 60 })
+    job.item.stap.geplandDatum = '2026-07-16' // 3 days after WINDOW_START (2026-07-13)
+    const queues = new Map([['Zaag', [job]]])
+    const live = deriveShopSchedule(queues, MACHINES, WINDOW_START)
+    const locked = deriveShopSchedule(queues, MACHINES, WINDOW_START, { honorLockedDates: true })
+    expect(live.get(job.id)!.startOffsetDays).toBe(0) // unlocked: always "today"
+    expect(locked.get(job.id)!.startOffsetDays).toBe(3) // locked: stays put
+  })
+
+  it('does not drift the locked date when windowStart moves forward (simulates the next day)', () => {
+    const job = makeJob({ orderId: 'A', machineNaam: 'Zaag', queuePosition: 1000, duurMin: 60 })
+    job.item.stap.geplandDatum = '2026-07-16'
+    const queues = new Map([['Zaag', [job]]])
+    const today = deriveShopSchedule(queues, MACHINES, WINDOW_START, { honorLockedDates: true })
+    const tomorrow = deriveShopSchedule(queues, MACHINES, new Date(2026, 6, 14), { honorLockedDates: true })
+    // Same calendar date, so the offset from the (later) windowStart is one less —
+    // the ANCHOR itself hasn't moved, only the reference point measuring it did.
+    expect(today.get(job.id)!.startOffsetDays).toBe(3)
+    expect(tomorrow.get(job.id)!.startOffsetDays).toBe(2)
+  })
+
+  it('still enforces the cross-machine predecessor constraint on a locked job', () => {
+    const zagen = makeJob({ orderId: 'ORD1', volgorde: 1, machineNaam: 'Zaag', queuePosition: 1000, duurMin: 294 * 2 })
+    const lassen = makeJob({ orderId: 'ORD1', volgorde: 2, machineNaam: 'Las', queuePosition: 1000, duurMin: 60 })
+    zagen.item.stap.geplandDatum = '2026-07-13'
+    lassen.item.stap.geplandDatum = '2026-07-13' // stale — predecessor now finishes later than this
+    const queues = new Map([['Zaag', [zagen]], ['Las', [lassen]]])
+    const schedule = deriveShopSchedule(queues, MACHINES, WINDOW_START, { honorLockedDates: true })
+    const zagenSlot = schedule.get(zagen.id)!
+    const lassenSlot = schedule.get(lassen.id)!
+    expect(lassenSlot.startOffsetDays).toBeGreaterThanOrEqual(zagenSlot.finishOffsetDays)
+  })
+
+  it('does not clamp an overdue locked job forward to windowStart', () => {
+    const job = makeJob({ orderId: 'A', machineNaam: 'Zaag', queuePosition: 1000, duurMin: 60 })
+    job.item.stap.geplandDatum = '2026-07-10' // 3 days BEFORE WINDOW_START — overdue
+    const queues = new Map([['Zaag', [job]]])
+    const schedule = deriveShopSchedule(queues, MACHINES, WINDOW_START, { honorLockedDates: true })
+    expect(schedule.get(job.id)!.startOffsetDays).toBe(-3)
+  })
+
+  it('falls back to a live simulated start for a job with no geplandDatum yet', () => {
+    const job = makeJob({ orderId: 'A', machineNaam: 'Zaag', queuePosition: 1000, duurMin: 60 })
+    job.item.stap.geplandDatum = null // e.g. just dragged in from the backlog, not yet relocked
+    const queues = new Map([['Zaag', [job]]])
+    const schedule = deriveShopSchedule(queues, MACHINES, WINDOW_START, { honorLockedDates: true })
+    expect(schedule.get(job.id)!.startOffsetDays).toBe(0)
+  })
+})
+
+// ── computeRelockedDates ─────────────────────────────────────────────────────
+
+describe('computeRelockedDates', () => {
+  it('leaves an unchanged machine\'s already-locked job untouched', () => {
+    const job = makeJob({ orderId: 'A', machineNaam: 'Zaag', queuePosition: 1000, duurMin: 60 })
+    job.item.stap.geplandDatum = '2026-07-20'
+    const queues = new Map([['Zaag', [job]]])
+    const dates = computeRelockedDates(queues, new Set(), MACHINES, WINDOW_START)
+    expect(dates.get(job.id)).toBe('2026-07-20')
+  })
+
+  it('computes a fresh date for a job on a changed machine', () => {
+    const job = makeJob({ orderId: 'A', machineNaam: 'Zaag', queuePosition: 1000, duurMin: 60 })
+    job.item.stap.geplandDatum = '2026-07-20' // stale — machine's queue just changed
+    const queues = new Map([['Zaag', [job]]])
+    const dates = computeRelockedDates(queues, new Set(['Zaag']), MACHINES, WINDOW_START)
+    expect(dates.get(job.id)).toBe('2026-07-13') // fresh: windowStart, day 0
+  })
+
+  it('cascades a fresh date to a cross-machine dependent even though its own machine did not change', () => {
+    const zagen = makeJob({ orderId: 'ORD1', volgorde: 1, machineNaam: 'Zaag', queuePosition: 1000, duurMin: 294 * 3 }) // 3 days
+    const lassen = makeJob({ orderId: 'ORD1', volgorde: 2, machineNaam: 'Las', queuePosition: 1000, duurMin: 60 })
+    zagen.item.stap.geplandDatum = '2026-07-13'
+    lassen.item.stap.geplandDatum = '2026-07-14' // was fine when zagen was shorter; now stale
+    const queues = new Map([['Zaag', [zagen]], ['Las', [lassen]]])
+    // Only "Zaag" changed (e.g. zagen's own duration/position changed) — "Las" did not.
+    const dates = computeRelockedDates(queues, new Set(['Zaag']), MACHINES, WINDOW_START)
+    expect(dates.get(zagen.id)).toBe('2026-07-13')
+    // lassen must cascade to start no earlier than zagen actually finishes now,
+    // even though Las itself wasn't in changedMachines.
+    expect(dates.get(lassen.id)! >= '2026-07-16').toBe(true)
   })
 })
 

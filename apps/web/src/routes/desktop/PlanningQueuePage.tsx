@@ -13,7 +13,7 @@ import {
   type QueueJob, type QueueZoom, type CascadeImpact,
   buildQueueJobs, isBacklogJob, sortByQueuePosition, computeInsertPosition,
   deriveShopSchedule, computeVerplichtKlaar, buildConnectors, computeQueueKpis,
-  hasDownstreamDependent, computeCascadeImpact, computeSuggestOptions,
+  hasDownstreamDependent, computeCascadeImpact, computeSuggestOptions, computeRelockedDates,
   EFFECTIEVE_MIN, type SuggestOptionResult,
 } from '../../utils/planningQueueUtils'
 import { QueueToolbar } from '../../components/planning-queue/QueueToolbar'
@@ -84,7 +84,13 @@ export function PlanningQueuePage() {
     return map
   }, [machines, allJobs])
 
-  const schedule = useMemo(() => deriveShopSchedule(machineQueues, machines, windowStart), [machineQueues, machines, windowStart])
+  // honorLockedDates: true — the live board shows each job's committed
+  // geplandDatum, not a fresh "if we started today" re-simulation, so nodes
+  // stop drifting forward every time the page is reloaded on a later day.
+  const schedule = useMemo(
+    () => deriveShopSchedule(machineQueues, machines, windowStart, { honorLockedDates: true }),
+    [machineQueues, machines, windowStart],
+  )
   const verplichtKlaar = useMemo(() => computeVerplichtKlaar(allJobs, windowStart), [allJobs, windowStart])
   const connectors = useMemo(() => buildConnectors(allJobs), [allJobs])
   const kpis = useMemo(
@@ -122,10 +128,29 @@ export function PlanningQueuePage() {
     setDragOverBacklog(false)
   }
 
-  function commitAssign(job: QueueJob, machineNaam: string, newPos: number) {
+  // Writes the freshly-relocked geplandDatum for every job whose committed
+  // date actually changed as a result of this move — the moved job itself
+  // plus any queue-mate/cross-machine dependent that genuinely cascaded.
+  // Jobs whose relocked date matches what's already stored are left alone
+  // (no-op), so unrelated machines' committed dates never get touched.
+  function applyRelockedDates(relocked: Map<string, string>, queues: Map<string, QueueJob[]>) {
+    for (const jobs of queues.values()) {
+      for (const j of jobs) {
+        const newDate = relocked.get(j.id)
+        if (newDate && newDate !== j.item.stap.geplandDatum) {
+          projectsApi.planStap(j.item.project.id, j.item.order.id, j.item.stap.id, newDate, j.machineNaam)
+        }
+      }
+    }
+  }
+
+  function commitAssign(job: QueueJob, machineNaam: string, newPos: number, proposedOrder: QueueJob[]) {
     const { project, order, stap } = job.item
-    const placeholderDate = stap.geplandDatum ?? toDateStr(new Date())
-    projectsApi.planStap(project.id, order.id, stap.id, placeholderDate, machineNaam, newPos)
+    const newQueues = new Map([...machineQueues, [machineNaam, proposedOrder]])
+    const relocked = computeRelockedDates(newQueues, new Set([machineNaam]), machines, windowStart)
+    const jobDate = relocked.get(job.id) ?? stap.geplandDatum ?? toDateStr(new Date())
+    projectsApi.planStap(project.id, order.id, stap.id, jobDate, machineNaam, newPos)
+    applyRelockedDates(relocked, newQueues)
     bump()
     flash(`${job.artikel} → ${machineNaam}`)
   }
@@ -136,15 +161,16 @@ export function PlanningQueuePage() {
     const targetExisting = (machineQueues.get(machineNaam) ?? []).filter(j => j.id !== job.id)
     const newPos = computeInsertPosition(targetExisting, beforeId)
 
+    const idx = targetExisting.findIndex(j => j.id === beforeId)
+    const proposedOrder = [...targetExisting]
+    const insertAt = beforeId == null ? proposedOrder.length : (idx === -1 ? proposedOrder.length : idx)
+    proposedOrder.splice(insertAt, 0, job)
+
     // Cascade check only applies to a same-machine reorder of a job that has
     // a queued successor step on a different machine — moving a backlog job
     // in, or moving a job that has no downstream dependent, never cascades.
     const downstream = sameMachine ? hasDownstreamDependent(job, allJobs) : null
     if (downstream) {
-      const idx = targetExisting.findIndex(j => j.id === beforeId)
-      const proposedOrder = [...targetExisting]
-      const insertAt = beforeId == null ? proposedOrder.length : (idx === -1 ? proposedOrder.length : idx)
-      proposedOrder.splice(insertAt, 0, job)
       const impact = computeCascadeImpact(machineNaam, proposedOrder, machineQueues, machines, windowStart)
       if (impact) {
         setPendingCascade({
@@ -152,12 +178,12 @@ export function PlanningQueuePage() {
           proposedOrder,
           impact,
           movedJobLabel: `${job.orderId} (${job.naam})`,
-          commit: () => commitAssign(job, machineNaam, newPos),
+          commit: () => commitAssign(job, machineNaam, newPos, proposedOrder),
         })
         return
       }
     }
-    commitAssign(job, machineNaam, newPos)
+    commitAssign(job, machineNaam, newPos, proposedOrder)
   }
 
   function handleUnplan(job: QueueJob) {
@@ -214,14 +240,18 @@ export function PlanningQueuePage() {
   )
 
   function applySuggestOption(option: SuggestOptionResult) {
+    // The optimizer reorders every machine's queue, so every machine counts
+    // as "changed" — each job gets a freshly-derived committed geplandDatum
+    // rather than reusing whatever date it happened to have before.
+    const relocked = computeRelockedDates(option.queues, new Set(option.queues.keys()), machines, windowStart)
     let changes = 0
     for (const [machineName, jobs] of option.queues) {
       jobs.forEach((job, i) => {
         const newPos = (i + 1) * 1000
-        if (job.queuePosition !== newPos) {
+        const newDate = relocked.get(job.id) ?? job.item.stap.geplandDatum ?? toDateStr(new Date())
+        if (job.queuePosition !== newPos || newDate !== job.item.stap.geplandDatum) {
           const { project, order, stap } = job.item
-          const placeholderDate = stap.geplandDatum ?? toDateStr(new Date())
-          projectsApi.planStap(project.id, order.id, stap.id, placeholderDate, machineName, newPos)
+          projectsApi.planStap(project.id, order.id, stap.id, newDate, machineName, newPos)
           changes++
         }
       })
