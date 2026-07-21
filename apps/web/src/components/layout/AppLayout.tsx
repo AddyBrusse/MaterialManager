@@ -5,8 +5,8 @@ import { Menu, Tooltip } from '@mantine/core'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
-  IconClipboardList, IconChartBar, IconLayoutKanban, IconArrowsSort, IconCheck, IconLogout,
-  IconChecklist, IconTimeline, IconListNumbers, IconExternalLink,
+  IconClipboardList, IconChartBar, IconArrowsSort, IconCheck, IconLogout,
+  IconChecklist, IconListNumbers, IconExternalLink,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery } from '@tanstack/react-query'
@@ -31,9 +31,6 @@ import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
 import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
-import { PlanningPage } from '../../routes/desktop/PlanningPage'
-import { PlanningKanbanPage } from '../../routes/desktop/PlanningKanbanPage'
-import { PlanningGanttPage } from '../../routes/desktop/PlanningGanttPage'
 import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
@@ -106,8 +103,6 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
       label: 'Planning',
       items: [
         { to: '/planning-queue',  label: 'Wachtrij', Icon: IconListNumbers,  count: null },
-        { to: '/planning-kanban', label: 'KanBan',   Icon: IconLayoutKanban, count: null },
-        { to: '/planning-gantt',  label: 'Gantt',    Icon: IconTimeline,     count: null },
         { to: '/prognose',        label: 'Prognose', Icon: IconChartBar,     count: null },
         { to: '/todos',           label: 'ToDo',      Icon: IconChecklist,   count: openTodoCount || null },
       ],
@@ -233,8 +228,6 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
 
 const ROUTE_LABELS: Record<string, [string, string]> = {
   '/planning-queue':  ['Planning',       'Wachtrij'],
-  '/planning-kanban': ['Planning',       'KanBan'],
-  '/planning-gantt':  ['Planning',       'Gantt'],
   '/prognose':        ['Planning',       'Prognose'],
   '/todos':           ['Planning',       'ToDo'],
   '/projecten':       ['Productie',      'Projecten'],
@@ -319,10 +312,7 @@ export function AppLayout() {
             <Route path="/relaties/:id"    element={<RelatieDetailPage />} />
             <Route path="/projecten"       element={<ProjectenPage />} />
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
-            <Route path="/planning"        element={<PlanningPage />} />
             <Route path="/planning-queue"  element={<PopoutAware path="/planning-queue" label="Wachtrij" openRoutes={openRoutes}><PlanningQueuePage /></PopoutAware>} />
-            <Route path="/planning-kanban" element={<PopoutAware path="/planning-kanban" label="KanBan" openRoutes={openRoutes}><PlanningKanbanPage /></PopoutAware>} />
-            <Route path="/planning-gantt"  element={<PopoutAware path="/planning-gantt" label="Gantt" openRoutes={openRoutes}><PlanningGanttPage /></PopoutAware>} />
             <Route path="/prognose"        element={<PopoutAware path="/prognose" label="Prognose" openRoutes={openRoutes}><PrognosePage /></PopoutAware>} />
             <Route path="/todos"           element={<PopoutAware path="/todos" label="ToDo" openRoutes={openRoutes}><TodosPage /></PopoutAware>} />
             <Route path="*"               element={<Navigate to="/voorraad" replace />} />

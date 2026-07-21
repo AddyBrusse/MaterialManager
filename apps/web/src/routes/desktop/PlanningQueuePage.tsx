@@ -7,7 +7,7 @@ import { projectsApi, initProjects } from '../../api/projects'
 import { articlesApi, initArticles } from '../../api/articles'
 import { machinesApi, initMachines } from '../../api/machines'
 import { initRelaties } from '../../api/relaties'
-import { buildStapItems } from '../../utils/planningGanttUtils'
+import { buildStapItems } from '../../utils/planningSharedUtils'
 import { toDateStr } from '../../utils/planningUtils'
 import {
   type QueueJob, type QueueZoom, type CascadeImpact,
@@ -261,7 +261,7 @@ export function PlanningQueuePage() {
   }
 
   return (
-    <div className="wq pg-root plan">
+    <div className="wq pg-root">
       <QueueToolbar
         zoom={zoom} onZoom={setZoom}
         showKpi={showKpi} onToggleKpi={() => setShowKpi(v => !v)}
@@ -274,6 +274,9 @@ export function PlanningQueuePage() {
         <QueueBacklog
           jobs={backlog}
           machines={machines}
+          schedule={schedule}
+          verplichtKlaar={verplichtKlaar}
+          windowStart={windowStart}
           selectedId={selectedJob?.id ?? null}
           onSelect={setSelectedJob}
           onDragStart={handleDragStart}
@@ -290,7 +293,6 @@ export function PlanningQueuePage() {
           onSelectMachine={setSelectedMachineName}
           bezettingByMachine={bezettingByMachine}
           jobs={selectedQueueJobs}
-          allJobs={allJobs}
           schedule={schedule}
           verplichtKlaar={verplichtKlaar}
           windowStart={windowStart}

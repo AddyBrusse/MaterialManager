@@ -20,7 +20,7 @@ type PopoutMessage =
   | { type: 'closed'; path: string }
   | { type: 'requestClose'; path: string }
 
-export const POPOUT_ROUTES = ['/planning-queue', '/planning-kanban', '/planning-gantt', '/prognose', '/todos']
+export const POPOUT_ROUTES = ['/planning-queue', '/prognose', '/todos']
 
 function loadOpenRoutes(): Set<string> {
   try {

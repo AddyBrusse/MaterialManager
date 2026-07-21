@@ -1,14 +1,182 @@
 /* Planning Wachtrij (priority-queue) page — see the handoff at
    "01-design files claude design/design_handoff_planning_page/README.md".
-   Additive on top of tokens.css. The page root also carries "pg-root" so
-   it gets the Gantt board's toolbar/kpi/node/connector primitives (.seg,
-   .tgl, .kpi-row, .node, .gantt-connectors, .plan-toast) for free — this
-   file only adds what's new: the three-pane backlog|wachtrij|tijdlijn body,
-   numbered queue cards, and the docked-under-the-timeline details strip.
-   Card look (.kc, .kc-head, .kc-prodnr, …) is reused unscoped from
-   planning-kanban.css, same as backlog cards there. */
+   Additive on top of tokens.css (reuses --bg/--text/--accent/--border/.btn/
+   .icon-btn/.badge from there). Wachtrij is now the only planning board —
+   the Kanban and Gantt boards this page's toolbar/kpi/node/connector/card
+   primitives used to borrow from were removed once Wachtrij superseded them
+   (see decisions/90-decisions-log.md); those primitives were folded in here
+   directly rather than deleted along with the boards, since Wachtrij's own
+   toolbar, KPI strip, timeline nodes/connectors, and backlog/queue cards
+   still need them. */
 
 .wq { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
+
+/* Everything below is scoped under .pg-root — a shared "planning page shell"
+   marker every planning page's root element carries — so these
+   (intentionally generic) names — .seg, .tgl, .node, .qjob, .kpi, … — can't
+   leak onto/collide with an unrelated page that happens to reuse one. */
+
+.pg-root { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
+
+/* ===== KPI row (QueueKpiStrip / Prognose) ===== */
+.pg-root .kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  padding: 16px 24px 4px;
+  flex-shrink: 0;
+}
+.pg-root .kpi {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.pg-root .kpi-top { display: flex; align-items: center; gap: 7px; }
+.pg-root .kpi-ico {
+  width: 24px; height: 24px; border-radius: 5px;
+  background: var(--bg-chip); color: var(--text-2);
+  display: grid; place-items: center; flex-shrink: 0;
+}
+.pg-root .kpi-label {
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-3); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.pg-root .kpi-val {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 22px; font-weight: 600; letter-spacing: -0.02em; color: var(--text);
+  line-height: 1;
+}
+.pg-root .kpi-sub { font-size: 11.5px; color: var(--text-3); }
+.pg-root .kpi.warn .kpi-val { color: var(--warning); }
+.pg-root .kpi.danger .kpi-val { color: var(--danger); }
+
+/* ===== Toolbar (QueueToolbar / Prognose) ===== */
+.pg-root .plan-toolbar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 24px; flex-shrink: 0; flex-wrap: wrap;
+}
+.pg-root .plan-toolbar .sp { flex: 1; }
+.pg-root .tb-divider { width: 1px; height: 20px; background: var(--border); }
+.pg-root .tb-label { font-size: 11px; color: var(--text-3); font-weight: 500; }
+
+/* segmented control (zoom) */
+.pg-root .seg {
+  display: inline-flex; background: var(--bg-chip); border-radius: var(--radius);
+  padding: 2px; gap: 2px;
+}
+.pg-root .seg button {
+  border: 0; background: transparent; color: var(--text-3);
+  font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 4px;
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  cursor: pointer;
+}
+.pg-root .seg button svg { width: 13px; height: 13px; }
+.pg-root .seg button:hover { color: var(--text); }
+.pg-root .seg button[data-active="true"] {
+  background: var(--bg-2); color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* toggle pill ("Toon KPI's" / "Toon verbindingen") */
+.pg-root .tgl {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--border-input); background: var(--bg-2);
+  border-radius: var(--radius); height: 30px; padding: 0 11px;
+  font-size: 12.5px; font-weight: 500; color: var(--text); cursor: pointer;
+}
+.pg-root .tgl svg { width: 14px; height: 14px; color: var(--text-3); }
+.pg-root .tgl[data-on="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.pg-root .tgl[data-on="true"] svg { color: var(--accent); }
+.pg-root .tgl .sw {
+  width: 26px; height: 15px; border-radius: 999px; background: var(--border-strong);
+  position: relative; transition: background .15s; flex-shrink: 0;
+}
+.pg-root .tgl .sw::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+  border-radius: 50%; background: #fff; transition: transform .15s;
+}
+.pg-root .tgl[data-on="true"] .sw { background: var(--accent); }
+.pg-root .tgl[data-on="true"] .sw::after { transform: translateX(11px); }
+
+/* ===== Job block base (QueueTimeline positions/sizes these inline —
+   .wq-tl-lane .node further down overrides justify-content to space-between
+   for the icons-top-right/number-bottom-left two-corner layout) ===== */
+.pg-root .node {
+  position: absolute; box-sizing: border-box; border-radius: 5px;
+  cursor: pointer; user-select: none;
+  display: flex; flex-direction: column; gap: 2px; justify-content: center;
+  transition: box-shadow .12s, opacity .12s, transform .08s;
+  --c: var(--accent);
+}
+.pg-root .node:hover { box-shadow: var(--shadow-md); z-index: 3; }
+.pg-root .node.placeholder { border-style: dashed !important; }
+.pg-root .node.is-selected { z-index: 4; box-shadow: 0 0 0 2px var(--bg-2), 0 0 0 4px var(--c), var(--shadow-md); }
+
+/* ===== Job card (QueueJobCard — shared by QueueBacklog and QueuePanel) =====
+   Flat neutral background — color is reserved for exactly one signal, the
+   left border, which is always the job's MACHINE color (proposed machine in
+   the backlog, the panel's selected machine in the per-machine queue). No
+   background tint, no per-badge rainbow: this replaced a card that tinted
+   its background by machine OR project color depending on which panel you
+   were in (an inconsistency in itself) plus 2-3 separately-colored badges. */
+.pg-root .qjob {
+  --mc: var(--border-strong);
+  position: relative;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--mc);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 8px 9px 7px;
+  padding-top: 20px; /* room for the corner production-number tag */
+  cursor: pointer; user-select: none;
+  display: flex; flex-direction: column; gap: 3px;
+  transition: box-shadow .12s, opacity .12s;
+}
+.pg-root .qjob[draggable="true"] { cursor: grab; }
+.pg-root .qjob[draggable="true"]:active { cursor: grabbing; }
+.pg-root .qjob:hover { box-shadow: var(--shadow-md); }
+.pg-root .qjob.is-selected { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--mc), var(--shadow-md); }
+
+/* 1. Machine (bold, larger) + hours planned — top priority, top row. */
+.pg-root .qjob-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.pg-root .qjob-machine {
+  font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pg-root .qjob-hours {
+  flex-shrink: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 11px; font-weight: 600; color: var(--text-2);
+}
+/* Production number — identity, not a priority ranked item, so it's a small
+   muted corner tag rather than competing with the content above. */
+.pg-root .qjob-prodnr {
+  position: absolute; top: 6px; right: 9px;
+  font-family: var(--font-mono); font-size: 9px; color: var(--text-4);
+}
+/* 2. Description (bold). */
+.pg-root .qjob-desc { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.25; }
+/* 3. Customer. */
+.pg-root .qjob-klant {
+  font-size: 11px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* 4. Drawing number. */
+.pg-root .qjob-tek { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+/* 5. Qty, 6. risk — one row, risk pushed to the far right so it reads as a flag. */
+.pg-root .qjob-bottom { display: flex; align-items: center; gap: 8px; margin-top: 1px; }
+.pg-root .qjob-qty { font-size: 10.5px; color: var(--text-3); }
+.pg-root .qjob-risk {
+  display: inline-flex; align-items: center; gap: 3px; margin-left: auto;
+  font-size: 10.5px; font-weight: 600; color: var(--danger);
+}
+/* 7. Latest start date. */
+.pg-root .qjob-start { font-size: 10px; color: var(--text-4); }
 
 /* ===== Body split: backlog | wachtrij | tijdlijn+docked details ===== */
 .wq-body { flex: 1; min-height: 0; display: flex; border-top: 1px solid var(--border); }
@@ -86,8 +254,8 @@
 .wq-machine-meta { font-size: 11px; color: var(--text-3); }
 
 /* numbered draggable queue card — a thin rail (rank badge + drag handle)
-   to the left of the reused .kc card body. The WHOLE row is draggable (grab
-   cursor); the grip glyph is just an affordance. */
+   to the left of the shared QueueJobCard (.qjob). The WHOLE row is
+   draggable (grab cursor); the grip glyph is just an affordance. */
 .wq-qrow { position: relative; display: flex; align-items: stretch; gap: 6px; cursor: grab; }
 .wq-qrow:active { cursor: grabbing; }
 .wq-qrow.dragging { opacity: 0.35; }
@@ -108,28 +276,7 @@
 }
 .wq-qgrip { color: var(--text-4); cursor: grab; line-height: 0; }
 .wq-qgrip:active { cursor: grabbing; }
-.wq-qrow .kc { flex: 1; min-width: 0; }
-.wq-qrow .kc.is-selected { box-shadow: 0 0 0 1px var(--bg-2), 0 0 0 2px var(--c), var(--shadow-md); }
-
-/* v2 restyle — calmer backlog/queue cards: no color-tinted fill (that's the
-   Kanban board's look), thinner accent bar. Queue-panel cards additionally
-   drop the accent bar entirely (only the backlog thread carries machine
-   color; every card in a queue already belongs to the one selected machine,
-   so a per-card accent there would be redundant). */
-.wq-backlog .kc, .wq-qrow .kc { --tint: 0%; }
-.wq-backlog .kc { --sliver: 3px; }
-.wq-qrow .kc { border-left: 1px solid var(--border); }
-
-.wq-badgerow { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
-.wq-badge {
-  display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500;
-  padding: 1px 6px; border-radius: 999px; white-space: nowrap;
-}
-.wq-badge svg { width: 10px; height: 10px; }
-.wq-badge.risk { color: var(--danger); background: var(--danger-soft); }
-.wq-badge.deadline { color: var(--text-3); background: var(--bg-chip); }
-.wq-badge.group { color: var(--warning); background: var(--warning-soft); }
-.wq-badge.notbefore { color: var(--accent); background: var(--accent-soft); }
+.wq-qrow .qjob { flex: 1; min-width: 0; }
 
 /* ===== Tijdlijn (timeline) column ===== */
 .wq-timeline-col { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
@@ -175,17 +322,23 @@
 .wq-tl-daycol { position: absolute; top: 0; bottom: 0; border-right: 1px solid var(--border); }
 .wq-tl-daycol.weekend { background: var(--bg-chip); opacity: 0.5; }
 
-/* v2 restyle — Gantt blocks: white card, thin border, 3px machine-colored
-   left accent, square corners, small shadow. Group/risk are small inline
-   glyphs ahead of the label, not overhanging corner badges. */
+/* Job block: white card, thin border, 3px machine-colored left accent,
+   square corners, small shadow. Two-corner layout — status icons top-right,
+   production number bottom-left — rather than a single centered line, so
+   both stay legible even on a narrow (short-duration) block. */
 .wq-tl-lane .node {
-  flex-direction: row; align-items: center; gap: 5px; padding: 0 7px;
+  flex-direction: column; align-items: stretch; justify-content: space-between;
+  padding: 5px 7px;
 }
-.wq-tl-lane .node svg { flex-shrink: 0; }
+.wq-tl-lane .node-icons { display: flex; justify-content: flex-end; gap: 4px; }
+.wq-tl-lane .node-icons svg { flex-shrink: 0; }
+.wq-tl-lane .node-num {
+  font-family: var(--font-mono); font-weight: 700; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
 
-/* today marker — muted red per the design handoff (distinct from the actual
-   Gantt board's own blue "vandaag" line in planning-gantt.css; scoped here
-   so that unrelated page is untouched). */
+/* today marker — muted red per the design handoff, scoped to this timeline
+   only. */
 /* z-index 3: below the sticky machine-label column (z4) and the sticky day
    ruler (z6) so the line slides BEHIND them when today scrolls into their
    area — but above the lane weekend shading and job blocks (z1) so it still
@@ -214,7 +367,13 @@
   padding: 0 4px; border-radius: 3px; line-height: 1.5; white-space: nowrap;
 }
 
-/* ===== Timeline block hover tooltip (always light-themed, per request) ===== */
+/* ===== Timeline block hover tooltip (always light-themed, per request) =====
+   width: max-content — sized to whatever its widest row actually needs so no
+   value ever wraps onto a second line; max-width is just a sane ceiling for
+   a pathologically long omschrijving, not a target width. QueueTimeline
+   measures the real rendered size (offsetWidth/offsetHeight) after mount and
+   clamps left/top to the viewport from that, since a content-sized box can't
+   be positioned correctly from a guessed width up front. */
 .wq-tip {
   position: fixed; z-index: 1000; pointer-events: none;
   background: #ffffff; color: #1f2328;
@@ -222,6 +381,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.08);
   padding: 10px 12px;
   font-family: var(--font-sans); font-size: 12px; line-height: 1.5;
+  width: max-content; max-width: min(90vw, 460px);
 }
 .wq-tip-head {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -233,15 +393,22 @@
 }
 .wq-tip-status.ok { color: #2b7a3f; background: #e9f6ec; }
 .wq-tip-status.late { color: #b23b3b; background: #fbecec; }
-.wq-tip-row { display: flex; gap: 8px; }
+.wq-tip-row { display: flex; gap: 8px 14px; }
 .wq-tip-row + .wq-tip-row { margin-top: 3px; }
 .wq-tip-row .k { color: #6c7075; width: 128px; flex-shrink: 0; }
-.wq-tip-row .v { flex: 1; min-width: 0; color: #1f2328; font-weight: 500; word-break: break-word; }
+.wq-tip-row .v { flex: 1; color: #1f2328; font-weight: 500; white-space: nowrap; }
+/* Ahead-of-schedule / late conditional coloring for the two "verwacht klaar"
+   rows — step and project are judged against DIFFERENT targets (the step's
+   own verplichtKlaar vs. the project's real deadline), so each row's color
+   and delta are computed independently, not shared. */
+.wq-tip-row .v.ahead { color: #2b7a3f; }
+.wq-tip-row .v.late { color: #b23b3b; }
+.wq-tip-row .v .delta { margin-left: 6px; font-weight: 700; }
 
 /* ===== Connector SVG overlay ===== */
-.gantt-connectors { position: absolute; top: 0; left: 0; z-index: 2; pointer-events: none; overflow: visible; }
-.gantt-connectors path { fill: none; stroke-width: 2; stroke-linecap: round; opacity: 0.85; }
-.gantt-connectors circle { stroke-width: 2; }
+.pg-root .gantt-connectors { position: absolute; top: 0; left: 0; z-index: 3; pointer-events: none; overflow: visible; }
+.pg-root .gantt-connectors path { fill: none; stroke-width: 2; stroke-linecap: round; opacity: 0.85; }
+.pg-root .gantt-connectors circle { stroke-width: 2; }
 
 /* ===== Details Panel (v2 redesign) — docked under the Tijdlijn column.
    Fixed height (not min-height): the panel must never grow past 350px and

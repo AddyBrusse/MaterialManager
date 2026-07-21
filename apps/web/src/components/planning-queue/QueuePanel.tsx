@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import type { CSSProperties, DragEvent } from 'react'
-import { IconGripVertical, IconAlertTriangle, IconLock, IconLink } from '@tabler/icons-react'
+import type { DragEvent } from 'react'
+import { IconGripVertical } from '@tabler/icons-react'
 import type { Machine } from '../../api/machines'
-import { minToUren, projectKleur } from '../../utils/planningUtils'
-import { type QueueJob, type DerivedSlot, isAtRisk, getGroupInfo, machineAccentColor } from '../../utils/planningQueueUtils'
+import { type QueueJob, type DerivedSlot, isAtRisk, machineAccentColor, computeLatestStart } from '../../utils/planningQueueUtils'
+import { QueueJobCard } from './QueueJobCard'
 
 // Sentinel for "the insert line sits below the last card" (append), distinct
 // from any real job id.
@@ -15,7 +15,6 @@ interface QueuePanelProps {
   onSelectMachine: (name: string) => void
   bezettingByMachine: Map<string, number>
   jobs: QueueJob[]
-  allJobs: QueueJob[]
   schedule: Map<string, DerivedSlot>
   verplichtKlaar: Map<string, string>
   windowStart: Date
@@ -29,7 +28,7 @@ interface QueuePanelProps {
 }
 
 export function QueuePanel({
-  machines, selectedMachine, onSelectMachine, bezettingByMachine, jobs, allJobs, schedule, verplichtKlaar, windowStart,
+  machines, selectedMachine, onSelectMachine, bezettingByMachine, jobs, schedule, verplichtKlaar, windowStart,
   selectedId, onSelect, draggingId, onDragStart, onDragEnd, onDropOnCard, onDropAtEnd,
 }: QueuePanelProps) {
   // Purely-visual drop indicator: id of the card the insert-line sits above,
@@ -37,6 +36,13 @@ export function QueuePanel({
   // committed order, only where the preview line renders.
   const [dropBefore, setDropBefore] = useState<string | null>(null)
   const clearDrop = () => setDropBefore(null)
+  // Every card in this panel belongs to the same selected machine — one
+  // accent color for the whole list, unlike the backlog where it varies per
+  // card's own proposed machine. This is also the fix for the old
+  // inconsistency: these cards used to tint by PROJECT color while the
+  // backlog tinted by machine color — same visual language, different
+  // meaning depending on which panel you were looking at.
+  const accent = selectedMachine ? machineAccentColor(selectedMachine.name, selectedMachine.id) : 'var(--border-strong)'
 
   return (
     <div className="wq-queue">
@@ -79,8 +85,6 @@ export function QueuePanel({
         {jobs.map((job, i) => {
           const slot = schedule.get(job.id)
           const risk = isAtRisk(job, slot, verplichtKlaar, windowStart)
-          const group = getGroupInfo(job, allJobs)
-          const required = verplichtKlaar.get(job.id)
           const dropAbove = dropBefore === job.id
           const dropBelowEnd = dropBefore === DROP_END && i === jobs.length - 1
           return (
@@ -101,24 +105,15 @@ export function QueuePanel({
                 <span className="wq-qrank">{i + 1}</span>
                 <span className="wq-qgrip"><IconGripVertical size={13} /></span>
               </div>
-              <div
-                className={`kc${selectedId === job.id ? ' is-selected' : ''}${group ? ' linked' : ''}`}
-                style={{ '--c': projectKleur(job.item.project.id) } as CSSProperties}
+              <QueueJobCard
+                job={job}
+                machineLabel={selectedMachine?.name ?? job.machineNaam}
+                accentColor={accent}
+                selected={selectedId === job.id}
+                risk={risk}
+                latestStart={computeLatestStart(job, verplichtKlaar, windowStart)}
                 onClick={() => onSelect(job)}
-              >
-                <div className="kc-head">
-                  <span className="kc-prodnr">{job.orderId}</span>
-                  <span className="kc-mach">{minToUren(job.duurMin)}</span>
-                </div>
-                <div className="kc-part">{job.klant}</div>
-                <div className="kc-tek">{job.artikel}</div>
-                <div className="wq-badgerow">
-                  {group && <span className="wq-badge group"><IconLink size={10} /> {group.label}</span>}
-                  {job.notBefore && <span className="wq-badge notbefore"><IconLock size={10} /> niet eerder dan {job.notBefore}</span>}
-                  {risk && <span className="wq-badge risk"><IconAlertTriangle size={10} /> risico</span>}
-                </div>
-                {required && <div className="sub" style={{ fontSize: 9.5, color: 'var(--text-4)', marginTop: 2 }}>moet klaar: {required}</div>}
-              </div>
+              />
             </div>
           )
         })}

@@ -30,8 +30,8 @@ import type { Project } from '@stockmanager/shared'
 import type { Machine } from '../api/machines'
 import type { Article } from '../api/articles'
 import { type PlanningStapItem, toDateStr, projectKleur } from './planningUtils'
-import { effectiveMachine } from './planningGanttUtils'
-import { tekeningFor } from './planningKanbanUtils'
+import { effectiveMachine } from './planningSharedUtils'
+import { tekeningFor } from './planningUtils'
 
 export type { PlanningStapItem }
 
@@ -77,6 +77,11 @@ export function buildQueueJobs(items: PlanningStapItem[], articles: Article[]): 
 
 export function klantNaamProject(project: Project): string {
   return project.klantRef ?? project.naam
+}
+
+/** Strips the ORD-/PROD- prefix for compact display (timeline blocks, queue cards). */
+export function shortOrderId(orderId: string): string {
+  return orderId.replace(/^ORD-/, '').replace(/^PROD-/, '')
 }
 
 /** Same criterion the Kanban board uses for its backlog — keeps both views in agreement. */
@@ -195,8 +200,11 @@ export function deriveShopSchedule(
   const honorLockedDates = opts.honorLockedDates ?? false
   const result = new Map<string, DerivedSlot>()
   const machineByName = new Map(machines.map(m => [m.name, m]))
+  // Deliberately NOT pre-seeded with 0 for every machine — cursor.has() below
+  // needs to distinguish "no job scheduled on this machine yet" from "a real
+  // prior finish of exactly day 0", so the floor it provides only ever
+  // reflects an actual preceding job, never an init sentinel.
   const cursor = new Map<string, number>()
-  for (const name of machineQueues.keys()) cursor.set(name, 0)
 
   const byOrderVolgorde = new Map<string, QueueJob>()
   for (const jobs of machineQueues.values()) {
@@ -230,19 +238,28 @@ export function deriveShopSchedule(
 
       const machine = machineByName.get(machineName)
       const worksWeekends = machine?.worksWeekends ?? false
+      const hasPriorJob = cursor.has(machineName)
       const machineFree = cursor.get(machineName) ?? 0
       const ghostStart = Math.max(machineFree, predFinish)
       // Locked mode: a job that already has a committed geplandDatum keeps that
       // as its anchor instead of the live "machine free since windowStart"
       // cursor — this is what stops the whole board re-anchoring to "today" on
-      // every reload. machineFree is deliberately NOT used as a floor here: for
-      // the first job in a queue it's just an init sentinel (0), not a real
-      // constraint, and clamping to it would drag an overdue locked job back to
-      // today exactly like the bug being fixed. predFinish (a real cross-machine
-      // dependency) still applies.
+      // every reload. machineFree is only used as a floor once a REAL prior
+      // job has actually been scheduled on this machine this pass (hasPriorJob)
+      // — for the first job in a queue there is no such floor (using 0 there
+      // would drag an overdue locked job back to today, reproducing the bug
+      // this locking was built to fix). For every job after the first, though,
+      // a machine can physically only run one job at a time — its stored date
+      // may be stale (edited elsewhere, duration changed after locking, …) and
+      // clamping it to the previous job's real finish is what guarantees two
+      // jobs on the same machine never render as overlapping, however the
+      // underlying data drifted. predFinish (a real cross-machine dependency)
+      // still applies regardless.
       const lockedDateStr = honorLockedDates ? (job.item.stap.geplandDatum ?? null) : null
       const lockedStart = lockedDateStr != null ? dayOffsetForDateStr(lockedDateStr, windowStart) : null
-      const baseStart = lockedStart != null ? Math.max(lockedStart, predFinish) : ghostStart
+      const baseStart = lockedStart != null
+        ? Math.max(lockedStart, predFinish, hasPriorJob ? machineFree : -Infinity)
+        : ghostStart
       const holdDay = job.notBefore ? dayOffsetForDateStr(job.notBefore, windowStart) : -Infinity
       const actualStart = Math.max(baseStart, holdDay)
 
@@ -321,6 +338,27 @@ export function computeVerplichtKlaar(
     }
   }
   return map
+}
+
+/**
+ * The latest this job can START and still hit its own backward-planned
+ * required-finish date (verplichtKlaar) — i.e. verplichtKlaar minus the
+ * job's OWN duration, using the same day-rounding computeVerplichtKlaar uses
+ * for every other step in the chain. Different from verplichtKlaar itself
+ * (a required FINISH date) and from a project's deadline (computed against
+ * the whole remaining chain, not just this one step) — those are genuinely
+ * separate numbers, not this one relabeled.
+ */
+export function computeLatestStart(
+  job: QueueJob,
+  verplichtKlaar: Map<string, string>,
+  windowStart: Date,
+): string | null {
+  const required = verplichtKlaar.get(job.id)
+  if (!required) return null
+  const requiredIdx = dayOffsetForDateStr(required, windowStart)
+  const startIdx = requiredIdx - Math.ceil(job.duurMin / EFFECTIEVE_MIN)
+  return toDateStr(dateForOffset(windowStart, startIdx))
 }
 
 /** A job is at risk when its derived finish lands after its own backward-planned required-finish date (verplichtKlaar). */
@@ -556,8 +594,19 @@ export function fmtOffsetDay(windowStart: Date, dayIdx: number): string {
   return `${DAG[d.getDay()]} ${d.getDate()}`
 }
 
+const DAG_KORT = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
+
+/** Full weekday-prefixed date for detail displays (tooltip, cards, QueueDetails) — 'di-21-07-2026'. Distinct from fmtOffsetDay, which stays compact for the narrow per-day ruler columns. */
+export function fmtDateWithWeekday(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  const dag = DAG_KORT[d.getDay()]
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${dag}-${dd}-${mm}-${d.getFullYear()}`
+}
+
 export function isWeekendOffset(windowStart: Date, dayIdx: number): boolean {
   return isWeekend(dayIdx, windowStart)
 }
 
-export { effectiveMachine } from './planningGanttUtils'
+export { effectiveMachine } from './planningSharedUtils'

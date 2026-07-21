@@ -472,11 +472,9 @@ router.post(
 const PlanStapSchema = z.object({
   geplandDatum: z.string().nullable(),
   geplandMachine: z.string().nullable(),
-  // Optional — only the Wachtrij page sends this. Omitted (not merely
-  // `null`) means "leave whatever queuePosition this step already has
-  // alone", so Kanban/Gantt's own plan/unplan calls (which never send this
-  // field) don't accidentally wipe out a queue position the Wachtrij page
-  // is tracking for the same step.
+  // Optional. Omitted (not merely `null`) means "leave whatever
+  // queuePosition this step already has alone" — a plan call that doesn't
+  // care about queue rank shouldn't accidentally wipe one out.
   queuePosition: z.number().nullable().optional(),
 })
 
@@ -521,23 +519,6 @@ router.patch(
         if (o.id !== req.params.orderId) return o
         const stappen = o.stappen.map(s =>
           s.id === req.params.stapId ? { ...s, notBefore } : s,
-        )
-        return { ...o, stappen, updatedAt: now() }
-      })
-      return { ...p, productieOrders, updatedAt: now() }
-    })
-    res.json({ data: updated })
-  }),
-)
-
-router.post(
-  '/:id/orders/:orderId/unplan',
-  asyncHandler(async (req, res) => {
-    const updated = await withProject(req.params.id, (p) => {
-      const productieOrders = p.productieOrders.map(o => {
-        if (o.id !== req.params.orderId) return o
-        const stappen = o.stappen.map(s =>
-          s.gereedOp ? s : { ...s, geplandDatum: null, geplandMachine: null, queuePosition: null, notBefore: null },
         )
         return { ...o, stappen, updatedAt: now() }
       })

@@ -475,26 +475,6 @@ export const projectsApi = {
     return updated
   },
 
-  unplanOrder(projectId: string, orderId: string): Project {
-    const updated = updateCache(projectId, p => ({
-      ...p,
-      updatedAt: now(),
-      productieOrders: p.productieOrders.map(o =>
-        o.id !== orderId ? o : {
-          ...o,
-          updatedAt: now(),
-          stappen: o.stappen.map(s =>
-            s.gereedOp ? s : { ...s, geplandDatum: null, geplandMachine: null, queuePosition: null, notBefore: null },
-          ),
-        },
-      ),
-    }))
-    apiFetch(`/projects/${projectId}/orders/${orderId}/unplan`, { method: 'POST' }).catch(() => {
-      notifications.show({ color: 'red', message: 'Order deplannen mislukt op de server.' })
-    })
-    return updated
-  },
-
   markOrderGereed(projectId: string, orderId: string): Project {
     const updated = updateCache(projectId, p => ({
       ...p,

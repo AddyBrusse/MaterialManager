@@ -1,32 +1,32 @@
-// Helpers specific to the Gantt-style planning board (PlanningGanttPage).
-// Reuses the day-grid/capacity primitives from planningUtils.ts — only the
-// continuous-timeline geometry (pixel mapping, lane packing, ghost workload)
-// is new.
+// Shared planning primitives used by both the Wachtrij (priority-queue) page
+// and the Prognose forecast chart: flattening projects into stap items, the
+// day-index/calendar window scheme, per-machine capacity, and ghost
+// (forecast) workload for work that isn't on the real timeline yet.
+//
+// Formerly "planningGanttUtils" — the Gantt and Kanban boards this file was
+// originally shared with have been removed in favor of Wachtrij (see
+// decisions/90-decisions-log.md); what's left here is genuinely shared, not
+// Gantt-specific, so it was renamed and pruned down to just that.
 
-import type { Project, ProductieOrder, ProductieStap, Relatie } from '@stockmanager/shared'
+import type { Project, ProductieOrder, ProductieStap } from '@stockmanager/shared'
 import type { Article } from '../api/articles'
 import type { Machine } from '../api/machines'
 import { overheadApi, DEFAULT_MACHINE_ROW } from '../api/overhead'
 import {
-  EFFECTIEVE_MIN, MAX_MIN, toDateStr, getMaandag,
+  toDateStr, getMaandag, EFFECTIEVE_MIN,
   berekenStapMin, berekenOrderMin,
   type PlanningStapItem,
 } from './planningUtils'
 
-export {
-  projectKleur, minToUren, vindAchterstanden, heeftVolgordeWaarschuwing,
-  EFFECTIEVE_MIN, MAX_MIN, toDateStr,
-} from './planningUtils'
 export type { PlanningStapItem } from './planningUtils'
 
 // ── Per-machine capacity (Prognose-only) ────────────────────────────────────
-// The Gantt/KanBan boards still use the shared EFFECTIEVE_MIN/MAX_MIN
-// constants above — this reads each machine's own Bezetting%/uren-per-dag
-// from Instellingen → Bedrijfskosten (apps/web/src/api/overhead.ts) so
-// Prognose's capacity actually reflects what's configured per machine,
-// instead of one fixed number applied to every machine alike. Falls back to
-// the shop-wide default hours/day and the settings page's own default
-// utilization (70%) for a machine with no configured overhead row yet.
+// Reads each machine's own Bezetting%/uren-per-dag from Instellingen →
+// Bedrijfskosten (apps/web/src/api/overhead.ts) so Prognose's capacity
+// actually reflects what's configured per machine, instead of one fixed
+// number applied to every machine alike. Falls back to the shop-wide default
+// hours/day and the settings page's own default utilization (70%) for a
+// machine with no configured overhead row yet.
 export function machineCapacityMinPerDay(machine: Machine): { effectiveMin: number; maxMin: number } {
   const cfg = overheadApi.load()
   const row = cfg.machines.find(m => m.machineId === machine.id)
@@ -39,16 +39,13 @@ export function machineCapacityMinPerDay(machine: Machine): { effectiveMin: numb
   return { effectiveMin, maxMin }
 }
 
-// ── Continuous timeline window ──────────────────────────────────────────────
-// Rolling window anchored on "this week": a couple of weeks of history (so
-// achterstand context stays visible) plus a production-horizon's worth of
-// future weeks. Unlike the design mock's fixed Jun–Jul window, this is
-// recomputed from the real calendar every time the page loads. FUTURE_WEEKS
-// covers a minimum of ~8 months so both the board and the Prognose chart have
-// enough runway for real capacity planning, not just the next sprint.
+// ── Rolling calendar window ──────────────────────────────────────────────────
+// Anchored on "this week": a couple of weeks of history (so achterstand
+// context stays visible) plus a production-horizon's worth of future weeks.
+// Recomputed from the real calendar every time a page loads.
 const PAST_WEEKS = 2
 const FUTURE_WEEKS = 35
-export const TOTAL_DAYS = (PAST_WEEKS + FUTURE_WEEKS) * 7
+const TOTAL_DAYS = (PAST_WEEKS + FUTURE_WEEKS) * 7
 
 export function getWindowStart(): Date {
   const maandag = getMaandag(new Date())
@@ -57,11 +54,10 @@ export function getWindowStart(): Date {
   return d
 }
 
-// Prognose-only horizon: unlike the Gantt/Kanban boards (fixed window,
-// re-anchored weekly), the Prognose chart's far edge must always stay at
-// least this many days past "today" — recomputed live (see PrognosePage)
-// rather than baked into a fixed week count, so a browser tab left open for
-// weeks doesn't quietly run out of runway.
+// Prognose-only horizon: the chart's far edge must always stay at least this
+// many days past "today" — recomputed live (see PrognosePage) rather than
+// baked into a fixed week count, so a browser tab left open for weeks doesn't
+// quietly run out of runway.
 const PROGNOSE_FUTURE_DAYS = 300
 
 export function prognoseTotalDays(windowStart: Date, today: Date = new Date()): number {
@@ -83,32 +79,17 @@ export function dateForDayIndex(idx: number, windowStart: Date): Date {
   return d
 }
 
-export function dateStrForDayIndex(idx: number, windowStart: Date): string {
-  return toDateStr(dateForDayIndex(idx, windowStart))
-}
-
 export function todayIndex(windowStart: Date): number {
   return dayIndexForDate(toDateStr(new Date()), windowStart)
 }
 
-const DAG = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
 const MND = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec']
 
 export function fmtDayShort(idx: number, windowStart: Date): string {
   const d = dateForDayIndex(idx, windowStart)
   return `${d.getDate()} ${MND[d.getMonth()]}`
 }
-export function fmtDayFull(idx: number, windowStart: Date): string {
-  const d = dateForDayIndex(idx, windowStart)
-  return `${DAG[d.getDay()]} ${d.getDate()} ${MND[d.getMonth()]}`
-}
-export function weekdayLetter(idx: number, windowStart: Date): string {
-  return DAG[dateForDayIndex(idx, windowStart).getDay()]
-}
-export function isWeekendIdx(idx: number, windowStart: Date): boolean {
-  const dow = dateForDayIndex(idx, windowStart).getDay()
-  return dow === 0 || dow === 6
-}
+
 export function weekNrForIdx(idx: number, windowStart: Date): number {
   const d = dateForDayIndex(idx, windowStart)
   const target = new Date(d.valueOf())
@@ -119,37 +100,7 @@ export function weekNrForIdx(idx: number, windowStart: Date): number {
   return 1 + Math.round((diff / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7)
 }
 
-// ── Zoom + geometry constants ───────────────────────────────────────────────
-// pxDay is computed dynamically from the rendered track width (see
-// GanttBoard's useResizeObserver), targeting roughly this many visible days
-// per zoom level — rather than a fixed px/day, which can't adapt to the
-// actual screen, so "Dag" might show 3 days on one monitor and 8 on another.
-export type ZoomLevel = 'day' | 'week' | 'month'
-export const TARGET_DAYS: Record<ZoomLevel, number> = { day: 3, week: 10, month: 30 }
-export const MIN_PX_PER_DAY = 40
-export const MAX_PX_PER_DAY = 600
-export const NODE_H = 42
-export const LANE_GAP = 5
-export const LANE_PAD = 7
-export const LABEL_W = 196
-
-// ── Machine rows ─────────────────────────────────────────────────────────────
-// Steps store the machine as a NAME string (matching the existing
-// PlanningPage convention), not an id. "" / null = unassigned.
-export interface GanttMachineRow { naam: string; sub: string; isGeen: boolean; worksWeekends: boolean }
-
-export function buildMachineRows(machines: Machine[]): GanttMachineRow[] {
-  return [
-    ...machines.map(m => ({
-      naam: m.name,
-      sub: `€ ${m.machineRatePerHour.toFixed(2)} / u`,
-      isGeen: false,
-      worksWeekends: m.worksWeekends,
-    })),
-    { naam: '', sub: 'Niet toegewezen', isGeen: true, worksWeekends: false },
-  ]
-}
-
+// Steps store the machine as a NAME string, not an id. "" / null = unassigned.
 export function effectiveMachine(stap: ProductieStap): string {
   return stap.geplandMachine ?? stap.machine ?? ''
 }
@@ -174,72 +125,6 @@ export function buildStapItems(
   return result
 }
 
-export function isAchterstand(stap: ProductieStap): boolean {
-  return stap.geplandDatum != null && !stap.gereedOp && stap.geplandDatum < toDateStr(new Date())
-}
-
-export function klantNaam(relaties: Relatie[], project: Project): string {
-  return relaties.find(r => r.id === project.relatieId)?.naam ?? project.klantRef ?? project.naam
-}
-
-// ── Lane packing (single continuous timeline per machine) ──────────────────
-// A machine can only run one step at a time, so steps queue sequentially
-// rather than stacking into parallel lanes: each step starts at its own
-// planned day, UNLESS the machine is still busy with an earlier-queued step,
-// in which case it starts as soon as the machine frees up. This visually
-// reveals queue buildup (a backed-up machine pushes later bars rightward)
-// instead of hiding it behind vertical stacking.
-export interface NodePos { lane: number; left: number; width: number }
-
-export function packMachineLane(
-  items: PlanningStapItem[],
-  windowStart: Date,
-  pxDay: number,
-): { pos: Record<string, NodePos>; nLanes: number } {
-  const sorted = [...items].sort((a, b) => {
-    const da = dayIndexForDate(a.stap.geplandDatum!, windowStart)
-    const db = dayIndexForDate(b.stap.geplandDatum!, windowStart)
-    return da - db || a.stap.volgorde - b.stap.volgorde
-  })
-  const pos: Record<string, NodePos> = {}
-  let machineFreeAt = -Infinity
-  for (const item of sorted) {
-    const day = dayIndexForDate(item.stap.geplandDatum!, windowStart)
-    const durDays = item.duurMin / MAX_MIN
-    const start = Math.max(day, machineFreeAt)
-    machineFreeAt = start + durDays
-    pos[item.stap.id] = {
-      lane: 0,
-      left: start * pxDay + 3,
-      width: Math.max(durDays * pxDay - 6, 20),
-    }
-  }
-  return { pos, nLanes: 1 }
-}
-
-export interface RowLayout { pos: Record<string, NodePos>; nLanes: number; height: number }
-
-export function computeRowLayout(
-  steps: PlanningStapItem[],
-  windowStart: Date,
-  pxDay: number,
-): RowLayout {
-  const { pos, nLanes } = packMachineLane(steps, windowStart, pxDay)
-  const height = LANE_PAD * 2 + nLanes * NODE_H + (nLanes - 1) * LANE_GAP
-  return { pos, nLanes, height }
-}
-
-export function laneTop(lane: number): number {
-  return LANE_PAD + lane * (NODE_H + LANE_GAP)
-}
-
-// ── Capacity status ──────────────────────────────────────────────────────────
-export function capStatusLabel(min: number): 'ok' | 'warn' | 'over' {
-  if (min > MAX_MIN * 5) return 'over'
-  if (min > EFFECTIEVE_MIN * 5) return 'warn'
-  return 'ok'
-}
-
 /** Scheduled (real) workload minutes for a machine within an arbitrary [startDay, endDay) range. */
 export function machineLoadInRange(
   items: PlanningStapItem[], machineNaam: string, startDay: number, endDay: number, windowStart: Date,
@@ -255,10 +140,6 @@ export function machineLoadInRange(
   return min
 }
 
-export function machineWeekLoadFromItems(items: PlanningStapItem[], machineNaam: string, weekStartIdx: number, windowStart: Date): number {
-  return machineLoadInRange(items, machineNaam, weekStartIdx, weekStartIdx + 7, windowStart)
-}
-
 // ── Ghost / Prognose workload from unscheduled work ─────────────────────────
 // Two kinds of work aren't on the real timeline yet, but should still show up
 // as forecast load rather than silently vanishing from Prognose:
@@ -267,12 +148,11 @@ export function machineWeekLoadFromItems(items: PlanningStapItem[], machineNaam:
 //      the regel's estimated duration evenly across its frozen `bewerkingen`
 //      (operation names) and match each to a machine by name.
 //   2. Accepted offertes' real productie-order stappen that haven't been
-//      scheduled yet (no geplandDatum — nobody's dragged them onto a day on
-//      the Planning board). These already have a real machine/duration, so
-//      no estimation is needed — they just aren't a *real* scheduled load
-//      until they have a date, so they're ghosted the same way in the
-//      meantime instead of dropping out of Prognose the moment the offerte
-//      is accepted.
+//      scheduled yet (no geplandDatum). These already have a real
+//      machine/duration, so no estimation is needed — they just aren't a
+//      *real* scheduled load until they have a date, so they're ghosted the
+//      same way in the meantime instead of dropping out of Prognose the
+//      moment the offerte is accepted.
 // Both are backward-scheduled from the project's deadline — ending
 // GHOST_MARGIN_DAYS before it, one machine-day of capacity at a time (that
 // machine's own Bezetting%/uren-per-dag from Overhead settings — see
@@ -366,7 +246,7 @@ function matchesMachineNaam(bewerkingNaam: string, machineNaam: string): boolean
   return a === b || a.includes(b) || b.includes(a)
 }
 
-export function ghostLoadFor(ghostMap: Map<string, Map<number, number>>, machineNaam: string, dayIdx: number): number {
+function ghostLoadFor(ghostMap: Map<string, Map<number, number>>, machineNaam: string, dayIdx: number): number {
   return Math.round(ghostMap.get(machineNaam)?.get(dayIdx) ?? 0)
 }
 
@@ -377,47 +257,4 @@ export function ghostLoadInRange(
   let min = 0
   for (let d = startDay; d < endDay; d++) min += ghostLoadFor(ghostMap, machineNaam, d)
   return min
-}
-
-// ── KPI row ──────────────────────────────────────────────────────────────────
-export interface GanttKpis {
-  geplandUren: string
-  bezetting: number
-  achterstand: number
-  tePlannen: number
-  leveringen: number
-}
-
-export function berekenGanttKpis(
-  scheduledItems: PlanningStapItem[],
-  machineCount: number,
-  projects: Project[],
-  backlogCount: number,
-  achterstandCount: number,
-): GanttKpis {
-  const maandag = getMaandag(new Date())
-  const weekStart = toDateStr(maandag)
-  const zondag = new Date(maandag)
-  zondag.setDate(zondag.getDate() + 6)
-  const weekEnd = toDateStr(zondag)
-
-  const weekItems = scheduledItems.filter(i =>
-    i.stap.geplandDatum != null && !i.stap.gereedOp &&
-    i.stap.geplandDatum >= weekStart && i.stap.geplandDatum <= weekEnd &&
-    effectiveMachine(i.stap) !== '',
-  )
-  const plannedMin = weekItems.reduce((s, i) => s + i.duurMin, 0)
-  const capacityTotal = machineCount * EFFECTIEVE_MIN * 5
-  const bezetting = capacityTotal > 0 ? Math.round((plannedMin / capacityTotal) * 100) : 0
-  const leveringen = projects.filter(p =>
-    p.levertijdDatum != null && p.levertijdDatum >= weekStart && p.levertijdDatum <= weekEnd,
-  ).length
-
-  return {
-    geplandUren: (plannedMin / 60).toFixed(1),
-    bezetting,
-    achterstand: achterstandCount,
-    tePlannen: backlogCount,
-    leveringen,
-  }
 }

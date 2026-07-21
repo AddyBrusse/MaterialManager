@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { toDateStr, minToUren } from '../../utils/planningUtils'
 import {
-  type QueueJob, type DerivedSlot, dateForOffset, machineAccentColor,
+  type QueueJob, type DerivedSlot, dateForOffset, machineAccentColor, fmtDateWithWeekday,
 } from '../../utils/planningQueueUtils'
 import { type Machine } from '../../api/machines'
 import { type Article } from '../../api/articles'
@@ -21,14 +21,6 @@ interface QueueDetailsProps {
   onUnplan: (job: QueueJob) => void
   onOpenProject: (job: QueueJob) => void
   onSetHold: (job: QueueJob, notBefore: string | null) => void
-}
-
-// dd-mm-yyyy — plain, no day-name prefix (per explicit request).
-function fmtDDMMYYYY(dateStr: string): string {
-  const parts = dateStr.split('-')
-  if (parts.length !== 3) return dateStr
-  const [year, month, day] = parts
-  return `${day}-${month}-${year}`
 }
 
 export function QueueDetails({
@@ -93,11 +85,11 @@ export function QueueDetails({
             </div>
             <div className="wq-dp-field">
               <span className="wq-dp-label">LEVERDATUM</span>
-              <span className="wq-dp-value">{job.deadline ? fmtDDMMYYYY(job.deadline) : '—'}</span>
+              <span className="wq-dp-value">{job.deadline ? fmtDateWithWeekday(job.deadline) : '—'}</span>
             </div>
             <div className="wq-dp-field">
               <span className="wq-dp-label">VERWACHT</span>
-              <span className="wq-dp-value">{required ? fmtDDMMYYYY(required) : '—'}</span>
+              <span className="wq-dp-value">{required ? fmtDateWithWeekday(required) : '—'}</span>
             </div>
           </div>
 
@@ -124,8 +116,8 @@ export function QueueDetails({
             <tbody>
               {orderSteps.map(step => {
                 const stepSlot = schedule.get(step.id)
-                const startStr = stepSlot ? fmtDDMMYYYY(toDateStr(dateForOffset(windowStart, Math.floor(stepSlot.startOffsetDays)))) : '—'
-                const endStr = stepSlot ? fmtDDMMYYYY(toDateStr(dateForOffset(windowStart, Math.ceil(stepSlot.finishOffsetDays)))) : '—'
+                const startStr = stepSlot ? fmtDateWithWeekday(toDateStr(dateForOffset(windowStart, Math.floor(stepSlot.startOffsetDays)))) : '—'
+                const endStr = stepSlot ? fmtDateWithWeekday(toDateStr(dateForOffset(windowStart, Math.ceil(stepSlot.finishOffsetDays)))) : '—'
                 const machine = machines.find(m => m.name === step.machineNaam)
                 const machineColor = machine ? machineAccentColor(machine.name, machine.id) : '#ccc'
                 const stepRequired = verplichtKlaar.get(step.id)

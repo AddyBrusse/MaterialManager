@@ -46,6 +46,15 @@ export function minToUren(min: number): string {
   return `${h}u ${m}m`
 }
 
+// ── Drawing number (Region 1/4 "tekening") ──────────────────────────────────
+
+export function tekeningFor(order: ProductieOrder, articles: Article[]): string | null {
+  if (!order.artikelId) return null
+  const art = articles.find(a => a.id === order.artikelId)
+  if (!art?.tekening) return null
+  return art.rev ? `${art.tekening}-${art.rev}` : art.tekening
+}
+
 // ── Week helpers ──────────────────────────────────────────────────────────────
 
 export function toDateStr(d: Date): string {
@@ -58,14 +67,6 @@ export function toDateStr(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-export function weekDagen(maandag: Date): Date[] {
-  return Array.from({ length: 5 }, (_, i) => {
-    const d = new Date(maandag)
-    d.setDate(maandag.getDate() + i)
-    return d
-  })
-}
-
 export function getMaandag(referentie = new Date()): Date {
   const d = new Date(referentie)
   const dag = d.getDay()
@@ -73,16 +74,6 @@ export function getMaandag(referentie = new Date()): Date {
   d.setDate(d.getDate() + diff)
   d.setHours(0, 0, 0, 0)
   return d
-}
-
-export function formatDagHeader(d: Date): { kort: string; lang: string; isVandaag: boolean } {
-  const vandaag = toDateStr(new Date())
-  const DAGEN = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']
-  return {
-    kort: DAGEN[d.getDay()],
-    lang: d.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }),
-    isVandaag: toDateStr(d) === vandaag,
-  }
 }
 
 // ── Board data model ──────────────────────────────────────────────────────────
@@ -93,41 +84,6 @@ export interface PlanningStapItem {
   project: Project
   duurMin: number
   isPlaceholder: boolean
-}
-
-export interface CelCapaciteit {
-  geboektMin: number
-  effectiefMin: number  // = EFFECTIEVE_MIN
-  maxMin: number        // = MAX_MIN
-  overboekt: boolean
-  pctGebruikt: number   // 0-1 relative to effectiefMin
-}
-
-export function berekenCelCapaciteit(items: PlanningStapItem[]): CelCapaciteit {
-  const geboektMin = items.reduce((s, i) => s + i.duurMin, 0)
-  return {
-    geboektMin,
-    effectiefMin: EFFECTIEVE_MIN,
-    maxMin: MAX_MIN,
-    overboekt: geboektMin > EFFECTIEVE_MIN,
-    pctGebruikt: Math.min(geboektMin / EFFECTIEVE_MIN, 1.5),
-  }
-}
-
-// ── Deadline check ────────────────────────────────────────────────────────────
-
-export function deadlineDagen(project: Project, geplandDatum: string | null | undefined): number | null {
-  if (!project.levertijdDatum || !geplandDatum) return null
-  const deadline = new Date(project.levertijdDatum)
-  const gepland  = new Date(geplandDatum)
-  return Math.floor((deadline.getTime() - gepland.getTime()) / (1000 * 60 * 60 * 24))
-}
-
-export function deadlineKleur(dagen: number | null): 'ok' | 'warn' | 'danger' | 'none' {
-  if (dagen === null) return 'none'
-  if (dagen > 5) return 'ok'
-  if (dagen >= 0) return 'warn'
-  return 'danger'
 }
 
 // ── Project accent color (deterministic per project id) ───────────────────────
@@ -143,93 +99,3 @@ export function projectKleur(projectId: string): string {
   return KLEUREN[Math.abs(hash) % KLEUREN.length]
 }
 
-// ── Machine week capacity ─────────────────────────────────────────────────────
-
-export function berekenMachineWeekCap(
-  items: PlanningStapItem[],
-  machine: string,
-  datums: string[],
-): { geboektMin: number; pctGebruikt: number; overboekt: boolean } {
-  const relevant = items.filter(i =>
-    (i.stap.geplandMachine ?? i.stap.machine ?? '') === machine &&
-    datums.includes(i.stap.geplandDatum ?? '') &&
-    !i.stap.gereedOp,
-  )
-  const geboektMin = relevant.reduce((s, i) => s + i.duurMin, 0)
-  const weekEffMin = datums.length * EFFECTIEVE_MIN
-  return {
-    geboektMin,
-    pctGebruikt: weekEffMin > 0 ? Math.min(geboektMin / weekEffMin, 1.5) : 0,
-    overboekt: geboektMin > weekEffMin,
-  }
-}
-
-// ── Past-week overdue items ───────────────────────────────────────────────────
-
-export function vindAchterstanden(items: PlanningStapItem[]): PlanningStapItem[] {
-  const vandaag = toDateStr(new Date())
-  return items.filter(i =>
-    i.stap.geplandDatum != null &&
-    i.stap.geplandDatum < vandaag &&
-    !i.stap.gereedOp,
-  )
-}
-
-// ── Step order (volgorde) warning ─────────────────────────────────────────────
-
-export function heeftVolgordeWaarschuwing(item: PlanningStapItem): boolean {
-  const { stap, order } = item
-  const myVolgorde = stap.volgorde ?? 0
-  if (myVolgorde <= 1) return false
-  return order.stappen.some(s => {
-    const v = s.volgorde ?? 0
-    return v > 0 && v < myVolgorde && !s.gereedOp && (
-      !s.geplandDatum ||
-      (stap.geplandDatum != null && s.geplandDatum >= stap.geplandDatum)
-    )
-  })
-}
-
-// ── Projects with deadline on a specific date ─────────────────────────────────
-
-export function projectenOpDatum(projects: Project[], datum: string): Project[] {
-  return projects.filter(p => p.levertijdDatum === datum)
-}
-
-// ── Offerte belasting ─────────────────────────────────────────────────────────
-
-export interface OfferteLastItem {
-  project: Project
-  totalMin: number
-  aantalRegels: number
-}
-
-export function berekenOffertebelasting(
-  projects: Project[],
-  articles: Article[],
-): OfferteLastItem[] {
-  return projects
-    .filter(p => p.offertes.some(o => o.status === 'verzonden'))
-    .map(p => {
-      const verzonden = p.offertes.filter(o => o.status === 'verzonden')
-      let totalMin = 0
-      let aantalRegels = 0
-      for (const off of verzonden) {
-        for (const regel of off.regels) {
-          if (!regel.artikelId) continue
-          aantalRegels++
-          const fakeOrder: ProductieOrder = {
-            id: '', projectId: p.id, offerteRegelId: regel.id,
-            artikelId: regel.artikelId, artikelNaam: regel.naam,
-            qty: regel.qty, eenheid: regel.eenheid,
-            stappen: [], status: 'gepland',
-            createdAt: '', updatedAt: '',
-          }
-          const { min } = berekenOrderMin(fakeOrder, articles)
-          totalMin += min
-        }
-      }
-      return { project: p, totalMin, aantalRegels }
-    })
-    .filter(item => item.aantalRegels > 0)
-}

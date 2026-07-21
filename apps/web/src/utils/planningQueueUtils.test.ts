@@ -7,6 +7,7 @@ import {
   computeInsertPosition,
   deriveShopSchedule,
   computeVerplichtKlaar,
+  computeLatestStart,
   isAtRisk,
   buildConnectors,
   hasDownstreamDependent,
@@ -317,6 +318,31 @@ describe('deriveShopSchedule honorLockedDates', () => {
     const schedule = deriveShopSchedule(queues, MACHINES, WINDOW_START, { honorLockedDates: true })
     expect(schedule.get(job.id)!.startOffsetDays).toBe(0)
   })
+
+  // A machine can only physically run one job at a time — two jobs' stored
+  // dates can still drift into overlap (a duration edit after locking, stale
+  // data from before a write path existed, …). The derived schedule must
+  // self-correct that at render time: the later-queued job is pushed to start
+  // no earlier than the earlier one's real finish, never left overlapping.
+  it('pushes a later-queued job forward when its stale locked date overlaps the earlier job', () => {
+    const first = makeJob({ orderId: 'A', machineNaam: 'Zaag', queuePosition: 1000, duurMin: 3 * 294 }) // ~3 days
+    const second = makeJob({ orderId: 'B', machineNaam: 'Zaag', queuePosition: 2000, duurMin: 60 })
+    first.item.stap.geplandDatum = '2026-07-13'
+    second.item.stap.geplandDatum = '2026-07-13' // stale — same date as the job ahead of it in queue
+    const queues = new Map([['Zaag', [first, second]]])
+    const schedule = deriveShopSchedule(queues, MACHINES, WINDOW_START, { honorLockedDates: true })
+    const firstSlot = schedule.get(first.id)!
+    const secondSlot = schedule.get(second.id)!
+    expect(secondSlot.startOffsetDays).toBeGreaterThanOrEqual(firstSlot.finishOffsetDays)
+  })
+
+  it('leaves the first job in a queue anchored to an overdue locked date (no prior job to clamp against)', () => {
+    const job = makeJob({ orderId: 'A', machineNaam: 'Zaag', queuePosition: 1000, duurMin: 60 })
+    job.item.stap.geplandDatum = '2026-07-10' // overdue, but it's first in queue — nothing to stack behind
+    const queues = new Map([['Zaag', [job]]])
+    const schedule = deriveShopSchedule(queues, MACHINES, WINDOW_START, { honorLockedDates: true })
+    expect(schedule.get(job.id)!.startOffsetDays).toBe(-3)
+  })
 })
 
 // ── computeRelockedDates ─────────────────────────────────────────────────────
@@ -372,6 +398,28 @@ describe('computeVerplichtKlaar', () => {
     const map = computeVerplichtKlaar([noDeadline, done], WINDOW_START)
     expect(map.has(noDeadline.id)).toBe(false)
     expect(map.has(done.id)).toBe(false)
+  })
+})
+
+// ── computeLatestStart ───────────────────────────────────────────────────────
+
+describe('computeLatestStart', () => {
+  it('subtracts the job\'s OWN duration from its required-finish date', () => {
+    const s1 = makeJob({ orderId: 'ORD1', volgorde: 1, machineNaam: 'Zaag', queuePosition: 1000, duurMin: 294, deadline: '2026-07-20' })
+    const s2 = makeJob({ orderId: 'ORD1', volgorde: 2, machineNaam: 'Las', queuePosition: 1000, duurMin: 294, deadline: '2026-07-20' })
+    const verplichtKlaar = computeVerplichtKlaar([s1, s2], WINDOW_START)
+    // s2 required-finish is the deadline itself (2026-07-20); its own
+    // 1-day duration means it must START by the day before.
+    expect(computeLatestStart(s2, verplichtKlaar, WINDOW_START)).toBe('2026-07-19')
+    // s1 required-finish is 2026-07-19 (one day earlier, per computeVerplichtKlaar);
+    // its own 1-day duration pushes its latest start back one more day.
+    expect(computeLatestStart(s1, verplichtKlaar, WINDOW_START)).toBe('2026-07-18')
+  })
+
+  it('returns null when the job has no required-finish date on record', () => {
+    const job = makeJob({ orderId: 'A', machineNaam: 'Zaag', deadline: null })
+    const verplichtKlaar = computeVerplichtKlaar([job], WINDOW_START)
+    expect(computeLatestStart(job, verplichtKlaar, WINDOW_START)).toBeNull()
   })
 })
 

@@ -2,12 +2,12 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { IconLink, IconAlertTriangle, IconLock } from '@tabler/icons-react'
 import type { Machine } from '../../api/machines'
-import { todayIndex } from '../../utils/planningGanttUtils'
+import { todayIndex } from '../../utils/planningSharedUtils'
 import { toDateStr } from '../../utils/planningUtils'
 import {
   type QueueJob, type DerivedSlot, type Connector,
   QUEUE_DAY_WIDTH, QUEUE_VISIBLE_DAYS, QUEUE_LABEL_WIDTH, QUEUE_ROW_HEIGHT, QUEUE_HEADER_HEIGHT, QUEUE_PAST_DAYS,
-  type QueueZoom, fmtOffsetDay, isWeekendOffset, isAtRisk, getGroupInfo, machineAccentColor, dateForOffset,
+  type QueueZoom, fmtOffsetDay, isWeekendOffset, isAtRisk, getGroupInfo, machineAccentColor, dateForOffset, dayOffsetForDateStr, shortOrderId, fmtDateWithWeekday,
 } from '../../utils/planningQueueUtils'
 
 interface MachineRow {
@@ -35,14 +35,12 @@ interface NodeLayout { job: QueueJob; slot: DerivedSlot; left: number; width: nu
 interface NodeCenter { x: number; xLeft: number; xRight: number; y: number }
 interface TipState { job: QueueJob; slot: DerivedSlot; risk: boolean; required?: string; anchorLeft: number; anchorTop: number; anchorBottom: number }
 
-// v2 restyle — strip the ORD-/PROD- prefix; append the customer's first
-// name (3 letters) only when the block is wide enough to show it.
-function blockLabel(orderId: string, klant: string, width: number): string {
-  const shortId = orderId.replace(/^ORD-/, '').replace(/^PROD-/, '')
-  if (width < 90) return shortId
-  const initials = (klant || '').split(' ')[0].slice(0, 3)
-  return initials ? `${shortId} · ${initials}` : shortId
-}
+// A machine can only run one job at a time — deriveShopSchedule (see
+// planningQueueUtils.ts) guarantees two jobs queued on the same machine never
+// derive overlapping time ranges, so a single lane per row is always enough;
+// no lane-stacking needed here. Centered in the 68px row: (68-60)/2 = 4.
+const NODE_H = 60
+const NODE_TOP = (QUEUE_ROW_HEIGHT - NODE_H) / 2
 
 // The project is only "done" once every one of its still-open steps —
 // across every order/part it contains, not just the hovered one — is
@@ -63,6 +61,21 @@ function projectExpectedFinish(
   return toDateStr(dateForOffset(windowStart, Math.ceil(maxFinish)))
 }
 
+// Signed day gap between a target ("moet klaar" / deadline) and an actual
+// expected-finish date, both as 'YYYY-MM-DD' strings — positive means the
+// finish lands BEFORE the target (margin, shown green), negative means it
+// lands after (late, shown red). windowStart is just a shared reference
+// point for the day-offset subtraction; any consistent date cancels out.
+function dayDelta(targetStr: string, finishStr: string, windowStart: Date): number {
+  return dayOffsetForDateStr(targetStr, windowStart) - dayOffsetForDateStr(finishStr, windowStart)
+}
+
+function deltaLabel(delta: number): string {
+  if (delta > 0) return `+${delta}d`
+  if (delta < 0) return `${delta}d`
+  return '0d'
+}
+
 export function QueueTimeline({
   rows, schedule, verplichtKlaar, allJobs, zoom, windowStart, connectors, showConnections, onToggleConnections, selectedId, onSelectJob, onDeselect,
 }: QueueTimelineProps) {
@@ -70,6 +83,8 @@ export function QueueTimeline({
   const pastPx = QUEUE_PAST_DAYS * dayWidth
   const scrollRef = useRef<HTMLDivElement>(null)
   const [tip, setTip] = useState<TipState | null>(null)
+  const tipRef = useRef<HTMLDivElement>(null)
+  const [tipPos, setTipPos] = useState<{ left: number; top: number } | null>(null)
 
   const { totalDays, layoutRows, centers } = useMemo(() => {
     let maxFinish = QUEUE_VISIBLE_DAYS
@@ -82,11 +97,25 @@ export function QueueTimeline({
         nodes.push({
           job, slot, rowIndex,
           left: pastPx + slot.startOffsetDays * dayWidth,
-          width: Math.max(slot.durationDays * dayWidth, 54),
+          width: slot.durationDays * dayWidth,
           ghostLeft: pastPx + slot.ghostOffsetDays * dayWidth,
           ghostWidth: Math.max((slot.finishOffsetDays - slot.startOffsetDays) * dayWidth, 24),
         })
       }
+      // A very short job's real duration can render narrower than is legible,
+      // so it gets padded out to a minimum width — but a machine queue is
+      // packed back-to-back with zero gap between jobs (see deriveShopSchedule),
+      // so padding purely for legibility would routinely paint a short job's
+      // box on top of the very next one. nodes is already left-to-right order
+      // (same-machine jobs are scheduled in non-decreasing start order), so
+      // the padding is capped to the gap actually available before the next
+      // job — full 54px when there's room (end of queue, a weekend/notBefore
+      // gap), otherwise only as much as it can take without encroaching.
+      nodes.forEach((n, i) => {
+        const next = nodes[i + 1]
+        const room = next ? next.left - n.left : Infinity
+        n.width = Math.min(Math.max(n.width, 54), room)
+      })
       return { ...r, nodes }
     })
     const centers = new Map<string, NodeCenter>()
@@ -129,6 +158,24 @@ export function QueueTimeline({
   useLayoutEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollLeft = Math.max(0, todayPx - 220)
   }, [dayWidth])
+
+  // The tip's width is intrinsic (fits its content on one line, see the CSS)
+  // rather than a fixed guess, so its on-screen position can only be clamped
+  // AFTER it has actually rendered and been measured. useLayoutEffect (not
+  // useEffect) so this correction lands before the browser paints — the tip
+  // is first rendered at its naive anchor position (see tipPos ?? fallback
+  // below), and this immediately overwrites that with the clamped one in the
+  // same paint, so there's no visible jump.
+  useLayoutEffect(() => {
+    if (!tip || !tipRef.current) { setTipPos(null); return }
+    const el = tipRef.current
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    const left = Math.max(8, Math.min(tip.anchorLeft, window.innerWidth - w - 8))
+    const below = tip.anchorBottom + h + 10 <= window.innerHeight
+    const top = below ? tip.anchorBottom + 8 : tip.anchorTop - h - 8
+    setTipPos({ left, top })
+  }, [tip])
 
   return (
     <div className="wq-timeline-col">
@@ -184,9 +231,9 @@ export function QueueTimeline({
                           <>
                             <div
                               className="node placeholder"
-                              style={{ left: n.ghostLeft, width: n.ghostWidth, top: 19, height: 30, borderRadius: 0, border: '1.5px dashed #d4d7da', background: 'transparent', zIndex: 0, pointerEvents: 'none' }}
+                              style={{ left: n.ghostLeft, width: n.ghostWidth, top: NODE_TOP, height: NODE_H, borderRadius: 0, border: '1.5px dashed #d4d7da', background: 'transparent', zIndex: 0, pointerEvents: 'none' }}
                             />
-                            <div style={{ position: 'absolute', left: lockLeft, top: 32, width: 14, height: 14, color: '#909499', zIndex: 0, pointerEvents: 'none' }}>
+                            <div style={{ position: 'absolute', left: lockLeft, top: NODE_TOP + (NODE_H - 14) / 2, width: 14, height: 14, color: '#909499', zIndex: 0, pointerEvents: 'none' }}>
                               <IconLock size={14} />
                             </div>
                           </>
@@ -194,7 +241,7 @@ export function QueueTimeline({
                         <div
                           className={`node${selectedId === n.job.id ? ' is-selected' : ''}${group ? ' proj-linked' : ''}`}
                           style={{
-                            left: n.left, width: n.width, top: 19, height: 30,
+                            left: n.left, width: n.width, top: NODE_TOP, height: NODE_H,
                             '--c': accent,
                             background: '#ffffff',
                             color: '#3a3d40',
@@ -213,9 +260,11 @@ export function QueueTimeline({
                           }}
                           onMouseLeave={() => setTip(null)}
                         >
-                          {group && <IconLink size={10} stroke={2.5} style={{ color: '#c2703d' }} />}
-                          {risk && <IconAlertTriangle size={10} stroke={2.2} style={{ color: '#c25c5c' }} />}
-                          <span className="nname" style={{ color: 'inherit', fontSize: 'inherit', fontWeight: 'inherit' }}>{blockLabel(n.job.orderId, n.job.klant, n.width)}</span>
+                          <span className="node-icons">
+                            {group && <IconLink size={11} stroke={2.5} style={{ color: '#c2703d' }} />}
+                            {risk && <IconAlertTriangle size={11} stroke={2.2} style={{ color: '#c25c5c' }} />}
+                          </span>
+                          <span className="node-num">{shortOrderId(n.job.orderId)}</span>
                         </div>
                       </div>
                     )
@@ -261,17 +310,25 @@ export function QueueTimeline({
       </div>
 
       {tip && (() => {
-        const TIP_W = 300
-        const EST_H = 220
-        const left = Math.max(8, Math.min(tip.anchorLeft, window.innerWidth - TIP_W - 8))
-        // flip above the block if it would overflow the bottom of the viewport
-        const below = tip.anchorBottom + EST_H + 10 <= window.innerHeight
-        const top = below ? tip.anchorBottom + 8 : tip.anchorTop - EST_H - 8
+        // Naive fallback position for the very first paint (before the
+        // layout effect above has measured the tip and clamped it) — same
+        // anchor math as that effect's non-flipped case, just without the
+        // real height, so it's never far off and never causes a visible jump.
+        const left = tipPos?.left ?? tip.anchorLeft
+        const top = tipPos?.top ?? tip.anchorBottom + 8
         const { qty, eenheid } = tip.job.item.order
         const stepFinish = toDateStr(dateForOffset(windowStart, Math.ceil(tip.slot.finishOffsetDays)))
         const projectFinish = projectExpectedFinish(tip.job.item.project.id, allJobs, schedule, windowStart)
+        // Step and project lateness are genuinely different measurements —
+        // the step's target is its own backward-planned verplichtKlaar date,
+        // the project's is the project's real deadline — so each gets its
+        // own delta against its own target, not a shared calculation.
+        const stepDelta = tip.required != null ? dayDelta(tip.required, stepFinish, windowStart) : null
+        const projectDelta = projectFinish != null && tip.job.deadline != null
+          ? dayDelta(tip.job.deadline, projectFinish, windowStart)
+          : null
         return (
-          <div className="wq-tip" style={{ left, top, width: TIP_W }}>
+          <div className="wq-tip" ref={tipRef} style={{ left, top }}>
             <div className="wq-tip-head">
               <span className="wq-tip-title">{tip.job.orderId}</span>
               <span className={`wq-tip-status ${tip.risk ? 'late' : 'ok'}`}>{tip.risk ? 'Te laat' : 'Op tijd'}</span>
@@ -280,10 +337,22 @@ export function QueueTimeline({
             <div className="wq-tip-row"><span className="k">Omschrijving</span><span className="v">{tip.job.artikel}</span></div>
             <div className="wq-tip-row"><span className="k">Tekening</span><span className="v">{tip.job.tekening ?? '—'}</span></div>
             <div className="wq-tip-row"><span className="k">Aantal</span><span className="v">{qty} {eenheid}</span></div>
-            <div className="wq-tip-row"><span className="k">Verwacht klaar (stap)</span><span className="v">{stepFinish}</span></div>
-            <div className="wq-tip-row"><span className="k">Verwacht klaar (project)</span><span className="v">{projectFinish ?? 'nog niet volledig ingepland'}</span></div>
-            <div className="wq-tip-row"><span className="k">Deadline</span><span className="v">{tip.job.deadline ?? '—'}</span></div>
-            {tip.required && <div className="wq-tip-row"><span className="k">Moet klaar</span><span className="v">{tip.required}</span></div>}
+            <div className="wq-tip-row">
+              <span className="k">Verwacht klaar (stap)</span>
+              <span className={`v${stepDelta != null ? (stepDelta >= 0 ? ' ahead' : ' late') : ''}`}>
+                {fmtDateWithWeekday(stepFinish)}
+                {stepDelta != null && <span className="delta">{deltaLabel(stepDelta)}</span>}
+              </span>
+            </div>
+            <div className="wq-tip-row">
+              <span className="k">Verwacht klaar (project)</span>
+              <span className={`v${projectDelta != null ? (projectDelta >= 0 ? ' ahead' : ' late') : ''}`}>
+                {projectFinish ? fmtDateWithWeekday(projectFinish) : 'nog niet volledig ingepland'}
+                {projectDelta != null && <span className="delta">{deltaLabel(projectDelta)}</span>}
+              </span>
+            </div>
+            <div className="wq-tip-row"><span className="k">Deadline</span><span className="v">{tip.job.deadline ? fmtDateWithWeekday(tip.job.deadline) : '—'}</span></div>
+            {tip.required && <div className="wq-tip-row"><span className="k">Moet klaar</span><span className="v">{fmtDateWithWeekday(tip.required)}</span></div>}
           </div>
         )
       })()}

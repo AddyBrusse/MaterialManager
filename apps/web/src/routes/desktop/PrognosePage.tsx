@@ -6,11 +6,12 @@ import { articlesApi, initArticles } from '../../api/articles'
 import { machinesApi, initMachines } from '../../api/machines'
 import {
   buildStapItems, berekenGhostBelasting, machineLoadInRange, ghostLoadInRange,
-  getWindowStart, prognoseTotalDays, toDateStr, dateForDayIndex, weekNrForIdx, fmtDayShort,
+  getWindowStart, prognoseTotalDays, dateForDayIndex, weekNrForIdx, fmtDayShort,
   machineCapacityMinPerDay,
-} from '../../utils/planningGanttUtils'
-import { PrognoseHeatmap } from '../../components/planning-gantt/PrognoseHeatmap'
-import { PrognoseBars } from '../../components/planning-gantt/PrognoseBars'
+} from '../../utils/planningSharedUtils'
+import { toDateStr } from '../../utils/planningUtils'
+import { PrognoseHeatmap } from '../../components/prognose/PrognoseHeatmap'
+import { PrognoseBars } from '../../components/prognose/PrognoseBars'
 
 type Granularity = 'day' | 'week' | 'month'
 
@@ -40,7 +41,7 @@ export const LABEL_W = 128
 // rowHeight/chartHeight calc below.
 const ROW_H = 50
 // The heatmap's own sticky column-header row (.prog-hm-corner/.prog-hm-colhd
-// in planning-gantt.css) — must be added on top of the machine rows when
+// in prognose.css) — must be added on top of the machine rows when
 // sizing the wrap's max-height. Omitting it made the wrap's content exactly
 // HEADER_H taller than its max-height, forcing a permanent vertical
 // scrollbar that ate into the wrap's width and gave the heatmap horizontal
@@ -69,7 +70,7 @@ const SCROLLBAR_H = 17
 // bar chart's column height: both section titles, the bar legend, the gap
 // between the two sections, and each wrap's own chrome (borders/header row/
 // axis-label row — see .prog-hm-wrap/.prog-bars-wrap in
-// planning-gantt.css). Approximate, not pixel-exact; each wrap keeps its own
+// prognose.css). Approximate, not pixel-exact; each wrap keeps its own
 // overflow:auto as a fallback if this under-estimates.
 const CHARTS_FIXED_OVERHEAD = 166
 

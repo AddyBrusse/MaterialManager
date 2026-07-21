@@ -96,7 +96,7 @@ export function PrognoseBars({
                   // The 4-line tooltip is ~75px tall; when the bar leaves
                   // less headroom than that above itself, flip the tooltip
                   // below the bar's top so the chart's scroll container
-                  // can't clip it — see .prog-tip-down in planning-gantt.css.
+                  // can't clip it — see .prog-tip-down in prognose.css.
                   const tipDown = chartHeight * (1 - heightPct / 100) < 80
                   return (
                     <div
