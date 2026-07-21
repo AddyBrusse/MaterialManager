@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { IconCheck, IconClock, IconCircleCheck, IconAlertTriangle } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { projectsApi, formatDate } from '../../api/projects'
+import { articlesApi } from '../../api/articles'
 import { useUserStore } from '../../stores/user'
 import {
   downloadProductieFormulier,
   downloadAlleProductieFormulieren,
   getOrdersWithMissingDrawing,
 } from '../../services/productie-pdf'
+import { ArtikelPreviewThumb } from './ArtikelPreviewThumb'
 import type { Project, ProductieOrder, ProductieStap } from '@stockmanager/shared'
 
 // ── Step check-off ────────────────────────────────────────────────────────────
@@ -60,6 +62,7 @@ function OrderCard({ project, order, onChanged }: OrderCardProps) {
   const doneCount  = order.stappen.filter(s => s.gereedOp).length
   const totalSteps = order.stappen.length
   const pct = totalSteps > 0 ? Math.round((doneCount / totalSteps) * 100) : 0
+  const art = order.artikelId ? articlesApi.list().find(a => a.id === order.artikelId) ?? null : null
 
   const statusCfg: Record<ProductieOrder['status'], { label: string; cls: string }> = {
     gepland:      { label: 'Gepland',      cls: 'st-badge' },
@@ -106,6 +109,8 @@ function OrderCard({ project, order, onChanged }: OrderCardProps) {
             border: '1.5px solid var(--border-strong)', flexShrink: 0,
           }} />
         )}
+
+        <ArtikelPreviewThumb article={art} />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -12,10 +12,16 @@ declare module 'occt-import-js' {
     array: number[]
   }
 
+  interface OcctBrepFace {
+    first: number
+    last: number
+    color: [number, number, number] | null
+  }
+
   interface OcctMesh {
     name: string
     color?: [number, number, number]
-    brep_faces?: unknown[]
+    brep_faces?: OcctBrepFace[]
     attributes: OcctMeshAttributes
     index: OcctMeshIndex
   }

@@ -1,18 +1,18 @@
 import { useState } from 'react'
-import { IconPlus, IconTrash, IconPencil, IconSend, IconCheck, IconChevronDown, IconChevronUp, IconMail } from '@tabler/icons-react'
+import { IconPlus, IconSend, IconCheck, IconChevronDown, IconChevronUp, IconMail } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { projectsApi, formatBedrag, formatDate } from '../../api/projects'
-import { articlesApi, KNOWN_OPERATIONS, type Article } from '../../api/articles'
+import { articlesApi, KNOWN_OPERATIONS } from '../../api/articles'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
-import { buildEstimateCtx, computeEstimateTotals } from '../../api/estimate'
 import { relatiesApi } from '../../api/relaties'
 import { downloadOffertePdf, buildOffertePdf } from '../../services/offerte-pdf'
 import { sendViaMicrosoft365, pdfToBase64 } from '../../services/graph-mail'
 import { companyApi } from '../../api/company'
 import { useUserStore } from '../../stores/user'
 import { ArtikelPickerModal } from './ArtikelPickerModal'
+import { RegelsTable } from './RegelsTable'
 import type { Project, Offerte, OfferteRegel } from '@stockmanager/shared'
 
 // ── Offerte status config ─────────────────────────────────────────────────────
@@ -233,30 +233,9 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
   const subtotaal = offerte.regels.reduce((s, r) => s + r.totaal, 0)
   const isLocked = offerte.status === 'geaccepteerd' || offerte.status === 'vervallen'
 
-  const allArticles = articlesApi.list()
   const grades      = gradesApi.listSync()
   const profiles    = profilesApi.listSync()
   const machines    = machinesApi.listSync()
-
-  function getArt(id: string | null): Article | null {
-    if (!id) return null
-    return allArticles.find(a => a.id === id) ?? null
-  }
-
-  function getKostprijs(art: Article | null, qty = 1): number {
-    if (!art?.estimate) return 0
-    try {
-      const ctx = buildEstimateCtx(art, grades, profiles, machines)
-      return computeEstimateTotals(art.estimate, ctx, qty).cost
-    } catch { return 0 }
-  }
-
-  function getMateriaal(art: Article | null): string {
-    if (!art?.recipe) return '—'
-    const p = profiles.find(pr => pr.id === art.recipe!.profileId)
-    const g = grades.find(gr => gr.id === art.recipe!.gradeId)
-    return [p?.name, g?.name].filter(Boolean).join(' · ') || '—'
-  }
 
   function downloadPdf() {
     const relaties = relatiesApi.listSync()
@@ -415,96 +394,25 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
           <div className="prj-off-body">
             {/* Lines table */}
             {offerte.regels.length > 0 ? (
-              <div style={{ overflowX: 'auto' }}>
-              <table className="st-tbl" style={{ fontSize: 12, tableLayout: 'fixed', width: '100%' }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: 88 }}>Art. No.</th>
-                    <th>Omschrijving</th>
-                    <th style={{ width: 115 }}>Tekeningnummer</th>
-                    <th style={{ width: 56 }}>Revisie</th>
-                    <th style={{ width: 170 }}>Bewerkingen</th>
-                    <th style={{ width: 90 }}>Materiaal</th>
-                    <th style={{ width: 82, textAlign: 'right' }}>Kostprijs</th>
-                    <th style={{ width: 68, textAlign: 'right' }}>Qty</th>
-                    <th style={{ width: 60, textAlign: 'right' }}>Marge %</th>
-                    <th style={{ width: 22 }} />
-                    <th style={{ width: 96, textAlign: 'right' }}>Verkoopprijs</th>
-                    <th style={{ width: 100, textAlign: 'right' }}>Totaal</th>
-                    {!isLocked && <th style={{ width: 86 }} />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {offerte.regels.map((r) => {
-                    const art = getArt(r.artikelId)
-                    const kostprijs = getKostprijs(art, r.qty)
-                    const marge = kostprijs > 0
-                      ? Math.round(((r.verkoopprijs / kostprijs) - 1) * 100)
-                      : null
-                    return (
-                    <tr key={r.id} style={{ cursor: isLocked ? 'default' : 'pointer' }}
-                      onClick={() => !isLocked && setEditRegel(r)}>
-                      <td className="cell-muted cell-mono" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {r.artikelId ?? '—'}
-                      </td>
-                      <td style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <span className="cell-strong">{r.naam}</span>
-                      </td>
-                      <td className="cell-muted" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {art?.tekening ?? '—'}
-                      </td>
-                      <td className="cell-muted" style={{ fontSize: 11.5 }}>{art?.rev ?? '—'}</td>
-                      <td>
-                        {r.bewerkingen.length > 0
-                          ? <div className="op-chips">{r.bewerkingen.map((b, i) => <span key={i} className="op-chip">{b}</span>)}</div>
-                          : <span className="cell-muted" style={{ fontSize: 11.5 }}>—</span>}
-                      </td>
-                      <td className="cell-muted" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {getMateriaal(art)}
-                      </td>
-                      <td className="cell-num cell-muted cell-mono" style={{ fontSize: 11.5 }}>
-                        {kostprijs > 0 ? formatBedrag(kostprijs) : '—'}
-                      </td>
-                      <td className="cell-num">{r.qty} {r.eenheid}</td>
-                      <td className="cell-num cell-muted" style={{ fontSize: 11.5 }}>
-                        {marge != null ? `${marge}%` : '—'}
-                      </td>
-                      <td style={{ textAlign: 'center', color: 'var(--text-3)' }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ display: 'block', margin: '0 auto' }}>
-                          <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/>
-                          <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/>
-                        </svg>
-                      </td>
-                      <td className="cell-num cell-mono">{formatBedrag(r.verkoopprijs)}</td>
-                      <td className="cell-num cell-mono cell-strong">{formatBedrag(r.totaal)}</td>
-                      {!isLocked && (
-                        <td onClick={e => e.stopPropagation()}>
-                          <div style={{ display: 'flex', gap: 2 }}>
-                            <button className="st-icon-btn" title="Bewerken" onClick={() => setEditRegel(r)}>
-                              <IconPencil size={13} />
-                            </button>
-                            <button className="st-icon-btn danger" title="Verwijderen" onClick={() => handleDeleteRegel(r.id)}>
-                              <IconTrash size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                    )
-                  })}
-                </tbody>
-                <tfoot>
+              <RegelsTable
+                regels={offerte.regels}
+                grades={grades}
+                profiles={profiles}
+                machines={machines}
+                isLocked={isLocked}
+                onRowClick={setEditRegel}
+                onDeleteRegel={handleDeleteRegel}
+                footerRows={
                   <tr style={{ background: 'var(--bg)', borderTop: '1px solid var(--border)' }}>
-                    <td colSpan={isLocked ? 11 : 12} style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>
+                    <td colSpan={isLocked ? 12 : 13} style={{ padding: '8px 12px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>
                       Subtotaal excl. BTW
                     </td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                       {formatBedrag(subtotaal)}
                     </td>
                   </tr>
-                </tfoot>
-              </table>
-              </div>
+                }
+              />
             ) : (
               <div className="st-empty" style={{ padding: '20px 14px' }}>
                 Nog geen artikelregels. Voeg een artikel toe om de offerte op te bouwen.

@@ -4,6 +4,18 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-07-20 — 100×100 artikel preview thumbnails on Offerte/Opdracht/Productie/Paklijst/Factuur rows; STEP preferred over PDF
+
+**Decision:** Added a 100×100px preview thumbnail (STEP 3D render, PDF drawing as fallback) between the "Art. No." and "Omschrijving" columns on Offerte and Opdrachtbevestiging line-item tables, added matching "Art. No." + thumbnail columns to Paklijst and Factuur (which didn't carry `artikelId` on their regel types — resolved via a join: `PaklijstRegel` → `productieOrderId` → `ProductieOrder.artikelId`; `FactuurRegel` → `offerteRegelId` → the accepted offerte's `OfferteRegel.artikelId`), and put it in the `ProductieOrder` card header (no regel table there to insert a column into).
+
+- STEP wins over PDF when an article has both, per explicit user preference — a 3D render identifies a part better than a 2D drawing at thumbnail size. See `resolveArtikelPreviewSource` in `apps/web/src/utils/artikelPreview.ts`.
+- New dependency: `pdfjs-dist`, used only to rasterize a PDF drawing's first page to a canvas — nothing else in the app renders existing PDFs (only generates them).
+- STEP thumbnails reuse the WASM/geometry cache already built for the interactive `StepViewer` (`apps/web/src/components/planning-queue/stepGeometry.ts`, extracted out so both share it), but render **once** and dispose immediately — no `requestAnimationFrame` loop or `OrbitControls`, unlike the interactive viewer. A table can list many rows each needing a STEP preview; a live 60fps WebGL context per row would be real CPU/battery/context-limit cost for no benefit on a static thumbnail.
+- `OfferteTab.tsx` and `OpdrachtbevestigingTab.tsx` previously carried a byte-for-byte duplicated 12-column table (the OB file's own comment said as much) — extracted into a shared `RegelsTable.tsx` rather than pasting the new column into both.
+
+**Why:** Rows were pure text — no visual way to recognize a part at a glance across any of the five order-lifecycle stages.
+
+
 ## 2026-07-20 — Wachtrij job nodes lock their derived start date instead of re-simulating from "today" every render
 
 **Decision:** `deriveShopSchedule` (`apps/web/src/utils/planningQueueUtils.ts`) is a whole-shop forward simulation whose per-machine cursor always started at day-offset `0` — i.e. "windowStart" ("today", `new Date()` recomputed on every page load). The Wachtrij board/timeline/KPIs used this simulation directly for rendering and never read the already-existing `stap.geplandDatum` field, unlike the Kanban and Gantt boards, which position blocks straight from that persisted date. Net effect: the first job in every machine's queue always rendered as starting "today" regardless of what day it actually was, and everything downstream cascaded off that — the whole board visibly drifted forward by however many days had passed since the last reorder, every time the page reloaded or the day rolled over.

@@ -1,6 +1,8 @@
 import { IconSend } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { projectsApi, getAcceptedOfferte, formatBedrag, formatDate } from '../../api/projects'
+import { articlesApi } from '../../api/articles'
+import { ArtikelPreviewThumb } from './ArtikelPreviewThumb'
 import type { Project } from '@stockmanager/shared'
 
 interface Props {
@@ -81,10 +83,12 @@ export function FactuurTab({ project, onChanged }: Props) {
             </span>
           </div>
           <div className="prj-off-body">
-            <table className="st-tbl" style={{ fontSize: 12.5 }}>
+            <table className="st-tbl" style={{ fontSize: 12.5, tableLayout: 'fixed', width: '100%' }}>
               <thead>
                 <tr>
                   <th style={{ width: 28 }}>#</th>
+                  <th style={{ width: 88 }}>Art. No.</th>
+                  <th style={{ width: 116 }}>Voorbeeld</th>
                   <th>Omschrijving</th>
                   <th style={{ textAlign: 'right', width: 80 }}>Qty</th>
                   <th style={{ textAlign: 'right', width: 110 }}>Prijs/stuk</th>
@@ -92,30 +96,39 @@ export function FactuurTab({ project, onChanged }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {accepted.regels.map((r, i) => (
-                  <tr key={r.id}>
-                    <td className="cell-muted">{i + 1}</td>
-                    <td>
-                      <div className="cell-strong">{r.naam}</div>
-                      {r.omschrijving && <div className="cell-muted" style={{ fontSize: 11.5 }}>{r.omschrijving}</div>}
-                    </td>
-                    <td className="cell-num">{r.qty} {r.eenheid}</td>
-                    <td className="cell-num cell-mono">{formatBedrag(r.verkoopprijs)}</td>
-                    <td className="cell-num cell-mono cell-strong">{formatBedrag(r.totaal)}</td>
-                  </tr>
-                ))}
+                {accepted.regels.map((r, i) => {
+                  const art = r.artikelId ? articlesApi.list().find(a => a.id === r.artikelId) ?? null : null
+                  return (
+                    <tr key={r.id}>
+                      <td className="cell-muted">{i + 1}</td>
+                      <td className="cell-muted cell-mono" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {r.artikelId ?? '—'}
+                      </td>
+                      <td style={{ padding: '6px 8px' }}>
+                        <ArtikelPreviewThumb article={art} />
+                      </td>
+                      <td>
+                        <div className="cell-strong">{r.naam}</div>
+                        {r.omschrijving && <div className="cell-muted" style={{ fontSize: 11.5 }}>{r.omschrijving}</div>}
+                      </td>
+                      <td className="cell-num">{r.qty} {r.eenheid}</td>
+                      <td className="cell-num cell-mono">{formatBedrag(r.verkoopprijs)}</td>
+                      <td className="cell-num cell-mono cell-strong">{formatBedrag(r.totaal)}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
               <tfoot>
                 <tr style={{ background: 'var(--bg)' }}>
-                  <td colSpan={4} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>Subtotaal excl. BTW</td>
+                  <td colSpan={6} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>Subtotaal excl. BTW</td>
                   <td className="cell-num cell-mono" style={{ padding: '7px 12px' }}>{formatBedrag(subtotaal)}</td>
                 </tr>
                 <tr style={{ background: 'var(--bg)' }}>
-                  <td colSpan={4} style={{ padding: '4px 12px 7px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>BTW 21%</td>
+                  <td colSpan={6} style={{ padding: '4px 12px 7px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>BTW 21%</td>
                   <td className="cell-num cell-mono" style={{ padding: '4px 12px 7px' }}>{formatBedrag(btw)}</td>
                 </tr>
                 <tr style={{ background: 'var(--bg-sidebar)', borderTop: '2px solid var(--border-strong)' }}>
-                  <td colSpan={4} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>Totaal incl. BTW</td>
+                  <td colSpan={6} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>Totaal incl. BTW</td>
                   <td className="cell-num cell-mono" style={{ padding: '9px 12px', fontWeight: 700, fontSize: 13 }}>{formatBedrag(incl)}</td>
                 </tr>
               </tfoot>
@@ -149,10 +162,12 @@ export function FactuurTab({ project, onChanged }: Props) {
           </span>
         </div>
         <div className="prj-off-body">
-          <table className="st-tbl" style={{ fontSize: 12.5 }}>
+          <table className="st-tbl" style={{ fontSize: 12.5, tableLayout: 'fixed', width: '100%' }}>
             <thead>
               <tr>
                 <th style={{ width: 28 }}>#</th>
+                <th style={{ width: 88 }}>Art. No.</th>
+                <th style={{ width: 116 }}>Voorbeeld</th>
                 <th>Omschrijving</th>
                 <th style={{ textAlign: 'right', width: 80 }}>Qty</th>
                 <th style={{ textAlign: 'right', width: 110 }}>Prijs/stuk</th>
@@ -160,27 +175,37 @@ export function FactuurTab({ project, onChanged }: Props) {
               </tr>
             </thead>
             <tbody>
-              {factuur.regels.map((r, i) => (
-                <tr key={r.offerteRegelId}>
-                  <td className="cell-muted">{i + 1}</td>
-                  <td><span className="cell-strong">{r.naam}</span></td>
-                  <td className="cell-num">{r.qty} {r.eenheid}</td>
-                  <td className="cell-num cell-mono">{formatBedrag(r.verkoopprijs)}</td>
-                  <td className="cell-num cell-mono cell-strong">{formatBedrag(r.totaal)}</td>
-                </tr>
-              ))}
+              {factuur.regels.map((r, i) => {
+                const artikelId = getAcceptedOfferte(project)?.regels.find(or => or.id === r.offerteRegelId)?.artikelId ?? null
+                const art = artikelId ? articlesApi.list().find(a => a.id === artikelId) ?? null : null
+                return (
+                  <tr key={r.offerteRegelId}>
+                    <td className="cell-muted">{i + 1}</td>
+                    <td className="cell-muted cell-mono" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {artikelId ?? '—'}
+                    </td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <ArtikelPreviewThumb article={art} />
+                    </td>
+                    <td><span className="cell-strong">{r.naam}</span></td>
+                    <td className="cell-num">{r.qty} {r.eenheid}</td>
+                    <td className="cell-num cell-mono">{formatBedrag(r.verkoopprijs)}</td>
+                    <td className="cell-num cell-mono cell-strong">{formatBedrag(r.totaal)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr style={{ background: 'var(--bg)' }}>
-                <td colSpan={4} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>Subtotaal excl. BTW</td>
+                <td colSpan={6} style={{ padding: '7px 12px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>Subtotaal excl. BTW</td>
                 <td className="cell-num cell-mono" style={{ padding: '7px 12px' }}>{formatBedrag(factuur.subtotaal)}</td>
               </tr>
               <tr style={{ background: 'var(--bg)' }}>
-                <td colSpan={4} style={{ padding: '4px 12px 7px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>BTW {factuur.btwPct}%</td>
+                <td colSpan={6} style={{ padding: '4px 12px 7px', textAlign: 'right', fontSize: 12, color: 'var(--text-3)' }}>BTW {factuur.btwPct}%</td>
                 <td className="cell-num cell-mono" style={{ padding: '4px 12px 7px' }}>{formatBedrag(factuur.btwBedrag)}</td>
               </tr>
               <tr style={{ background: 'var(--bg-sidebar)', borderTop: '2px solid var(--border-strong)' }}>
-                <td colSpan={4} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>Totaal incl. BTW</td>
+                <td colSpan={6} style={{ padding: '9px 12px', textAlign: 'right', fontWeight: 700, fontSize: 13 }}>Totaal incl. BTW</td>
                 <td className="cell-num cell-mono" style={{ padding: '9px 12px', fontWeight: 700, fontSize: 13 }}>{formatBedrag(factuur.totaalInclBtw)}</td>
               </tr>
             </tfoot>

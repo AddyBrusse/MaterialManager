@@ -1540,6 +1540,65 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
   color: var(--text);
 }
 
+/* Artikel preview thumbnail (Offerte/Opdracht/Paklijst/Factuur rows, Productie cards) */
+.art-preview-thumb {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-chip);
+  overflow: hidden;
+}
+.art-preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.art-preview-thumb-empty {
+  color: var(--text-4);
+}
+
+/* Hover-card large preview (300x~330) */
+.art-preview-hover {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.art-preview-hover-img {
+  width: 100%;
+  height: 500px;
+  position: relative; /* StepViewer fills via position:absolute; inset:0 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-chip);
+  overflow: hidden;
+}
+.art-preview-hover-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.art-preview-hover-name {
+  font-size: 11px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.art-preview-hover-actions {
+  display: flex;
+  gap: 6px;
+}
+.art-preview-hover-actions .st-btn {
+  flex: 1;
+  justify-content: center;
+}
+
 /* Productie order cards */
 .prj-order-card {
   border: 1px solid var(--border);

@@ -413,6 +413,23 @@
 }
 .wq-step-overlay.error { color: #dc2626; }
 
+/* Click-to-measure overlays — top-right bounding box, bottom-right live selection readout */
+.wq-step-bbox, .wq-step-measure {
+  position: absolute;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+  color: #1f2937;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px 8px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.wq-step-bbox { top: 8px; right: 8px; }
+.wq-step-measure { bottom: 8px; right: 8px; }
+
 .wq-dp-preview-empty {
   text-align: center; color: #9ca3af; font-size: 12px;
 }

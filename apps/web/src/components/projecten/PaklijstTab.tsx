@@ -1,6 +1,8 @@
 import { IconSend } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { projectsApi, formatBedrag, formatDate, allOrdersGereed } from '../../api/projects'
+import { projectsApi, formatDate, allOrdersGereed } from '../../api/projects'
+import { articlesApi } from '../../api/articles'
+import { ArtikelPreviewThumb } from './ArtikelPreviewThumb'
 import type { Project } from '@stockmanager/shared'
 
 interface Props {
@@ -128,22 +130,34 @@ export function PaklijstTab({ project, onChanged }: Props) {
           </span>
         </div>
         <div className="prj-off-body">
-          <table className="st-tbl" style={{ fontSize: 12.5 }}>
+          <table className="st-tbl" style={{ fontSize: 12.5, tableLayout: 'fixed', width: '100%' }}>
             <thead>
               <tr>
                 <th style={{ width: 28 }}>#</th>
+                <th style={{ width: 88 }}>Art. No.</th>
+                <th style={{ width: 116 }}>Voorbeeld</th>
                 <th>Artikel</th>
                 <th style={{ textAlign: 'right', width: 100 }}>Qty</th>
               </tr>
             </thead>
             <tbody>
-              {paklijst.regels.map((r, i) => (
-                <tr key={r.productieOrderId}>
-                  <td className="cell-muted">{i + 1}</td>
-                  <td><span className="cell-strong">{r.artikelNaam}</span></td>
-                  <td className="cell-num">{r.qty} {r.eenheid}</td>
-                </tr>
-              ))}
+              {paklijst.regels.map((r, i) => {
+                const artikelId = project.productieOrders.find(o => o.id === r.productieOrderId)?.artikelId ?? null
+                const art = artikelId ? articlesApi.list().find(a => a.id === artikelId) ?? null : null
+                return (
+                  <tr key={r.productieOrderId}>
+                    <td className="cell-muted">{i + 1}</td>
+                    <td className="cell-muted cell-mono" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {artikelId ?? '—'}
+                    </td>
+                    <td style={{ padding: '6px 8px' }}>
+                      <ArtikelPreviewThumb article={art} />
+                    </td>
+                    <td><span className="cell-strong">{r.artikelNaam}</span></td>
+                    <td className="cell-num">{r.qty} {r.eenheid}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
           <div className="prj-off-footer">
