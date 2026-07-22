@@ -37,6 +37,13 @@ leave them in place rather than deleting, so there's a record.
 
 ## Stamgegevens — Artikelen (`/artikelen`)
 
+## Stamgegevens — Artikel detail (`/artikelen/:id`)
+
+- [ ] Add customer search in the customer selector. (added 2026-07-21)
+- [ ] Layout/UI/UX feels heavy — move to more user-friendly input fields: no large header, no click-to-edit toggle, dynamic/inline update, more condensed with less whitespace. (added 2026-07-21)
+- [ ] Unify input styling — all inputs should share the same height, font color, and border. (added 2026-07-21)
+- [ ] If a 3D step file or PDF exists for the article, show it in the header, top-right, at 400x400px viewport size. (added 2026-07-21)
+
 ## Stamgegevens — Relaties (`/relaties`)
 
 ## Stamgegevens — Instellingen (`/instellingen`)
