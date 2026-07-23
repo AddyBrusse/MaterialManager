@@ -43,6 +43,7 @@ leave them in place rather than deleting, so there's a record.
 - [ ] Layout/UI/UX feels heavy — move to more user-friendly input fields: no large header, no click-to-edit toggle, dynamic/inline update, more condensed with less whitespace. (added 2026-07-21)
 - [ ] Unify input styling — all inputs should share the same height, font color, and border. (added 2026-07-21)
 - [ ] If a 3D step file or PDF exists for the article, show it in the header, top-right, at 400x400px viewport size. (added 2026-07-21)
+- [ ] When selecting a material that doesn't exist in Voorraad yet, need a fast add-material-without-leaving-the-article flow (add to Voorraad without location data, then straight back) — currently means leaving the article, opening Voorraad, adding the material, re-searching and reopening the article. Must not require leaving the article, or at minimum needs a very quick way back once the material's added. (added 2026-07-21)
 
 ## Stamgegevens — Relaties (`/relaties`)
 
