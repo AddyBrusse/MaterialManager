@@ -1,0 +1,240 @@
+/* Article-detail Col 3 — file viewer card. All classes prefixed afv- */
+
+.afv-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Empty state ─────────────────────────────────────────────── */
+.afv-empty {
+  flex: 1;
+  min-height: 288px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-4);
+  font-size: 12.5px;
+}
+
+/* ── Toolbar ─────────────────────────────────────────────────── */
+.afv-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.afv-toolbar-icon {
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+.afv-filename {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.afv-badge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.afv-counter {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+.afv-nav {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border-input);
+  border-radius: 6px;
+  background: var(--bg-2);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.afv-nav:hover {
+  background: var(--bg-chip);
+  color: var(--text);
+}
+.afv-nav-prev {
+  transform: rotate(180deg);
+}
+
+/* ── Body ────────────────────────────────────────────────────── */
+.afv-body {
+  position: relative;
+  flex: 1;
+  min-height: 288px;
+}
+
+.afv-drag-pill {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(15, 17, 22, 0.55);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 10.5px;
+  pointer-events: none;
+}
+
+/* PDF / document placeholder */
+.afv-doc {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: linear-gradient(160deg, #f3f5f8, #e2e6ec);
+  padding: 24px;
+  text-align: center;
+}
+.afv-doc-icon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+}
+.afv-doc-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-2);
+  max-width: 100%;
+  word-break: break-all;
+}
+.afv-doc-open {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 14px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.afv-doc-open:hover {
+  background: var(--accent-hover, #2560e0);
+}
+
+/* Image */
+.afv-image-tile {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(160deg, #f3f5f8, #e2e6ec);
+  padding: 12px;
+}
+.afv-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* NC code preview placeholder */
+.afv-nc {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #14161a;
+  color: #c7ced4;
+  overflow: hidden;
+}
+.afv-nc-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: #e6eaee;
+  flex-shrink: 0;
+}
+.afv-nc-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: #7a828c;
+}
+
+/* ── Thumbnail row ───────────────────────────────────────────── */
+.afv-thumbs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+.afv-thumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  max-width: 160px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid var(--border-input);
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-size: 11.5px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.afv-thumb:hover {
+  background: var(--bg-chip);
+}
+.afv-thumb.is-active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.afv-thumb-name {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

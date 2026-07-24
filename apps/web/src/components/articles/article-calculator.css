@@ -1,0 +1,321 @@
+/* ArticleCalculator — Calculatie tab.
+   High-fidelity restyle per design_handoff_article_detail/README.md.
+   All classes prefixed `acalc-`. Uses global tokens from tokens.css only. */
+
+/* ── Card shell ─────────────────────────────────────────────────────────── */
+.acalc-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 100px 10px 100px 10px; /* inset the tree + breathing room below */
+}
+@media (max-width: 900px) { .acalc-card { margin: 0 0 25px; } }
+
+.acalc-cardhead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.acalc-cardhead .acalc-ch-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.acalc-cardhead .acalc-ch-sub { font-size: 12px; color: var(--text-3); }
+.acalc-cardhead .acalc-ch-count { margin-left: auto; font-size: 12px; color: var(--text-3); }
+
+/* ── Section header row ─────────────────────────────────────────────────── */
+.acalc-section-head {
+  display: grid;
+  grid-template-columns: 26px 1fr auto 100px 32px;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 16px;
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+.acalc-chevron {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  transition: transform 0.15s ease;
+}
+.acalc-chevron[data-open='true'] { transform: rotate(90deg); }
+
+.acalc-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.acalc-section-count { font-size: 12px; color: var(--text-3); }
+.acalc-section-total {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: right;
+  color: var(--text);
+}
+
+/* ── Material / External grid (rows + column header) ────────────────────── */
+.acalc-mat-head,
+.acalc-mat-row {
+  display: grid;
+  grid-template-columns: 26px 0.9fr 2fr 96px 120px 100px 58px;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ── Column-header sub-row ──────────────────────────────────────────────── */
+.acalc-colhead {
+  padding: 5px 16px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-4);
+}
+.acalc-colhead .nudge-name { padding-left: 7px; }
+.acalc-colhead .nudge-note { padding-left: 7px; }
+.acalc-colhead .nudge-aantal { text-align: right; padding-right: 18px; }
+.acalc-colhead .nudge-prijs { text-align: right; padding-right: 6px; }
+.acalc-colhead .ta-r { text-align: right; }
+
+/* ── Data rows ──────────────────────────────────────────────────────────── */
+.acalc-mat-row {
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.acalc-mat-row:hover { background: var(--bg-hover); }
+
+.acalc-drag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-4);
+  cursor: grab;
+  font-size: 13px;
+  line-height: 1;
+  user-select: none;
+}
+.acalc-drag:active { cursor: grabbing; }
+
+/* Name / dienst input — read-only by default (transparent), unlocked via pencil */
+.acalc-name-inp {
+  width: 100%;
+  min-width: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+.acalc-name-inp.bold { font-weight: 600; }
+.acalc-name-inp:not([readonly]) {
+  background: var(--bg-2);
+  border-color: var(--border-input);
+}
+.acalc-name-inp:not([readonly]):focus { outline: 0; border-color: var(--accent); }
+.acalc-name-inp[readonly] { cursor: default; }
+
+.acalc-spec {
+  font-size: 11.5px;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Note input (Uitbestedingen Omschrijving) — always editable */
+.acalc-note-inp {
+  width: 100%;
+  max-width: 400px;
+  min-width: 0;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+.acalc-note-inp:focus { outline: 0; border-color: var(--accent); }
+
+/* Numeric input groups */
+.acalc-numgrp,
+.acalc-prijsgrp {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.acalc-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 12.5px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--border-input);
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+.acalc-num:focus { outline: 0; border-color: var(--accent); }
+.acalc-num.w56 { width: 56px; }
+.acalc-num.w72 { width: 72px; }
+.acalc-num::-webkit-outer-spin-button,
+.acalc-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.acalc-num { -moz-appearance: textfield; }
+.acalc-unit { font-size: 11px; color: var(--text-4); }
+
+.acalc-total {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: right;
+  color: var(--text);
+}
+.acalc-num-muted {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  text-align: right;
+  color: var(--text-3);
+}
+
+/* Row actions */
+.acalc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.acalc-iconbtn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.acalc-iconbtn:hover { background: var(--bg-hover); color: var(--text); }
+.acalc-iconbtn.active { background: var(--accent-soft); color: var(--accent); }
+.acalc-iconbtn.del:hover { background: var(--danger-soft); color: var(--danger); }
+
+/* Add-row link */
+.acalc-addrow {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.acalc-addrow.indent { padding-left: 52px; }
+.acalc-addlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.acalc-addlink:hover { text-decoration: underline; }
+
+/* ── Machine header row ─────────────────────────────────────────────────── */
+.acalc-mach-head {
+  display: grid;
+  grid-template-columns: 26px 1fr 150px 96px 120px 100px 58px;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 16px;
+  background: var(--bg-sidebar);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.acalc-mach-head:hover { background: var(--bg-active); }
+.acalc-chevron-btn {
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.15s ease;
+}
+.acalc-chevron-btn[data-open='true'] { transform: rotate(90deg); }
+.acalc-stepsummary {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+
+/* ── Machine expanded (setup / step) rows ───────────────────────────────── */
+.acalc-step-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 96px 120px 100px 40px;
+  gap: 10px;
+  align-items: center;
+  padding: 5px 16px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.acalc-step-row:hover { background: var(--bg-hover); }
+.acalc-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 6px;
+  color: var(--text-4);
+}
+/* Type tag + omschrijving grouped on the left, both left-aligned */
+.acalc-step-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.acalc-step-main .acalc-note-inp,
+.acalc-step-main .acalc-name-inp { flex: 1; }
+.acalc-step-label { font-size: 11.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acalc-typetag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 72px;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.acalc-typetag.neutral {
+  color: var(--text-3);
+  background: var(--bg-chip);
+}
+.acalc-note-label { font-size: 11px; color: var(--text-3); }
+.acalc-ratelbl {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: right;
+}

@@ -14,6 +14,11 @@ export interface EstimateCtx {
 export interface EstimateTotals {
   materialTotal: number
   machiningTotal: number
+  /** Per-unit machine setup cost only (part of machiningTotal). Split out so the
+   *  price-buildup Sankey / legend can show "Setuptijd" apart from cycle time. */
+  setupTotal: number
+  /** Per-unit machine cycle cost only (part of machiningTotal). */
+  cycleTotal: number
   externalTotal: number
   cost: number
   marginPct: number
@@ -109,12 +114,16 @@ export function computeEstimateTotals(est: ArticleEstimate, ctx: EstimateCtx, qt
     }
   }
 
-  const machiningTotal = cyclePerPiece + setupTotal / n
+  const setupPerUnit = setupTotal / n
+  const machiningTotal = cyclePerPiece + setupPerUnit
   const externalTotal = externalBatchTotal / n
   const cost = materialTotal + machiningTotal + externalTotal
   const marginPct = est.marginPct || 0
   const sell = cost * (1 + marginPct / 100)
-  return { materialTotal, machiningTotal, externalTotal, cost, marginPct, sell, timeMin }
+  return {
+    materialTotal, machiningTotal, setupTotal: setupPerUnit, cycleTotal: cyclePerPiece,
+    externalTotal, cost, marginPct, sell, timeMin,
+  }
 }
 
 /** "1:30 u" / "45 min" — per SPEC §9 minToHm. */

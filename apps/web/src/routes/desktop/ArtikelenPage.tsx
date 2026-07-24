@@ -95,7 +95,7 @@ export function ArtikelenPage() {
     return m
   }, [articles, gradesData, profilesData, machinesData])
   const totalsOf = (id: string): EstimateTotals =>
-    totalsByArticle.get(id) ?? { materialTotal: 0, machiningTotal: 0, externalTotal: 0, cost: 0, marginPct: 0, sell: 0, timeMin: 0 }
+    totalsByArticle.get(id) ?? { materialTotal: 0, machiningTotal: 0, setupTotal: 0, cycleTotal: 0, externalTotal: 0, cost: 0, marginPct: 0, sell: 0, timeMin: 0 }
 
   function formatRecipe(a: Article): { text: string; grade: string } | null {
     if (!a.recipe) return null

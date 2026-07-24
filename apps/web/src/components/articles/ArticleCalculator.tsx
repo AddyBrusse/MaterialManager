@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Popover, Select, NumberInput, Modal, TextInput, Button, Group, Stack, Divider } from '@mantine/core'
+import { Select, NumberInput, Modal, TextInput, Button, Group, Stack, Divider } from '@mantine/core'
 import type { Article, ArticleEstimate, EstimateNode, EstimateNodeType, EstimateStep } from '../../api/articles'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
 import { rawMaterialsApi, formatDimensions, computeWeightKg, type ProfileInfo, type RawMaterialRow } from '../../api/raw-materials'
+import { MaterialPickerModal } from './MaterialPickerModal'
+import './article-calculator.css'
 import {
   buildEstimateCtx, computeEstimateTotals, materialCostPerPiece, machineRatePerHour, machineMinutes, minToHm,
   type EstimateCtx,
@@ -48,96 +50,6 @@ function materialSpec(node: EstimateNode, ctx: EstimateCtx, grades: { id: string
   const dimStr = dimProfile ? formatDimensions(dimProfile, dims) : ''
   const lenStr = len ? ` × ${len} mm` : ''
   return `${dimStr}${lenStr} · ${num(kg)} kg · ${priceStr}`
-}
-
-// ── Inline-editable row name ────────────────────────────────────────────────
-function EditableName({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => { if (editing) { inputRef.current?.focus(); inputRef.current?.select() } }, [editing])
-
-  function commit() {
-    const trimmed = draft.trim()
-    if (trimmed && trimmed !== value) onChange(trimmed)
-    else setDraft(value)
-    setEditing(false)
-  }
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        className="tw-lbl tw-lbl-edit"
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={e => {
-          if (e.key === 'Enter') commit()
-          if (e.key === 'Escape') { setDraft(value); setEditing(false) }
-        }}
-      />
-    )
-  }
-  return (
-    <span className="tw-lbl tw-lbl-editable" title="Klik om naam te wijzigen" onClick={() => setEditing(true)}>
-      {value}
-    </span>
-  )
-}
-
-// ── Tree name cell ───────────────────────────────────────────────────────────
-function TreeName({ depth, hasToggle, open, onToggle, icon, label, configure, popoverWidth = 260, onRename }: {
-  depth: number
-  hasToggle?: boolean
-  open?: boolean
-  onToggle?: () => void
-  icon: string
-  label: React.ReactNode
-  configure?: React.ReactNode
-  popoverWidth?: number
-  onRename?: (value: string) => void
-}) {
-  return (
-    <div className="calc-name">
-      {Array.from({ length: depth }).map((_, i) => <span className="tw-rail" key={i} />)}
-      <div className="tw-name-inner">
-        {hasToggle
-          ? <button type="button" className="tw-tog" data-open={open} onClick={onToggle}><Ic d={Icon.chevronRight} /></button>
-          : <span className="tw-spacer" />}
-        {configure ? (
-          <Popover width={popoverWidth} position="bottom-start" withArrow shadow="md" zIndex={300}>
-            <Popover.Target>
-              <button type="button" className="tw-ico" title="Configureren" style={{ border: 0, padding: 0, cursor: 'pointer' }}>
-                <Ic d={icon} />
-              </button>
-            </Popover.Target>
-            <Popover.Dropdown>{configure}</Popover.Dropdown>
-          </Popover>
-        ) : (
-          <span className="tw-ico"><Ic d={icon} /></span>
-        )}
-        {onRename ? <EditableName value={String(label)} onChange={onRename} /> : <span className="tw-lbl">{label}</span>}
-      </div>
-    </div>
-  )
-}
-
-function NumCell({ value, onChange, unit, step = 1, min = 0 }: {
-  value: number
-  onChange: (v: number) => void
-  unit?: string
-  step?: number
-  min?: number
-}) {
-  return (
-    <div className="calc-cell num" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-      <input className="calc-inp" type="number" value={value} step={step} min={min}
-        onChange={e => onChange(e.target.value === '' ? 0 : +e.target.value)} />
-      {unit ? <span className="calc-unit">{unit}</span> : null}
-    </div>
-  )
 }
 
 // ── Configure popovers ──────────────────────────────────────────────────────
@@ -401,24 +313,51 @@ function NodeEditModal({ state, grades, profiles, machines, stockRows, onChange,
   )
 }
 
+// ── Numeric row input + unit (restyle) ──────────────────────────────────────
+function AcalcNum({ value, onChange, unit, unitBefore, width, step = 1, min = 0 }: {
+  value: number
+  onChange: (v: number) => void
+  unit?: string
+  unitBefore?: boolean
+  width?: 'w56' | 'w72'
+  step?: number
+  min?: number
+}) {
+  const input = (
+    <input className={`acalc-num${width ? ' ' + width : ''}`} type="number" value={value} step={step} min={min}
+      onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+      onChange={e => onChange(e.target.value === '' ? 0 : +e.target.value)} />
+  )
+  return (
+    <div className={unitBefore ? 'acalc-prijsgrp' : 'acalc-numgrp'}>
+      {unitBefore && unit ? <span className="acalc-unit">{unit}</span> : null}
+      {input}
+      {!unitBefore && unit ? <span className="acalc-unit">{unit}</span> : null}
+    </div>
+  )
+}
+
 // ── Calculator ───────────────────────────────────────────────────────────────
 export function ArticleCalculator({ article, est, onEstChange }: {
   article: Article
   est: ArticleEstimate
   onEstChange: Dispatch<SetStateAction<ArticleEstimate>>
 }) {
-  const { data: gradesData }    = useQuery({ queryKey: ['grades'],        queryFn: gradesApi.list })
-  const { data: profilesData }  = useQuery({ queryKey: ['profiles'],      queryFn: profilesApi.list })
-  const { data: machinesData }  = useQuery({ queryKey: ['machines'],      queryFn: machinesApi.list })
+  const { data: gradesData } = useQuery({ queryKey: ['grades'], queryFn: gradesApi.list })
+  const { data: profilesData } = useQuery({ queryKey: ['profiles'], queryFn: profilesApi.list })
+  const { data: machinesData } = useQuery({ queryKey: ['machines'], queryFn: machinesApi.list })
   const { data: materialsData } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
 
-  const grades   = gradesData?.data   ?? []
+  const grades = gradesData?.data ?? []
   const profiles = (profilesData?.data ?? []) as ProfileShape[]
-  const machines = machinesData?.data  ?? []
+  const machines = machinesData?.data ?? []
   const stockRows = materialsData?.data ?? []
 
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [modal, setModal] = useState<ModalState | null>(null)
+  const [matPickerOpen, setMatPickerOpen] = useState(false)
+  const [editRow, setEditRow] = useState<string | null>(null) // row whose name input is unlocked
+  const [dragId, setDragId] = useState<string | null>(null)    // node being dragged
   const setEst = onEstChange
 
   const ctx: EstimateCtx = useMemo(
@@ -435,16 +374,47 @@ export function ArticleCalculator({ article, est, onEstChange }: {
   const updateNode = (id: string, p: Partial<EstimateNode>) => setNodes(ns => ns.map(n => n.id === id ? { ...n, ...p } : n))
   const removeNode = (id: string) => setNodes(ns => ns.filter(n => n.id !== id))
 
-  function openAddMaterial() {
-    const gradeId = article.recipe?.gradeId ?? grades[0]?.id ?? null
-    const profileId = article.recipe?.profileId ?? null
-    const dimensions = article.recipe?.dimensions ? { ...article.recipe.dimensions } : null
-    const lengthMm = article.recipe?.lengthPerPieceMm ?? null
-    const draft: EstimateNode = {
-      id: uid('mat'), type: 'material', name: materialName(gradeId, profileId, dimensions, grades, profiles),
-      gradeId, profileId, dimensions, lengthMm, qty: 1, costOverride: null,
+  /** Reorder within a section: move `fromId` to sit before `toId`. Only nodes of
+   *  the same type reorder (drag is scoped to one section). */
+  function moveNode(fromId: string, toId: string) {
+    if (fromId === toId) return
+    setNodes(ns => {
+      const from = ns.findIndex(n => n.id === fromId)
+      const to = ns.findIndex(n => n.id === toId)
+      if (from < 0 || to < 0 || ns[from].type !== ns[to].type) return ns
+      const copy = [...ns]
+      const [moved] = copy.splice(from, 1)
+      // Drop before the target when moving up, after it when moving down, so the
+      // last slot in a section is reachable (dropping onto the last row).
+      let insertAt = copy.findIndex(n => n.id === toId)
+      if (from < to) insertAt += 1
+      copy.splice(insertAt, 0, moved)
+      return copy
+    })
+  }
+  const dropProps = (node: EstimateNode) => ({
+    onDragOver: (e: React.DragEvent) => { if (dragId) e.preventDefault() },
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); if (dragId) moveNode(dragId, node.id); setDragId(null) },
+  })
+  const handleProps = (id: string) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => { setDragId(id); e.dataTransfer.effectAllowed = 'move' },
+    onDragEnd: () => setDragId(null),
+  })
+
+  /** Build a material node from a chosen stock row. Grade/profile/dimensions
+   *  come from the stock item; per-piece length defaults to the article recipe
+   *  (the stock row's lengthMm is the bar length, not the per-piece cut). */
+  function addMaterialFromStock(row: RawMaterialRow) {
+    const node: EstimateNode = {
+      id: uid('mat'), type: 'material',
+      gradeId: row.gradeId, profileId: row.profileId,
+      dimensions: { ...row.dimensions },
+      lengthMm: article.recipe?.lengthPerPieceMm ?? null,
+      qty: 1, costOverride: null,
+      name: materialName(row.gradeId, row.profileId, row.dimensions, grades, profiles),
     }
-    setModal({ type: 'material', mode: 'add', draft })
+    setNodes(ns => [...ns, node])
   }
   function openAddMachine() {
     const m = machines[0]
@@ -485,148 +455,179 @@ export function ArticleCalculator({ article, est, onEstChange }: {
   }
 
   const materialNodes = est.nodes.filter(n => n.type === 'material')
-  const machineNodes  = est.nodes.filter(n => n.type === 'machine')
+  const machineNodes = est.nodes.filter(n => n.type === 'machine')
   const externalNodes = est.nodes.filter(n => n.type === 'external')
+
+  const lineCount = materialNodes.length + machineNodes.length + externalNodes.length
+
+  const sectionHead = (id: string, icon: string, title: string, count: string, total: string) => (
+    <div className="acalc-section-head" onClick={() => toggle(id)}>
+      <span className="acalc-chevron" data-open={isOpen(id)}><Ic d={Icon.chevronRight} size={14} /></span>
+      <span className="acalc-section-title"><Ic d={icon} size={14} />{title}</span>
+      <span className="acalc-section-count">{count}</span>
+      <span className="acalc-section-total">{total}</span>
+      <span />
+    </div>
+  )
+
+  const nameInput = (id: string, value: string, onName: (v: string) => void, bold?: boolean) => (
+    <input className={`acalc-name-inp${bold ? ' bold' : ''}`} value={value} readOnly={editRow !== id}
+      onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+      onChange={e => onName(e.target.value)} />
+  )
+
+  const rowActions = (id: string, onDelete: () => void, deleteTitle: string) => (
+    <div className="acalc-actions">
+      <button type="button" className={`acalc-iconbtn${editRow === id ? ' active' : ''}`} title="Naam bewerken"
+        onClick={() => setEditRow(editRow === id ? null : id)}><Ic d={Icon.edit} size={14} /></button>
+      <button type="button" className="acalc-iconbtn del" title={deleteTitle} onClick={onDelete}><Ic d={Icon.trash} size={14} /></button>
+    </div>
+  )
 
   return (
     <>
-    <div className="calc">
-      <div className="calc-toolbar">
-        <span className="ttl">Calculatie</span>
-        <span className="sub">per stuk · richtprijs</span>
-        <span className="sp" />
-        <button type="button" className="btn sm"><Ic d={Icon.copy} size={13} />Dupliceren</button>
-        <button type="button" className="btn sm"><Ic d={Icon.download} size={13} />Exporteer</button>
-      </div>
-
-      <div className="calc-row calc-head">
-        <div>Onderdeel</div>
-        <div>Specificatie</div>
-        <div className="ta-r">Aantal</div>
-        <div className="ta-r">Tarief / prijs</div>
-        <div className="ta-r">Regeltotaal</div>
-        <div></div>
-      </div>
-
-      {/* ===== MATERIALEN ===== */}
-        <div className="calc-row is-group">
-          <TreeName depth={0} hasToggle open={isOpen('g-mat')} onToggle={() => toggle('g-mat')} icon={Icon.layers} label="Materialen" />
-          <div className="calc-cell spec">{materialNodes.length} regels</div>
-          <div className="calc-cell"></div>
-          <div className="calc-cell"></div>
-          <div className="calc-cell num total">{eur(totals.materialTotal)}</div>
-          <div></div>
+      <div className="acalc-card">
+        <div className="acalc-cardhead">
+          <span className="acalc-ch-title">Onderdelen</span>
+          <span className="acalc-ch-sub">per stuk · richtprijs</span>
+          <span className="acalc-ch-count">{lineCount} regels</span>
         </div>
-        {isOpen('g-mat') && materialNodes.map(node => {
-          const prijs = materialCostPerPiece(node, ctx)
-          const aantal = node.qty ?? 1
-          return (
-            <div className="calc-row" key={node.id} onDoubleClick={() => openEditNode(node)}>
-              <TreeName depth={1} icon={Icon.layers} label={node.name} popoverWidth={420}
-                onRename={v => updateNode(node.id, { name: v })}
-                configure={<MaterialConfig node={node} grades={grades} profiles={profiles} stockRows={stockRows} onChange={p => updateNode(node.id, p)} />} />
-              <div className="calc-cell spec">{materialSpec(node, ctx, grades, profiles)}</div>
-              <NumCell value={aantal} unit="st" onChange={v => updateNode(node.id, { qty: v })} />
-              <NumCell value={prijs} unit="€" step={0.01} onChange={v => updateNode(node.id, { costOverride: v })} />
-              <div className="calc-cell num total">{eur(aantal * prijs)}</div>
-              <div className="calc-cell row-actions">
-                <button type="button" className="icon-btn" title="Materiaal bewerken" onClick={() => openEditNode(node)}><Ic d={Icon.edit} /></button>
-                <button type="button" className="icon-btn" title="Materiaal verwijderen" onClick={() => removeNode(node.id)}><Ic d={Icon.trash} /></button>
-              </div>
-            </div>
-          )
-        })}
+
+        {/* ===== MATERIALEN ===== */}
+        {sectionHead('g-mat', Icon.layers, 'Materialen', `${materialNodes.length} regels`, eur(totals.materialTotal))}
         {isOpen('g-mat') && (
-          <div className="calc-row"><div className="calc-addrow"><button type="button" className="calc-add" onClick={openAddMaterial}><Ic d={Icon.plus} />Materiaal toevoegen</button></div></div>
+          <>
+            <div className="acalc-mat-head acalc-colhead">
+              <span />
+              <span className="nudge-name">Materiaal</span>
+              <span className="nudge-note">Omschrijving</span>
+              <span className="nudge-aantal">Aantal</span>
+              <span className="nudge-prijs">Prijs</span>
+              <span className="ta-r">Totaalprijs</span>
+              <span />
+            </div>
+            {materialNodes.map(node => {
+              const prijs = materialCostPerPiece(node, ctx)
+              const aantal = node.qty ?? 1
+              return (
+                <div className="acalc-mat-row" key={node.id} onDoubleClick={() => openEditNode(node)} {...dropProps(node)}>
+                  <span className="acalc-drag" title="Sleep om te ordenen" {...handleProps(node.id)}>⠿</span>
+                  {nameInput(node.id, node.name, v => updateNode(node.id, { name: v }))}
+                  <input className="acalc-note-inp" value={node.note ?? ''}
+                    placeholder={materialSpec(node, ctx, grades, profiles)}
+                    onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+                    onChange={e => updateNode(node.id, { note: e.target.value })} />
+                  <AcalcNum value={aantal} unit="st" width="w56" onChange={v => updateNode(node.id, { qty: v })} />
+                  <AcalcNum value={prijs} unit="€" unitBefore width="w72" step={0.01} onChange={v => updateNode(node.id, { costOverride: v })} />
+                  <span className="acalc-total">{eur(aantal * prijs)}</span>
+                  {rowActions(node.id, () => removeNode(node.id), 'Materiaal verwijderen')}
+                </div>
+              )
+            })}
+            <div className="acalc-addrow">
+              <button type="button" className="acalc-addlink" onClick={() => setMatPickerOpen(true)}><Ic d={Icon.plus} size={13} />Materiaal uit voorraad</button>
+            </div>
+          </>
         )}
 
         {/* ===== BEWERKINGEN ===== */}
-        <div className="calc-row is-group">
-          <TreeName depth={0} hasToggle open={isOpen('g-bew')} onToggle={() => toggle('g-bew')} icon={Icon.tool} label="Bewerkingen" />
-          <div className="calc-cell spec">{machineNodes.length} machines</div>
-          <div className="calc-cell"></div>
-          <div className="calc-cell"></div>
-          <div className="calc-cell num total">{eur(totals.machiningTotal)}</div>
-          <div></div>
-        </div>
-        {isOpen('g-bew') && machineNodes.map(node => {
-          const rate = machineRatePerHour(node, ctx)
-          const totalMin = machineMinutes(node)
-          return (
-            <div key={node.id}>
-              <div className="calc-row is-machine" onDoubleClick={() => openEditNode(node)}>
-                <TreeName depth={1} hasToggle open={isOpen(node.id)} onToggle={() => toggle(node.id)} icon={Icon.cpu} label={node.name} popoverWidth={340}
-                  onRename={v => updateNode(node.id, { name: v })}
-                  configure={<MachineConfig node={node} machines={machines} onChange={p => updateNode(node.id, p)} />} />
-                <div className="calc-cell spec">{(node.steps?.length ?? 0) + 1} bewerkingen · {minToHm(totalMin)}</div>
-                <div className="calc-cell num cell-muted">{totalMin} min</div>
-                <NumCell value={rate} unit="€/u" onChange={v => updateNode(node.id, { rateOverride: v })} />
-                <div className="calc-cell num total">{eur((totalMin / 60) * rate)}</div>
-                <div className="calc-cell row-actions">
-                  <button type="button" className="icon-btn" title="Machine bewerken" onClick={() => openEditNode(node)}><Ic d={Icon.edit} /></button>
-                  <button type="button" className="icon-btn" title="Machine verwijderen" onClick={() => removeNode(node.id)}><Ic d={Icon.trash} /></button>
-                </div>
-              </div>
-              {isOpen(node.id) && (
-                <div className="calc-row">
-                  <TreeName depth={2} icon={Icon.clock} label={<>Insteltijd — programmeren + opspannen<span className="setup-tag">insteltijd</span></>} />
-                  <div className="calc-cell spec">eenmalig per order</div>
-                  <NumCell value={node.setupMin ?? 0} unit="min" onChange={v => updateNode(node.id, { setupMin: v })} />
-                  <div className="calc-cell num cell-muted">{eur(rate)}/u</div>
-                  <div className="calc-cell num total">{eur(((node.setupMin ?? 0) / 60) * rate)}</div>
-                  <div className="calc-cell"></div>
-                </div>
-              )}
-              {isOpen(node.id) && (node.steps ?? []).map(step => (
-                <div className="calc-row" key={step.id}>
-                  <TreeName depth={2} icon={Icon.bolt} label={step.name} onRename={v => updateStep(node.id, step.id, { name: v })} />
-                  <div className="calc-cell spec">verspaning</div>
-                  <NumCell value={step.cycleMin} unit="min" onChange={v => updateStep(node.id, step.id, { cycleMin: v })} />
-                  <div className="calc-cell num cell-muted">{eur(rate)}/u</div>
-                  <div className="calc-cell num total">{eur((step.cycleMin / 60) * rate)}</div>
-                  <div className="calc-cell row-actions">
-                    <button type="button" className="icon-btn" title="Bewerking verwijderen" onClick={() => removeStep(node.id, step.id)}><Ic d={Icon.trash} /></button>
-                  </div>
-                </div>
-              ))}
-              {isOpen(node.id) && (
-                <div className="calc-row"><div className="calc-addrow indent"><button type="button" className="calc-add" onClick={() => addStep(node.id)}><Ic d={Icon.plus} />Bewerking toevoegen</button></div></div>
-              )}
-            </div>
-          )
-        })}
+        {sectionHead('g-bew', Icon.tool, 'Bewerkingen', `${machineNodes.length} machines`, eur(totals.machiningTotal))}
         {isOpen('g-bew') && (
-          <div className="calc-row"><div className="calc-addrow"><button type="button" className="calc-add" onClick={openAddMachine}><Ic d={Icon.plus} />Machine toevoegen</button></div></div>
+          <>
+            {machineNodes.map(node => {
+              const rate = machineRatePerHour(node, ctx)
+              const totalMin = machineMinutes(node)
+              return (
+                <div key={node.id}>
+                  <div className="acalc-mach-head" onDoubleClick={() => openEditNode(node)} {...dropProps(node)}>
+                    <button type="button" className="acalc-chevron-btn" data-open={isOpen(node.id)}
+                      title="Klik om te openen · sleep om te ordenen" {...handleProps(node.id)}
+                      onClick={e => { e.stopPropagation(); toggle(node.id) }}><Ic d={Icon.chevronRight} size={14} /></button>
+                    {nameInput(node.id, node.name, v => updateNode(node.id, { name: v }), true)}
+                    <span className="acalc-stepsummary">{(node.steps?.length ?? 0) + 1} stappen · {minToHm(totalMin)}</span>
+                    <span className="acalc-num-muted">{totalMin} min</span>
+                    <AcalcNum value={rate} unit="€/u" width="w72" onChange={v => updateNode(node.id, { rateOverride: v })} />
+                    <span className="acalc-total">{eur((totalMin / 60) * rate)}</span>
+                    {rowActions(node.id, () => removeNode(node.id), 'Machine verwijderen')}
+                  </div>
+                  {isOpen(node.id) && (
+                    <>
+                      <div className="acalc-step-row">
+                        <span className="acalc-step-icon"><Ic d={Icon.clock} size={13} /></span>
+                        <div className="acalc-step-main">
+                          <span className="acalc-step-label">programmeren + opspannen</span>
+                        </div>
+                        <AcalcNum value={node.setupMin ?? 0} unit="min" width="w72" onChange={v => updateNode(node.id, { setupMin: v })} />
+                        <span className="acalc-typetag">Insteltijd</span>
+                        {/*<span className="acalc-ratelbl">{eur(rate)}/u</span>*/}
+                        <span className="acalc-total">{eur(((node.setupMin ?? 0) / 60) * rate)}</span>
+                      </div>
+                      {(node.steps ?? []).map(step => (
+                        <div className="acalc-step-row" key={step.id}>
+                          <span className="acalc-step-icon"><Ic d={Icon.bolt} size={13} /></span>
+                          <div className="acalc-step-main">
+
+                            <input className="acalc-note-inp" value={step.name}
+                              onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+                              onChange={e => updateStep(node.id, step.id, { name: e.target.value })} />
+                            
+                          </div>
+                          <AcalcNum value={step.cycleMin} unit="min" width="w72" onChange={v => updateStep(node.id, step.id, { cycleMin: v })} />
+                          {/*<span className="acalc-ratelbl">{eur(rate)}/u</span>*/}
+                          <span className="acalc-typetag neutral">Verspaning</span>
+                          <span className="acalc-total">{eur((step.cycleMin / 60) * rate)}</span>
+                          <button type="button" className="acalc-iconbtn del" title="Bewerking verwijderen"
+                            onClick={() => removeStep(node.id, step.id)}><Ic d={Icon.trash} size={13} /></button>
+                        </div>
+                      ))}
+                      <div className="acalc-addrow indent">
+                        <button type="button" className="acalc-addlink" onClick={() => addStep(node.id)}><Ic d={Icon.plus} size={13} />Bewerking toevoegen</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )
+            })}
+            <div className="acalc-addrow">
+              <button type="button" className="acalc-addlink" onClick={openAddMachine}><Ic d={Icon.plus} size={13} />Machine toevoegen</button>
+            </div>
+          </>
         )}
 
         {/* ===== UITBESTEDINGEN ===== */}
-        <div className="calc-row is-group">
-          <TreeName depth={0} hasToggle open={isOpen('g-uit')} onToggle={() => toggle('g-uit')} icon={Icon.truck} label="Uitbestedingen" />
-          <div className="calc-cell spec">{externalNodes.length} regels</div>
-          <div className="calc-cell"></div>
-          <div className="calc-cell"></div>
-          <div className="calc-cell num total">{eur(totals.externalTotal)}</div>
-          <div></div>
-        </div>
-        {isOpen('g-uit') && externalNodes.map(node => {
-          const aantal = node.qty ?? 1
-          const prijs = node.externalCost ?? 0
-          return (
-            <div className="calc-row" key={node.id} onDoubleClick={() => openEditNode(node)}>
-              <TreeName depth={1} icon={Icon.truck} label={node.name} onRename={v => updateNode(node.id, { name: v })} />
-              <div className="calc-cell spec">{node.note ?? '—'}</div>
-              <NumCell value={aantal} unit="st" onChange={v => updateNode(node.id, { qty: v })} />
-              <NumCell value={prijs} unit="€" step={0.01} onChange={v => updateNode(node.id, { externalCost: v })} />
-              <div className="calc-cell num total">{eur(aantal * prijs)}</div>
-              <div className="calc-cell row-actions">
-                <button type="button" className="icon-btn" title="Uitbesteding bewerken" onClick={() => openEditNode(node)}><Ic d={Icon.edit} /></button>
-                <button type="button" className="icon-btn" title="Uitbesteding verwijderen" onClick={() => removeNode(node.id)}><Ic d={Icon.trash} /></button>
-              </div>
-            </div>
-          )
-        })}
+        {sectionHead('g-uit', Icon.truck, 'Uitbestedingen', `${externalNodes.length} regels`, eur(totals.externalTotal))}
         {isOpen('g-uit') && (
-          <div className="calc-row" style={{ borderBottom: 0 }}><div className="calc-addrow"><button type="button" className="calc-add" onClick={openAddExternal}><Ic d={Icon.plus} />Uitbesteding toevoegen</button></div></div>
+          <>
+            <div className="acalc-mat-head acalc-colhead">
+              <span />
+              <span className="nudge-name">Dienst</span>
+              <span className="nudge-note">Omschrijving</span>
+              <span className="nudge-aantal">Aantal</span>
+              <span className="nudge-prijs">Prijs/st</span>
+              <span className="ta-r">Totaal</span>
+              <span />
+            </div>
+            {externalNodes.map(node => {
+              const aantal = node.qty ?? 1
+              const prijs = node.externalCost ?? 0
+              return (
+                <div className="acalc-mat-row" key={node.id} onDoubleClick={() => openEditNode(node)} {...dropProps(node)}>
+                  <span className="acalc-drag" title="Sleep om te ordenen" {...handleProps(node.id)}>⠿</span>
+                  {nameInput(node.id, node.name, v => updateNode(node.id, { name: v }))}
+                  <input className="acalc-note-inp" value={node.note ?? ''}
+                    onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+                    onChange={e => updateNode(node.id, { note: e.target.value })} />
+                  <AcalcNum value={aantal} unit="st" width="w56" onChange={v => updateNode(node.id, { qty: v })} />
+                  <AcalcNum value={prijs} unit="€" unitBefore width="w72" step={0.01} onChange={v => updateNode(node.id, { externalCost: v })} />
+                  <span className="acalc-total">{eur(aantal * prijs)}</span>
+                  {rowActions(node.id, () => removeNode(node.id), 'Uitbesteding verwijderen')}
+                </div>
+              )
+            })}
+            <div className="acalc-addrow" style={{ borderBottom: 0 }}>
+              <button type="button" className="acalc-addlink" onClick={openAddExternal}><Ic d={Icon.plus} size={13} />Uitbesteding toevoegen</button>
+            </div>
+          </>
         )}
       </div>
 
@@ -639,6 +640,16 @@ export function ArticleCalculator({ article, est, onEstChange }: {
         onChange={updateDraft}
         onConfirm={confirmModal}
         onCancel={() => setModal(null)}
+      />
+
+      <MaterialPickerModal
+        opened={matPickerOpen}
+        onClose={() => setMatPickerOpen(false)}
+        stockRows={stockRows}
+        grades={grades.map(g => ({ id: g.id, name: g.name }))}
+        profiles={profiles.map(p => ({ id: p.id, name: p.name, volumeFormula: p.volumeFormula }))}
+        onPick={row => { addMaterialFromStock(row); setMatPickerOpen(false) }}
+        onCreated={row => { addMaterialFromStock(row); setMatPickerOpen(false) }}
       />
     </>
   )

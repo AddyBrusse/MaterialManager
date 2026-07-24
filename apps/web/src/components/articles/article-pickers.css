@@ -1,0 +1,83 @@
+/* Shared styling for the article-detail picker modals
+   (MaterialPickerModal + LocationPickerModal). Classes are prefixed `apk-`. */
+
+.apk-filterbar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 12px 4px 14px;
+}
+
+.apk-table-head {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-4, #a4a8af);
+  border-bottom: 1px solid var(--border, rgba(15, 17, 22, 0.08));
+}
+
+.apk-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border, rgba(15, 17, 22, 0.08));
+}
+
+.apk-row:hover {
+  background: var(--bg-hover, rgba(15, 17, 22, 0.04));
+}
+
+.apk-row-click {
+  cursor: pointer;
+}
+
+.apk-row-selected {
+  background: var(--accent-soft, rgba(45, 109, 246, 0.1));
+}
+
+.apk-mat-rows {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.apk-loc-rows {
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.apk-mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+}
+
+.apk-right {
+  text-align: right;
+}
+
+.apk-empty {
+  padding: 34px 12px;
+  text-align: center;
+  color: var(--text-3, #7a7f88);
+  font-size: 13px;
+}
+
+.apk-price {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--text-3, #7a7f88);
+  margin-top: 2px;
+}
+
+.apk-quickadd {
+  border: 1px solid var(--border, rgba(15, 17, 22, 0.08));
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 12px;
+  background: var(--bg, #fbfbfa);
+}

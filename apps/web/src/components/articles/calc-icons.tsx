@@ -23,6 +23,8 @@ export const Icon: Record<string, string> = {
   file: 'M4 2h5l3 3v9a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1zm5 0v3h3',
   history: 'M8 4v4l3 2M2.5 8a5.5 5.5 0 109.5-3.8M2.5 8V4M2.5 8h4',
   box: 'M2 5l6-3 6 3M2 5l6 3 6-3M2 5v6l6 3 6-3V5M8 8v6',
+  pin: 'M8 1.5a4.5 4.5 0 014.5 4.5c0 3-4.5 8.5-4.5 8.5S3.5 9 3.5 6A4.5 4.5 0 018 1.5zM8 7.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z',
+  chevronDown: 'M4 6l4 4 4-4',
 }
 
 interface IcProps extends React.SVGAttributes<SVGSVGElement> {
