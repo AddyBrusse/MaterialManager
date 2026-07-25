@@ -6,7 +6,7 @@ import './article-financial.css'
 import type { ArticleEstimate } from '../../api/articles'
 import type { EstimateCtx, EstimateTotals } from '../../api/estimate'
 import { Ic, Icon } from './calc-icons'
-import { ArticleSankey, buildLegend } from './ArticleSankey'
+import { ArticleSankey, buildLegend, buildSankey } from './ArticleSankey'
 
 const euro = (n: number): string =>
   `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -21,6 +21,10 @@ export interface ArticleFinancialCardProps {
 export function ArticleFinancialCard({ est, ctx, totals, onMarginChange }: ArticleFinancialCardProps) {
   const winst = totals.sell - totals.cost
   const legend = buildLegend(totals)
+  // Shift the header by the same fraction the Sankey drawing is centered by, so
+  // the column labels stay over their (shifted) node columns.
+  const { shiftX } = buildSankey(est, ctx, totals.sell)
+  const headShift = `translateX(${((shiftX / 520) * 100).toFixed(2)}%)`
 
   return (
     <div className="afc-card">
@@ -81,14 +85,15 @@ export function ArticleFinancialCard({ est, ctx, totals, onMarginChange }: Artic
           ))}
         </div>
 
-        <div className="afc-sankey-head">
-          <span>Onderdelen</span>
-          <span>Kostengroep</span>
-          <span>Kostprijs</span>
-          <span>Verkoopprijs</span>
+        <div className="afc-sankey-wrap">
+          <div className="afc-sankey-head" style={{ transform: headShift }}>
+            <span>Onderdelen</span>
+            <span>Kostengroep</span>
+            <span>Kostprijs</span>
+            <span>Verkoopprijs</span>
+          </div>
+          <ArticleSankey est={est} ctx={ctx} sell={totals.sell} />
         </div>
-
-        <ArticleSankey est={est} ctx={ctx} sell={totals.sell} />
       </div>
     </div>
   )

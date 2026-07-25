@@ -8,7 +8,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  margin: 100px 10px 100px 10px; /* inset the tree + breathing room below */
+  margin: 10px 100px 10px 100px; /* inset the tree + breathing room below */
 }
 @media (max-width: 900px) { .acalc-card { margin: 0 0 25px; } }
 

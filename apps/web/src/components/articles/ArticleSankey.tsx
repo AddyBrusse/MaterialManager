@@ -44,6 +44,10 @@ export interface SankeyResult {
   rects: SankeyRect[]
   titles: SankeyTitle[]
   gutterX: number
+  /** x-translate applied to the whole drawing so its content (col-0 titles +
+   *  nodes/flows) is horizontally centered in the viewBox instead of leaning
+   *  right (the title gutter is wider than the right margin). */
+  shiftX: number
 }
 
 interface SNode {
@@ -218,7 +222,18 @@ export function buildSankey(est: ArticleEstimate, ctx: EstimateCtx, sell: number
     if (nd.col === 0) titles.push({ label: nd.label, cy: (nd.top ?? 0) + nd.h / 2 })
   })
 
-  return { viewBox: `0 0 ${W} ${H}`, flows, rects, titles, gutterX: leftX }
+  // Center the actual drawing: estimate the leftmost title edge (titles are
+  // right-aligned at gutterX-8) and the rightmost node edge, then shift so the
+  // two margins match. Clamp so titles never clip on the left.
+  const CHAR_W = 5.5 // ≈ IBM Plex Sans advance at 11px
+  const maxTitleW = titles.reduce((mx, t) => Math.max(mx, Math.min(t.label.length, 22) * CHAR_W), 0)
+  const leftContent = (leftX - 8) - maxTitleW
+  const rightContent = rects.reduce((mx, r) => Math.max(mx, r.x + r.w), 0)
+  let shiftX = W / 2 - (leftContent + rightContent) / 2
+  shiftX = Math.max(shiftX, 2 - leftContent)
+  shiftX = Math.min(shiftX, (W - 2) - rightContent)
+
+  return { viewBox: `0 0 ${W} ${H}`, flows, rects, titles, gutterX: leftX, shiftX }
 }
 
 export interface LegendItem {
@@ -256,29 +271,31 @@ export interface ArticleSankeyProps {
 }
 
 export function ArticleSankey({ est, ctx, sell }: ArticleSankeyProps) {
-  const { viewBox, flows, rects, titles, gutterX } = buildSankey(est, ctx, sell)
+  const { viewBox, flows, rects, titles, gutterX, shiftX } = buildSankey(est, ctx, sell)
   return (
     <svg className="afc-sankey-svg" viewBox={viewBox} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Prijsopbouw diagram">
-      {flows.map((f, i) => (
-        <path key={`f${i}`} className="afc-sankey-flow" d={f.d} fill={f.color} fillOpacity={0.36}>
-          <title>{`${f.label}: ${euro(f.value)}`}</title>
-        </path>
-      ))}
-      {rects.map((r, i) => (
-        <rect key={`r${i}`} x={r.x} y={r.y} width={r.w} height={r.h} rx={1.5} fill={r.color} />
-      ))}
-      {titles.map((t, i) => (
-        <text
-          key={`t${i}`}
-          className="afc-sankey-title"
-          x={gutterX - 8}
-          y={t.cy}
-          textAnchor="end"
-          dominantBaseline="middle"
-        >
-          {truncateLabel(t.label)}
-        </text>
-      ))}
+      <g transform={`translate(${shiftX.toFixed(2)} 0)`}>
+        {flows.map((f, i) => (
+          <path key={`f${i}`} className="afc-sankey-flow" d={f.d} fill={f.color} fillOpacity={0.36}>
+            <title>{`${f.label}: ${euro(f.value)}`}</title>
+          </path>
+        ))}
+        {rects.map((r, i) => (
+          <rect key={`r${i}`} x={r.x} y={r.y} width={r.w} height={r.h} rx={1.5} fill={r.color} />
+        ))}
+        {titles.map((t, i) => (
+          <text
+            key={`t${i}`}
+            className="afc-sankey-title"
+            x={gutterX - 8}
+            y={t.cy}
+            textAnchor="end"
+            dominantBaseline="middle"
+          >
+            {truncateLabel(t.label)}
+          </text>
+        ))}
+      </g>
     </svg>
   )
 }
