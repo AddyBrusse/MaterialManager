@@ -31,12 +31,13 @@ export function toProjectMeta(p: Project): ProjectMeta {
  * resolves to a relatie on an exact match.
  */
 export function ProjectInfoCard({
-  meta, onChange, relatieOptions, relatie,
+  meta, onChange, relatieOptions, relatie, readOnly = false,
 }: {
   meta: ProjectMeta
   onChange: (patch: Partial<ProjectMeta>) => void
   relatieOptions: { value: string; label: string }[]
   relatie: Relatie | null
+  readOnly?: boolean
 }) {
   const contacten = relatie?.contacten ?? []
   const contact = contacten.find(c => c.id === meta.contactId) ?? contacten[0]
@@ -73,13 +74,14 @@ export function ProjectInfoCard({
       <div className="ad-fields">
         <div className="ad-fieldrow">
           <label className="ad-fieldlabel">Naam</label>
-          <input className="field-inp strong" placeholder="Projectnaam…"
+          <input className="field-inp strong" placeholder="Projectnaam…" disabled={readOnly}
             value={meta.naam} onChange={e => onChange({ naam: e.target.value })} />
         </div>
         <div className="ad-fieldrow">
           <label className="ad-fieldlabel">Klant</label>
           <Autocomplete
             className="ad-ac" size="xs" placeholder="Kies klant" maxDropdownHeight={220}
+            disabled={readOnly}
             data={relatieOptions.map(o => o.label)}
             value={klantText}
             onChange={setKlant}
@@ -89,7 +91,7 @@ export function ProjectInfoCard({
           <label className="ad-fieldlabel">Contact</label>
           <Autocomplete
             className="ad-ac" size="xs" placeholder="Kies contact" maxDropdownHeight={220}
-            disabled={contacten.length === 0}
+            disabled={readOnly || contacten.length === 0}
             data={contacten.map(contactLabel)}
             value={contact ? contactLabel(contact) : ''}
             onChange={setContact}
@@ -97,12 +99,12 @@ export function ProjectInfoCard({
         </div>
         <div className="ad-fieldrow">
           <label className="ad-fieldlabel">Ref. klant</label>
-          <input className="field-inp" placeholder="—"
+          <input className="field-inp" placeholder="—" disabled={readOnly}
             value={meta.klantRef} onChange={e => onChange({ klantRef: e.target.value })} />
         </div>
         <div className="ad-fieldrow">
           <label className="ad-fieldlabel">Levertijd</label>
-          <input className="field-inp" type="date"
+          <input className="field-inp" type="date" disabled={readOnly}
             value={meta.levertijdDatum} onChange={e => onChange({ levertijdDatum: e.target.value })} />
         </div>
       </div>

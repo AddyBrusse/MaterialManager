@@ -1,6 +1,8 @@
 import { z } from 'zod';
+export declare const LockItemTypeSchema: z.ZodEnum<["raw", "finished", "project"]>;
+export type LockItemType = z.infer<typeof LockItemTypeSchema>;
 export declare const LockSchema: z.ZodObject<{
-    itemType: z.ZodEnum<["raw", "finished"]>;
+    itemType: z.ZodEnum<["raw", "finished", "project"]>;
     itemId: z.ZodString;
     userId: z.ZodString;
     userName: z.ZodString;
@@ -8,7 +10,7 @@ export declare const LockSchema: z.ZodObject<{
     lastHeartbeat: z.ZodString;
     isIdle: z.ZodBoolean;
 }, "strip", z.ZodTypeAny, {
-    itemType: "raw" | "finished";
+    itemType: "raw" | "finished" | "project";
     itemId: string;
     userId: string;
     userName: string;
@@ -16,7 +18,7 @@ export declare const LockSchema: z.ZodObject<{
     lastHeartbeat: string;
     isIdle: boolean;
 }, {
-    itemType: "raw" | "finished";
+    itemType: "raw" | "finished" | "project";
     itemId: string;
     userId: string;
     userName: string;
@@ -26,10 +28,10 @@ export declare const LockSchema: z.ZodObject<{
 }>;
 export type Lock = z.infer<typeof LockSchema>;
 export declare const AcquireLockSchema: z.ZodObject<{
-    itemType: z.ZodEnum<["raw", "finished"]>;
+    itemType: z.ZodEnum<["raw", "finished", "project"]>;
 }, "strip", z.ZodTypeAny, {
-    itemType: "raw" | "finished";
+    itemType: "raw" | "finished" | "project";
 }, {
-    itemType: "raw" | "finished";
+    itemType: "raw" | "finished" | "project";
 }>;
 export type AcquireLock = z.infer<typeof AcquireLockSchema>;
