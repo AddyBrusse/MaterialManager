@@ -1837,6 +1837,21 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
   border-left: 1px solid var(--border);
 }
 
+/* ===== Project detail — redesigned header (matches article ad- look) ===== */
+.prj-detail-hd { padding: 18px 24px 4px; flex-shrink: 0; }
+.prj-detail-hd .ad-crumb { margin-bottom: 14px; }
+.prj-detail-hd .ad-titlebar { margin-bottom: 6px; }
+.prj-detail-hd .prj-stage-track { justify-content: flex-start; padding: 0; margin: 10px 0 16px; }
+.prj-info-cards {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px; align-items: stretch;
+}
+@media (max-width: 1300px) { .prj-info-cards { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px)  { .prj-info-cards { grid-template-columns: 1fr; } }
+/* Read-only stat cards: tighten the eyebrow → primary → rows rhythm */
+.prj-info-cards .ad-card { gap: 11px; }
+.prj-info-cards .ad-card .info-primary { margin-top: -2px; }
+
 /* ===== Artikel Picker Modal ===== */
 .ap-hd {
   display: flex; align-items: center; gap: 10px;

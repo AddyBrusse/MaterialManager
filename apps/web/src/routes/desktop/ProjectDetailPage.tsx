@@ -2,15 +2,16 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconArrowLeft, IconCheck, IconPencil,
+  IconChevronRight, IconCheck,
   IconBulb, IconFileText, IconCircleCheck, IconTool,
   IconPackage, IconSend, IconReceipt, IconArrowBackUp,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { projectsApi, formatBedrag, formatDate, getAcceptedOfferte, getProjectSubtotaal, allOrdersGereed } from '../../api/projects'
+import { projectsApi, formatBedrag, getAcceptedOfferte, getProjectSubtotaal, allOrdersGereed } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
-import { useUserStore } from '../../stores/user'
 import { PROJECT_STATUS_CONFIG } from './ProjectenPage'
+import { ProjectInfoCard, toProjectMeta, type ProjectMeta } from '../../components/projecten/ProjectInfoCard'
+import { Ic, Icon } from '../../components/articles/calc-icons'
 import { OfferteTab } from '../../components/projecten/OfferteTab'
 import { OpdrachtbevestigingTab } from '../../components/projecten/OpdrachtbevestigingTab'
 import { ProductieTab } from '../../components/projecten/ProductieTab'
@@ -63,26 +64,6 @@ function StageTrack({ status }: { status: Project['status'] }) {
   )
 }
 
-// ── Inline-edit meta ──────────────────────────────────────────────────────────
-
-interface ProjectMeta {
-  naam: string
-  relatieId: string | null
-  contactId: string | null
-  klantRef: string
-  levertijdDatum: string
-}
-
-function toProjectMeta(p: Project): ProjectMeta {
-  return {
-    naam: p.naam,
-    relatieId: p.relatieId,
-    contactId: p.contactId,
-    klantRef: p.klantRef ?? '',
-    levertijdDatum: p.levertijdDatum ?? '',
-  }
-}
-
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
 type Tab = 'offertes' | 'opdrachtbevestiging' | 'productie' | 'paklijst' | 'factuur'
@@ -92,7 +73,6 @@ type Tab = 'offertes' | 'opdrachtbevestiging' | 'productie' | 'paklijst' | 'fact
 export function ProjectDetailPage() {
   const { id = '' } = useParams()
   const navigate     = useNavigate()
-  const isAdmin      = useUserStore(s => s.user?.role === 'admin')
   const relaties     = relatiesApi.listSync()
 
   // projectsApi.get() reads a synchronous in-memory cache that's only
@@ -110,7 +90,6 @@ export function ProjectDetailPage() {
   })
 
   const [tab, setTab]           = useState<Tab>('offertes')
-  const [editMode, setEdit]     = useState(false)
   const [confirmRevert, setConfirmRevert] = useState(false)
   const [meta, setMetaState] = useState<ProjectMeta>({ naam: '', relatieId: null, contactId: null, klantRef: '', levertijdDatum: '' })
   const qc = useQueryClient()
@@ -121,17 +100,25 @@ export function ProjectDetailPage() {
   // used to force a fresh synchronous read under the old code.
   const rerender = () => { forceUpdate(n => n + 1); qc.invalidateQueries({ queryKey: ['projects', id] }) }
 
-  // Project arrives asynchronously now (see useQuery above) — seed meta/
-  // editMode the first time it loads, same as the old synchronous lazy
-  // initializers did. Guarded so a later background refetch (e.g. another
-  // tab invalidating ['projects']) doesn't stomp on in-progress edits.
+  // ── Inline meta editing (no edit mode) — seed once per project id, then treat
+  //    local `meta` as the source of truth so a background refetch (triggered by
+  //    our own debounced save) never clobbers in-progress typing. Mirrors the
+  //    article-detail redesign. ──
   const metaInited = useRef<string | null>(null)
+  const metaDirty = useRef(false)
   useEffect(() => {
     if (!project || metaInited.current === project.id) return
     metaInited.current = project.id
+    metaDirty.current = false
     setMetaState(toProjectMeta(project))
-    setEdit(!project.naam)
   }, [project])
+
+  // Debounced persist of meta.
+  useEffect(() => {
+    if (!project || metaInited.current !== project.id || !metaDirty.current) return
+    const t = setTimeout(() => saveMeta(), 400)
+    return () => clearTimeout(t)
+  }, [meta]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isPending) return null
 
@@ -141,7 +128,7 @@ export function ProjectDetailPage() {
         <div className="st-page-hd">
           <div>
             <button className="st-btn ghost sm" onClick={() => navigate('/projecten')}>
-              <IconArrowLeft size={14} />Projecten
+              <IconChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />Projecten
             </button>
             <div className="st-page-title" style={{ marginTop: 8 }}>Project niet gevonden</div>
           </div>
@@ -153,17 +140,12 @@ export function ProjectDetailPage() {
     )
   }
 
-  const setMeta = (patch: Partial<ProjectMeta>) => setMetaState(m => ({ ...m, ...patch }))
+  const setMeta = (patch: Partial<ProjectMeta>) => {
+    metaDirty.current = true
+    setMetaState(m => ({ ...m, ...patch }))
+  }
 
-  function startEdit() {
-    setMetaState(toProjectMeta(project!))
-    setEdit(true)
-  }
-  function cancelEdit() {
-    setMetaState(toProjectMeta(project!))
-    setEdit(false)
-  }
-  function saveEdit() {
+  function saveMeta() {
     projectsApi.update(project!.id, {
       naam: meta.naam.trim() || project!.id,
       relatieId: meta.relatieId,
@@ -171,21 +153,30 @@ export function ProjectDetailPage() {
       klantRef: meta.klantRef.trim() || null,
       levertijdDatum: meta.levertijdDatum.trim() || null,
     })
-    setEdit(false)
     rerender()
   }
 
   const cfg      = PROJECT_STATUS_CONFIG[project.status]
-  const relatie  = relaties.find(r => r.id === project!.relatieId)
-  const contact  = relatie?.contacten.find(c => c.id === project!.contactId)
+  // Header identity is inline-editable now, so derive the selected relatie/
+  // contact from live `meta` (not the persisted project) — keeps the title
+  // meta-line and the Klant card in sync while typing.
+  const relatie  = relaties.find(r => r.id === meta.relatieId) ?? null
+  const contact  = relatie?.contacten.find(c => c.id === meta.contactId) ?? null
   const accepted = getAcceptedOfferte(project)
   const subtotaal = getProjectSubtotaal(project)
   const gereedCount = project.productieOrders.filter(o => o.status === 'gereed').length
   const totalOrders = project.productieOrders.length
 
-  // Contacts for edit-mode dropdown
-  const editRelatie  = relaties.find(r => r.id === meta.relatieId)
-  const editContacten = editRelatie?.contacten ?? []
+  const relatieOptions = relaties
+    .filter(r => r.type !== 'leverancier')
+    .map(r => ({ value: r.id, label: r.naam }))
+
+  const metaLine = [
+    project.id,
+    relatie?.naam || null,
+    contact?.naam || null,
+    meta.klantRef ? `ref ${meta.klantRef}` : null,
+  ].filter(Boolean).join(' · ')
 
   function NextActionBtn() {
     const { status } = project!
@@ -281,123 +272,54 @@ export function ProjectDetailPage() {
 
   return (
     <>
-      {/* Header */}
-      <div className="detail-head">
-        <button className="detail-back" onClick={() => navigate('/projecten')}>
-          <IconArrowLeft size={13} />Projecten
-        </button>
-        <div className="detail-top" style={{ alignItems: 'center', gap: 12 }}>
-          <div className="detail-icon" style={{ background: 'var(--bg-chip)', flexShrink: 0 }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      {/* Header — redesigned to match the article-detail page (ad- look) */}
+      <div className="prj-detail-hd">
+        {/* Breadcrumb */}
+        <div className="ad-crumb">
+          <button className="ad-crumb-link" onClick={() => navigate('/projecten')}>
+            <IconChevronRight size={13} />Projecten
+          </button>
+          <span className="ad-crumb-sep">/</span>
+          <span className="ad-crumb-cur">{meta.naam || 'Naamloos project'}</span>
+        </div>
+
+        {/* Title bar */}
+        <div className="ad-titlebar">
+          <div className="ad-glyph">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
             </svg>
           </div>
-          <div className="detail-id" style={{ flex: 'none', minWidth: 0 }}>
-            <div className="detail-name">
-              {editMode
-                ? <input
-                    className="info-primary-inp"
-                    placeholder="Projectnaam…"
-                    style={{ maxWidth: 280 }}
-                    value={meta.naam}
-                    onChange={e => setMeta({ naam: e.target.value })}
-                    autoFocus
-                  />
-                : (project.naam || <span style={{ color: 'var(--text-4)', fontStyle: 'italic' }}>Naamloos project</span>)}
+          <div className="ad-title-mid">
+            <div className="ad-title-row">
+              <h1 className="ad-h1">
+                {meta.naam || <span style={{ color: 'var(--text-4)', fontStyle: 'italic', fontWeight: 500 }}>Naamloos project</span>}
+              </h1>
               <span className={`badge ${cfg.cls}`}><span className="dot" />{cfg.label}</span>
             </div>
-            {!editMode && (relatie || project.klantRef) && (
-              <div className="detail-meta">
-                {relatie && relatie.naam}
-                {contact && ` · ${contact.naam}`}
-                {project.klantRef && ` · ref ${project.klantRef}`}
-              </div>
-            )}
+            <div className="ad-metaline">{metaLine}</div>
           </div>
-          {/* Stage track inline — takes remaining space */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <StageTrack status={project.status} />
-          </div>
-        </div>
-      </div>
-
-      {/* Action buttons — above KPI bar */}
-      <div className="prj-action-bar">
-        {editMode ? (
-          <>
-            <button className="btn" onClick={cancelEdit}>Annuleren</button>
-            <button className="btn primary" onClick={saveEdit}>
-              <IconCheck size={13} />Opslaan
-            </button>
-          </>
-        ) : (
-          <>
-            {isAdmin && <button className="btn" onClick={startEdit}><IconPencil size={13} />Bewerken</button>}
+          <div className="ad-title-actions">
             <RevertBtn />
             <NextActionBtn />
-          </>
-        )}
-      </div>
-
-      {/* Info strip */}
-      <div className={`detail-info prj-info-strip${editMode ? ' editing' : ''}`}>
-        {/* Klant */}
-        <div className={`info-group${editMode ? ' editing' : ''}`}>
-          <div className="info-group-label">Klant</div>
-          {editMode ? (
-            <select
-              className="info-primary-inp"
-              value={meta.relatieId ?? ''}
-              onChange={e => setMeta({ relatieId: e.target.value || null, contactId: null })}
-            >
-              <option value="">— Geen klant —</option>
-              {relaties.filter(r => r.type !== 'leverancier').map(r => (
-                <option key={r.id} value={r.id}>{r.naam}</option>
-              ))}
-            </select>
-          ) : (
-            <div className="info-primary">
-              {relatie?.naam ?? <span style={{ color: 'var(--text-4)', fontStyle: 'italic', fontSize: 14 }}>Geen klant</span>}
-            </div>
-          )}
-          <div className="info-rows">
-            {editMode && editContacten.length > 0 && (
-              <div className="info-line">
-                <span className="k">Contact</span>
-                <select
-                  className="info-sel"
-                  value={meta.contactId ?? ''}
-                  onChange={e => setMeta({ contactId: e.target.value || null })}
-                >
-                  <option value="">—</option>
-                  {editContacten.map(c => <option key={c.id} value={c.id}>{c.naam}</option>)}
-                </select>
-              </div>
-            )}
-            {!editMode && (
-              <div className="info-line">
-                <span className="k">Contact</span>
-                <span className="v">{contact?.naam ?? '—'}</span>
-              </div>
-            )}
-            <div className="info-line">
-              <span className="k">Ref. klant</span>
-              {editMode
-                ? <input className="info-inp" placeholder="—" value={meta.klantRef} onChange={e => setMeta({ klantRef: e.target.value })} />
-                : <span className="v">{project.klantRef ?? '—'}</span>}
-            </div>
-            <div className="info-line">
-              <span className="k">Levertijd</span>
-              {editMode
-                ? <input className="info-inp" type="date" value={meta.levertijdDatum} onChange={e => setMeta({ levertijdDatum: e.target.value })} />
-                : <span className="v">{project.levertijdDatum ? formatDate(project.levertijdDatum) : '—'}</span>}
-            </div>
           </div>
         </div>
 
-        {/* Offerte */}
-        <div className="info-group">
-          <div className="info-group-label">Offerte</div>
+        {/* Stage track */}
+        <StageTrack status={project.status} />
+
+        {/* Info cards */}
+        <div className="prj-info-cards">
+          <ProjectInfoCard
+            meta={meta}
+            onChange={setMeta}
+            relatieOptions={relatieOptions}
+            relatie={relatie}
+          />
+
+          {/* Offerte */}
+          <div className="ad-card">
+            <div className="ad-eyebrow"><Ic d={Icon.file} />Offerte</div>
           <div className="info-primary mono">
             {accepted?.id ?? (project.offertes.length > 0 ? project.offertes[project.offertes.length - 1].id : '—')}
           </div>
@@ -425,9 +347,9 @@ export function ProjectDetailPage() {
           </div>
         </div>
 
-        {/* Productie */}
-        <div className="info-group">
-          <div className="info-group-label">Productie</div>
+          {/* Productie */}
+          <div className="ad-card">
+            <div className="ad-eyebrow"><Ic d={Icon.tool} />Productie</div>
           <div className="info-primary">
             {totalOrders > 0 ? `${gereedCount} / ${totalOrders} klaar` : '—'}
           </div>
@@ -451,9 +373,9 @@ export function ProjectDetailPage() {
           </div>
         </div>
 
-        {/* Financieel */}
-        <div className="info-group">
-          <div className="info-group-label">Financieel</div>
+          {/* Financieel */}
+          <div className="ad-card">
+            <div className="ad-eyebrow"><Ic d={Icon.euro} />Financieel</div>
           <div className="info-primary mono">{subtotaal > 0 ? formatBedrag(subtotaal) : '—'}</div>
           <div className="info-rows">
             <div className="info-line">
@@ -472,6 +394,7 @@ export function ProjectDetailPage() {
                 {subtotaal > 0 ? formatBedrag(Math.round(subtotaal * 1.21 * 100) / 100) : '—'}
               </span>
             </div>
+          </div>
           </div>
         </div>
       </div>
