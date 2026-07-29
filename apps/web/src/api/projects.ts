@@ -96,11 +96,46 @@ function syncProject(
   promise: Promise<{ data: Project }>,
   failMessage: string,
 ): void {
+  // Start of a fresh save batch for this project → clear any prior error.
+  if ((saveInflight[projectId] ?? 0) === 0) saveErrored[projectId] = false
+  saveInflight[projectId] = (saveInflight[projectId] ?? 0) + 1
+  setSaveState(projectId, 'saving')
   promise
     .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
     .catch(() => {
+      saveErrored[projectId] = true
       notifications.show({ color: 'red', message: `${failMessage} — wijziging is niet opgeslagen op de server.` })
     })
+    .finally(() => {
+      saveInflight[projectId] = Math.max(0, (saveInflight[projectId] ?? 1) - 1)
+      if (saveInflight[projectId] === 0) {
+        setSaveState(projectId, saveErrored[projectId] ? 'error' : 'saved')
+      }
+    })
+}
+
+// ── Autosave state (per project) ────────────────────────────────────────────
+// Every mutation runs through syncProject, so this reflects "is anything for
+// this project still being persisted to the server?" — surfaced as a saved/
+// saving/error indicator on the detail page.
+export type ProjectSaveState = 'idle' | 'saving' | 'saved' | 'error'
+const saveStateById: Record<string, ProjectSaveState> = {}
+const saveInflight: Record<string, number> = {}
+const saveErrored: Record<string, boolean> = {}
+const saveListeners = new Set<() => void>()
+
+function setSaveState(id: string, s: ProjectSaveState): void {
+  saveStateById[id] = s
+  saveListeners.forEach(l => l())
+}
+
+export function subscribeProjectSaveState(cb: () => void): () => void {
+  saveListeners.add(cb)
+  return () => { saveListeners.delete(cb) }
+}
+
+export function getProjectSaveState(id: string): ProjectSaveState {
+  return saveStateById[id] ?? 'idle'
 }
 
 // ── Sequential numbering (localStorage-backed) ────────────────────────────────

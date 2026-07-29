@@ -11,6 +11,7 @@ import { notifications } from '@mantine/notifications'
 import { projectsApi, formatBedrag, formatDate, getProjectSubtotaal } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
 import { useUserStore } from '../../stores/user'
+import { ProjectTabs } from '../../components/projecten/ProjectTabs'
 import type { Project } from '@stockmanager/shared'
 
 // ── Status config ─────────────────────────────────────────────────────────────
@@ -158,6 +159,8 @@ export function ProjectenPage() {
 
   return (
     <>
+      <ProjectTabs />
+
       <div className="st-page-hd">
         <div>
           <div className="st-page-title">Projecten</div>

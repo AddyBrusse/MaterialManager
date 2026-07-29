@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AcquireLockSchema = exports.LockSchema = void 0;
+exports.AcquireLockSchema = exports.LockSchema = exports.LockItemTypeSchema = void 0;
 const zod_1 = require("zod");
-const movement_1 = require("./movement");
+exports.LockItemTypeSchema = zod_1.z.enum(['raw', 'finished', 'project']);
 exports.LockSchema = zod_1.z.object({
-    itemType: movement_1.ItemTypeSchema,
-    itemId: zod_1.z.string().uuid(),
+    itemType: exports.LockItemTypeSchema,
+    itemId: zod_1.z.string(),
     userId: zod_1.z.string().uuid(),
     userName: zod_1.z.string(),
     acquiredAt: zod_1.z.string().datetime(),
@@ -13,6 +13,6 @@ exports.LockSchema = zod_1.z.object({
     isIdle: zod_1.z.boolean(),
 });
 exports.AcquireLockSchema = zod_1.z.object({
-    itemType: movement_1.ItemTypeSchema,
+    itemType: exports.LockItemTypeSchema,
 });
 //# sourceMappingURL=lock.js.map

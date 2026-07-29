@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../db/client'
-import { AcquireLockSchema } from '@stockmanager/shared'
+import { AcquireLockSchema, LockItemTypeSchema } from '@stockmanager/shared'
 import { requireAdmin } from '../middleware/require-admin'
 import { AppError } from '../middleware/error'
 import { asyncHandler } from '../lib/async-handler'
@@ -16,10 +16,11 @@ function isIdle(lastHeartbeat: Date): boolean {
 router.get(
   '/:itemId',
   asyncHandler(async (req, res) => {
-    const { itemType } = req.query as { itemType?: string }
-    if (!itemType || (itemType !== 'raw' && itemType !== 'finished')) {
-      throw new AppError(400, 'VALIDATION', 'itemType query param vereist (raw|finished)')
+    const parsed = LockItemTypeSchema.safeParse(req.query.itemType)
+    if (!parsed.success) {
+      throw new AppError(400, 'VALIDATION', 'itemType query param vereist (raw|finished|project)')
     }
+    const itemType = parsed.data
     const lock = await prisma.lock.findUnique({
       where: { itemType_itemId: { itemType, itemId: req.params.itemId } },
       include: { user: { select: { id: true, name: true } } },

@@ -20,6 +20,7 @@ enum LocationKind {
 enum ItemType {
   raw
   finished
+  project
 }
 
 enum MovementKind {

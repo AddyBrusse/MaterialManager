@@ -1,21 +1,21 @@
-import type { Lock, ItemType } from '@stockmanager/shared'
+import type { Lock, LockItemType } from '@stockmanager/shared'
 import { apiFetch } from './client'
 
 export const locksApi = {
-  get: (itemId: string, itemType: ItemType) =>
+  get: (itemId: string, itemType: LockItemType) =>
     apiFetch<Lock | null>(`/locks/${itemId}?itemType=${itemType}`),
 
-  acquire: (itemId: string, itemType: ItemType) =>
+  acquire: (itemId: string, itemType: LockItemType) =>
     apiFetch<{ acquired: true }>(`/locks/${itemId}/acquire`, {
       method: 'POST', body: JSON.stringify({ itemType }),
     }),
 
-  heartbeat: (itemId: string, itemType: ItemType) =>
+  heartbeat: (itemId: string, itemType: LockItemType) =>
     apiFetch<{ ok: true }>(`/locks/${itemId}/heartbeat`, {
       method: 'POST', body: JSON.stringify({ itemType }),
     }),
 
-  release: (itemId: string, itemType: ItemType) =>
+  release: (itemId: string, itemType: LockItemType) =>
     apiFetch<void>(`/locks/${itemId}/release`, {
       method: 'POST', body: JSON.stringify({ itemType }),
     }),

@@ -4,13 +4,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconChevronRight, IconCheck,
   IconBulb, IconFileText, IconCircleCheck, IconTool,
-  IconPackage, IconSend, IconReceipt, IconArrowBackUp,
+  IconPackage, IconSend, IconReceipt, IconArrowBackUp, IconExternalLink,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { projectsApi, formatBedrag, getAcceptedOfferte, getProjectSubtotaal, allOrdersGereed } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
 import { PROJECT_STATUS_CONFIG } from './ProjectenPage'
 import { ProjectInfoCard, toProjectMeta, type ProjectMeta } from '../../components/projecten/ProjectInfoCard'
+import { ProjectTabs } from '../../components/projecten/ProjectTabs'
+import { openProjectTab } from '../../utils/openProjects'
+import { usePopoutRoutes } from '../../hooks/usePopout'
+import { focusPopout, requestClosePopout } from '../../utils/popout'
+import { useProjectLock } from '../../hooks/useProjectLock'
+import { useProjectSaveState } from '../../hooks/useProjectSaveState'
+import { IconLock, IconCloudCheck, IconCloudUpload, IconCloudX } from '@tabler/icons-react'
 import { Ic, Icon } from '../../components/articles/calc-icons'
 import { OfferteTab } from '../../components/projecten/OfferteTab'
 import { OpdrachtbevestigingTab } from '../../components/projecten/OpdrachtbevestigingTab'
@@ -38,10 +45,10 @@ const STAGE_ICONS = [
   <IconReceipt size={12} />,
 ]
 
-function StageTrack({ status }: { status: Project['status'] }) {
+function StageTrack({ status, compact = false }: { status: Project['status']; compact?: boolean }) {
   const activeIdx = STATUS_IDX[status]
   return (
-    <div className="prj-stage-track">
+    <div className={`prj-stage-track${compact ? ' compact' : ''}`}>
       {STAGES.map((label, i) => {
         const isDone   = i < activeIdx
         const isActive = i === activeIdx
@@ -53,7 +60,7 @@ function StageTrack({ status }: { status: Project['status'] }) {
             )}
             <div className="prj-stage-step">
               <div className={`prj-stage-circ ${cls}`}>
-                {isDone ? <IconCheck size={11} /> : STAGE_ICONS[i]}
+                {isDone ? <IconCheck size={compact ? 13 : 11} /> : STAGE_ICONS[i]}
               </div>
               <div className={`prj-stage-lbl ${cls}`}>{label}</div>
             </div>
@@ -61,6 +68,22 @@ function StageTrack({ status }: { status: Project['status'] }) {
         )
       })}
     </div>
+  )
+}
+
+// ── Autosave indicator ──────────────────────────────────────────────────────────
+
+function SaveIndicator({ state }: { state: 'idle' | 'saving' | 'saved' | 'error' }) {
+  if (state === 'idle') return null
+  const cfg = {
+    saving: { cls: 'saving', icon: <IconCloudUpload size={13} />, label: 'Bezig met opslaan…' },
+    saved:  { cls: 'saved',  icon: <IconCloudCheck size={13} />,  label: 'Opgeslagen' },
+    error:  { cls: 'error',  icon: <IconCloudX size={13} />,      label: 'Niet opgeslagen' },
+  }[state]
+  return (
+    <span className={`prj-save-ind ${cfg.cls}`} title={cfg.label}>
+      {cfg.icon}{cfg.label}
+    </span>
   )
 }
 
@@ -74,6 +97,15 @@ export function ProjectDetailPage() {
   const { id = '' } = useParams()
   const navigate     = useNavigate()
   const relaties     = relatiesApi.listSync()
+  const poppedOut    = usePopoutRoutes()
+  // This same component renders inside the detached popout window too; only the
+  // MAIN window should swap in the "open elsewhere" placeholder for a project.
+  const inPopoutWindow = window.location.pathname.startsWith('/pop/')
+  const isPoppedOut    = !inPopoutWindow && poppedOut.has(`/projecten/${id}`)
+  // Cross-user edit lock. Don't claim it in the main window while the project
+  // is popped out — the detached window holds the lock there.
+  const { isReadOnly, holderName, holderIdle } = useProjectLock(id, !isPoppedOut)
+  const saveState = useProjectSaveState(id)
 
   // projectsApi.get() reads a synchronous in-memory cache that's only
   // populated once the background initProjects() fetch resolves — on a
@@ -113,12 +145,19 @@ export function ProjectDetailPage() {
     setMetaState(toProjectMeta(project))
   }, [project])
 
-  // Debounced persist of meta.
+  // Debounced persist of meta. Never persist while read-only (someone else
+  // holds the lock) — the inputs are disabled anyway, this is belt-and-braces.
   useEffect(() => {
-    if (!project || metaInited.current !== project.id || !metaDirty.current) return
+    if (!project || metaInited.current !== project.id || !metaDirty.current || isReadOnly) return
     const t = setTimeout(() => saveMeta(), 400)
     return () => clearTimeout(t)
   }, [meta]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Register (and keep labelled) an open-projects tab for whatever project is
+  // on screen — covers every entry point (list click, create, direct URL).
+  useEffect(() => {
+    if (project) openProjectTab(project.id, meta.naam.trim() || project.id)
+  }, [project?.id, meta.naam]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isPending) return null
 
@@ -135,6 +174,25 @@ export function ProjectDetailPage() {
         </div>
         <div className="st-empty" style={{ marginTop: 32 }}>
           Project <strong>{id}</strong> bestaat niet (meer).
+        </div>
+      </>
+    )
+  }
+
+  // Project is open in its own detached window — show a placeholder here rather
+  // than a second live copy (mirrors AppLayout's PopoutAware for singleton pages).
+  if (isPoppedOut) {
+    return (
+      <>
+        <ProjectTabs activeId={id} />
+        <div className="st-popout-placeholder">
+          <div className="ic"><IconExternalLink size={22} /></div>
+          <div className="t">{meta.naam || project.id} is open in een apart venster</div>
+          <div className="d">Gebruik dat venster, of haal het project terug naar het hoofdvenster.</div>
+          <div className="actions">
+            <button className="btn" onClick={() => focusPopout(`/projecten/${id}`)}>Venster tonen</button>
+            <button className="btn primary" onClick={() => requestClosePopout(`/projecten/${id}`)}>Sluit venster, toon hier</button>
+          </div>
         </div>
       </>
     )
@@ -272,17 +330,20 @@ export function ProjectDetailPage() {
 
   return (
     <>
+      {!inPopoutWindow && <ProjectTabs activeId={id} />}
+
+      {isReadOnly && (
+        <div className="prj-lock-banner">
+          <IconLock size={15} />
+          <span>
+            <strong>{holderName ?? 'Een andere gebruiker'}</strong> heeft dit project geopend — je kijkt in alleen-lezen modus.
+            {holderIdle && ' (al 5 min inactief)'}
+          </span>
+        </div>
+      )}
+
       {/* Header — redesigned to match the article-detail page (ad- look) */}
       <div className="prj-detail-hd">
-        {/* Breadcrumb */}
-        <div className="ad-crumb">
-          <button className="ad-crumb-link" onClick={() => navigate('/projecten')}>
-            <IconChevronRight size={13} />Projecten
-          </button>
-          <span className="ad-crumb-sep">/</span>
-          <span className="ad-crumb-cur">{meta.naam || 'Naamloos project'}</span>
-        </div>
-
         {/* Title bar */}
         <div className="ad-titlebar">
           <div className="ad-glyph">
@@ -296,17 +357,16 @@ export function ProjectDetailPage() {
                 {meta.naam || <span style={{ color: 'var(--text-4)', fontStyle: 'italic', fontWeight: 500 }}>Naamloos project</span>}
               </h1>
               <span className={`badge ${cfg.cls}`}><span className="dot" />{cfg.label}</span>
+              <StageTrack status={project.status} compact />
             </div>
             <div className="ad-metaline">{metaLine}</div>
           </div>
           <div className="ad-title-actions">
-            <RevertBtn />
-            <NextActionBtn />
+            {!isReadOnly && <SaveIndicator state={saveState} />}
+            {!isReadOnly && <RevertBtn />}
+            {!isReadOnly && <NextActionBtn />}
           </div>
         </div>
-
-        {/* Stage track */}
-        <StageTrack status={project.status} />
 
         {/* Info cards */}
         <div className="prj-info-cards">
@@ -315,6 +375,7 @@ export function ProjectDetailPage() {
             onChange={setMeta}
             relatieOptions={relatieOptions}
             relatie={relatie}
+            readOnly={isReadOnly}
           />
 
           {/* Offerte */}
@@ -429,7 +490,7 @@ export function ProjectDetailPage() {
         </button>
       </div>
 
-      <div className="tab-body">
+      <div className={`tab-body${isReadOnly ? ' prj-ro-shield' : ''}`}>
         {tab === 'offertes'             && <OfferteTab               project={project} onChanged={rerender} />}
         {tab === 'opdrachtbevestiging'  && <OpdrachtbevestigingTab   project={project} onChanged={rerender} />}
         {tab === 'productie'            && <ProductieTab             project={project} onChanged={rerender} />}
