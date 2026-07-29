@@ -54,7 +54,7 @@ one-offs when Mantine has it.
 | `ProfilesTab` | Profiles CRUD (volume formula + dimension schema) |
 | `OverheadPage` | Sub-tabs: Bedrijfskosten / Machines |
 | `BedrijfskostenTab` | Overhead/Bedrijfskosten rates |
-| `OverheadTab` / `MachinesTab` | Machines CRUD (rates, used by the calculator) |
+| `OverheadTab` | Machines CRUD (rates, used by the calculator) |
 
 ## Mobile
 

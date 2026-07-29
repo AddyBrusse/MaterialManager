@@ -84,9 +84,16 @@ Common codes: `VALIDATION`, `NOT_FOUND`, `FORBIDDEN`, `LOCK_HELD`, `LOCK_NOT_HEL
 
 ## Not implemented yet
 
-No `/api/articles`, `/api/relaties`, `/api/machines`, `/api/overhead`,
-`/api/estimate`, or `/api/reservations` routes exist — these resources are
-localStorage mocks on the frontend (see `backend/20-backend-overview.md`).
-When building them, the endpoint shapes above (list/get/create/patch/delete,
-admin-gated writes, `{ data }` / `{ error }` envelope) are still the
-convention to follow.
+`/api/articles`, `/api/relaties`, `/api/machines`, and `/api/reservations`
+now exist as real backend routes. Still frontend-only:
+
+- **`/api/overhead`** — Bedrijfskosten/machine overhead is still a
+  localStorage mock (`api/overhead.ts`); it has not been migrated to the
+  Prisma backend yet.
+- **`/api/estimate`** — no route by design: kostprijs is computed
+  synchronously in the browser (`buildEstimateCtx` + `computeEstimateTotals`),
+  not on the server.
+
+When building the overhead backend, the endpoint shapes above
+(list/get/create/patch/delete, admin-gated writes, `{ data }` / `{ error }`
+envelope) are still the convention to follow.

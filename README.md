@@ -59,7 +59,7 @@ read the code directly, and see `decisions/90-decisions-log.md` (2026-06-15
 | Area | Code |
 |---|---|
 | Relaties (customers/suppliers) | `apps/web/src/api/relaties.ts`, `apps/web/src/components/relaties/`, `routes/desktop/Relaties*Page.tsx` |
-| Machines & Bedrijfskosten (Instellingen) | `apps/web/src/components/settings/{OverheadPage,OverheadTab,MachinesTab,BedrijfskostenTab}.tsx` |
+| Machines & Bedrijfskosten (Instellingen) | `apps/web/src/components/settings/{OverheadPage,OverheadTab,BedrijfskostenTab}.tsx` |
 | Zaag calculator / Reserveringen / Zaagflow | `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` |
 | Binnen boeken | `routes/desktop/BinnenBoekenPage.tsx` — see status note in `workflows/41-receive-material.md` |
 
