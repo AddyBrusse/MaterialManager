@@ -26,3 +26,24 @@ jobs:
         # Root build runs: shared → api → web. The api workspace's `prebuild`
         # hook runs `prisma generate` first (no database needed for codegen).
         run: npm run build
+
+  test:
+    name: Test (web)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        # Vitest runs against source (vite.config aliases @stockmanager/shared
+        # to packages/shared/src), so no build step is required.
+        run: npm test --workspace apps/web
