@@ -108,11 +108,26 @@ export function focusPopout(path: string): void {
   else openPopout(path)
 }
 
+/** How long to wait for a popout window to answer a close request before
+ *  assuming its "open" flag is stale and clearing it ourselves. */
+const CLOSE_ACK_MS = 1200
+
 /** Ask the window that owns `path` to close itself (used by the main window's placeholder). */
 export function requestClosePopout(path: string): void {
   const win = windowRefs.get(path)
   if (win && !win.closed) { win.close(); return }
+
   broadcastPopout({ type: 'requestClose', path })
+
+  // Self-heal: a window that died without a clean unload (crash, force-quit,
+  // killed tab) never broadcasts 'closed', so its route stays marked open and
+  // the main window is stuck on the "open in een apart venster" placeholder
+  // with nothing left to close. If nobody answered, clear the flag. A window
+  // that really is open marks itself closed well within this window, so this
+  // no-ops in the normal case.
+  window.setTimeout(() => {
+    if (loadOpenRoutes().has(path)) markClosed(path)
+  }, CLOSE_ACK_MS)
 }
 
 export function isKnownOpener(path: string): boolean {
