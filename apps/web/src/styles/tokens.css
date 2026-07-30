@@ -275,6 +275,58 @@ html, body {
 .gt-tab-btn:hover { background: var(--bg-3); color: var(--text); }
 .gt-tab-btn.close:hover { background: var(--danger-soft); color: var(--danger); }
 
+/* ===== Projecten table: per-column tints + column settings ===== */
+/* Low alpha so one tint reads correctly over both the light and dark table
+   backgrounds, and so row hover/selected states still show through. */
+.prj-tbl th[data-tint], .prj-tbl td[data-tint] { background-color: var(--col-tint, transparent); }
+[data-tint="blue"]   { --col-tint: rgba(45, 109, 246, 0.10); }
+[data-tint="green"]  { --col-tint: rgba(17, 122, 69, 0.10); }
+[data-tint="amber"]  { --col-tint: rgba(217, 145, 12, 0.13); }
+[data-tint="red"]    { --col-tint: rgba(214, 60, 60, 0.10); }
+[data-tint="purple"] { --col-tint: rgba(135, 76, 214, 0.11); }
+[data-tint="teal"]   { --col-tint: rgba(20, 145, 145, 0.11); }
+[data-tint="grey"]   { --col-tint: rgba(128, 128, 128, 0.12); }
+
+.colset-wrap { position: relative; display: inline-flex; }
+.colset {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 300; width: 430px;
+  display: flex; flex-direction: column; max-height: 60vh;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: 0 8px 26px rgba(0,0,0,.22);
+}
+.colset-hd {
+  display: flex; align-items: center; gap: 6px; padding: 9px 10px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.colset-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.colset-hd .sp { flex: 1; }
+.colset-list { overflow-y: auto; padding: 4px; }
+.colset-row {
+  display: flex; align-items: center; gap: 8px; padding: 3px 6px;
+  border-radius: 6px; cursor: default;
+}
+.colset-row:hover { background: var(--bg-chip); }
+.colset-row.dragging { opacity: .45; }
+.colset-grip { color: var(--text-4); cursor: grab; display: flex; flex-shrink: 0; }
+.colset-name {
+  display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text);
+  flex: 1; min-width: 0; cursor: pointer;
+}
+.colset-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colset-tints { display: flex; gap: 3px; flex-shrink: 0; }
+.colset-tint {
+  width: 14px; height: 14px; border-radius: 4px; cursor: pointer; padding: 0;
+  border: 1px solid var(--border-strong); background: var(--col-tint, transparent);
+}
+.colset-tint.none { position: relative; background: transparent; }
+.colset-tint.none::after {
+  content: ""; position: absolute; inset: 2px; border-top: 1.5px solid var(--text-4);
+  transform: rotate(-45deg); transform-origin: center;
+}
+.colset-tint.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+.colset-move { display: flex; flex-shrink: 0; }
+.colset-move .st-icon-btn:disabled { opacity: .3; cursor: default; }
+
 /* ===== Project read-only lock ===== */
 .prj-lock-banner {
   display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
