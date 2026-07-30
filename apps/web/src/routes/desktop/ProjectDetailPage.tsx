@@ -11,8 +11,7 @@ import { projectsApi, formatBedrag, getAcceptedOfferte, getProjectSubtotaal, all
 import { relatiesApi } from '../../api/relaties'
 import { PROJECT_STATUS_CONFIG } from './ProjectenPage'
 import { ProjectInfoCard, toProjectMeta, type ProjectMeta } from '../../components/projecten/ProjectInfoCard'
-import { ProjectTabs } from '../../components/projecten/ProjectTabs'
-import { openProjectTab } from '../../utils/openProjects'
+import { pageTabs } from '../../utils/pageTabs'
 import { usePopoutRoutes } from '../../hooks/usePopout'
 import { focusPopout, requestClosePopout } from '../../utils/popout'
 import { useProjectLock } from '../../hooks/useProjectLock'
@@ -156,7 +155,7 @@ export function ProjectDetailPage() {
   // Register (and keep labelled) an open-projects tab for whatever project is
   // on screen — covers every entry point (list click, create, direct URL).
   useEffect(() => {
-    if (project) openProjectTab(project.id, meta.naam.trim() || project.id)
+    if (project) pageTabs.open(`/projecten/${project.id}`, meta.naam.trim() || project.id)
   }, [project?.id, meta.naam]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isPending) return null
@@ -183,9 +182,7 @@ export function ProjectDetailPage() {
   // than a second live copy (mirrors AppLayout's PopoutAware for singleton pages).
   if (isPoppedOut) {
     return (
-      <>
-        <ProjectTabs activeId={id} />
-        <div className="st-popout-placeholder">
+      <div className="st-popout-placeholder">
           <div className="ic"><IconExternalLink size={22} /></div>
           <div className="t">{meta.naam || project.id} is open in een apart venster</div>
           <div className="d">Gebruik dat venster, of haal het project terug naar het hoofdvenster.</div>
@@ -193,8 +190,7 @@ export function ProjectDetailPage() {
             <button className="btn" onClick={() => focusPopout(`/projecten/${id}`)}>Venster tonen</button>
             <button className="btn primary" onClick={() => requestClosePopout(`/projecten/${id}`)}>Sluit venster, toon hier</button>
           </div>
-        </div>
-      </>
+      </div>
     )
   }
 
@@ -330,8 +326,6 @@ export function ProjectDetailPage() {
 
   return (
     <>
-      {!inPopoutWindow && <ProjectTabs activeId={id} />}
-
       {isReadOnly && (
         <div className="prj-lock-banner">
           <IconLock size={15} />

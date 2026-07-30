@@ -2,7 +2,7 @@ import { Routes, Route, useLocation } from 'react-router-dom'
 import { IconX } from '@tabler/icons-react'
 import { useInitAppData } from '../../hooks/useInitAppData'
 import { useAnnouncePopout } from '../../hooks/usePopout'
-import { POPOUT_ENTRIES, resolvePopout } from './popoutRegistry'
+import { POPOUT_ENTRIES, resolvePopout } from './pageRegistry'
 import logoBoers from '../../assets/logo-boers.png'
 
 // Minimal chrome for a detached ("popped out") window — no main sidebar, just
@@ -35,7 +35,7 @@ export function PopoutShell() {
           </button>
         </div>
       )}
-      <div className="st-popout-body">
+      <div className="st-popout-body st-content">
         <Routes>
           {POPOUT_ENTRIES.map(e => (
             <Route key={e.path} path={`/pop${e.path}`} element={<e.Component />} />

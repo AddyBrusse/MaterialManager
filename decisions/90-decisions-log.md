@@ -380,6 +380,16 @@ exists in the Zod schema but not yet in `schema.prisma`).
 **Why:** With the redirect at the app origin, the OAuth popup re-booted the full SPA after login. Since OAuth popups are narrower than the mobile breakpoint, `App.tsx` rendered the stub `MobileLayout` instead of the desktop app, whose catch-all route (`routes/mobile/index.tsx`) navigated to `/raw` — stripping the auth hash from the URL before MSAL could read it and close the popup. Users saw the app's unbuilt "Grondstoffen — nog te bouwen" placeholder stuck open instead of the popup auto-closing.
 **Trade-off:** Azure App registration's SPA redirect URI must be updated to `.../auth-popup.html` (was the bare origin) — an admin needs to add this in Azure Portal, existing token cache/sessions are unaffected.
 
+## 2026-07-30 — One global tab bar; page registry is the single source of truth
+**Decision:** All open pages live in a single app-wide tab bar (`components/layout/GlobalTabs.tsx`) rendered once in `AppLayout`, backed by one localStorage-persisted store keyed by **route path** (`utils/pageTabs.ts`). The sidebar acts as a launcher: any navigation registers (or focuses) a tab. `components/layout/pageRegistry.tsx` lists every page once — `{ path, label, Icon, Component, poppable }` — and feeds both the tab bar and the pop-out windows (it replaced the separate `popoutRegistry`). Adding a page means one registry entry.
+**Why:** The first iteration had per-section strips (a projecten bar, an artikelen bar) with duplicated stores and components. That doesn't scale to "every page", and two bars on screen is confusing. Keying tabs by path makes de-duplication free — opening an already-open page just focuses its tab — and it lets pop-out reuse the exact same identifier (`utils/popout.ts` already keys detached windows by in-app path).
+**Trade-off:** Switching tabs in the main window is *navigation*, so only the visible project holds its edit lock (see the 2026-07-30 lock entry); hold several at once by popping them out. Detail pages must refine their own tab label (`pageTabs.open(path, name)`) because the registry only knows a generic placeholder until the entity loads. Tabs show the entity's business number stacked above the name (PRJ-2026-034 / ART-0001); surrogate UUIDs (relaties) are suppressed as noise.
+
+## 2026-07-30 — Popped-out windows scroll like the main content area
+**Decision:** `.st-popout-body` mirrors `.st-content` (flex column, `overflow: auto`) and carries the `st-content` class so the same child layout rules apply.
+**Why:** It was `overflow: hidden`, which suited the three original pop-out pages (Wachtrij, Prognose, ToDo) because they manage their own internal scroll regions. Once any page became poppable, long document pages (project/artikel detail) were clipped with no way to scroll.
+**Trade-off:** None observed — the self-managing pages get the same container they had in the main window, so they still fill the viewport without a spurious scrollbar.
+
 ---
 
 (Template for new entries)
