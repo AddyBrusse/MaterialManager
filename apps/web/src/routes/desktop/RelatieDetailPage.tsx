@@ -9,6 +9,7 @@ import { TypeBadge } from './RelatiesPage'
 import { RelatieGegevensTab }  from '../../components/relaties/RelatieGegevensTab'
 import { RelatieContactenTab } from '../../components/relaties/RelatieContactenTab'
 import { RelatieArtikelenTab } from '../../components/relaties/RelatieArtikelenTab'
+import { pageTabs } from '../../utils/pageTabs'
 
 // ── inline-editable bedrijfsnaam in de header ─────────────────────────────────
 function InlineNaam({ relatie }: { relatie: Relatie }) {
@@ -64,6 +65,12 @@ export function RelatieDetailPage() {
   const relatie: Relatie | undefined = res?.data
 
   const [tab, setTab] = useState<Tab>('gegevens')
+
+  // Label this relatie's global tab with its real bedrijfsnaam (instead of the
+  // registry's generic "Relatie"), and keep it in sync with inline renames.
+  useEffect(() => {
+    if (relatie) pageTabs.open(`/relaties/${relatie.id}`, relatie.naam.trim() || relatie.id)
+  }, [relatie?.id, relatie?.naam]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // KPI data — synchronous reads from local stores
   const allArticles    = articlesApi.list()

@@ -213,8 +213,12 @@ html, body {
 .st-popout-logo { height: 20px; width: auto; }
 .st-popout-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
 .st-popout-topbar .sp { flex: 1; }
-.st-popout-body { flex: 1; min-height: 0; overflow: hidden; display: flex; }
-.st-popout-body > * { flex: 1; min-width: 0; }
+/* Mirrors .st-content so a popped-out page lays out and scrolls exactly like it
+   does in the main window — long document pages (project/artikel detail) scroll
+   here, while pages that manage their own internal scroll regions (Wachtrij,
+   Prognose) keep working because they get the same container they had before.
+   The element also carries .st-content so the `.st-content > *` rules apply. */
+.st-popout-body { flex: 1; min-height: 0; min-width: 0; overflow: auto; display: flex; flex-direction: column; }
 
 /* ===== "Open in separate window" placeholder (main window, route popped out) ===== */
 .st-popout-placeholder {
@@ -229,50 +233,47 @@ html, body {
 .st-popout-placeholder .d { font-size: 12.5px; color: var(--text-3); max-width: 320px; }
 .st-popout-placeholder .actions { display: flex; gap: 8px; margin-top: 4px; }
 
-/* ===== Open-projects tab strip ===== */
-.prj-tabs {
-  display: flex; align-items: flex-end; gap: 4px; flex-wrap: wrap;
-  margin: 0; padding: 8px 24px 0; border-bottom: 1px solid var(--border);
+/* ===== Global tab bar (app-wide open pages) ===== */
+.gt-bar {
+  display: flex; align-items: flex-end; gap: 3px; flex-wrap: wrap;
+  flex-shrink: 0; padding: 7px 16px 0;
+  background: var(--bg-2); border-bottom: 1px solid var(--border);
 }
-.prj-tabs-home {
-  display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px;
-  margin-right: 4px; border: 0; border-radius: 6px; background: transparent;
-  color: var(--text-3); font-size: 12px; font-weight: 500; cursor: pointer;
-}
-.prj-tabs-home:hover { background: var(--bg-chip); color: var(--text); }
-.prj-tab {
-  position: relative;
-  display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
-  height: 30px; padding: 0 8px 0 12px; border-radius: 9px 9px 0 0;
+.gt-tab {
+  display: inline-flex; align-items: center; gap: 7px; max-width: 200px;
+  height: 38px; padding: 0 7px 0 10px; border-radius: 8px 8px 0 0;
   border: 1px solid transparent; border-bottom: none; background: transparent;
   color: var(--text-3); font-size: 12px; cursor: pointer; user-select: none;
   transition: background .12s, color .12s, border-color .12s;
 }
-.prj-tab:hover { background: var(--bg-chip); color: var(--text); }
-/* Chrome-style active tab: subtle top + side border, merges into the content
-   below via the concave bottom flares (no blue selected bar). */
-.prj-tab.active {
+/* Number stacked above the name: keeps the full PRJ-/ART- id visible without
+   widening the tab (width is driven by the truncated name either way). */
+.gt-tab-txt { display: flex; flex-direction: column; justify-content: center; min-width: 0; gap: 1px; }
+.gt-tab-num {
+  font-family: var(--font-mono); font-size: 9.5px; line-height: 1.1;
+  color: var(--text-4); letter-spacing: .02em; font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gt-tab.active .gt-tab-num { color: var(--text-3); }
+.gt-tab:hover { background: var(--bg-chip); color: var(--text); }
+/* Active tab paints in the content background and overlaps the divider so it
+   reads as connected to the page below. */
+.gt-tab.active {
   background: var(--bg); color: var(--text); font-weight: 600;
-  border-color: var(--border);
-  margin-bottom: -1px; /* overlap the strip divider so the tab connects to the view */
+  border-color: var(--border); margin-bottom: -1px;
 }
-.prj-tab.active::before,
-.prj-tab.active::after {
-  content: ""; position: absolute; bottom: -1px; width: 8px; height: 8px;
-  pointer-events: none;
-}
-.prj-tab.active::before { left: -8px;  border-bottom-right-radius: 8px; box-shadow: 3px 3px 0 0 var(--bg); }
-.prj-tab.active::after  { right: -8px; border-bottom-left-radius: 8px;  box-shadow: -3px 3px 0 0 var(--bg); }
-.prj-tab.popped { opacity: .6; font-style: italic; }
-.prj-tab-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.prj-tab-popped-ic { flex-shrink: 0; color: var(--text-4); }
-.prj-tab-btn {
+.gt-tab.popped { opacity: .55; font-style: italic; }
+.gt-tab-ic { flex-shrink: 0; color: var(--text-4); }
+.gt-tab.active .gt-tab-ic { color: var(--accent); }
+.gt-tab-lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.25; }
+.gt-tab-popped-ic { flex-shrink: 0; color: var(--text-4); }
+.gt-tab-btn {
   flex-shrink: 0; width: 17px; height: 17px; border: 0; border-radius: 4px;
   background: transparent; color: var(--text-4); display: grid; place-items: center;
   cursor: pointer; padding: 0;
 }
-.prj-tab-btn:hover { background: var(--bg-3); color: var(--text); }
-.prj-tab-btn.close:hover { background: var(--danger-soft); color: var(--danger); }
+.gt-tab-btn:hover { background: var(--bg-3); color: var(--text); }
+.gt-tab-btn.close:hover { background: var(--danger-soft); color: var(--danger); }
 
 /* ===== Project read-only lock ===== */
 .prj-lock-banner {

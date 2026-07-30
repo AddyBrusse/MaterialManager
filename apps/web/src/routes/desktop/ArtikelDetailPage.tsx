@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { IconUpload } from '@tabler/icons-react'
+import { IconUpload, IconExternalLink } from '@tabler/icons-react'
+import { pageTabs } from '../../utils/pageTabs'
+import { usePopoutRoutes } from '../../hooks/usePopout'
+import { focusPopout, requestClosePopout } from '../../utils/popout'
 import { articlesApi, type Article, type ArticleEstimate } from '../../api/articles'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
@@ -71,6 +74,12 @@ export function ArtikelDetailPage() {
 
   const article = articles.find(a => a.id === id) ?? null
 
+  const poppedOut = usePopoutRoutes()
+  // This component also renders inside the detached popout window; only the MAIN
+  // window swaps in the "open elsewhere" placeholder.
+  const inPopoutWindow = window.location.pathname.startsWith('/pop/')
+  const isPoppedOut    = !inPopoutWindow && poppedOut.has(`/artikelen/${id}`)
+
   // Whole-article-page drop target: any drop anywhere on this page attaches the
   // file(s) — see useWholePageDrop for why that's a window listener.
   const attachmentUpload = useArticleAttachmentUpload(article)
@@ -120,6 +129,12 @@ export function ArtikelDetailPage() {
     return () => clearTimeout(t)
   }, [meta]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Register (and keep labelled) an open-articles tab for whatever article is
+  // on screen — covers every entry point (list click, direct URL, offerte link).
+  useEffect(() => {
+    if (article) pageTabs.open(`/artikelen/${article.id}`, meta.naam.trim() || article.naam)
+  }, [article?.id, meta.naam]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Debounced persist of the estimate (+ derived primary-material recipe).
   useEffect(() => {
     if (!article || estArticleId.current !== article.id || !estDirty.current) return
@@ -168,13 +183,15 @@ export function ArtikelDetailPage() {
   if (!article) {
     return (
       <div className="ad-page">
-        <div className="ad-crumb">
-          <button className="ad-crumb-link" onClick={() => navigate(returnTo ?? '/artikelen')}>
-            <Ic d={Icon.chevronRight} />{returnTo ? 'Offerte' : 'Artikelen'}
-          </button>
+          {returnTo && (
+            <div className="ad-crumb">
+              <button className="ad-crumb-link" onClick={() => navigate(returnTo)}>
+                <Ic d={Icon.chevronRight} />Offerte
+              </button>
+            </div>
+          )}
+          <div className="st-empty" style={{ marginTop: 32 }}>Het artikel <strong>{id}</strong> bestaat niet (meer).</div>
         </div>
-        <div className="st-empty" style={{ marginTop: 32 }}>Het artikel <strong>{id}</strong> bestaat niet (meer).</div>
-      </div>
     )
   }
 
@@ -196,6 +213,22 @@ export function ArtikelDetailPage() {
     meta.klant || null,
   ].filter(Boolean).join(' · ')
 
+  // Article is open in its own detached window — show a placeholder here rather
+  // than a second live copy (mirrors the projecten page / AppLayout PopoutAware).
+  if (isPoppedOut) {
+    return (
+      <div className="st-popout-placeholder">
+          <div className="ic"><IconExternalLink size={22} /></div>
+          <div className="t">{meta.naam || article.naam} is open in een apart venster</div>
+          <div className="d">Gebruik dat venster, of haal het artikel terug naar het hoofdvenster.</div>
+          <div className="actions">
+            <button className="btn" onClick={() => focusPopout(`/artikelen/${id}`)}>Venster tonen</button>
+            <button className="btn primary" onClick={() => requestClosePopout(`/artikelen/${id}`)}>Sluit venster, toon hier</button>
+          </div>
+      </div>
+    )
+  }
+
   return (
     <div className="ad-page">
       {dragging && (
@@ -207,14 +240,17 @@ export function ArtikelDetailPage() {
         </div>
       )}
 
-      {/* Breadcrumb */}
-      <div className="ad-crumb">
-        <button className="ad-crumb-link" onClick={() => navigate(returnTo ?? '/artikelen')}>
-          <Ic d={Icon.chevronRight} />{returnTo ? 'Offerte' : 'Artikelen'}
-        </button>
-        <span className="ad-crumb-sep">/</span>
-        <span className="ad-crumb-cur">{meta.naam || article.naam}</span>
-      </div>
+      {/* Breadcrumb — only when returning to an offerte; otherwise the tab strip's
+          "Artikelen" home covers list navigation. */}
+      {returnTo && (
+        <div className="ad-crumb">
+          <button className="ad-crumb-link" onClick={() => navigate(returnTo)}>
+            <Ic d={Icon.chevronRight} />Offerte
+          </button>
+          <span className="ad-crumb-sep">/</span>
+          <span className="ad-crumb-cur">{meta.naam || article.naam}</span>
+        </div>
+      )}
 
       {/* Title bar */}
       <div className="ad-titlebar">

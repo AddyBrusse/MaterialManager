@@ -35,6 +35,9 @@ import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { todosApi } from '../../api/todos'
+import { GlobalTabs } from './GlobalTabs'
+import { pageTabs } from '../../utils/pageTabs'
+import { resolvePage, tabLabelFor } from './pageRegistry'
 
 function getInitials(name: string) {
   const parts = name.trim().split(' ')
@@ -287,15 +290,28 @@ function Topbar() {
   )
 }
 
+// Every navigation registers (or focuses) a tab for the current page — the
+// "sidebar is a launcher" model. ensure() keeps a persisted tab's real label
+// (e.g. a project name) instead of overwriting it with the generic placeholder.
+function useTrackOpenTabs() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    if (resolvePage(pathname)) pageTabs.ensure(pathname, tabLabelFor(pathname))
+  }, [pathname])
+}
+
 export function AppLayout() {
   useInitAppData()
+  useTrackOpenTabs()
   const openRoutes = usePopoutRoutes()
 
   return (
     <div className="st-app">
       <Sidebar openRoutes={openRoutes} />
       <div className="st-main">
-        <Topbar />
+        {/* Global breadcrumb hidden for now — redundant on single-page views.
+            Restore <Topbar /> here to bring it back (component kept below). */}
+        <GlobalTabs />
         <div className="st-content">
           <Routes>
             <Route index element={<Navigate to="/voorraad" replace />} />
