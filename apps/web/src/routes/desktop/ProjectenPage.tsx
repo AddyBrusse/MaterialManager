@@ -173,16 +173,6 @@ export function ProjectenPage() {
           <div className="st-page-sub">Offerte- en productiebeheer per klantorder</div>
         </div>
         <div className="st-page-actions">
-          {/* Disabled until the saved layout has loaded — editing before then
-              would base the change on the defaults and overwrite it. */}
-          <ColumnSettings
-            prefs={prefs}
-            onChange={updatePrefs}
-            onReset={resetPrefs}
-            disabled={prefsLoading}
-            open={colPanelOpen}
-            onOpenChange={setColPanelOpen}
-          />
           <button className="st-btn"><IconDownload size={14} />Exporteer</button>
           <button className="st-btn primary" onClick={() => {
             const p = projectsApi.create({ naam: 'Nieuw project', relatieId: null, contactId: null, klantRef: null, levertijdDatum: null, notities: '' })
@@ -270,6 +260,18 @@ export function ProjectenPage() {
         </label>
 
         <div style={{ flex: 1 }} />
+
+        {/* Far right of the filter row, directly above the table it configures.
+            Disabled until the saved layout has loaded — editing before then
+            would base the change on the defaults and overwrite it. */}
+        <ColumnSettings
+          prefs={prefs}
+          onChange={updatePrefs}
+          onReset={resetPrefs}
+          disabled={prefsLoading}
+          open={colPanelOpen}
+          onOpenChange={setColPanelOpen}
+        />
       </div>
 
       {/* Table */}
@@ -285,6 +287,7 @@ export function ProjectenPage() {
                   <th
                     key={col.id}
                     data-tint={prefs.colors[col.id] || undefined}
+                    data-align={col.align ?? 'left'}
                     className={dragCol === col.id ? 'dragging' : dropCol === col.id ? 'drop-target' : undefined}
                     style={{ textAlign: col.align ?? 'left', minWidth: col.width }}
                     title={col.longLabel ?? col.label}
@@ -302,6 +305,7 @@ export function ProjectenPage() {
                     onDrop={e => { e.preventDefault(); handleHeaderDrop(col.id) }}
                     onClick={() => toggleSort(col.id)}
                   >
+                    <span className="th-inner">
                     <span className="sort">
                       {col.label}
                       {sort.key === col.id && <SortIndicator dir={sort.dir} />}
@@ -321,6 +325,7 @@ export function ProjectenPage() {
                       })}
                       onOpenPanel={() => setColPanelOpen(true)}
                     />
+                    </span>
                   </th>
                 ))}
                 <th style={{ width: 32 }} />

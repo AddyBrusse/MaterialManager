@@ -293,9 +293,14 @@ html, body {
 /* Where the dragged column will land. */
 .prj-tbl thead th.drop-target { box-shadow: inset 3px 0 0 0 var(--accent); }
 
-/* Inline (not absolute) so it never overlaps the label, and reserved with
-   visibility rather than display so revealing it on hover shifts nothing. */
-.colhdr-menu { display: inline-flex; vertical-align: middle; margin-left: 4px; }
+/* Label left, ⋮ pushed to the right edge of the header cell. Reserved with
+   visibility rather than display, so revealing it on hover shifts nothing. */
+.prj-tbl thead th .th-inner { display: flex; align-items: center; gap: 6px; }
+.colhdr-menu { display: inline-flex; margin-left: auto; }
+/* Numeric columns are right-aligned, so the label sits at the right too and
+   the ⋮ simply follows it as the last element. */
+.prj-tbl thead th[data-align="right"] .th-inner { justify-content: flex-end; }
+.prj-tbl thead th[data-align="right"] .colhdr-menu { margin-left: 0; }
 .colhdr-dots {
   width: 18px; height: 18px; border: 0; border-radius: 4px; padding: 0;
   background: transparent; color: var(--text-4); cursor: pointer;
