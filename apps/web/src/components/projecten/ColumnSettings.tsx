@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { IconColumns3, IconGripVertical, IconChevronUp, IconChevronDown, IconRotate } from '@tabler/icons-react'
 import {
-  COLUMN_TINTS, resolveAllColumns, resolveColumns, PROJECT_COLUMNS,
+  COLUMN_TINTS, resolveAllColumns, resolveColumns, reorderColumns, PROJECT_COLUMNS,
   type ProjectColumn,
 } from './projectColumns'
 import type { ProjectTablePrefs } from '@stockmanager/shared'
@@ -14,7 +14,7 @@ import type { ProjectTablePrefs } from '@stockmanager/shared'
 // custom, and a dropdown full of toggles/drag handles fights Popover's focus
 // and click handling.
 export function ColumnSettings({
-  prefs, onChange, onReset, disabled = false,
+  prefs, onChange, onReset, disabled = false, open, onOpenChange,
 }: {
   prefs: ProjectTablePrefs
   /** Updater form: several clicks in one tick must compose, not overwrite. */
@@ -22,8 +22,12 @@ export function ColumnSettings({
   onReset: () => void
   /** True while the saved layout is still loading — editing then would clobber it. */
   disabled?: boolean
+  /** Controlled by the page so a column header's "Alle kolommen…" can open it. */
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const setOpen = (next: boolean | ((o: boolean) => boolean)) =>
+    onOpenChange(typeof next === 'function' ? next(open) : next)
   const [dragId, setDragId] = useState<string | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
@@ -63,19 +67,7 @@ export function ColumnSettings({
     const moved = dragId
     setDragId(null)
     if (!moved || moved === targetId) return
-    onChange(prev => {
-      const ids = resolveAllColumns(prev.order).map(c => c.id)
-      const from = ids.indexOf(moved)
-      const to = ids.indexOf(targetId)
-      if (from === -1 || to === -1) return prev
-      const without = ids.filter(i => i !== moved)
-      // Removing the dragged item first shifts every later index down by one,
-      // so a downward drop has to insert *after* the target to land where the
-      // user actually dropped it (otherwise dropping on the next row is a no-op).
-      const at = without.indexOf(targetId) + (from < to ? 1 : 0)
-      without.splice(at, 0, moved)
-      return { ...prev, order: without }
-    })
+    onChange(prev => ({ ...prev, order: reorderColumns(prev.order, moved, targetId) }))
   }
 
   function toggleVisible(col: ProjectColumn) {

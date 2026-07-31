@@ -406,6 +406,22 @@ export function resolveColumns(order: string[], hidden: string[]): ProjectColumn
   return ordered.filter(c => !hiddenSet.has(c.id))
 }
 
+/**
+ * Move `movedId` to where `targetId` sits, returning a full explicit order.
+ * Shared by the settings panel and the header drag so both behave identically.
+ * Removing the dragged id first shifts later indices down by one, so a downward
+ * move has to insert *after* the target to land where it was dropped.
+ */
+export function reorderColumns(order: string[], movedId: string, targetId: string): string[] {
+  const ids = resolveAllColumns(order).map(c => c.id)
+  const from = ids.indexOf(movedId)
+  const to = ids.indexOf(targetId)
+  if (from === -1 || to === -1 || from === to) return ids
+  const without = ids.filter(i => i !== movedId)
+  without.splice(without.indexOf(targetId) + (from < to ? 1 : 0), 0, movedId)
+  return without
+}
+
 /** The full ordered column list (visible + hidden) — for the settings panel. */
 export function resolveAllColumns(order: string[]): ProjectColumn[] {
   const seen = new Set<string>()

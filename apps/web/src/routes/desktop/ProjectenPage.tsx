@@ -12,8 +12,10 @@ import { projectsApi } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
 import { useUserPreference } from '../../hooks/useUserPreference'
 import { ColumnSettings } from '../../components/projecten/ColumnSettings'
+import { ColumnHeaderMenu } from '../../components/projecten/ColumnHeaderMenu'
 import {
-  PROJECT_STATUS_CONFIG, PROJECT_COLUMNS, COLUMN_BY_ID, DEFAULT_HIDDEN, resolveColumns,
+  PROJECT_STATUS_CONFIG, PROJECT_COLUMNS, COLUMN_BY_ID, DEFAULT_HIDDEN,
+  resolveColumns, reorderColumns,
   type ProjectColumnCtx,
 } from '../../components/projecten/projectColumns'
 import { PROJECT_TABLE_PREFS_KEY, type ProjectTablePrefs, type Project } from '@stockmanager/shared'
@@ -71,6 +73,18 @@ export function ProjectenPage() {
   const [filterKlant, setFilterKlant] = useState('')
   const [sort, setSort] = useState(DEFAULT_SORT)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Header drag-to-reorder + the shared Kolommen panel, which a header menu can open.
+  const [dragCol, setDragCol] = useState<string | null>(null)
+  const [dropCol, setDropCol] = useState<string | null>(null)
+  const [colPanelOpen, setColPanelOpen] = useState(false)
+
+  function handleHeaderDrop(targetId: string) {
+    const moved = dragCol
+    setDragCol(null)
+    setDropCol(null)
+    if (!moved || moved === targetId) return
+    updatePrefs(prev => ({ ...prev, order: reorderColumns(prev.order, moved, targetId) }))
+  }
 
   const columns = useMemo(() => resolveColumns(prefs.order, prefs.hidden), [prefs.order, prefs.hidden])
 
@@ -161,7 +175,14 @@ export function ProjectenPage() {
         <div className="st-page-actions">
           {/* Disabled until the saved layout has loaded — editing before then
               would base the change on the defaults and overwrite it. */}
-          <ColumnSettings prefs={prefs} onChange={updatePrefs} onReset={resetPrefs} disabled={prefsLoading} />
+          <ColumnSettings
+            prefs={prefs}
+            onChange={updatePrefs}
+            onReset={resetPrefs}
+            disabled={prefsLoading}
+            open={colPanelOpen}
+            onOpenChange={setColPanelOpen}
+          />
           <button className="st-btn"><IconDownload size={14} />Exporteer</button>
           <button className="st-btn primary" onClick={() => {
             const p = projectsApi.create({ naam: 'Nieuw project', relatieId: null, contactId: null, klantRef: null, levertijdDatum: null, notities: '' })
@@ -264,14 +285,42 @@ export function ProjectenPage() {
                   <th
                     key={col.id}
                     data-tint={prefs.colors[col.id] || undefined}
+                    className={dragCol === col.id ? 'dragging' : dropCol === col.id ? 'drop-target' : undefined}
                     style={{ textAlign: col.align ?? 'left', minWidth: col.width }}
-                    onClick={() => toggleSort(col.id)}
                     title={col.longLabel ?? col.label}
+                    // A real drag suppresses the click, so drag-to-reorder and
+                    // click-to-sort can share the header without a threshold.
+                    draggable
+                    onDragStart={e => {
+                      setDragCol(col.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      try { e.dataTransfer.setData('text/plain', col.id) } catch { /* ignore */ }
+                    }}
+                    onDragEnd={() => { setDragCol(null); setDropCol(null) }}
+                    onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropCol(col.id) }}
+                    onDragLeave={() => setDropCol(c => (c === col.id ? null : c))}
+                    onDrop={e => { e.preventDefault(); handleHeaderDrop(col.id) }}
+                    onClick={() => toggleSort(col.id)}
                   >
                     <span className="sort">
                       {col.label}
                       {sort.key === col.id && <SortIndicator dir={sort.dir} />}
                     </span>
+                    <ColumnHeaderMenu
+                      col={col}
+                      tint={prefs.colors[col.id] ?? ''}
+                      onTint={t => updatePrefs(prev => {
+                        const colors = { ...prev.colors }
+                        if (t) colors[col.id] = t; else delete colors[col.id]
+                        return { ...prev, colors }
+                      })}
+                      onSort={dir => setSort({ key: col.id, dir })}
+                      onHide={() => updatePrefs(prev => {
+                        const hidden = prev.hidden.includes(col.id) ? prev.hidden : [...prev.hidden, col.id]
+                        return resolveColumns(prev.order, hidden).length === 0 ? prev : { ...prev, hidden }
+                      })}
+                      onOpenPanel={() => setColPanelOpen(true)}
+                    />
                   </th>
                 ))}
                 <th style={{ width: 32 }} />

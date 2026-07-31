@@ -287,6 +287,39 @@ html, body {
 [data-tint="teal"]   { --col-tint: rgba(20, 145, 145, 0.11); }
 [data-tint="grey"]   { --col-tint: rgba(128, 128, 128, 0.12); }
 
+/* ===== Column header: drag-to-reorder + per-column ⋮ menu ===== */
+.prj-tbl thead th { position: relative; }
+.prj-tbl thead th.dragging { opacity: .45; }
+/* Where the dragged column will land. */
+.prj-tbl thead th.drop-target { box-shadow: inset 3px 0 0 0 var(--accent); }
+
+/* Inline (not absolute) so it never overlaps the label, and reserved with
+   visibility rather than display so revealing it on hover shifts nothing. */
+.colhdr-menu { display: inline-flex; vertical-align: middle; margin-left: 4px; }
+.colhdr-dots {
+  width: 18px; height: 18px; border: 0; border-radius: 4px; padding: 0;
+  background: transparent; color: var(--text-4); cursor: pointer;
+  display: grid; place-items: center; visibility: hidden;
+}
+.prj-tbl thead th:hover .colhdr-dots, .colhdr-dots.on { visibility: visible; }
+.colhdr-dots:hover, .colhdr-dots.on { background: var(--bg-3); color: var(--text); }
+
+.colhdr-pop {
+  position: fixed; z-index: 320;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: 0 8px 26px rgba(0,0,0,.22);
+  padding: 6px; text-align: left; font-weight: 400; cursor: default;
+}
+.colhdr-sect { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-4); padding: 2px 6px 4px; }
+.colhdr-tints { display: flex; gap: 4px; padding: 0 6px 4px; }
+.colhdr-sep { height: 1px; background: var(--border); margin: 4px 0; }
+.colhdr-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px;
+  border: 0; border-radius: 6px; background: transparent; cursor: pointer;
+  font-size: 12px; color: var(--text); text-align: left;
+}
+.colhdr-item:hover { background: var(--bg-chip); }
+
 .colset-wrap { position: relative; display: inline-flex; }
 .colset {
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 300; width: 430px;
