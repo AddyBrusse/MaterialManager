@@ -85,8 +85,24 @@ model User {
   labels       Label[]
   createdTodos Todo[] @relation("TodoCreatedBy")
   claimedTodos Todo[] @relation("TodoClaimedBy")
+  preferences  UserPreference[]
 
   @@map("users")
+}
+
+// Per-user UI preferences, stored as a generic key → JSON blob so new
+// preference kinds don't each need a migration. First use: the projecten
+// table's column order / visibility / colours ('projects.table').
+model UserPreference {
+  userId    String   @map("user_id")
+  key       String
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@map("user_preferences")
 }
 
 model Location {

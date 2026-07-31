@@ -9,7 +9,7 @@ import {
 import { notifications } from '@mantine/notifications'
 import { projectsApi, formatBedrag, getAcceptedOfferte, getProjectSubtotaal, allOrdersGereed } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
-import { PROJECT_STATUS_CONFIG } from './ProjectenPage'
+import { PROJECT_STATUS_CONFIG } from '../../components/projecten/projectColumns'
 import { ProjectInfoCard, toProjectMeta, type ProjectMeta } from '../../components/projecten/ProjectInfoCard'
 import { pageTabs } from '../../utils/pageTabs'
 import { usePopoutRoutes } from '../../hooks/usePopout'

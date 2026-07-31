@@ -51,12 +51,17 @@ export async function apiFetch<T>(
   } finally {
     clearTimeout(timer)
   }
-  const json = await res.json()
+
+  // A 204 (or any empty body) has nothing to parse — calling res.json() on it
+  // throws "Unexpected end of JSON input", which used to turn every successful
+  // DELETE into a rejected promise.
+  const raw = await res.text()
+  const json = raw ? JSON.parse(raw) : null
 
   if (!res.ok) {
     const msg = json?.error?.message ?? `HTTP ${res.status}`
     throw new Error(msg)
   }
 
-  return json as { data: T }
+  return (json ?? { data: undefined }) as { data: T }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -8,74 +8,46 @@ import {
 } from '@tabler/icons-react'
 import { Menu } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { projectsApi, formatBedrag, formatDate, getProjectSubtotaal } from '../../api/projects'
+import { projectsApi } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
-import { useUserStore } from '../../stores/user'
-import type { Project } from '@stockmanager/shared'
+import { useUserPreference } from '../../hooks/useUserPreference'
+import { ColumnSettings } from '../../components/projecten/ColumnSettings'
+import { ColumnHeaderMenu } from '../../components/projecten/ColumnHeaderMenu'
+import {
+  PROJECT_STATUS_CONFIG, PROJECT_COLUMNS, COLUMN_BY_ID, DEFAULT_HIDDEN,
+  resolveColumns, reorderColumns,
+  type ProjectColumnCtx,
+} from '../../components/projecten/projectColumns'
+import { PROJECT_TABLE_PREFS_KEY, type ProjectTablePrefs, type Project } from '@stockmanager/shared'
 
-// ── Status config ─────────────────────────────────────────────────────────────
+// PROJECT_STATUS_CONFIG moved to components/projecten/projectColumns so the
+// column registry can own status display; re-exported here because the detail
+// page has always imported it from this module.
+export { PROJECT_STATUS_CONFIG } from '../../components/projecten/projectColumns'
 
-export const PROJECT_STATUS_CONFIG: Record<Project['status'], { label: string; cls: string }> = {
-  concept:      { label: 'Concept',      cls: 'prj-neutral'     },
-  offerte:      { label: 'Offerte',      cls: 'prj-offerte'     },
-  bevestigd:    { label: 'Bevestigd',    cls: 'prj-bevestigd'   },
-  productie:    { label: 'Productie',    cls: 'prj-productie'   },
-  paklijst:     { label: 'Paklijst',     cls: 'prj-paklijst'    },
-  verzonden:    { label: 'Verzonden',    cls: 'prj-verzonden'   },
-  gefactureerd: { label: 'Gefactureerd', cls: 'prj-factureerd'  },
-  on_hold:      { label: 'On Hold',      cls: 'prj-onhold'      },
-  geannuleerd:  { label: 'Geannuleerd',  cls: 'prj-geannuleerd' },
+// Used until the user saves a layout of their own; `hidden` seeds from the
+// registry's defaultVisible flags, so the niche columns start collapsed.
+const DEFAULT_PREFS: ProjectTablePrefs = { order: [], hidden: DEFAULT_HIDDEN, colors: {} }
+
+const DEFAULT_SORT = { key: 'aangemaakt', dir: 'desc' as 'asc' | 'desc' }
+
+/** A stored preference from an older shape (or hand-edited) shouldn't crash the page. */
+function normalizePrefs(raw: ProjectTablePrefs | null | undefined): ProjectTablePrefs {
+  return {
+    order:  Array.isArray(raw?.order) ? raw.order : [],
+    hidden: Array.isArray(raw?.hidden) ? raw.hidden : DEFAULT_HIDDEN,
+    colors: (raw?.colors && typeof raw.colors === 'object' && !Array.isArray(raw.colors)) ? raw.colors : {},
+  }
 }
 
-// Stage index for the mini pipeline (0-based, matching the 7 main stages)
-const STATUS_STAGE: Record<Project['status'], number> = {
-  concept: 0, offerte: 1, bevestigd: 2, productie: 3,
-  paklijst: 4, verzonden: 5, gefactureerd: 6,
-  on_hold: -1, geannuleerd: -1,
-}
-
-function MiniPipeline({ status }: { status: Project['status'] }) {
-  const activeIdx = STATUS_STAGE[status]
-  return (
-    <div className="prj-mp">
-      {Array.from({ length: 7 }, (_, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && (
-            <div
-              className={`prj-mp-line ${i <= activeIdx ? 'done' : activeIdx === i - 1 ? 'active' : 'pend'}`}
-            />
-          )}
-          <div
-            className={`prj-mp-step ${
-              i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'pend'
-            }`}
-          />
-        </React.Fragment>
-      ))}
-    </div>
-  )
-}
-
-function SortTh({ k, sort, onSort, align, children, style }: {
-  k: string; sort: { key: string; dir: 'asc' | 'desc' }
-  onSort: (k: string) => void; align?: string; children: React.ReactNode; style?: React.CSSProperties
-}) {
-  const active = sort.key === k
-  return (
-    <th style={{ textAlign: (align as any) || 'left', ...style }} onClick={() => onSort(k)}>
-      <span className="sort">
-        {children}
-        {active && (sort.dir === 'asc' ? <IconArrowUp size={11} /> : <IconArrowDown size={11} />)}
-      </span>
-    </th>
-  )
+function SortIndicator({ dir }: { dir: 'asc' | 'desc' }) {
+  return dir === 'asc' ? <IconArrowUp size={11} /> : <IconArrowDown size={11} />
 }
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ProjectenPage() {
   const navigate = useNavigate()
-  const user = useUserStore(s => s.user)
   const qc = useQueryClient()
   const [, forceUpdate] = useState(0)
   const rerender = () => { forceUpdate(n => n + 1); qc.invalidateQueries({ queryKey: ['projects'] }) }
@@ -87,11 +59,46 @@ export function ProjectenPage() {
   const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => projectsApi.list() })
   const relaties = relatiesApi.listSync()
 
+  // Column layout is per user and lives server-side, so it follows whoever is
+  // selected in the user dropdown across machines.
+  const { value: rawPrefs, setValue: setPrefs, reset: resetPrefs, isLoading: prefsLoading } =
+    useUserPreference<ProjectTablePrefs>(PROJECT_TABLE_PREFS_KEY, DEFAULT_PREFS)
+  const prefs = normalizePrefs(rawPrefs)
+  // Updaters see the normalised shape, never a malformed stored blob.
+  const updatePrefs = (updater: (prev: ProjectTablePrefs) => ProjectTablePrefs) =>
+    setPrefs(prev => updater(normalizePrefs(prev)))
+
   const [q, setQ] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [filterKlant, setFilterKlant] = useState('')
-  const [sort, setSort] = useState({ key: 'createdAt', dir: 'desc' as 'asc' | 'desc' })
+  const [sort, setSort] = useState(DEFAULT_SORT)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Header drag-to-reorder + the shared Kolommen panel, which a header menu can open.
+  const [dragCol, setDragCol] = useState<string | null>(null)
+  const [dropCol, setDropCol] = useState<string | null>(null)
+  const [colPanelOpen, setColPanelOpen] = useState(false)
+
+  function handleHeaderDrop(targetId: string) {
+    const moved = dragCol
+    setDragCol(null)
+    setDropCol(null)
+    if (!moved || moved === targetId) return
+    updatePrefs(prev => ({ ...prev, order: reorderColumns(prev.order, moved, targetId) }))
+  }
+
+  const columns = useMemo(() => resolveColumns(prefs.order, prefs.hidden), [prefs.order, prefs.hidden])
+
+  // Lookups the column renderers need, resolved once per render.
+  const ctx: ProjectColumnCtx = useMemo(() => {
+    const byId = new Map(relaties.map(r => [r.id, r]))
+    return {
+      klantNaam: (p: Project) => (p.relatieId ? byId.get(p.relatieId)?.naam ?? '' : ''),
+      contactNaam: (p: Project) => {
+        if (!p.relatieId || !p.contactId) return ''
+        return byId.get(p.relatieId)?.contacten.find(c => c.id === p.contactId)?.naam ?? ''
+      },
+    }
+  }, [relaties])
 
   const klantOptions = useMemo(() => {
     const ids = [...new Set(projects.map(p => p.relatieId).filter(Boolean) as string[])]
@@ -102,29 +109,31 @@ export function ProjectenPage() {
     let f = projects
     if (q) {
       const Q = q.toLowerCase()
+      // Search every column the registry knows about — including ones the user
+      // has hidden, so a hidden column never makes a project unfindable.
       f = f.filter(p =>
-        p.id.toLowerCase().includes(Q) ||
-        p.naam.toLowerCase().includes(Q) ||
-        (p.klantRef ?? '').toLowerCase().includes(Q) ||
-        (relaties.find(r => r.id === p.relatieId)?.naam ?? '').toLowerCase().includes(Q),
+        PROJECT_COLUMNS.some(col => col.searchText(p, ctx).toLowerCase().includes(Q)),
       )
     }
     if (filterStatus) f = f.filter(p => p.status === filterStatus)
     if (filterKlant)  f = f.filter(p => p.relatieId === filterKlant)
+
+    // Only sort by a column that's actually on screen — otherwise hiding the
+    // sorted column leaves the rows in an order with no visible explanation.
+    const col = columns.find(c => c.id === sort.key) ?? COLUMN_BY_ID[DEFAULT_SORT.key]
+    if (!col) return f
     return [...f].sort((a, b) => {
-      let av: any, bv: any
-      if (sort.key === 'bedrag') {
-        av = getProjectSubtotaal(a); bv = getProjectSubtotaal(b)
-      } else if (sort.key === 'klant') {
-        av = relaties.find(r => r.id === a.relatieId)?.naam ?? ''
-        bv = relaties.find(r => r.id === b.relatieId)?.naam ?? ''
-      } else {
-        av = (a as any)[sort.key]; bv = (b as any)[sort.key]
-      }
-      const cmp = typeof av === 'number' ? av - bv : String(av ?? '').localeCompare(String(bv ?? ''), 'nl')
+      const av = col.sortValue(a, ctx)
+      const bv = col.sortValue(b, ctx)
+      // Empty values always sink to the bottom, whichever way you sort.
+      if (av === null || av === '') return bv === null || bv === '' ? 0 : 1
+      if (bv === null || bv === '') return -1
+      const cmp = typeof av === 'number' && typeof bv === 'number'
+        ? av - bv
+        : String(av).localeCompare(String(bv), 'nl', { numeric: true })
       return sort.dir === 'asc' ? cmp : -cmp
     })
-  }, [projects, q, filterStatus, filterKlant, sort, relaties])
+  }, [projects, q, filterStatus, filterKlant, sort, ctx])
 
   const stats = useMemo(() => ({
     total:        projects.filter(p => p.status !== 'geannuleerd').length,
@@ -210,9 +219,9 @@ export function ProjectenPage() {
       {/* Toolbar */}
       <div className="st-toolbar">
         <div className="st-search">
-          <IconPlus size={14} style={{ opacity: 0.4 }} />
+          <IconUsers size={14} />
           <input
-            placeholder="Zoek projectnr, naam, klant, ref…"
+            placeholder="Zoek in alle kolommen…"
             value={q}
             onChange={e => setQ(e.target.value)}
           />
@@ -251,98 +260,120 @@ export function ProjectenPage() {
         </label>
 
         <div style={{ flex: 1 }} />
-        <button className="st-btn ghost sm">Meer filters</button>
+
+        {/* Far right of the filter row, directly above the table it configures.
+            Disabled until the saved layout has loaded — editing before then
+            would base the change on the defaults and overwrite it. */}
+        <ColumnSettings
+          prefs={prefs}
+          onChange={updatePrefs}
+          onReset={resetPrefs}
+          disabled={prefsLoading}
+          open={colPanelOpen}
+          onOpenChange={setColPanelOpen}
+        />
       </div>
 
       {/* Table */}
       <div className="st-table-wrap">
         <div className="st-tbl-scroll">
-          <table className="st-tbl">
+          <table className="st-tbl prj-tbl">
             <thead>
               <tr>
                 <th className="col-checkbox">
                   <span className="st-ck" data-on={allSel} onClick={toggleAll} />
                 </th>
-                <SortTh k="naam" sort={sort} onSort={toggleSort}>Project</SortTh>
-                <SortTh k="klant" sort={sort} onSort={toggleSort}>Klant</SortTh>
-                <th>Status</th>
-                <th>Voortgang</th>
-                <th style={{ width: 60, textAlign: 'right' }}>Art.</th>
-                <SortTh k="bedrag" sort={sort} onSort={toggleSort} align="right">Bedrag excl.</SortTh>
-                <SortTh k="createdAt" sort={sort} onSort={toggleSort}>Aangemaakt</SortTh>
+                {columns.map(col => (
+                  <th
+                    key={col.id}
+                    data-tint={prefs.colors[col.id] || undefined}
+                    data-align={col.align ?? 'left'}
+                    className={dragCol === col.id ? 'dragging' : dropCol === col.id ? 'drop-target' : undefined}
+                    style={{ textAlign: col.align ?? 'left', minWidth: col.width }}
+                    title={col.longLabel ?? col.label}
+                    // A real drag suppresses the click, so drag-to-reorder and
+                    // click-to-sort can share the header without a threshold.
+                    draggable
+                    onDragStart={e => {
+                      setDragCol(col.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      try { e.dataTransfer.setData('text/plain', col.id) } catch { /* ignore */ }
+                    }}
+                    onDragEnd={() => { setDragCol(null); setDropCol(null) }}
+                    onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropCol(col.id) }}
+                    onDragLeave={() => setDropCol(c => (c === col.id ? null : c))}
+                    onDrop={e => { e.preventDefault(); handleHeaderDrop(col.id) }}
+                    onClick={() => toggleSort(col.id)}
+                  >
+                    <span className="th-inner">
+                    <span className="sort">
+                      {col.label}
+                      {sort.key === col.id && <SortIndicator dir={sort.dir} />}
+                    </span>
+                    <ColumnHeaderMenu
+                      col={col}
+                      tint={prefs.colors[col.id] ?? ''}
+                      onTint={t => updatePrefs(prev => {
+                        const colors = { ...prev.colors }
+                        if (t) colors[col.id] = t; else delete colors[col.id]
+                        return { ...prev, colors }
+                      })}
+                      onSort={dir => setSort({ key: col.id, dir })}
+                      onHide={() => updatePrefs(prev => {
+                        const hidden = prev.hidden.includes(col.id) ? prev.hidden : [...prev.hidden, col.id]
+                        return resolveColumns(prev.order, hidden).length === 0 ? prev : { ...prev, hidden }
+                      })}
+                      onOpenPanel={() => setColPanelOpen(true)}
+                    />
+                    </span>
+                  </th>
+                ))}
                 <th style={{ width: 32 }} />
               </tr>
             </thead>
             <tbody>
-              {filtered.map(p => {
-                const cfg = PROJECT_STATUS_CONFIG[p.status]
-                const klant = relaties.find(r => r.id === p.relatieId)
-                const bedrag = getProjectSubtotaal(p)
-                const artikelCount = p.offertes.find(o => o.status === 'geaccepteerd')?.regels.length
-                  ?? p.offertes[p.offertes.length - 1]?.regels.length
-                  ?? 0
-                return (
-                  <tr
-                    key={p.id}
-                    data-selected={selected.has(p.id)}
-                    onClick={() => navigate(`/projecten/${p.id}`)}
-                  >
-                    <td className="col-checkbox" onClick={e => e.stopPropagation()}>
-                      <span className="st-ck" data-on={selected.has(p.id)} onClick={() => toggleOne(p.id)} />
+              {filtered.map(p => (
+                <tr
+                  key={p.id}
+                  data-selected={selected.has(p.id)}
+                  onClick={() => navigate(`/projecten/${p.id}`)}
+                >
+                  <td className="col-checkbox" onClick={e => e.stopPropagation()}>
+                    <span className="st-ck" data-on={selected.has(p.id)} onClick={() => toggleOne(p.id)} />
+                  </td>
+                  {columns.map(col => (
+                    <td
+                      key={col.id}
+                      data-tint={prefs.colors[col.id] || undefined}
+                      className={col.align === 'right' ? 'cell-num' : undefined}
+                    >
+                      {col.render(p, ctx)}
                     </td>
-                    <td>
-                      <div className="st-art-cell">
-                        <div className="st-type-pic"><IconFolder size={15} /></div>
-                        <div style={{ minWidth: 0 }}>
-                          <div className="st-art-name">{p.naam}</div>
-                          <div className="st-art-desc">
-                            {p.id}
-                            {p.klantRef ? ` · ref ${p.klantRef}` : ''}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cell-strong" style={{ fontSize: 12.5 }}>
-                        {klant?.naam ?? <span className="cell-muted">—</span>}
-                      </div>
-                    </td>
-                    <td>
-                      <span className={`st-badge ${cfg.cls}`}>
-                        <span className="dot" />{cfg.label}
-                      </span>
-                    </td>
-                    <td><MiniPipeline status={p.status} /></td>
-                    <td className="cell-num cell-muted">{artikelCount || '—'}</td>
-                    <td className="cell-num cell-mono">
-                      {bedrag > 0 ? formatBedrag(bedrag) : <span className="cell-muted">—</span>}
-                    </td>
-                    <td><span className="cell-muted">{formatDate(p.createdAt)}</span></td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <Menu position="bottom-end" withinPortal shadow="md">
-                        <Menu.Target>
-                          <button className="st-icon-btn" title="Acties"><IconDots size={15} /></button>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          <Menu.Item leftSection={<IconFolder size={14} />} onClick={() => navigate(`/projecten/${p.id}`)}>
-                            Openen
-                          </Menu.Item>
-                          <Menu.Item
-                            color="red"
-                            leftSection={<IconTrash size={14} />}
-                            onClick={() => handleDelete(p)}
-                          >
-                            Verwijderen
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu>
-                    </td>
-                  </tr>
-                )
-              })}
+                  ))}
+                  <td onClick={e => e.stopPropagation()}>
+                    <Menu position="bottom-end" withinPortal shadow="md">
+                      <Menu.Target>
+                        <button className="st-icon-btn" title="Acties"><IconDots size={15} /></button>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Item leftSection={<IconFolder size={14} />} onClick={() => navigate(`/projecten/${p.id}`)}>
+                          Openen
+                        </Menu.Item>
+                        <Menu.Item
+                          color="red"
+                          leftSection={<IconTrash size={14} />}
+                          onClick={() => handleDelete(p)}
+                        >
+                          Verwijderen
+                        </Menu.Item>
+                      </Menu.Dropdown>
+                    </Menu>
+                  </td>
+                </tr>
+              ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="st-empty">
+                  <td colSpan={columns.length + 2} className="st-empty">
                     {projects.length === 0
                       ? 'Nog geen projecten. Maak een nieuw project aan.'
                       : 'Geen projecten gevonden voor deze filters.'}
@@ -357,7 +388,6 @@ export function ProjectenPage() {
           {selected.size > 0 && <span style={{ color: 'var(--text)' }}>· {selected.size} geselecteerd</span>}
         </div>
       </div>
-
     </>
   )
 }

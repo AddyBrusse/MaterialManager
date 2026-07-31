@@ -275,6 +275,96 @@ html, body {
 .gt-tab-btn:hover { background: var(--bg-3); color: var(--text); }
 .gt-tab-btn.close:hover { background: var(--danger-soft); color: var(--danger); }
 
+/* ===== Projecten table: per-column tints + column settings ===== */
+/* Low alpha so one tint reads correctly over both the light and dark table
+   backgrounds, and so row hover/selected states still show through. */
+.prj-tbl th[data-tint], .prj-tbl td[data-tint] { background-color: var(--col-tint, transparent); }
+[data-tint="blue"]   { --col-tint: rgba(45, 109, 246, 0.10); }
+[data-tint="green"]  { --col-tint: rgba(17, 122, 69, 0.10); }
+[data-tint="amber"]  { --col-tint: rgba(217, 145, 12, 0.13); }
+[data-tint="red"]    { --col-tint: rgba(214, 60, 60, 0.10); }
+[data-tint="purple"] { --col-tint: rgba(135, 76, 214, 0.11); }
+[data-tint="teal"]   { --col-tint: rgba(20, 145, 145, 0.11); }
+[data-tint="grey"]   { --col-tint: rgba(128, 128, 128, 0.12); }
+
+/* ===== Column header: drag-to-reorder + per-column ⋮ menu ===== */
+.prj-tbl thead th { position: relative; }
+.prj-tbl thead th.dragging { opacity: .45; }
+/* Where the dragged column will land. */
+.prj-tbl thead th.drop-target { box-shadow: inset 3px 0 0 0 var(--accent); }
+
+/* Label left, ⋮ pushed to the right edge of the header cell. Reserved with
+   visibility rather than display, so revealing it on hover shifts nothing. */
+.prj-tbl thead th .th-inner { display: flex; align-items: center; gap: 6px; }
+.colhdr-menu { display: inline-flex; margin-left: auto; }
+/* Numeric columns are right-aligned, so the label sits at the right too and
+   the ⋮ simply follows it as the last element. */
+.prj-tbl thead th[data-align="right"] .th-inner { justify-content: flex-end; }
+.prj-tbl thead th[data-align="right"] .colhdr-menu { margin-left: 0; }
+.colhdr-dots {
+  width: 18px; height: 18px; border: 0; border-radius: 4px; padding: 0;
+  background: transparent; color: var(--text-4); cursor: pointer;
+  display: grid; place-items: center; visibility: hidden;
+}
+.prj-tbl thead th:hover .colhdr-dots, .colhdr-dots.on { visibility: visible; }
+.colhdr-dots:hover, .colhdr-dots.on { background: var(--bg-3); color: var(--text); }
+
+.colhdr-pop {
+  position: fixed; z-index: 320;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: 0 8px 26px rgba(0,0,0,.22);
+  padding: 6px; text-align: left; font-weight: 400; cursor: default;
+}
+.colhdr-sect { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-4); padding: 2px 6px 4px; }
+.colhdr-tints { display: flex; gap: 4px; padding: 0 6px 4px; }
+.colhdr-sep { height: 1px; background: var(--border); margin: 4px 0; }
+.colhdr-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 6px;
+  border: 0; border-radius: 6px; background: transparent; cursor: pointer;
+  font-size: 12px; color: var(--text); text-align: left;
+}
+.colhdr-item:hover { background: var(--bg-chip); }
+
+.colset-wrap { position: relative; display: inline-flex; }
+.colset {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 300; width: 430px;
+  display: flex; flex-direction: column; max-height: 60vh;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); box-shadow: 0 8px 26px rgba(0,0,0,.22);
+}
+.colset-hd {
+  display: flex; align-items: center; gap: 6px; padding: 9px 10px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.colset-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
+.colset-hd .sp { flex: 1; }
+.colset-list { overflow-y: auto; padding: 4px; }
+.colset-row {
+  display: flex; align-items: center; gap: 8px; padding: 3px 6px;
+  border-radius: 6px; cursor: default;
+}
+.colset-row:hover { background: var(--bg-chip); }
+.colset-row.dragging { opacity: .45; }
+.colset-grip { color: var(--text-4); cursor: grab; display: flex; flex-shrink: 0; }
+.colset-name {
+  display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text);
+  flex: 1; min-width: 0; cursor: pointer;
+}
+.colset-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colset-tints { display: flex; gap: 3px; flex-shrink: 0; }
+.colset-tint {
+  width: 14px; height: 14px; border-radius: 4px; cursor: pointer; padding: 0;
+  border: 1px solid var(--border-strong); background: var(--col-tint, transparent);
+}
+.colset-tint.none { position: relative; background: transparent; }
+.colset-tint.none::after {
+  content: ""; position: absolute; inset: 2px; border-top: 1.5px solid var(--text-4);
+  transform: rotate(-45deg); transform-origin: center;
+}
+.colset-tint.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+.colset-move { display: flex; flex-shrink: 0; }
+.colset-move .st-icon-btn:disabled { opacity: .3; cursor: default; }
+
 /* ===== Project read-only lock ===== */
 .prj-lock-banner {
   display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
