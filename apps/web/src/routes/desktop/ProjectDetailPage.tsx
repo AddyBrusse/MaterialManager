@@ -211,26 +211,36 @@ export function ProjectDetailPage() {
   }
 
   const cfg      = PROJECT_STATUS_CONFIG[project.status]
-  // Header identity is inline-editable now, so derive the selected relatie/
-  // contact from live `meta` (not the persisted project) — keeps the title
-  // meta-line and the Klant card in sync while typing.
+  // Header identity is inline-editable now, so derive the selected relatie from
+  // live `meta` (not the persisted project) — keeps the Klant card in sync
+  // while typing.
   const relatie  = relaties.find(r => r.id === meta.relatieId) ?? null
-  const contact  = relatie?.contacten.find(c => c.id === meta.contactId) ?? null
   const accepted = getAcceptedOfferte(project)
   const subtotaal = getProjectSubtotaal(project)
   const gereedCount = project.productieOrders.filter(o => o.status === 'gereed').length
+  const inProductieCount = project.productieOrders.filter(o => o.status === 'in_productie').length
   const totalOrders = project.productieOrders.length
 
   const relatieOptions = relaties
     .filter(r => r.type !== 'leverancier')
     .map(r => ({ value: r.id, label: r.naam }))
 
-  const metaLine = [
-    project.id,
-    relatie?.naam || null,
-    contact?.naam || null,
-    meta.klantRef ? `ref ${meta.klantRef}` : null,
-  ].filter(Boolean).join(' · ')
+  // Status card, Offerte row: the accepted offerte if there is one, else the
+  // most recent, shown as "OFF-… · v2 concept".
+  const shownOfferte = accepted ?? project.offertes[project.offertes.length - 1] ?? null
+  const offerteLabel = shownOfferte
+    ? `${shownOfferte.id} · v${shownOfferte.versie}${accepted ? '' : ` ${shownOfferte.status}`}`
+    : '—'
+  const regelCount = shownOfferte?.regels.length ?? 0
+
+  // Financials come from the factuur once one exists (it freezes its own BTW
+  // pct and totals); before that they're derived from the offerte subtotaal at
+  // the standard 21%.
+  const fact     = project.factuur
+  const finSub   = fact ? fact.subtotaal      : subtotaal
+  const finBtwPct = fact ? fact.btwPct        : 21
+  const finBtw   = fact ? fact.btwBedrag      : Math.round(subtotaal * 0.21 * 100) / 100
+  const finTotaal = fact ? fact.totaalInclBtw : Math.round(subtotaal * 1.21 * 100) / 100
 
   function NextActionBtn() {
     const { status } = project!
@@ -347,14 +357,13 @@ export function ProjectDetailPage() {
           </div>
           <div className="ad-title-mid">
             <div className="ad-title-row">
+              <span className="prj-id-tag">{project.id}</span>
               <h1 className="ad-h1">
                 {meta.naam || <span style={{ color: 'var(--text-4)', fontStyle: 'italic', fontWeight: 500 }}>Naamloos project</span>}
               </h1>
-              <span className={`badge ${cfg.cls}`}><span className="dot" />{cfg.label}</span>
-              <StageTrack status={project.status} compact />
             </div>
-            <div className="ad-metaline">{metaLine}</div>
           </div>
+          <StageTrack status={project.status} compact />
           <div className="ad-title-actions">
             {!isReadOnly && <SaveIndicator state={saveState} />}
             {!isReadOnly && <RevertBtn />}
@@ -372,84 +381,71 @@ export function ProjectDetailPage() {
             readOnly={isReadOnly}
           />
 
-          {/* Offerte */}
+          {/* Status — the document chain + productievoortgang, one row per tab */}
           <div className="ad-card">
-            <div className="ad-eyebrow"><Ic d={Icon.file} />Offerte</div>
-          <div className="info-primary mono">
-            {accepted?.id ?? (project.offertes.length > 0 ? project.offertes[project.offertes.length - 1].id : '—')}
-          </div>
-          <div className="info-rows">
-            <div className="info-line">
-              <span className="k">Versie</span>
-              <span className="v">
-                {accepted
-                  ? `v${accepted.versie} · geaccepteerd`
-                  : project.offertes.length > 0
-                  ? `v${project.offertes[project.offertes.length - 1].versie} · ${project.offertes[project.offertes.length - 1].status}`
-                  : '—'}
-              </span>
+            <div className="ad-eyebrow"><Ic d={Icon.bolt} />Status</div>
+            <div className="info-primary">
+              <span className={`badge ${cfg.cls}`}><span className="dot" />{cfg.label}</span>
             </div>
-            <div className="info-line">
-              <span className="k">Artikelen</span>
-              <span className="v">
-                {(accepted ?? project.offertes[project.offertes.length - 1])?.regels.length ?? 0} regels
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">Bedrag excl.</span>
-              <span className="v mono">{subtotaal > 0 ? formatBedrag(subtotaal) : '—'}</span>
-            </div>
-          </div>
-        </div>
-
-          {/* Productie */}
-          <div className="ad-card">
-            <div className="ad-eyebrow"><Ic d={Icon.tool} />Productie</div>
-          <div className="info-primary">
-            {totalOrders > 0 ? `${gereedCount} / ${totalOrders} klaar` : '—'}
-          </div>
-          <div className="info-rows">
-            <div className="info-line">
-              <span className="k">Gereed</span>
-              <span className="v" style={gereedCount > 0 ? { color: 'var(--success)' } : {}}>
-                {gereedCount} orders
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">In productie</span>
-              <span className="v" style={project.productieOrders.filter(o => o.status === 'in_productie').length > 0 ? { color: 'var(--warning)' } : {}}>
-                {project.productieOrders.filter(o => o.status === 'in_productie').length} orders
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">Paklijst</span>
-              <span className="v">{project.paklijst?.id ?? '—'}</span>
+            <div className="info-rows">
+              <div className="info-line">
+                <span className="k">Offerte</span>
+                <span className="v mono">{offerteLabel}</span>
+              </div>
+              <div className="info-line">
+                <span className="k">Opdrachtbev.</span>
+                <span className="v mono">{project.opdrachtbevestiging?.id ?? '—'}</span>
+              </div>
+              <div className="info-line">
+                <span className="k">Productie</span>
+                <span
+                  className="v"
+                  style={totalOrders > 0 && gereedCount === totalOrders
+                    ? { color: 'var(--success)' }
+                    : inProductieCount > 0 ? { color: 'var(--warning)' } : {}}
+                >
+                  {totalOrders > 0 ? `${gereedCount} / ${totalOrders} gereed` : '—'}
+                </span>
+              </div>
+              <div className="info-line">
+                <span className="k">Paklijst</span>
+                <span className="v mono">{project.paklijst?.id ?? '—'}</span>
+              </div>
+              <div className="info-line">
+                <span className="k">Factuur</span>
+                <span className="v mono">{project.factuur?.id ?? '—'}</span>
+              </div>
             </div>
           </div>
-        </div>
 
           {/* Financieel */}
           <div className="ad-card">
             <div className="ad-eyebrow"><Ic d={Icon.euro} />Financieel</div>
-          <div className="info-primary mono">{subtotaal > 0 ? formatBedrag(subtotaal) : '—'}</div>
-          <div className="info-rows">
-            <div className="info-line">
-              <span className="k">Excl. BTW</span>
-              <span className="v mono">{subtotaal > 0 ? formatBedrag(subtotaal) : '—'}</span>
+            <div className="info-primary mono">{finTotaal > 0 ? formatBedrag(finTotaal) : '—'}</div>
+            <div className="info-rows">
+              <div className="info-line">
+                <span className="k">Regels</span>
+                <span className="v">{regelCount > 0 ? `${regelCount} ${regelCount === 1 ? 'regel' : 'regels'}` : '—'}</span>
+              </div>
+              <div className="info-line">
+                <span className="k">Excl. BTW</span>
+                <span className="v mono">{finSub > 0 ? formatBedrag(finSub) : '—'}</span>
+              </div>
+              <div className="info-line">
+                <span className="k">BTW {finBtwPct}%</span>
+                <span className="v mono">{finSub > 0 ? formatBedrag(finBtw) : '—'}</span>
+              </div>
+              <div className="info-line">
+                <span className="k">Incl. BTW</span>
+                <span className="v mono">{finSub > 0 ? formatBedrag(finTotaal) : '—'}</span>
+              </div>
+              <div className="info-line">
+                <span className="k">Gefactureerd</span>
+                <span className="v" style={fact ? { color: 'var(--success)' } : {}}>
+                  {fact ? (fact.verzondenOp ? 'verzonden' : 'concept') : '—'}
+                </span>
+              </div>
             </div>
-            <div className="info-line">
-              <span className="k">BTW 21%</span>
-              <span className="v mono">
-                {subtotaal > 0 ? formatBedrag(Math.round(subtotaal * 0.21 * 100) / 100) : '—'}
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">Incl. BTW</span>
-              <span className="v mono">
-                {subtotaal > 0 ? formatBedrag(Math.round(subtotaal * 1.21 * 100) / 100) : '—'}
-              </span>
-            </div>
-          </div>
           </div>
         </div>
       </div>
