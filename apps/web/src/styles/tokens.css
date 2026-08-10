@@ -2013,12 +2013,49 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
 
 /* ===== Project detail — redesigned header (matches article ad- look) ===== */
 .prj-detail-hd { padding: 14px 24px 4px; flex-shrink: 0; }
-.prj-detail-hd .ad-titlebar { margin-bottom: 6px; }
+/* No metaline under the title any more — the row is a single line, so centre
+   the glyph/stage-track/actions against it instead of top-aligning. */
+.prj-detail-hd .ad-titlebar { margin-bottom: 10px; align-items: center; }
+.prj-detail-hd .ad-glyph { width: 40px; height: 40px; }
+/* Project number, promoted into the title row ahead of the name. */
+.prj-id-tag {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 600; color: var(--text-3);
+  background: var(--bg-chip); border-radius: 5px; padding: 3px 7px;
+  flex-shrink: 0;
+}
+/* Stage track sits right-aligned, between the title and the action buttons. */
+.prj-detail-hd .ad-titlebar > .prj-stage-track { flex-shrink: 0; margin-left: auto; }
+/* Keep the number and the name on one line — truncate a long name rather than
+   letting the row wrap and push the tag onto its own line. */
+.prj-detail-hd .ad-title-row { flex-wrap: nowrap; gap: 10px; }
+.prj-detail-hd .ad-h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* On a laptop the full-size track eats the width the project name needs —
+   tighten it so the name stays readable instead of truncating. */
+@media (max-width: 1400px) {
+  .prj-detail-hd .prj-stage-track.compact .prj-stage-circ { width: 32px; height: 32px; }
+  .prj-detail-hd .prj-stage-track.compact .prj-stage-conn {
+    flex-basis: 10px; width: 10px; min-width: 10px; margin-top: 16px;
+  }
+  .prj-detail-hd .prj-stage-track.compact .prj-stage-lbl { font-size: 10px; }
+}
+
 .prj-info-cards {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px; align-items: stretch;
 }
-@media (max-width: 1300px) { .prj-info-cards { grid-template-columns: 1fr 1fr; } }
+/* Laptop widths: three cards side by side get cramped and the Klant card —
+   the only one with inputs — suffers most. Give it the full first row. */
+@media (max-width: 1400px) {
+  .prj-info-cards { grid-template-columns: 1fr 1fr; }
+  .prj-info-cards > :first-child { grid-column: 1 / -1; }
+  /* Full-width Klant card would otherwise stretch five inputs across the page;
+     lay the fields out in two columns instead. */
+  .prj-info-cards > :first-child .ad-fields {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px;
+  }
+}
 @media (max-width: 700px)  { .prj-info-cards { grid-template-columns: 1fr; } }
 /* Read-only stat cards: tighten the eyebrow → primary → rows rhythm */
 .prj-info-cards .ad-card { gap: 11px; }
