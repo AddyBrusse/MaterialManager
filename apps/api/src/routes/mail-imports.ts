@@ -46,11 +46,12 @@ router.post(
 router.get(
   '/',
   asyncHandler(async (req, res) => {
-    const { status, relatieId } = req.query as Record<string, string | undefined>
+    const { status, relatieId, projectId } = req.query as Record<string, string | undefined>
     const rows = await prisma.mailImport.findMany({
       where: {
         ...(status ? { status } : {}),
         ...(relatieId ? { relatieId } : {}),
+        ...(projectId ? { projectId } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: 200,

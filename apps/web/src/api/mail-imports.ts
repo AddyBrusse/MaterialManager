@@ -1,0 +1,35 @@
+import type { MailImport, MailImportStatus, MailIntent } from '@stockmanager/shared'
+import { apiFetch, apiUpload } from './client'
+
+export interface IngestResult {
+  mailImport: MailImport
+  /** True als deze mail al eerder was binnengehaald — er is niets nieuws gemaakt. */
+  duplicate: boolean
+}
+
+export interface UpdateMailImport {
+  relatieId?: string | null
+  intent?: MailIntent
+  status?: MailImportStatus
+  projectId?: string | null
+}
+
+export const mailImportsApi = {
+  /** Een uit Outlook gesleept .msg naar binnen halen. Gebruikt apiUpload: geen
+   *  Content-Type header en een ruimere timeout dan de JSON-calls. */
+  upload: (file: File) => apiUpload<IngestResult>('/mail-imports', file).then((r) => r.data),
+
+  list: (params: { status?: MailImportStatus; relatieId?: string; projectId?: string } = {}) => {
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries(params)) if (v) q.set(k, v)
+    const suffix = q.toString() ? `?${q}` : ''
+    return apiFetch<MailImport[]>(`/mail-imports${suffix}`).then((r) => r.data)
+  },
+
+  get: (id: string) => apiFetch<MailImport>(`/mail-imports/${id}`).then((r) => r.data),
+
+  update: (id: string, body: UpdateMailImport) =>
+    apiFetch<MailImport>(`/mail-imports/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.data),
+
+  remove: (id: string) => apiFetch<void>(`/mail-imports/${id}`, { method: 'DELETE' }),
+}

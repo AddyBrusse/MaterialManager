@@ -2317,3 +2317,15 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
   .st-stats { grid-template-columns: repeat(3, 1fr); }
   .st-recv-grid { grid-template-columns: 1fr; }
 }
+
+/* Mail-import: draaiend icoontje terwijl een gesleepte mail wordt gelezen. */
+@keyframes mi-spin { to { transform: rotate(360deg); } }
+
+/* Mail-import: regel boven de tabs met de mail waar dit project uit ontstond. */
+.prj-mail-linked {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 10px; padding: 7px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-2); font-size: 12px; color: var(--text-2);
+}
+.prj-mail-linked > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

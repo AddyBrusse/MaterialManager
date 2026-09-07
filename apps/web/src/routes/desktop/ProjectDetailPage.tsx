@@ -16,8 +16,12 @@ import { usePopoutRoutes } from '../../hooks/usePopout'
 import { focusPopout, requestClosePopout } from '../../utils/popout'
 import { useProjectLock } from '../../hooks/useProjectLock'
 import { useProjectSaveState } from '../../hooks/useProjectSaveState'
-import { IconLock, IconCloudCheck, IconCloudUpload, IconCloudX } from '@tabler/icons-react'
+import { IconLock, IconCloudCheck, IconCloudUpload, IconCloudX, IconMail } from '@tabler/icons-react'
 import { Ic, Icon } from '../../components/articles/calc-icons'
+import { MailDropzone } from '../../components/projecten/MailDropzone'
+import { MailImportReview } from '../../components/projecten/MailImportReview'
+import { mailImportsApi } from '../../api/mail-imports'
+import type { MailImport } from '@stockmanager/shared'
 import { OfferteTab } from '../../components/projecten/OfferteTab'
 import { OpdrachtbevestigingTab } from '../../components/projecten/OpdrachtbevestigingTab'
 import { ProductieTab } from '../../components/projecten/ProductieTab'
@@ -122,6 +126,10 @@ export function ProjectDetailPage() {
 
   const [tab, setTab]           = useState<Tab>('offertes')
   const [confirmRevert, setConfirmRevert] = useState(false)
+  // Mail-import (features/60-mail-import.md §2.2/§3.7): een gesleepte mail komt
+  // eerst in `reviewImport` en raakt het project pas als iemand hem koppelt.
+  const [reviewImport, setReviewImport] = useState<MailImport | null>(null)
+  const [linkedImport, setLinkedImport] = useState<MailImport | null>(null)
   const [meta, setMetaState] = useState<ProjectMeta>({ naam: '', relatieId: null, contactId: null, klantRef: '', levertijdDatum: '' })
   const qc = useQueryClient()
   const [, forceUpdate] = useState(0)
@@ -151,6 +159,18 @@ export function ProjectDetailPage() {
     const t = setTimeout(() => saveMeta(), 400)
     return () => clearTimeout(t)
   }, [meta]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Al een mail aan dit project gekoppeld? Dan geen dropzone meer tonen maar
+  // waar hij vandaan komt. Faalt stil: een project blijft bruikbaar als de
+  // mail-import-route onbereikbaar is.
+  useEffect(() => {
+    let cancelled = false
+    if (!id) return
+    mailImportsApi.list({ projectId: id })
+      .then(rows => { if (!cancelled) setLinkedImport(rows[0] ?? null) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [id])
 
   // Register (and keep labelled) an open-projects tab for whatever project is
   // on screen — covers every entry point (list click, create, direct URL).
@@ -453,6 +473,41 @@ export function ProjectDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Mail-import — alleen op een leeg project, zolang er nog geen offerte is */}
+      {!isReadOnly && !linkedImport && project.offertes.length === 0 && (
+        <MailDropzone projectId={project.id} onImported={setReviewImport} />
+      )}
+      {linkedImport && (
+        <div className="prj-mail-linked">
+          <IconMail size={14} />
+          <span>
+            Uit mail: <strong>{linkedImport.onderwerp || '(geen onderwerp)'}</strong>
+            {linkedImport.afzenderEmail && <span className="mono"> · {linkedImport.afzenderEmail}</span>}
+          </span>
+          <button className="st-btn ghost sm" onClick={() => setReviewImport(linkedImport)}>Bekijk</button>
+        </div>
+      )}
+      {reviewImport && (
+        <MailImportReview
+          opened
+          mailImport={reviewImport}
+          projectId={project.id}
+          relatieOptions={relatieOptions}
+          onClose={() => setReviewImport(null)}
+          onLinked={(saved, relatieId) => {
+            setLinkedImport(saved)
+            // De relatie uit het reviewscherm is de bevestigde keuze; die hoort
+            // meteen op het project te staan, samen met het onderwerp als naam
+            // wanneer het project nog naamloos is.
+            setMeta({
+              relatieId,
+              ...(meta.naam.trim() ? {} : { naam: saved.onderwerp.slice(0, 80) }),
+            })
+            notifications.show({ color: 'green', message: 'Mail gekoppeld aan dit project.' })
+          }}
+        />
+      )}
 
       {/* Tabs */}
       <div className="detail-tabs">
