@@ -78,7 +78,9 @@ describe('extractLines — bijlagenamen', () => {
     // Eén regel: het onderdeel. De drie bestandsvormen ervan tellen als één,
     // en de inkooporder telt niet mee.
     expect(lines).toHaveLength(1)
-    expect(lines[0].tekening).toBe('2604307-1-2615-0091-0530-1_20260904-0942')
+    // Zonder exportstempel: die hoort niet bij het tekeningnummer (zie
+    // stripExportStamp) en verandert bij elke export.
+    expect(lines[0].tekening).toBe('2604307-1-2615-0091-0530-1')
   })
 
   it('negeert offerte-, factuur- en pakbondocumenten', () => {
@@ -132,5 +134,29 @@ describe('extractLines — bodytekst', () => {
     }))
     // De bodyregel heeft geen eigen code, dus levert geen tweede regel op.
     expect(lines).toHaveLength(1)
+  })
+})
+
+describe('exportstempel uit bestandsnamen', () => {
+  it('haalt datum+tijd weg die het klantsysteem erachter plakt', () => {
+    // Gemeten op mail van Stinis: het systeem exporteert met de exporttijd in
+    // de naam. Zonder strippen matcht niets, en leert de alias niets — de
+    // stempel is elke mail anders.
+    const lines = extractLines(mail({
+      subject: 'Inkooporder PUR2604307',
+      attachments: [att('2604307-1-2615-0091-0530-1_20260904-0942.pdf')],
+    }))
+    expect(lines[0].tekening).toBe('2604307-1-2615-0091-0530-1')
+  })
+
+  it('herkent ook andere schrijfwijzen van de stempel', () => {
+    expect(extractLines(mail({ attachments: [att('123456_20260904_09-42.pdf')] }))[0].tekening).toBe('123456')
+    expect(extractLines(mail({ attachments: [att('123456-2026-09-04.pdf')] }))[0].tekening).toBe('123456')
+  })
+
+  it('kapt een tekeningnummer NIET af dat toevallig op cijfers eindigt', () => {
+    // 99999999 is geen geldige datum (maand 99), dus dit hoort te blijven staan.
+    expect(extractLines(mail({ attachments: [att('DEEL-99999999.pdf')] }))[0].tekening).toBe('DEEL-99999999')
+    expect(extractLines(mail({ attachments: [att('2026077-001.STEP')] }))[0].tekening).toBe('2026077-001')
   })
 })

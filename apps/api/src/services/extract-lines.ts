@@ -42,6 +42,35 @@ function baseNameOf(filename: string): string {
 }
 
 /**
+ * Exportstempel achteraan een bestandsnaam weghalen.
+ *
+ * Klantsystemen plakken datum en tijd achter de tekeningnaam bij het
+ * exporteren: `2604307-1-2615-0091-0530-1_20260904-0942` (gemeten op mail van
+ * een klant). Dat hoort niet bij het tekeningnummer, en het verandert bij elke
+ * export - zonder strippen matcht niet alleen niets, maar leert de koppeling
+ * ook nooit iets, want het klantnummer is dan elke mail anders.
+ *
+ * Alleen weghalen als de acht cijfers een geldige datum vormen, zodat een
+ * tekeningnummer dat toevallig op cijfers eindigt niet wordt afgekapt.
+ */
+function looksLikeDate(yyyymmdd: string): boolean {
+  const y = Number(yyyymmdd.slice(0, 4))
+  const m = Number(yyyymmdd.slice(4, 6))
+  const d = Number(yyyymmdd.slice(6, 8))
+  return y >= 2000 && y <= 2099 && m >= 1 && m <= 12 && d >= 1 && d <= 31
+}
+
+const TRAILING_STAMP = /[_\-\s]((?:\d{8})|(?:\d{4}-\d{2}-\d{2}))(?:[_\-]\d{2}-?\d{2})?$/
+
+export function stripExportStamp(base: string): string {
+  const m = base.match(TRAILING_STAMP)
+  if (!m) return base
+  const digits = m[1].replace(/-/g, '')
+  if (digits.length !== 8 || !looksLikeDate(digits)) return base
+  return base.slice(0, base.length - m[0].length).replace(/[_\-\s]+$/, '') || base
+}
+
+/**
  * `rev B`, `revB`, `rev. B`, `_rev-B` → 'B'. Alleen mét het woord "rev".
  *
  * Let op de eigen grens in plaats van `\b`: een underscore telt als
@@ -112,7 +141,7 @@ function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateL
       .replace(/(^|[^A-Za-z])rev[\s._-]*[A-Za-z0-9]{1,3}(?![A-Za-z0-9])/i, '$1')
       .replace(/\(.*?\)/g, '')
       .trim()
-    tekening = tekening.replace(/[_\s-]+$/, '').trim() || base
+    tekening = stripExportStamp(tekening.replace(/[_\s-]+$/, '').trim() || base)
   }
 
   return {
