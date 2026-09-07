@@ -200,17 +200,53 @@ en `contacten[].email`; daarna op maildomein. Resultaat is een **suggestie**;
 de gebruiker bevestigt in het reviewscherm. Bij geen match: nieuwe relatie
 aanmaken of handmatig kiezen. Nooit stil toewijzen.
 
-**Let op — doorgestuurde mail.** In de meetronde van §2.1 was de afzender van
-`koppel order: 2026077` "Bart Boers | Boers Metaalbewerking", dus het eigen
-domein. Als klantorders intern worden doorgestuurd voordat ze de app in gaan,
-is de afzender van het `.msg` **niet de klant** en is relatie-resolutie op de
-envelope-afzender waardeloos. Dan moet de oorspronkelijke afzender uit het
-doorstuur-blok in de body komen (`Van: … Verzonden: … Aan: …`), of moet de
-gebruiker de relatie in het reviewscherm gewoon zelf kiezen.
+#### Doorgestuurde mail — beantwoord 2026-09-07
 
-Dit is één waarneming en misschien niet representatief — maar het is wel het
-verschil tussen "afzender is de sleutel" en "afzender is een hint". Zie de
-open vraag hierover in §8; die moet beantwoord zijn vóór §3.2 gebouwd wordt.
+Beide paden komen voor: klanten sturen rechtstreeks, én er wordt intern
+doorgestuurd, door **iedereen in het eigen domein**. De afzender van het `.msg`
+is dus soms de klant en soms een collega. Daarom deze volgorde, en niet anders:
+
+```
+1. is de afzender een eigen adres?          → ja: doorgestuurd, ga naar 2
+                                              nee: afzender = de klant, klaar
+2. zoek het doorstuur-blok in de body       → oorspronkelijke afzender eruit
+3. niets bruikbaar gevonden                 → geen suggestie, gebruiker kiest
+```
+
+**Stap 1 — eigen adres herkennen.** Twee bronnen, beide al aanwezig of
+triviaal toe te voegen:
+
+- de M365-adressen van de gebruikers (`User.email`, zie `frontend`/Instellingen)
+- een lijstje eigen domeinen in Instellingen → Bedrijf (nu: één domein, maar
+  als lijst opslaan — bedrijven krijgen extra domeinen)
+
+Dit is óók een netjes af te vangen randgeval: mail die een gebruiker aan
+zichzelf stuurt, of een interne mail zonder klant erin, hoort geen project op
+te leveren.
+
+**Stap 2 — het doorstuur-blok.** Outlook zet er een kop in als
+`Van: … / Verzonden: … / Aan: … / Onderwerp: …` (NL) of
+`From: / Sent: / To: / Subject:` (EN). Regels om te hanteren:
+
+- Beide talen ondersteunen; de client-taal ligt niet vast.
+- Bij meerdere hops staan er meerdere blokken, nieuwste bovenaan. De klant is
+  het **diepste** blok met een adres dat niet van het eigen domein is.
+- Het adres kan ontbreken en alleen een weergavenaam bevatten (afzender stond
+  in het adresboek). Dan matchen op naam tegen `Relatie.naam` en
+  `contacten[].naam` — als suggestie, met lagere zekerheid.
+
+Dit blijft brozer dan een envelope-afzender, en dat is acceptabel omdat het
+resultaat sowieso een suggestie is die iemand bevestigt (§3.7). Het faalt naar
+"gebruiker kiest zelf", nooit naar een verkeerde klant.
+
+**Werkafspraak die dit grotendeels oplost.** Wie een klantmail doorstuurt naar
+de app: **doorsturen als bijlage** (Outlook: *Als bijlage doorsturen* /
+`Ctrl+Alt+F`) in plaats van inline. Dan zit het originele bericht als embedded
+`.msg` in de doorgestuurde mail, mét de echte kop — geen tekstparsing nodig,
+en de afzender is gewoon het adres van de klant. De parser moet embedded
+messages dus sowieso aankunnen: **zit er een embedded bericht in, gebruik dan
+dát als de eigenlijke mail.** Inline doorsturen blijft werken via de regels
+hierboven; het is alleen minder betrouwbaar.
 
 ### 3.3 Intent-classificatie
 
@@ -345,6 +381,10 @@ app-registratie ondanks tenant-brede permissie maar bij die ene mailbox kan.
 - Na verwerking het bericht verplaatsen/categoriseren, zodat de status ook in
   Outlook zichtbaar is.
 - Onbekende afzenders → `MailImport` met status `nieuw`, géén project.
+- **Let op de volgorde:** de eigen-domein-check van §3.2 gaat vóór deze
+  filter. Een intern doorgestuurde klantorder heeft een *bekende* afzender
+  (een collega) en zou anders als "geen klant" worden weggefilterd — precies de
+  mails die de automatisering juist moet oppikken.
 - Noodrem: stop met mail in de map zetten en de automatisering ligt stil. Plus
   een aan/uit-schakelaar in Instellingen.
 
@@ -413,9 +453,11 @@ poller die slechte concepten produceert kost meer tijd dan hij bespaart.
 - [ ] Welke `.msg`-parser (`@kenjiuno/msgreader` of `msg-parser`), en levert die
       een bruikbaar afzenderadres en `internetMessageId`? (§2.4 — fase 0)
 - [ ] Werkt de drag ook met meerdere mails tegelijk, en in Edge? (§2.1)
-- [ ] **Komen klantmails rechtstreeks binnen, of worden ze eerst intern
-      doorgestuurd?** Bepaalt of relatie-resolutie op de afzender kan leunen of
-      op het doorstuur-blok in de body moet kijken. (§3.2)
+- [x] ~~Komen klantmails rechtstreeks binnen of doorgestuurd?~~ — **beantwoord
+      2026-09-07: allebei**, en doorsturen kan door iedereen in het eigen
+      domein. Uitgewerkt in §3.2 (eigen-domein-check vóór alles).
+- [ ] Wordt de werkafspraak "doorsturen als bijlage" (§3.2) overgenomen? Dat
+      scheelt de brooste code in het hele ontwerp.
 - [ ] Is `<ordernummer>-<positie>.<ext>` in bijlagenamen een vaste conventie of
       toeval? Bepaalt hoeveel §3.4 erop mag bouwen.
 - [ ] Eigen postbus (`offertes@…`) of de persoonlijke mailbox van één gebruiker?
