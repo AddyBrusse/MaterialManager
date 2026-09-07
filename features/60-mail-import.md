@@ -73,13 +73,36 @@ Vier gevolgen voor het ontwerp:
    relatie-resolutie (§3.2) kan hier niet op leunen.
 4. **`.msg`-parsing is nu wél nodig** voor fase 1. Zie §2.3.
 
-**Nog niet gemeten** (verwachting: werkt ook, maar niet aangetoond):
+**Tweede meetronde** (zelfde opstelling, 13:55):
 
-- [ ] een mail **mét bijlagen** — bepaalt of alles in één `.msg` binnenkomt of
-      dat er een apart pad nodig is
-- [ ] een **losse bijlage** uit een geopende mail
+| Gesleept | Resultaat |
+|---|---|
+| Nieuwsbrief van Microsoft | `.msg`, 112 KB — ook niet-klantmail komt gewoon binnen |
+| `koppel order: 2026077` (interne mail, 332 kB in de lijst) | `.msg`, **382 KB** — de omvang wijst erop dat bijlagen in het `.msg` zitten |
+| Losse bijlage `2026077-001.STEP` uit die mail | bestand, 110 KB, `type` leeg |
+
+Drie dingen die dit toevoegt:
+
+5. **Een losse bijlage slepen werkt óók**, maar levert alléén `Files` op —
+   **geen `text/plain`**. De kruiscontrole uit punt 3 bestaat dus niet bij
+   bijlagen; daar is de bestandsnaam alle context die er is.
+6. **De bestandsnaam van de bijlage is goud.** `2026077-001.STEP` is
+   `<ordernummer>-<positie>.<extensie>`, en `2026077` staat óók in het
+   onderwerp van de mail (`koppel order: 2026077`). Dat is precies het verband
+   waar §3.4 op mikt: de bijlagen van één mail zijn te koppelen aan het
+   ordernummer uit het onderwerp, en `-001`, `-002` … geven de regelvolgorde.
+   Dit patroon eerst bevestigen op meer echte mail voordat er hard op
+   gerekend wordt — één waarneming is geen conventie.
+7. **Niet elke binnenkomende mail is een klantmail.** De Microsoft-nieuwsbrief
+   is het bewijs; in fase 2 (§5.3) is dat de regel, niet de uitzondering.
+
+**Nog niet gemeten:**
+
 - [ ] **meerdere mails tegelijk** geselecteerd en gesleept (`files.length > 1`)
 - [ ] Edge, en de "new Outlook"-client als die ergens in gebruik is
+- [ ] Of het `.msg` van een mail mét bijlagen die bijlagen ook daadwerkelijk
+      bevat — de omvang suggereert van wel, maar dat blijkt pas uit de
+      parser-proef (fase 0)
 
 De testpagina blijft in `tools/` staan om dit later opnieuw te kunnen meten,
 bijvoorbeeld na een Chrome- of Outlook-update. Dit gedrag is niet
@@ -177,6 +200,18 @@ en `contacten[].email`; daarna op maildomein. Resultaat is een **suggestie**;
 de gebruiker bevestigt in het reviewscherm. Bij geen match: nieuwe relatie
 aanmaken of handmatig kiezen. Nooit stil toewijzen.
 
+**Let op — doorgestuurde mail.** In de meetronde van §2.1 was de afzender van
+`koppel order: 2026077` "Bart Boers | Boers Metaalbewerking", dus het eigen
+domein. Als klantorders intern worden doorgestuurd voordat ze de app in gaan,
+is de afzender van het `.msg` **niet de klant** en is relatie-resolutie op de
+envelope-afzender waardeloos. Dan moet de oorspronkelijke afzender uit het
+doorstuur-blok in de body komen (`Van: … Verzonden: … Aan: …`), of moet de
+gebruiker de relatie in het reviewscherm gewoon zelf kiezen.
+
+Dit is één waarneming en misschien niet representatief — maar het is wel het
+verschil tussen "afzender is de sleutel" en "afzender is een hint". Zie de
+open vraag hierover in §8; die moet beantwoord zijn vóór §3.2 gebouwd wordt.
+
 ### 3.3 Intent-classificatie
 
 Onderscheid **offerteaanvraag** vs. **opdrachtbevestiging**:
@@ -196,7 +231,11 @@ Kandidaatregels (`{ ruweTekst, tekeningnr?, rev?, qty?, bron }`) uit, op volgord
 van signaalwaarde:
 
 1. **Bijlage-bestandsnamen** — in een verspanend bedrijf het sterkste signaal:
-   `123456_rev B.pdf`, `ART-0012.step`, `P-4471 (3x).pdf`.
+   `123456_rev B.pdf`, `ART-0012.step`, `P-4471 (3x).pdf`. In de eigen mail is
+   het patroon `<ordernummer>-<positie>.<ext>` waargenomen
+   (`2026077-001.STEP`, bij onderwerp `koppel order: 2026077`) — als dat
+   consistent blijkt, levert dat zowel de koppeling mail → order als de
+   regelvolgorde gratis op.
 2. **Excel/CSV-bijlagen** — veel inkooppakketten sturen een regeltabel mee.
    Kolomkoppen herkennen (aantal/qty, tekening/drawing, omschrijving).
 3. **Bodytekst** — patronen als `3x 123456`, `123456 - 3 stuks`, `aantal: 3`.
@@ -373,8 +412,12 @@ poller die slechte concepten produceert kost meer tijd dan hij bespaart.
       Gevolg: `.msg`-parsing is nodig (§2.4), de dropzone is de route voor fase 1.
 - [ ] Welke `.msg`-parser (`@kenjiuno/msgreader` of `msg-parser`), en levert die
       een bruikbaar afzenderadres en `internetMessageId`? (§2.4 — fase 0)
-- [ ] Werkt de drag ook met bijlagen, met meerdere mails tegelijk, en in Edge?
-      (§2.1, nog niet gemeten)
+- [ ] Werkt de drag ook met meerdere mails tegelijk, en in Edge? (§2.1)
+- [ ] **Komen klantmails rechtstreeks binnen, of worden ze eerst intern
+      doorgestuurd?** Bepaalt of relatie-resolutie op de afzender kan leunen of
+      op het doorstuur-blok in de body moet kijken. (§3.2)
+- [ ] Is `<ordernummer>-<positie>.<ext>` in bijlagenamen een vaste conventie of
+      toeval? Bepaalt hoeveel §3.4 erop mag bouwen.
 - [ ] Eigen postbus (`offertes@…`) of de persoonlijke mailbox van één gebruiker?
 - [ ] App-only + admin-consent, of delegated met bewaarde token? (§5.2)
 - [ ] Mag mailinhoud het netwerk verlaten voor AI-extractie? (§6)
