@@ -139,11 +139,37 @@ andere werkplek anders werkt:
 ### 2.4 `.msg` parsen — het echte risico van fase 1
 
 `.msg` is een OLE2 compound file met MAPI-property-streams, geen open
-mailformaat. Kandidaat: **`@kenjiuno/msgreader`** — bestaat, v1.28.0 op npm,
-pure JS, geen Outlook op de server nodig. Alternatief: `msg-parser` (v1.0.10),
-dat expliciet embedded messages en bijlagen noemt. *Geschiktheid is nog niet
-geverifieerd — eerst testen op een échte mail uit de eigen mailbox voordat er
-iets omheen gebouwd wordt.*
+mailformaat. Gekozen: **`@kenjiuno/msgreader`** (v1.28.0, pure JS, geen Outlook op de server
+nodig), getest op een echt `.msg` — zie hieronder.
+
+**Uitkomst van de proef (2026-09-07).** Werkt: onderwerp, body, ontvangstdatum,
+ontvangers, bijlagen mét bytes, en **berichten-als-bijlage recursief** (een
+embedded `.msg` levert zijn eigen onderwerp, afzender, body én bijlagen op).
+Daarmee is de werkafspraak "doorsturen als bijlage" uit §3.2 technisch rond.
+
+Twee dingen die de proef bevestigde, en die het ontwerp dus moet dragen:
+
+- **Niet elk bericht draagt een afzender of een message-id.** Het testbestand
+  (een nooit verzonden bericht) had geen `senderEmail`, geen `messageId` en geen
+  transport headers. Het adres zat alleen in `lastModifierName`. De parser
+  probeert daarom `senderSmtpAddress` → `senderEmail` → `lastModifierName`, en
+  elk veld mag ontbreken zonder dat het misgaat.
+- **De hash-terugval van §4 is geen theorie maar de praktijk.** `dedupeKey()`
+  gebruikt het message-id als het er is en valt anders terug op een hash over
+  afzender + onderwerp + datum.
+
+Een Exchange-DN (`/O=EXCHANGELABS/…`) wordt expliciet als "geen adres"
+behandeld: liever niets dan een string die nergens op matcht.
+
+**Zelf narekenen op eigen mail:**
+
+```
+npm run probe:msg -w apps/api -- "/pad/naar/mail.msg"
+PROBE_OWN_DOMAINS=boers-metaalbewerking.nl npm run probe:msg -w apps/api -- "…"
+```
+
+Dat drukt per veld af of het aanwezig is, plus de afzender-resolutie en de
+idempotentie-sleutel. Het script leest alleen; het schrijft niets weg.
 
 Wat er getest moet worden op een echt bestand, in deze volgorde:
 
@@ -450,8 +476,9 @@ poller die slechte concepten produceert kost meer tijd dan hij bespaart.
 
 - [x] ~~Uitkomst van de drag-drop test (§2.1)~~ — **gemeten 2026-09-07: werkt.**
       Gevolg: `.msg`-parsing is nodig (§2.4), de dropzone is de route voor fase 1.
-- [ ] Welke `.msg`-parser (`@kenjiuno/msgreader` of `msg-parser`), en levert die
-      een bruikbaar afzenderadres en `internetMessageId`? (§2.4 — fase 0)
+- [x] ~~Welke `.msg`-parser?~~ — **`@kenjiuno/msgreader`**, gekozen en getest
+      (§2.4). Afzender en message-id kunnen ontbreken; beide hebben nu een
+      terugval. Nog wel narekenen op een échte klantmail uit de eigen mailbox.
 - [ ] Werkt de drag ook met meerdere mails tegelijk, en in Edge? (§2.1)
 - [x] ~~Komen klantmails rechtstreeks binnen of doorgestuurd?~~ — **beantwoord
       2026-09-07: allebei**, en doorsturen kan door iedereen in het eigen

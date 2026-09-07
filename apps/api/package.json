@@ -10,9 +10,13 @@
     "db:migrate": "dotenv -e ../../.env.development -- prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "db:seed": "dotenv -e ../../.env.development -- ts-node src/db/seed.ts"
+    "db:seed": "dotenv -e ../../.env.development -- ts-node src/db/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "probe:msg": "ts-node src/scripts/probe-msg.ts"
   },
   "dependencies": {
+    "@kenjiuno/msgreader": "^1.28.0",
     "@prisma/client": "^5.8.1",
     "@stockmanager/shared": "*",
     "cors": "^2.8.5",
@@ -32,6 +36,7 @@
     "prisma": "^5.8.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.10"
   }
 }

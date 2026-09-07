@@ -69,22 +69,22 @@ model Company {
 }
 
 model User {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  achternaam  String?
-  titel       String?
-  email       String?   @unique
-  telefoon    String?
-  role        Role      @default(user)
-  avatarPath  String?   @map("avatar_path")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  id         String   @id @default(uuid())
+  name       String   @unique
+  achternaam String?
+  titel      String?
+  email      String?  @unique
+  telefoon   String?
+  role       Role     @default(user)
+  avatarPath String?  @map("avatar_path")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   movements    StockMovement[]
   locks        Lock[]
   lockRequests LockRequest[]
   labels       Label[]
-  createdTodos Todo[] @relation("TodoCreatedBy")
-  claimedTodos Todo[] @relation("TodoClaimedBy")
+  createdTodos Todo[]           @relation("TodoCreatedBy")
+  claimedTodos Todo[]           @relation("TodoClaimedBy")
   preferences  UserPreference[]
 
   @@map("users")
@@ -111,7 +111,7 @@ model Location {
   label     String
   createdAt DateTime     @default(now()) @map("created_at")
 
-  slots     LocationSlot[]
+  slots LocationSlot[]
 
   @@map("locations")
 }
@@ -131,11 +131,11 @@ model LocationSlot {
 }
 
 model Grade {
-  id          String      @id @default(uuid())
-  name        String      @unique
-  densityKgM3 Decimal     @map("density_kg_m3")
-  pricePerKg  Decimal?    @map("price_per_kg")
-  createdAt   DateTime    @default(now()) @map("created_at")
+  id          String   @id @default(uuid())
+  name        String   @unique
+  densityKgM3 Decimal  @map("density_kg_m3")
+  pricePerKg  Decimal? @map("price_per_kg")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   rawMaterials RawMaterial[]
 
@@ -165,41 +165,41 @@ model SurfaceFinish {
 }
 
 model RawMaterial {
-  id              String       @id @default(uuid())
-  code            String       @unique
-  gradeId         String       @map("grade_id")
-  profileId       String       @map("profile_id")
-  surfaceFinishId String?      @map("surface_finish_id")
+  id              String   @id @default(uuid())
+  code            String   @unique
+  gradeId         String   @map("grade_id")
+  profileId       String   @map("profile_id")
+  surfaceFinishId String?  @map("surface_finish_id")
   dimensions      Json
-  lengthMm        Decimal      @map("length_mm")
-  locationSlotId  String?      @map("location_slot_id")
-  photoPath       String?      @map("photo_path")
-  minStock        Decimal?     @map("min_stock")
-  currentStock    Decimal      @default(0) @map("current_stock")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
+  lengthMm        Decimal  @map("length_mm")
+  locationSlotId  String?  @map("location_slot_id")
+  photoPath       String?  @map("photo_path")
+  minStock        Decimal? @map("min_stock")
+  currentStock    Decimal  @default(0) @map("current_stock")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
-  grade         Grade          @relation(fields: [gradeId], references: [id])
-  profile       Profile        @relation(fields: [profileId], references: [id])
-  surfaceFinish SurfaceFinish? @relation(fields: [surfaceFinishId], references: [id])
-  locationSlot  LocationSlot?  @relation(fields: [locationSlotId], references: [id])
-  consumingLabel Label?        @relation("LabelConsumedMaterial")
+  grade          Grade          @relation(fields: [gradeId], references: [id])
+  profile        Profile        @relation(fields: [profileId], references: [id])
+  surfaceFinish  SurfaceFinish? @relation(fields: [surfaceFinishId], references: [id])
+  locationSlot   LocationSlot?  @relation(fields: [locationSlotId], references: [id])
+  consumingLabel Label?         @relation("LabelConsumedMaterial")
 
   @@map("raw_materials")
 }
 
 model FinishedGood {
-  id             String       @id @default(uuid())
-  artNo          String       @unique @map("art_no")
+  id             String   @id @default(uuid())
+  artNo          String   @unique @map("art_no")
   name           String
   customer       String?
-  photoPath      String?      @map("photo_path")
-  drawingPath    String?      @map("drawing_path")
-  locationSlotId String?      @map("location_slot_id")
-  minStock       Decimal?     @map("min_stock")
-  currentStock   Decimal      @default(0) @map("current_stock")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  updatedAt      DateTime     @updatedAt @map("updated_at")
+  photoPath      String?  @map("photo_path")
+  drawingPath    String?  @map("drawing_path")
+  locationSlotId String?  @map("location_slot_id")
+  minStock       Decimal? @map("min_stock")
+  currentStock   Decimal  @default(0) @map("current_stock")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   locationSlot LocationSlot? @relation(fields: [locationSlotId], references: [id])
 
@@ -351,21 +351,21 @@ model DocSequence {
 }
 
 model Project {
-  id             String   @id
-  naam           String
-  relatieId      String?  @map("relatie_id")
-  contactId      String?  @map("contact_id")
-  klantRef       String?  @map("klant_ref")
-  status         String   @default("concept")
-  levertijdDatum String?  @map("levertijd_datum")
-  notities       String   @default("")
-  offertes                Json     @default("[]")
-  opdrachtbevestiging     Json?    @map("opdrachtbevestiging")
-  productieOrders         Json     @default("[]") @map("productie_orders")
-  paklijst                Json?
-  factuur                 Json?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id                  String   @id
+  naam                String
+  relatieId           String?  @map("relatie_id")
+  contactId           String?  @map("contact_id")
+  klantRef            String?  @map("klant_ref")
+  status              String   @default("concept")
+  levertijdDatum      String?  @map("levertijd_datum")
+  notities            String   @default("")
+  offertes            Json     @default("[]")
+  opdrachtbevestiging Json?    @map("opdrachtbevestiging")
+  productieOrders     Json     @default("[]") @map("productie_orders")
+  paklijst            Json?
+  factuur             Json?
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("projects")
 }
@@ -417,4 +417,59 @@ model Todo {
 
   @@index([done, dueDate])
   @@map("todos")
+}
+
+// ── Mail-import ───────────────────────────────────────────────────────────────
+// Zie features/60-mail-import.md. Eén rij per binnengehaalde mail, ongeacht of
+// hij gesleept is (fase 1) of door de poller opgehaald (fase 2). Bestaat vooral
+// voor idempotentie en als audit-trail: waarom stelde de matcher dit voor.
+
+model MailImport {
+  id            String    @id @default(uuid())
+  source        String
+  messageId     String?   @map("message_id")
+  // Idempotentie-sleutel. Het internet message-id als de mail er een draagt,
+  // anders een hash over afzender + onderwerp + datum. Altijd gevuld, altijd
+  // uniek — zonder dit maakt de poller uit fase 2 bij elke herstart dezelfde
+  // projecten opnieuw aan.
+  dedupeKey     String    @unique @map("dedupe_key")
+  afzenderNaam  String?   @map("afzender_naam")
+  afzenderEmail String?   @map("afzender_email")
+  onderwerp     String
+  ontvangenOp   DateTime? @map("ontvangen_op")
+  bodyText      String    @default("") @map("body_text")
+  bodyHtmlPath  String?   @map("body_html_path")
+  bijlagen      Json      @default("[]")
+  // Uitkomst van de afzender-resolutie (§3.2): direct, doorgestuurd of onbekend.
+  resolutie     Json?
+  relatieId     String?   @map("relatie_id")
+  intent        String    @default("onbekend")
+  // Wat de extractie voorstelde — bewaard zodat achteraf te zien is waarom een
+  // regel verkeerd gematcht werd.
+  kandidaten    Json      @default("[]")
+  status        String    @default("nieuw")
+  projectId     String?   @map("project_id")
+  foutmelding   String?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([relatieId])
+  @@map("mail_imports")
+}
+
+// Geleerde koppeling tussen het artikelnummer van een klant en het onze.
+// Wordt gevuld doordat iemand in het reviewscherm een match corrigeert; dat is
+// wat de matcher over een stuk of twintig mails van middelmatig naar goed brengt.
+model ArticleAlias {
+  id          String   @id @default(uuid())
+  relatieId   String   @map("relatie_id")
+  externalRef String   @map("external_ref")
+  articleId   String   @map("article_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdBy   String?  @map("created_by")
+
+  @@unique([relatieId, externalRef])
+  @@index([articleId])
+  @@map("article_aliases")
 }
