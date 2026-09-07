@@ -129,7 +129,7 @@ export function MailImportReview({
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} size="lg" title="Mail controleren" centered>
+    <Modal opened={opened} onClose={onClose} size="xl" title="Mail controleren" centered>
       <div className="ad-card" style={{ marginBottom: 10 }}>
         <div className="ad-eyebrow">
           {doorgestuurd ? <IconMailForward size={13} /> : <IconMail size={13} />}
@@ -159,7 +159,7 @@ export function MailImportReview({
           <div className="info-rows">
             {mailImport.bijlagen.map((b) => (
               <div className="info-line" key={b.path ?? b.filename}>
-                <span className="k" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span className="k" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
                   {b.path ? <a href={b.path} target="_blank" rel="noreferrer">{b.filename}</a> : b.filename}
                 </span>
                 <span className="v mono">

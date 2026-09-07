@@ -16,6 +16,16 @@ import type { CandidateLine, CandidateSource, NormalizedMail } from '@stockmanag
 const IGNORED_EXTENSIONS = new Set(['.p7s', '.p7m', '.asc', '.vcf', '.ics', '.gif'])
 const IGNORED_NAMES = /^(image\d*|oledata|winmail|logo|signature|banner)/i
 
+/**
+ * Het handelsdocument zelf is geen onderdeel.
+ *
+ * Een klantmail draagt vaak de inkooporder of offerteaanvraag als pdf mee,
+ * naast de tekeningen. Zonder deze filter wordt "Purchase order_2604307.pdf"
+ * een offerteregel — waargenomen op echte mail van een klant.
+ */
+const DOCUMENT_NAMES =
+  /(purchase[\s_-]*order|inkooporder|bestelbon|bestelling|order[\s_-]*(bevestiging|confirmation)|offerte|aanvraag|quotation|\bquote\b|\brfq\b|invoice|factuur|pakbon|packing[\s_-]*list|voorwaarden|terms)/i
+
 /** Bestandstypen die in deze werkplaats een onderdeel aanduiden. */
 const PART_EXTENSIONS = new Set([
   '.step', '.stp', '.iges', '.igs', '.sldprt', '.ipt', '.x_t', '.stl', '.dxf', '.dwg', '.pdf',
@@ -82,6 +92,7 @@ function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateL
   const ext = extensionOf(filename)
   const base = baseNameOf(filename)
   if (!base || IGNORED_EXTENSIONS.has(ext) || IGNORED_NAMES.test(base)) return null
+  if (DOCUMENT_NAMES.test(base)) return null
   if (ext && !PART_EXTENSIONS.has(ext)) return null
 
   let tekening = base

@@ -42,13 +42,18 @@ function Regel({
 
   return (
     <tr>
-      <td style={{ whiteSpace: 'nowrap' }}>{line.positie ?? '—'}</td>
-      <td>
-        <div className="mono" style={{ fontSize: 11.5 }}>{line.tekening ?? line.ruweTekst}</div>
+      <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{line.positie ?? '—'}</td>
+      <td style={{ verticalAlign: 'top' }}>
+        {/* Tekeningnummers uit klantmail zijn lang (2604307-1-2615-0091-0530-1)
+            en hebben geen spaties, dus expliciet breken — anders duwen ze de
+            tabel breder dan de modal. */}
+        <div className="mono" style={{ fontSize: 11.5, overflowWrap: 'anywhere' }}>
+          {line.tekening ?? line.ruweTekst}
+        </div>
         {line.rev && <div style={{ fontSize: 10.5, color: 'var(--text-4)' }}>rev {line.rev}</div>}
       </td>
-      <td style={{ textAlign: 'right' }}>{line.qty ?? '—'}</td>
-      <td style={{ minWidth: 220 }}>
+      <td style={{ textAlign: 'right', verticalAlign: 'top' }}>{line.qty ?? '—'}</td>
+      <td style={{ verticalAlign: 'top' }}>
         <Select
           size="xs"
           placeholder={line.status === 'nieuw' ? 'Geen artikel gevonden' : 'Kies artikel'}
@@ -63,8 +68,10 @@ function Regel({
           <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 2 }}>{toelichting}</div>
         )}
       </td>
-      <td style={{ whiteSpace: 'nowrap', color: meta.color, fontSize: 11 }}>
-        {meta.icon} {meta.label}
+      <td style={{ color: meta.color, fontSize: 11, verticalAlign: 'top' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
+          {meta.icon} {meta.label}
+        </span>
       </td>
     </tr>
   )
@@ -104,14 +111,17 @@ export function MailRegelsTable({ mailImport, articleOptions, onChanged }: Props
         Regels ({lines.length})
         {open > 0 && <span style={{ color: 'var(--warning)' }}> · {open} nog te koppelen</span>}
       </div>
-      <table className="st-table" style={{ width: '100%', fontSize: 11.5 }}>
+      {/* Vaste kolombreedtes: de inhoud (lange tekeningnummers, lange
+          artikelnamen in de select) mag de tabel niet breder maken dan de
+          modal — dat gaf een horizontale schuifbalk over het hele venster. */}
+      <table className="st-table" style={{ width: '100%', tableLayout: 'fixed', fontSize: 11.5 }}>
         <thead>
           <tr>
-            <th style={{ width: 30 }}>#</th>
-            <th>Tekening</th>
-            <th style={{ width: 44, textAlign: 'right' }}>Aantal</th>
-            <th>Artikel</th>
-            <th style={{ width: 92 }}>Status</th>
+            <th style={{ width: '6%' }}>#</th>
+            <th style={{ width: '30%' }}>Tekening</th>
+            <th style={{ width: '10%', textAlign: 'right' }}>Aantal</th>
+            <th style={{ width: '36%' }}>Artikel</th>
+            <th style={{ width: '18%' }}>Status</th>
           </tr>
         </thead>
         <tbody>

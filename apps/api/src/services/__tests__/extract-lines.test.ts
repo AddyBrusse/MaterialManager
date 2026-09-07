@@ -63,6 +63,31 @@ describe('extractLines — bijlagenamen', () => {
     expect(lines).toEqual([])
   })
 
+  it('negeert het handelsdocument zelf', () => {
+    // Waargenomen op echte klantmail: de inkooporder rijdt als pdf mee naast
+    // de tekeningen, en werd anders zelf een offerteregel.
+    const lines = extractLines(mail({
+      subject: 'Inkooporder PUR2604307',
+      attachments: [
+        att('Purchase order_2604307_20260904_09-42.pdf'),
+        att('2604307-1-2615-0091-0530-1_20260904-0942.pdf'),
+        att('2604307-1-2615-0091-0530-1_20260904-0942.dwg'),
+        att('2604307-1-2615-0091-0530-1_20260904-0942.stp'),
+      ],
+    }))
+    // Eén regel: het onderdeel. De drie bestandsvormen ervan tellen als één,
+    // en de inkooporder telt niet mee.
+    expect(lines).toHaveLength(1)
+    expect(lines[0].tekening).toBe('2604307-1-2615-0091-0530-1_20260904-0942')
+  })
+
+  it('negeert offerte-, factuur- en pakbondocumenten', () => {
+    const lines = extractLines(mail({
+      attachments: [att('Offerte 2026-123.pdf'), att('Factuur_998.pdf'), att('Packing list.pdf'), att('RFQ 5512.pdf')],
+    }))
+    expect(lines).toEqual([])
+  })
+
   it('negeert een meegestuurd bericht', () => {
     expect(extractLines(mail({ attachments: [att('Doorgestuurd.msg', true)] }))).toEqual([])
   })
