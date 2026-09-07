@@ -32,6 +32,7 @@ import reservationsRouter from './routes/reservations'
 import sequencesRouter from './routes/sequences'
 import preferencesRouter from './routes/preferences'
 import todosRouter from './routes/todos'
+import mailImportsRouter from './routes/mail-imports'
 
 const app = express()
 
@@ -40,7 +41,7 @@ const app = express()
 app.set('trust proxy', 1)
 
 // Ensure upload directories exist
-for (const dir of ['photos', 'drawings']) {
+for (const dir of ['photos', 'drawings', 'mail-imports']) {
   fs.mkdirSync(path.join(config.uploadsDir, dir), { recursive: true })
 }
 
@@ -84,6 +85,7 @@ app.use('/api/reservations', reservationsRouter)
 app.use('/api/sequences', sequencesRouter)
 app.use('/api/preferences', preferencesRouter)
 app.use('/api/todos', todosRouter)
+app.use('/api/mail-imports', mailImportsRouter)
 
 // Serve uploaded files
 app.use('/uploads', express.static(config.uploadsDir))

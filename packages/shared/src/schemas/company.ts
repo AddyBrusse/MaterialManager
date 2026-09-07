@@ -15,6 +15,8 @@ export const CompanySchema = z.object({
   iban:           z.string().nullable(),
   graphClientId:  z.string().nullable(),
   graphTenantId:  z.string().nullable(),
+  /** Eigen maildomeinen, voor de doorgestuurd-check bij mail-import (§3.2). */
+  eigenDomeinen:  z.array(z.string()).default([]),
   updatedAt:      z.string(),
 })
 export type Company = z.infer<typeof CompanySchema>

@@ -18,6 +18,7 @@ const DEFAULTS: Company = {
   iban:          null,
   graphClientId: null,
   graphTenantId: null,
+  eigenDomeinen: [],
   updatedAt:     new Date().toISOString(),
 }
 

@@ -63,6 +63,11 @@ model Company {
   iban          String?
   graphClientId String?  @map("graph_client_id")
   graphTenantId String?  @map("graph_tenant_id")
+  // Eigen maildomeinen — nodig om te zien of een binnengehaalde mail is
+  // doorgestuurd door een collega in plaats van rechtstreeks van de klant te
+  // komen (features/60-mail-import.md §3.2). Een lijst, want bedrijven krijgen
+  // er domeinen bij. Leeg = afleiden uit het bedrijfsadres en de gebruikers.
+  eigenDomeinen Json     @default("[]") @map("eigen_domeinen")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("company")

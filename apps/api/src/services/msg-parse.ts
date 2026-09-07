@@ -123,10 +123,27 @@ export function parseMsg(buf: Buffer, source: NormalizedMail['source'] = 'drop')
   return { mail: toNormalized(data, source), embedded }
 }
 
-/** Bytes van één bijlage, op index in `mail.attachments`. */
-export function attachmentBytes(buf: Buffer, index: number): Buffer {
+export interface ExtractedAttachment {
+  filename: string
+  content: Buffer
+  isEmbeddedMessage: boolean
+}
+
+/**
+ * Alle bijlagen mét bytes, in dezelfde volgorde als `mail.attachments`.
+ *
+ * In één keer, met één reader: het bestand opnieuw ontleden per bijlage kost
+ * bij een mail met tekeningen en step-bestanden onnodig veel werk.
+ */
+export function readAttachments(buf: Buffer): ExtractedAttachment[] {
   const reader = new MsgReader(toArrayBuffer(buf))
-  reader.getFileData()
-  const att = reader.getAttachment(index)
-  return Buffer.from(att.content)
+  const data = reader.getFileData()
+  return (data.attachments ?? []).map((a, index) => {
+    const att = reader.getAttachment(index)
+    return {
+      filename: att.fileName || `bijlage-${index + 1}`,
+      content: Buffer.from(att.content),
+      isEmbeddedMessage: Boolean(a.innerMsgContent),
+    }
+  })
 }
