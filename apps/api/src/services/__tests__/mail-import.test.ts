@@ -47,6 +47,36 @@ describe('suggestRelatie', () => {
     expect(suggestRelatie({ naam: 'BV', email: null }, relaties)).toBeNull()
   })
 
+  it('matcht op maildomein tegen de bedrijfsnaam als er geen adres is opgeslagen', () => {
+    // Waargenomen: een relatie die wel bestaat maar zonder e-mailadres in de
+    // kaart. Zonder deze stap is er niets om op te matchen.
+    const zonderMail = [{ id: 'rel-stinis', naam: 'Stinis', email: null, contacten: [] }]
+    const s = suggestRelatie({ naam: 'Dick Boer', email: 'DickBoer@stinis.com' }, zonderMail)
+    expect(s?.relatieId).toBe('rel-stinis')
+    expect(s?.reden).toContain('Controleer')
+  })
+
+  it('matcht niet op het domein van een gratis mailadres', () => {
+    const relaties = [{ id: 'r', naam: 'Gmail Klant', email: null, contacten: [] }]
+    expect(suggestRelatie({ naam: 'Iemand', email: 'iemand@gmail.com' }, relaties)).toBeNull()
+  })
+
+  it('matcht niet op domein als twee relaties erop lijken', () => {
+    const twee = [
+      { id: 'a', naam: 'Stinis', email: null, contacten: [] },
+      { id: 'b', naam: 'Stinis Spreaders', email: null, contacten: [] },
+    ]
+    expect(suggestRelatie({ naam: 'Dick', email: 'd@stinis.com' }, twee)).toBeNull()
+  })
+
+  it('leest contacten ook als ze als JSON-string zijn opgeslagen', () => {
+    const raar = [{
+      id: 'rel-x', naam: 'Stinis', email: null,
+      contacten: '[{"id":"c","naam":"Dick Boer","email":"DickBoer@stinis.com"}]',
+    }]
+    expect(suggestRelatie({ naam: 'Dick Boer', email: 'DickBoer@stinis.com' }, raar)?.relatieId).toBe('rel-x')
+  })
+
   it('geeft niets terug zonder klant', () => {
     expect(suggestRelatie(null, relaties)).toBeNull()
   })

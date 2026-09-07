@@ -74,7 +74,23 @@ export interface RelatieSuggestion {
   reden: string
 }
 
+/** Gratis-mailproviders: het domein zegt daar niets over welk bedrijf het is. */
+const FREE_MAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.nl', 'outlook.com', 'live.nl', 'live.com',
+  'msn.com', 'yahoo.com', 'icloud.com', 'me.com', 'ziggo.nl', 'kpnmail.nl', 'telfort.nl', 'planet.nl',
+  'home.nl', 'xs4all.nl', 'upcmail.nl', 'casema.nl', 'chello.nl', 'zonnet.nl',
+])
+
 function contactEmails(contacten: unknown): string[] {
+  // Json-kolom: meestal al een array, maar een rij die ooit als string is
+  // weggeschreven mag geen contacten laten verdwijnen.
+  if (typeof contacten === 'string') {
+    try {
+      return contactEmails(JSON.parse(contacten))
+    } catch {
+      return []
+    }
+  }
   if (!Array.isArray(contacten)) return []
   return contacten
     .map((c) => (c && typeof c === 'object' ? (c as { email?: unknown }).email : null))
@@ -113,6 +129,24 @@ export function suggestRelatie(
       if (byDomain.length === 1) {
         return { relatieId: byDomain[0].id, reden: `Maildomein komt overeen met ${byDomain[0].naam}.` }
       }
+    }
+  }
+
+  // Geen enkel adres bij de relatie opgeslagen? Dan blijft het maildomein van
+  // de afzender over: "DickBoer@stinis.com" tegen een relatie die "Stinis"
+  // heet. Zwak bewijs, dus alleen bij precies één treffer en nooit bij een
+  // gratis-mailadres — een klant die vanaf gmail mailt zegt niets over
+  // welk bedrijf het is.
+  const domain = domainOf(email)
+  const label = domain && !FREE_MAIL_DOMAINS.has(domain) ? domain.split('.')[0] : null
+  if (label && label.length >= 3) {
+    const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const hits = relaties.filter((r) => {
+      const rn = norm(r.naam)
+      return rn === label || rn.startsWith(label) || label.startsWith(rn)
+    })
+    if (hits.length === 1) {
+      return { relatieId: hits[0].id, reden: `Maildomein lijkt op ${hits[0].naam}. Controleer dit.` }
     }
   }
 
