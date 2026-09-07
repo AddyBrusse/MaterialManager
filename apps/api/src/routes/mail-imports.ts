@@ -7,7 +7,9 @@ import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { MAIL_IMPORT_STATUSES, MAIL_INTENTS } from '@stockmanager/shared'
 import { looksLikeMsg } from '../services/msg-parse'
-import { ingestMsgBuffer, mailImportDir, serializeMailImport } from '../services/mail-import'
+import { ingestMsgBuffer, mailImportDir, rematchCandidates, serializeMailImport } from '../services/mail-import'
+import { normalizeRef } from '../services/match-articles'
+import type { CandidateLine } from '@stockmanager/shared'
 
 const router = Router()
 
@@ -85,7 +87,76 @@ router.patch(
     const existing = await prisma.mailImport.findUnique({ where: { id: req.params.id } })
     if (!existing) throw new AppError(404, 'NOT_FOUND', 'Mail-import niet gevonden')
 
-    const row = await prisma.mailImport.update({ where: { id: req.params.id }, data: body })
+    // Een andere relatie betekent andere geleerde koppelingen, dus opnieuw
+    // matchen — anders blijven regels op 'nieuw' staan die deze klant allang
+    // een keer heeft laten koppelen.
+    const relatieChanged = body.relatieId !== undefined && body.relatieId !== existing.relatieId
+    const kandidaten = relatieChanged
+      ? await rematchCandidates(prisma, (existing.kandidaten ?? []) as CandidateLine[], body.relatieId ?? null)
+      : null
+
+    const row = await prisma.mailImport.update({
+      where: { id: req.params.id },
+      data: { ...body, ...(kandidaten ? { kandidaten: kandidaten as unknown as object } : {}) },
+    })
+    res.json({ data: serializeMailImport(row) })
+  })
+)
+
+const SetLineArticleSchema = z.object({
+  artikelId: z.string().nullable(),
+})
+
+/**
+ * Een regel aan een artikel koppelen — of die koppeling weer losmaken.
+ *
+ * Dit is waar de matcher van leert (§4): een correctie op een regel mét
+ * klantnummer wordt bewaard als ArticleAlias, zodat dezelfde klant met
+ * hetzelfde nummer de volgende keer meteen goed staat.
+ */
+router.patch(
+  '/:id/regels/:lineId',
+  asyncHandler(async (req, res) => {
+    const { artikelId } = SetLineArticleSchema.parse(req.body)
+    const existing = await prisma.mailImport.findUnique({ where: { id: req.params.id } })
+    if (!existing) throw new AppError(404, 'NOT_FOUND', 'Mail-import niet gevonden')
+
+    const kandidaten = (existing.kandidaten ?? []) as CandidateLine[]
+    const line = kandidaten.find((k) => k.id === req.params.lineId)
+    if (!line) throw new AppError(404, 'NOT_FOUND', 'Regel niet gevonden')
+
+    if (artikelId) {
+      const article = await prisma.article.findUnique({ where: { id: artikelId } })
+      if (!article) throw new AppError(400, 'VALIDATION', 'Artikel bestaat niet')
+    }
+
+    const updated = kandidaten.map((k) =>
+      k.id === req.params.lineId
+        ? {
+            ...k,
+            artikelId,
+            status: artikelId ? ('match' as const) : ('nieuw' as const),
+            // Vastleggen dát een mens dit koos — een herberekening laat het dan staan.
+            handmatig: artikelId !== null,
+          }
+        : k
+    )
+
+    // Alleen leren van een échte keuze: een klantnummer, een relatie, en een
+    // koppeling die de matcher niet zelf al had gevonden.
+    const externalRef = line.tekening?.trim()
+    if (artikelId && externalRef && existing.relatieId && normalizeRef(externalRef)) {
+      await prisma.articleAlias.upsert({
+        where: { relatieId_externalRef: { relatieId: existing.relatieId, externalRef } },
+        update: { articleId: artikelId, createdBy: req.user.name },
+        create: { relatieId: existing.relatieId, externalRef, articleId: artikelId, createdBy: req.user.name },
+      })
+    }
+
+    const row = await prisma.mailImport.update({
+      where: { id: req.params.id },
+      data: { kandidaten: updated as unknown as object },
+    })
     res.json({ data: serializeMailImport(row) })
   })
 )

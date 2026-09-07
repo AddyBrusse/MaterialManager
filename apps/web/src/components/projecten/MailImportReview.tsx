@@ -3,6 +3,7 @@ import { Modal, Select } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconPaperclip, IconMailForward, IconMail } from '@tabler/icons-react'
 import { mailImportsApi } from '../../api/mail-imports'
+import { MailRegelsTable } from './MailRegelsTable'
 import { MAIL_INTENTS, type MailImport, type MailIntent, type SenderConfidence } from '@stockmanager/shared'
 
 /**
@@ -18,6 +19,7 @@ interface Props {
   mailImport: MailImport
   projectId: string
   relatieOptions: { value: string; label: string }[]
+  articleOptions: { value: string; label: string }[]
   onClose: () => void
   onLinked: (mailImport: MailImport, relatieId: string | null) => void
 }
@@ -59,9 +61,10 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   )
 }
 
-export function MailImportReview({ opened, mailImport, projectId, relatieOptions, onClose, onLinked }: Props) {
+export function MailImportReview({ opened, mailImport, projectId, relatieOptions, articleOptions, onClose, onLinked }: Props) {
   const [relatieId, setRelatieId] = useState<string | null>(mailImport.relatieId)
   const [intent, setIntent] = useState<MailIntent>(mailImport.intent)
+  const [current, setCurrent] = useState<MailImport>(mailImport)
   const [busy, setBusy] = useState(false)
 
   const res = mailImport.resolutie
@@ -71,7 +74,7 @@ export function MailImportReview({ opened, mailImport, projectId, relatieOptions
   async function link() {
     setBusy(true)
     try {
-      const saved = await mailImportsApi.update(mailImport.id, {
+      const saved = await mailImportsApi.update(current.id, {
         relatieId,
         intent,
         projectId,
@@ -154,10 +157,23 @@ export function MailImportReview({ opened, mailImport, projectId, relatieOptions
         placeholder="Kies een relatie"
         data={relatieOptions}
         value={relatieId}
-        onChange={setRelatieId}
+        onChange={async (v) => {
+          setRelatieId(v)
+          // Een andere klant heeft andere geleerde koppelingen, dus de server
+          // legt de regels opnieuw langs de artikelen.
+          try {
+            setCurrent(await mailImportsApi.update(current.id, { relatieId: v }))
+          } catch { /* de keuze zelf blijft staan; koppelen slaat hem opnieuw op */ }
+        }}
         searchable
         clearable
         mb="xs"
+      />
+
+      <MailRegelsTable
+        mailImport={current}
+        articleOptions={articleOptions}
+        onChanged={setCurrent}
       />
 
       <Select

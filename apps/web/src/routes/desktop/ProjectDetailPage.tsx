@@ -21,6 +21,7 @@ import { Ic, Icon } from '../../components/articles/calc-icons'
 import { MailDropzone } from '../../components/projecten/MailDropzone'
 import { MailImportReview } from '../../components/projecten/MailImportReview'
 import { mailImportsApi } from '../../api/mail-imports'
+import { articlesApi } from '../../api/articles'
 import type { MailImport } from '@stockmanager/shared'
 import { OfferteTab } from '../../components/projecten/OfferteTab'
 import { OpdrachtbevestigingTab } from '../../components/projecten/OpdrachtbevestigingTab'
@@ -244,6 +245,10 @@ export function ProjectDetailPage() {
   const relatieOptions = relaties
     .filter(r => r.type !== 'leverancier')
     .map(r => ({ value: r.id, label: r.naam }))
+
+  // Voor het koppelen van mailregels aan artikelen (§3.5).
+  const articleOptions = articlesApi.list()
+    .map(a => ({ value: a.id, label: a.tekening ? `${a.tekening} · ${a.naam}` : a.naam }))
 
   const metaLine = [
     project.id,
@@ -494,6 +499,7 @@ export function ProjectDetailPage() {
           mailImport={reviewImport}
           projectId={project.id}
           relatieOptions={relatieOptions}
+          articleOptions={articleOptions}
           onClose={() => setReviewImport(null)}
           onLinked={(saved, relatieId) => {
             setLinkedImport(saved)

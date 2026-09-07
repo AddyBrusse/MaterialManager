@@ -31,5 +31,12 @@ export const mailImportsApi = {
   update: (id: string, body: UpdateMailImport) =>
     apiFetch<MailImport>(`/mail-imports/${id}`, { method: 'PATCH', body: JSON.stringify(body) }).then((r) => r.data),
 
+  /** Een regel aan een artikel koppelen. De server leert dit als alias voor de relatie. */
+  setLineArticle: (id: string, lineId: string, artikelId: string | null) =>
+    apiFetch<MailImport>(`/mail-imports/${id}/regels/${lineId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ artikelId }),
+    }).then((r) => r.data),
+
   remove: (id: string) => apiFetch<void>(`/mail-imports/${id}`, { method: 'DELETE' }),
 }

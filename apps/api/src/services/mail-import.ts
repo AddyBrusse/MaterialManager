@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import type {
+  CandidateLine,
   MailAddress,
   MailAttachment,
   MailImport,
@@ -12,6 +13,8 @@ import { config } from '../config'
 import { sanitizeFilename } from '../lib/filenames'
 import { parseMsg, readAttachments } from './msg-parse'
 import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
+import { extractLines } from './extract-lines'
+import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
 
 /**
  * Binnenhalen van een mail — features/60-mail-import.md §3.1–§3.2.
@@ -129,6 +132,56 @@ export function suggestRelatie(
   return null
 }
 
+// ── Regels en artikelen ──────────────────────────────────────────────────────
+
+async function loadArticles(prisma: PrismaClient): Promise<ArticleCandidate[]> {
+  return prisma.article.findMany({ select: { id: true, naam: true, tekening: true, rev: true } })
+}
+
+async function loadAliases(prisma: PrismaClient, relatieId: string | null): Promise<AliasCandidate[]> {
+  if (!relatieId) return []
+  return prisma.articleAlias.findMany({
+    where: { relatieId },
+    select: { externalRef: true, articleId: true },
+  })
+}
+
+/** Regels uit een mail halen en meteen tegen de artikelen leggen. */
+export async function buildCandidates(
+  prisma: PrismaClient,
+  mail: NormalizedMail,
+  relatieId: string | null
+) {
+  const [articles, aliases] = await Promise.all([loadArticles(prisma), loadAliases(prisma, relatieId)])
+  return matchLines(extractLines(mail), articles, aliases)
+}
+
+/**
+ * Opnieuw matchen met de aliassen van een andere relatie.
+ *
+ * Nodig zodra iemand in het reviewscherm de relatie corrigeert: de geleerde
+ * koppelingen van de nieuwe klant kunnen regels raken die eerst niets opleverden.
+ */
+export async function rematchCandidates(
+  prisma: PrismaClient,
+  kandidaten: CandidateLine[],
+  relatieId: string | null
+): Promise<CandidateLine[]> {
+  const [articles, aliases] = await Promise.all([loadArticles(prisma), loadAliases(prisma, relatieId)])
+  const rematched = matchLines(
+    kandidaten.map((k) => ({ ...k, matches: [], status: 'nieuw' as const, artikelId: null })),
+    articles,
+    aliases
+  )
+  // Een handmatige keuze blijft staan — maar wél met de verse kandidatenlijst
+  // eronder, zodat het reviewscherm nog steeds alternatieven kan tonen.
+  return rematched.map((fresh, i) =>
+    kandidaten[i].handmatig
+      ? { ...fresh, artikelId: kandidaten[i].artikelId, status: kandidaten[i].status, handmatig: true }
+      : fresh
+  )
+}
+
 // ── Opslaan ───────────────────────────────────────────────────────────────────
 
 export function mailImportDir(id: string): string {
@@ -175,6 +228,11 @@ export async function ingestMsgBuffer(
   })
   const suggestion = suggestRelatie(resolutie.klant, relaties)
 
+  // Regels uit de mail halen en tegen de artikeldatabase leggen (§3.4/§3.5).
+  // Aliassen alleen van de vermoedelijke relatie: "P-4471" betekent iets
+  // anders bij een andere klant.
+  const kandidaten = await buildCandidates(prisma, mail, suggestion?.relatieId ?? null)
+
   const created = await prisma.mailImport.create({
     data: {
       source,
@@ -188,6 +246,7 @@ export async function ingestMsgBuffer(
       bijlagen: [],
       resolutie: resolutie as unknown as Prisma.InputJsonValue,
       relatieId: suggestion?.relatieId ?? null,
+      kandidaten: kandidaten as unknown as Prisma.InputJsonValue,
       status: 'nieuw',
     },
   })

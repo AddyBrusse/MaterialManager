@@ -77,6 +77,27 @@ export type SenderResolution = z.infer<typeof SenderResolutionSchema>
 export const CANDIDATE_SOURCES = ['bijlagenaam', 'onderwerp', 'body', 'sheet', 'pdf'] as const
 export type CandidateSource = typeof CANDIDATE_SOURCES[number]
 
+/**
+ * Hoe zeker is de koppeling met een bestaand artikel?
+ *  match   — één duidelijke treffer, mag voorgevuld worden
+ *  twijfel — meerdere kandidaten of een zwakke treffer; mens kiest
+ *  nieuw   — niets gevonden; dit wordt een nieuw artikel of handwerk
+ */
+export const MATCH_STATUSES = ['match', 'twijfel', 'nieuw'] as const
+export type MatchStatus = typeof MATCH_STATUSES[number]
+
+export const ArticleMatchSchema = z.object({
+  artikelId: z.string(),
+  naam: z.string(),
+  tekening: z.string().nullable(),
+  rev: z.string().nullable(),
+  /** 0–1. Alleen bedoeld om te sorteren en te classificeren, niet om te tonen. */
+  score: z.number(),
+  /** Nederlandse uitleg voor het reviewscherm: waaróm deze treffer. */
+  reden: z.string(),
+})
+export type ArticleMatch = z.infer<typeof ArticleMatchSchema>
+
 export const CandidateLineSchema = z.object({
   id: z.string(),
   ruweTekst: z.string(),
@@ -87,6 +108,17 @@ export const CandidateLineSchema = z.object({
   bron: z.enum(CANDIDATE_SOURCES),
   /** Bijlage waar deze regel vandaan komt, als die er is. */
   attachmentFilename: z.string().nullable(),
+  /** Beste kandidaten uit de artikeldatabase, hoogste score eerst. */
+  matches: z.array(ArticleMatchSchema).default([]),
+  status: z.enum(MATCH_STATUSES).default('nieuw'),
+  /** Het gekozen artikel — voorgevuld bij 'match', anders pas na bevestiging. */
+  artikelId: z.string().nullable().default(null),
+  /**
+   * Door een mens gekozen, niet door de matcher. Alleen zo'n keuze overleeft
+   * een herberekening: een automatische treffer mag opnieuw bepaald worden,
+   * een handmatige nooit stilletjes worden overschreven.
+   */
+  handmatig: z.boolean().default(false),
 })
 export type CandidateLine = z.infer<typeof CandidateLineSchema>
 
