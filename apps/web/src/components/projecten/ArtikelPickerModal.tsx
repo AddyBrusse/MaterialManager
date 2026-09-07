@@ -9,7 +9,7 @@ import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
 import { relatiesApi } from '../../api/relaties'
-import { buildEstimateCtx, computeEstimateTotals } from '../../api/estimate'
+import { kostprijsVoor, materiaalVan, bewerkingenVan } from '../../utils/artikel-prijs'
 import { projectsApi, formatBedrag } from '../../api/projects'
 import type { Article } from '../../api/articles'
 
@@ -38,15 +38,6 @@ interface Props {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getMachineNames(article: Article): string[] {
-  if (!article.estimate) return []
-  const seen = new Set<string>()
-  return article.estimate.nodes
-    .filter(n => n.type === 'machine' && n.name)
-    .map(n => n.name)
-    .filter(name => { if (seen.has(name)) return false; seen.add(name); return true })
-}
 
 // chain-link SVG — indicates marge ↔ verkoopprijs are coupled
 const LinkIcon = () => (
@@ -79,25 +70,17 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
   }, [opened, relatieId])
 
   // ── Compute cost from estimate ──────────────────────────────────────────────
+  // Gedeeld met de mail-import (utils/artikel-prijs), zodat beide schermen
+  // dezelfde prijs uitrekenen — hij gaat naar een klant.
+
+  const bronnen = { grades, profiles, machines }
 
   function getKostprijs(article: Article, qty = 1): number {
-    if (!article.estimate) return 0
-    try {
-      const ctx = buildEstimateCtx(
-        article,
-        grades,
-        profiles.map(p => ({ id: p.id, volumeFormula: p.volumeFormula })),
-        machines,
-      )
-      return computeEstimateTotals(article.estimate, ctx, qty).cost
-    } catch { return 0 }
+    return kostprijsVoor(article, bronnen, qty)
   }
 
   function getMateriaal(article: Article): string {
-    if (!article.recipe) return '—'
-    const p = profiles.find(pr => pr.id === article.recipe!.profileId)
-    const g = grades.find(gr => gr.id === article.recipe!.gradeId)
-    return [p?.name, g?.name].filter(Boolean).join(' · ') || '—'
+    return materiaalVan(article, bronnen)
   }
 
   // ── Staging mutations ───────────────────────────────────────────────────────
@@ -116,7 +99,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
       naam: article.naam,
       tekening: article.tekening ?? null,
       rev: article.rev ?? null,
-      machines: getMachineNames(article),
+      machines: bewerkingenVan(article),
       materiaal: getMateriaal(article),
       kostprijs,
       qty: 1,
@@ -284,7 +267,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
                   </tr>
                 ) : filtered.map(article => {
                   const isStaged     = staged.some(s => s.artikelId === article.id)
-                  const machineCh    = getMachineNames(article)
+                  const machineCh    = bewerkingenVan(article)
                   const kostprijs    = getKostprijs(article)
                   const verkoopprijs = article.estimate
                     ? Math.round(kostprijs * (1 + (article.estimate.marginPct ?? 20) / 100) * 100) / 100

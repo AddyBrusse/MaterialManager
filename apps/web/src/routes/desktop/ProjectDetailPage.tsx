@@ -500,7 +500,9 @@ export function ProjectDetailPage() {
           projectId={project.id}
           relatieOptions={relatieOptions}
           articleOptions={articleOptions}
+          project={project}
           onClose={() => setReviewImport(null)}
+          onOfferteChanged={rerender}
           onLinked={(saved, relatieId) => {
             setLinkedImport(saved)
             // De relatie uit het reviewscherm is de bevestigde keuze; die hoort

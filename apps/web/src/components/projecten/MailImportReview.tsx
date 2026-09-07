@@ -4,6 +4,8 @@ import { notifications } from '@mantine/notifications'
 import { IconPaperclip, IconMailForward, IconMail } from '@tabler/icons-react'
 import { mailImportsApi } from '../../api/mail-imports'
 import { MailRegelsTable } from './MailRegelsTable'
+import { neemRegelsOver } from './mail-naar-offerte'
+import type { Project } from '@stockmanager/shared'
 import { MAIL_INTENTS, type MailImport, type MailIntent, type SenderConfidence } from '@stockmanager/shared'
 
 /**
@@ -20,8 +22,11 @@ interface Props {
   projectId: string
   relatieOptions: { value: string; label: string }[]
   articleOptions: { value: string; label: string }[]
+  /** Nodig om de regels op de offerte te kunnen zetten. */
+  project: Project
   onClose: () => void
   onLinked: (mailImport: MailImport, relatieId: string | null) => void
+  onOfferteChanged: () => void
 }
 
 const INTENT_LABELS: Record<MailIntent, string> = {
@@ -61,7 +66,9 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
   )
 }
 
-export function MailImportReview({ opened, mailImport, projectId, relatieOptions, articleOptions, onClose, onLinked }: Props) {
+export function MailImportReview({
+  opened, mailImport, projectId, relatieOptions, articleOptions, project, onClose, onLinked, onOfferteChanged,
+}: Props) {
   const [relatieId, setRelatieId] = useState<string | null>(mailImport.relatieId)
   const [intent, setIntent] = useState<MailIntent>(mailImport.intent)
   const [current, setCurrent] = useState<MailImport>(mailImport)
@@ -70,6 +77,12 @@ export function MailImportReview({ opened, mailImport, projectId, relatieOptions
   const res = mailImport.resolutie
   const conf = res ? CONFIDENCE_STYLE[res.confidence] : null
   const doorgestuurd = res?.origin === 'doorgestuurd'
+
+  // Al regels op de offerte? Dan niet nog eens overnemen — dat zou de offerte
+  // stilletjes verdubbelen. De knop verdwijnt dan gewoon.
+  const laatsteOfferte = project.offertes[project.offertes.length - 1]
+  const offerteIsLeeg = !laatsteOfferte || laatsteOfferte.regels.length === 0
+  const overTeNemen = current.kandidaten.length
 
   async function link() {
     setBusy(true)
@@ -80,6 +93,19 @@ export function MailImportReview({ opened, mailImport, projectId, relatieOptions
         projectId,
         status: 'verwerkt',
       })
+
+      if (overTeNemen > 0 && offerteIsLeeg) {
+        const r = neemRegelsOver(project, current.kandidaten)
+        onOfferteChanged()
+        notifications.show({
+          color: r.zonderPrijs > 0 ? 'orange' : 'green',
+          title: `${r.aantalRegels} regel${r.aantalRegels === 1 ? '' : 's'} op offerte ${r.offerteId}`,
+          message: r.zonderPrijs > 0
+            ? `${r.zonderPrijs} regel(s) zonder gekoppeld artikel staan op € 0 — die moet je zelf prijzen.`
+            : 'Prijzen komen uit de calculatie van het artikel.',
+        })
+      }
+
       onLinked(saved, relatieId)
       onClose()
     } catch (err) {
@@ -194,10 +220,20 @@ export function MailImportReview({ opened, mailImport, projectId, relatieOptions
         </details>
       )}
 
+      {overTeNemen > 0 && !offerteIsLeeg && (
+        <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 8 }}>
+          De offerte heeft al regels — deze mailregels worden niet nog eens toegevoegd.
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
         <button className="st-btn sm ghost" onClick={ignore} disabled={busy}>Negeren</button>
         <button className="st-btn primary sm" onClick={link} disabled={busy || !relatieId}>
-          {busy ? 'Bezig…' : 'Koppelen aan project'}
+          {busy
+            ? 'Bezig…'
+            : overTeNemen > 0 && offerteIsLeeg
+            ? `Koppelen en ${overTeNemen} regel${overTeNemen === 1 ? '' : 's'} overnemen`
+            : 'Koppelen aan project'}
         </button>
       </div>
     </Modal>
