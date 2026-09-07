@@ -306,6 +306,13 @@ van signaalwaarde:
 
 ### 3.5 Artikel-matching
 
+> **Gebouwd** — `services/extract-lines.ts` en `services/match-articles.ts`.
+> Drempels: onder 0,45 geen suggestie; pas een tekeningtreffer (0,75+) vult
+> voor; staat de beste minder dan 0,1 boven de tweede, dan wordt er niets
+> voorgevuld. Een naamgelijkenis alleen levert nooit een voorgevulde koppeling
+> op. Een correctie in het reviewscherm wordt als `ArticleAlias` bewaard, en
+> een handmatige keuze blijft staan als er opnieuw gematcht wordt.
+
 Per kandidaat scoren tegen bestaande artikelen:
 
 | Sleutel | Score |
@@ -486,7 +493,9 @@ poller die slechte concepten produceert kost meer tijd dan hij bespaart.
 - [ ] Wordt de werkafspraak "doorsturen als bijlage" (§3.2) overgenomen? Dat
       scheelt de brooste code in het hele ontwerp.
 - [ ] Is `<ordernummer>-<positie>.<ext>` in bijlagenamen een vaste conventie of
-      toeval? Bepaalt hoeveel §3.4 erop mag bouwen.
+      toeval? De extractie leest het patroon **alleen** als het voorvoegsel ook
+      echt een ordernummer uit het onderwerp is, dus een verkeerde aanname doet
+      geen kwaad — maar met een bevestiging kan die controle losser.
 - [ ] Eigen postbus (`offertes@…`) of de persoonlijke mailbox van één gebruiker?
 - [ ] App-only + admin-consent, of delegated met bewaarde token? (§5.2)
 - [ ] Mag mailinhoud het netwerk verlaten voor AI-extractie? (§6)
