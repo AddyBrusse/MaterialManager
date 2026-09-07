@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outlook drag-drop test — ShopCommand</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f6f7f9; --fg:#1a1b1e; --card:#fff; --line:#dee2e6; --muted:#868e96; --ok:#2b8a3e; --bad:#c92a2a; --warn:#e67700; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141517; --fg:#e9ecef; --card:#1e2023; --line:#2f3236; --muted:#909296; --ok:#51cf66; --bad:#ff6b6b; --warn:#ffa94d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:20px; background:var(--bg); color:var(--fg);
+         font:13px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  p.sub { margin:0 0 16px; color:var(--muted); }
+  .wrap { max-width:1000px; margin:0 auto; }
+  #zone { border:2px dashed var(--line); border-radius:8px; background:var(--card);
+          padding:48px 16px; text-align:center; font-size:15px; color:var(--muted);
+          transition:background .1s, border-color .1s; }
+  #zone.hot { border-color:var(--ok); background:color-mix(in srgb, var(--ok) 12%, var(--card)); color:var(--fg); }
+  .row { display:flex; gap:8px; align-items:center; margin:14px 0; flex-wrap:wrap; }
+  button { font:inherit; padding:6px 12px; border:1px solid var(--line); border-radius:4px;
+           background:var(--card); color:var(--fg); cursor:pointer; }
+  button:hover { border-color:var(--muted); }
+  .verdict { padding:10px 12px; border-radius:6px; border:1px solid var(--line);
+             background:var(--card); margin:14px 0; font-size:14px; }
+  .verdict.ok { border-color:var(--ok); color:var(--ok); }
+  .verdict.bad { border-color:var(--bad); color:var(--bad); }
+  .verdict.warn { border-color:var(--warn); color:var(--warn); }
+  pre { background:var(--card); border:1px solid var(--line); border-radius:6px;
+        padding:12px; overflow:auto; max-height:55vh; font-size:12px;
+        font-family:ui-monospace, Consolas, monospace; white-space:pre-wrap; word-break:break-word; }
+  ol { padding-left:20px; } li { margin:3px 0; }
+  details { margin:12px 0; } summary { cursor:pointer; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Outlook drag-drop test</h1>
+  <p class="sub">Bepaalt of een mail rechtstreeks vanuit Outlook naar de browser gesleept kan worden. Zie <code>features/60-mail-import.md</code> §2.1.</p>
+
+  <details>
+    <summary>Wat te testen (4 gevallen, in deze volgorde)</summary>
+    <ol>
+      <li>Een <b>mail uit de berichtenlijst</b> van Outlook hierheen slepen.</li>
+      <li>Een <b>mail mét bijlagen</b> hierheen slepen.</li>
+      <li>Een <b>losse bijlage</b> uit een geopende mail hierheen slepen.</li>
+      <li>Controlegeval: sleep een mail eerst naar het <b>bureaublad</b> (Windows maakt er een <code>.msg</code> van) en sleep dát bestand hierheen.</li>
+    </ol>
+    <p>Doe dit op de Windows-werkplek, in de browser die daar echt gebruikt wordt (Chrome of Edge). Herhaal in de andere browser als je twijfelt. Klik daarna op <b>Kopieer rapport</b> en plak het terug in de chat.</p>
+  </details>
+
+  <div id="zone">Sleep hier een mail of bestand naartoe</div>
+
+  <div id="verdict" class="verdict">Nog niets gedropt.</div>
+
+  <div class="row">
+    <button id="copy">Kopieer rapport</button>
+    <button id="clear">Wissen</button>
+    <span class="sub" id="env"></span>
+  </div>
+
+  <pre id="log">(leeg)</pre>
+</div>
+
+<script>
+(function () {
+  var zone = document.getElementById('zone');
+  var logEl = document.getElementById('log');
+  var verdictEl = document.getElementById('verdict');
+  var lines = [];
+  var dropCount = 0;
+
+  document.getElementById('env').textContent = navigator.userAgent;
+
+  function w(s) { lines.push(s); render(); }
+  function render() { logEl.textContent = lines.length ? lines.join('\n') : '(leeg)'; }
+  function verdict(cls, msg) { verdictEl.className = 'verdict ' + cls; verdictEl.textContent = msg; }
+
+  // Must preventDefault on both, or the browser navigates away / opens the file.
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    zone.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); zone.classList.add('hot'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    zone.addEventListener(ev, function () { zone.classList.remove('hot'); });
+  });
+  // Stop the whole window from hijacking drops that miss the zone.
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  zone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    dropCount++;
+    var dt = e.dataTransfer;
+
+    w('');
+    w('════ DROP #' + dropCount + '  ' + new Date().toLocaleTimeString() + ' ════');
+
+    if (!dt) { w('  dataTransfer: null (!)'); return; }
+
+    var types = Array.prototype.slice.call(dt.types || []);
+    w('  effectAllowed : ' + dt.effectAllowed);
+    w('  types (' + types.length + ') : ' + (types.length ? types.join(' | ') : '(geen)'));
+    w('  files.length  : ' + (dt.files ? dt.files.length : 'n.v.t.'));
+    w('  items.length  : ' + (dt.items ? dt.items.length : 'n.v.t.'));
+
+    // ── Files ────────────────────────────────────────────────────────────
+    if (dt.files && dt.files.length) {
+      w('  ── files ──');
+      for (var i = 0; i < dt.files.length; i++) {
+        var f = dt.files[i];
+        w('    [' + i + '] name="' + f.name + '"');
+        w('        type="' + (f.type || '(leeg)') + '"  size=' + f.size + ' bytes' +
+          '  lastModified=' + (f.lastModified ? new Date(f.lastModified).toISOString() : '?'));
+        // A zero-byte file usually means a virtual/placeholder item the browser
+        // could not actually materialise — worth knowing, it looks like success.
+        if (f.size === 0) w('        ⚠ 0 bytes — waarschijnlijk een lege placeholder, geen echte inhoud');
+      }
+    }
+
+    // ── Items (kinds, and the actual string payloads) ────────────────────
+    if (dt.items && dt.items.length) {
+      w('  ── items ──');
+      var pending = 0;
+      for (var j = 0; j < dt.items.length; j++) {
+        var it = dt.items[j];
+        w('    [' + j + '] kind="' + it.kind + '"  type="' + (it.type || '(leeg)') + '"');
+        if (it.kind === 'file') {
+          try {
+            var entry = it.webkitGetAsEntry && it.webkitGetAsEntry();
+            w('        webkitGetAsEntry: ' + (entry ? (entry.isDirectory ? 'directory "' + entry.name + '"' : 'file "' + entry.name + '"') : 'null'));
+            var asFile = it.getAsFile && it.getAsFile();
+            w('        getAsFile: ' + (asFile ? '"' + asFile.name + '" (' + asFile.size + ' bytes)' : 'null'));
+          } catch (err) { w('        (fout: ' + err + ')'); }
+        }
+      }
+      // getAsString is async; collect them, then re-evaluate the verdict.
+      for (var k = 0; k < dt.items.length; k++) {
+        (function (item, idx) {
+          if (item.kind !== 'string') return;
+          pending++;
+          item.getAsString(function (str) {
+            var clipped = str.length > 1200 ? str.slice(0, 1200) + '\n        …(' + (str.length - 1200) + ' tekens ingekort)' : str;
+            w('    [' + idx + '] string payload (' + item.type + ', ' + str.length + ' tekens):');
+            w('        ' + clipped.replace(/\n/g, '\n        '));
+            if (--pending === 0) render();
+          });
+        })(dt.items[k], k);
+      }
+    }
+
+    // ── Raw getData per type (only readable inside the drop handler) ─────
+    if (types.length) {
+      w('  ── getData per type ──');
+      types.forEach(function (t) {
+        var v = '';
+        try { v = dt.getData(t); } catch (err) { v = '(fout: ' + err + ')'; }
+        if (v === '') { w('    ' + t + ' → (leeg)'); return; }
+        var clipped = v.length > 600 ? v.slice(0, 600) + ' …(' + (v.length - 600) + ' tekens ingekort)' : v;
+        w('    ' + t + ' (' + v.length + ' tekens) → ' + clipped.replace(/\n/g, ' ⏎ '));
+      });
+    }
+
+    // ── Verdict ─────────────────────────────────────────────────────────
+    var realFiles = 0;
+    if (dt.files) for (var n = 0; n < dt.files.length; n++) if (dt.files[n].size > 0) realFiles++;
+
+    if (realFiles > 0) {
+      verdict('ok', '✔ ' + realFiles + ' echt bestand/bestanden ontvangen — deze drop is bruikbaar. Controleer in de log of de naam op .msg eindigt (mail) of op de bijlage.');
+      w('  ▶ CONCLUSIE: bruikbaar — ' + realFiles + ' bestand(en) met inhoud.');
+    } else if (dt.files && dt.files.length) {
+      verdict('warn', '⚠ Wel bestanden, maar 0 bytes — placeholders zonder inhoud. Niet bruikbaar.');
+      w('  ▶ CONCLUSIE: niet bruikbaar — bestanden zonder inhoud.');
+    } else if (types.indexOf('Files') !== -1) {
+      verdict('warn', '⚠ Type "Files" aangeboden, maar files.length = 0 — de browser kon het virtuele bestand niet uitlezen. Niet bruikbaar.');
+      w('  ▶ CONCLUSIE: niet bruikbaar — "Files" aangeboden maar niets uitleesbaar (klassiek Outlook-gedrag).');
+    } else if (types.length) {
+      verdict('bad', '✘ Geen bestanden — alleen tekst/HTML. Zie de log: soms zit er bruikbare onderwerp/afzender-tekst in.');
+      w('  ▶ CONCLUSIE: geen bestanden, alleen tekstformaten.');
+    } else {
+      verdict('bad', '✘ Niets bruikbaars ontvangen (geen types, geen bestanden).');
+      w('  ▶ CONCLUSIE: leeg.');
+    }
+  });
+
+  document.getElementById('clear').addEventListener('click', function () {
+    lines = []; dropCount = 0; render(); verdict('', 'Nog niets gedropt.');
+  });
+
+  document.getElementById('copy').addEventListener('click', function () {
+    var report = 'Outlook drag-drop test — ' + new Date().toISOString() +
+                 '\nUA: ' + navigator.userAgent +
+                 '\nPagina: ' + location.href + '\n\n' + (lines.join('\n') || '(geen drops)');
+    var done = function () { var b = document.getElementById('copy'); b.textContent = 'Gekopieerd ✓'; setTimeout(function () { b.textContent = 'Kopieer rapport'; }, 1500); };
+    // navigator.clipboard is unavailable on file:// in some browsers — fall back.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(report).then(done, fallback);
+    } else { fallback(); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = report; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); }
+      catch (e) { alert('Kopiëren mislukt — selecteer de log handmatig.'); }
+      document.body.removeChild(ta);
+    }
+  });
+})();
+</script>
+</body>
+</html>
