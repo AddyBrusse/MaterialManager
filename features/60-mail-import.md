@@ -1,7 +1,10 @@
 # 60 — Mail-import → automatisch project
 
 Status: **spec / niet gebouwd.** Geen code schrijven voordat de open besluiten
-onderaan zijn beslist en de drag-drop test (§2) is uitgevoerd.
+onderaan (§8) zijn beslist.
+
+Drag-drop test uitgevoerd op 2026-09-07 — **slepen vanuit Outlook werkt**,
+zie §2.1 voor de meting en wat dat voor het ontwerp betekent.
 
 Doel: een binnenkomende klantmail (offerteaanvraag of opdrachtbevestiging) leidt
 tot een **concept-project met offerteregels**, klaar voor menselijke controle.
@@ -22,7 +25,7 @@ zó dat fase 2 er alleen een ingest-bron bij zet.
 
 | Bestaand | Waar | Hergebruik |
 |---|---|---|
-| MSAL + Graph `sendMail` | `apps/web/src/services/graph-mail.ts`, `features/39-graph-mail.md` | Zelfde app-registratie, scope uitbreiden met `Mail.Read` |
+| MSAL + Graph `sendMail` | `apps/web/src/services/graph-mail.ts`, `features/39-graph-mail.md` | Zelfde app-registratie; scope `Mail.Read` erbij, pas nodig vanaf fase 2 |
 | `@azure/msal-browser` | al in `apps/web/package.json` | geen nieuwe auth-stack nodig |
 | Project + Offerte + OfferteRegel | `packages/shared/src/schemas/project.ts` | de import produceert exact deze vorm |
 | Kostprijsberekening | `buildEstimateCtx` + `computeEstimateTotals` | prijzen op geïmporteerde regels |
@@ -37,61 +40,114 @@ alleen over de **inkomende** helft.
 
 ## 2. Fase 1 — hoe komt de mail binnen?
 
-### 2.1 Het probleem met slepen vanuit Outlook
+### 2.1 Slepen vanuit Outlook — GEMETEN, het werkt
 
-Outlook (klassiek, Windows) biedt een gesleepte mail aan als *virtueel bestand*
-(`CFSTR_FILEDESCRIPTOR` / `FILECONTENTS`), niet als `CF_HDROP`. Chromium heeft
-dat nooit geïmplementeerd — in Chrome/Edge is `e.dataTransfer.files` daardoor
-naar verwachting **leeg** bij het droppen van een mail.
+Getest op 2026-09-07 op de werkplek met `tools/drag-drop-test.html`:
+Windows 10/11, Chrome 152, klassiek Outlook. Een mail uit de berichtenlijst
+naar de browser slepen levert **een echt `.msg`-bestand met inhoud** op:
 
-> **Niet 100% zeker.** Dit is niet getest op de daadwerkelijke werkplek en hangt
-> mogelijk af van de Outlook-build (klassiek vs. "new Outlook") en de
-> browserversie. **Eerst meten, dan bouwen.**
+```
+types         : text/plain | Files
+files.length  : 1
+  [0] name="RE_ Orderbevestiging 0003772761 Klantref Addy.msg"
+      type="(leeg)"   size=166912 bytes
+getData('text/plain') → "Van\tOnderwerp\tOntvangen\tGrootte\tCategorieën\n
+                         Remco de Laat\tRE: Orderbevestiging …\t30-7-2026\t137 kB"
+```
 
-**Test:** open `tools/drag-drop-test.html` (dubbelklik, of via de dev-server op
-`/drag-drop-test.html`) op een Windows-machine met Outlook. Sleep achtereenvolgens:
+Eerdere aanname in dit document was dat Chromium dit *niet* kon (virtueel
+bestand via `CFSTR_FILEDESCRIPTOR`, geen `CF_HDROP`). **Die aanname was onjuist**
+voor deze combinatie. Vandaar de meting; niet alsnog op de theorie bouwen.
 
-- een mail uit de berichtenlijst
-- een mail met bijlagen
-- een losse bijlage uit een geopende mail
-- een `.msg` dat eerst naar het bureaublad is gesleept (controlegeval)
+Vier gevolgen voor het ontwerp:
 
-Noteer per geval `files.length` en de aangeboden `types`. Uitkomst bepaalt de route:
+1. **Geen MIME-type.** `file.type` is leeg. Detectie dus op de extensie `.msg`
+   plus de magic bytes van een OLE2 compound file
+   (`D0 CF 11 E0 A1 B1 1A E1`, eerste 8 bytes). Nooit op `file.type` vertrouwen.
+2. **Bestandsnaam ≠ onderwerp.** Windows saneert: `RE: ` werd `RE_ `. De naam is
+   dus lossy. Onderwerp, afzender en datum uit de `.msg`-inhoud halen, niet uit
+   de bestandsnaam.
+3. **`text/plain` is een gratis controle.** Het is de Outlook-lijstregel
+   (kolomkoppen + één tab-gescheiden rij) met weergavenaam, onderwerp en datum.
+   Bruikbaar als kruiscontrole op de parse, maar het bevat **geen e-mailadres** —
+   relatie-resolutie (§3.2) kan hier niet op leunen.
+4. **`.msg`-parsing is nu wél nodig** voor fase 1. Zie §2.3.
 
-| Uitkomst | Route |
-|---|---|
-| `files.length > 0` bij mail-drop | Echte drag-drop kan; server parst `.msg` (§2.3) |
-| `files.length === 0` | Graph-picker (§2.2) als hoofdroute |
+**Nog niet gemeten** (verwachting: werkt ook, maar niet aangetoond):
 
-### 2.2 Aanbevolen hoofdroute: "Importeer uit Outlook" (Graph-picker)
+- [ ] een mail **mét bijlagen** — bepaalt of alles in één `.msg` binnenkomt of
+      dat er een apart pad nodig is
+- [ ] een **losse bijlage** uit een geopende mail
+- [ ] **meerdere mails tegelijk** geselecteerd en gesleept (`files.length > 1`)
+- [ ] Edge, en de "new Outlook"-client als die ergens in gebruik is
 
-Op een leeg project een knop **Importeer uit Outlook**. Die opent een modal met
-de laatste ~20 mails uit de eigen mailbox (onderwerp, afzender, datum, aantal
-bijlagen), met zoekveld. Eén klik = importeren.
+De testpagina blijft in `tools/` staan om dit later opnieuw te kunnen meten,
+bijvoorbeeld na een Chrome- of Outlook-update. Dit gedrag is niet
+gegarandeerd door een standaard; het kan met een update verdwijnen. Daarom
+blijft §2.3 als terugval bestaan en is de pipeline (§3) bewust losgekoppeld
+van de manier waarop de mail binnenkomt.
 
-Waarom dit de voorkeur heeft boven slepen:
+### 2.2 Route voor fase 1: dropzone op een leeg project
 
-- Werkt gegarandeerd — geen afhankelijkheid van clipboard-formaten van Windows.
-- **Geen `.msg`-parser nodig.** Graph levert body en bijlagen als JSON/base64.
-- Het is exact de datavorm die fase 2 ook oplevert → één pipeline, geen tweede.
-- MSAL staat er al; alleen de scope `Mail.Read` erbij (delegated, geen
-  admin-consent nodig).
+Een leeg project krijgt een dropzone: sleep de mail erin, de app vult het
+project. Precies wat gevraagd is, en het is nu aantoonbaar mogelijk.
 
-Kosten: de gebruiker moet één keer per sessie het MSAL-popup doorlopen — dat
-gebeurt nu al bij het versturen van een offerte.
+Server-side stappen: `.msg` ontvangen → parsen → normaliseren naar de vorm van
+§3.1 → pipeline in. De `MailImport`-rij (§4) wordt óók bij deze route
+aangemaakt, met `bron: 'drop'` — zodat fase 2 later niets nieuws hoeft te
+introduceren en er één audit-trail is.
+
+De Graph-picker uit de oorspronkelijke opzet vervalt hiermee **niet**; hij is
+alleen niet meer nodig om fase 1 mogelijk te maken. Fase 2 heeft Graph
+sowieso nodig (§5), en een picker is dan een kleine toevoeging op code die er
+al staat.
 
 ### 2.3 Terugvalroutes
 
-1. **`.msg` / `.eml` droppen.** Gebruiker sleept de mail eerst naar het
-   bureaublad (Windows schrijft dan een echt `.msg`) en dat bestand de app in.
-   Werkt altijd, kost één extra handeling. Server-side parsen:
-   - `.eml` → `mailparser` (volwassen, betrouwbaar)
-   - `.msg` → `@kenjiuno/msgreader` (pure JS, geen Outlook nodig).
-     *Pakketnaam met redelijke maar niet volledige zekerheid — verifiëren
-     voordat we hierop leunen.*
+Blijven bestaan, voor als de drag-route stukgaat op een update of op een
+andere werkplek anders werkt:
+
+1. **`.msg` vanaf het bureaublad.** Identiek pad, alleen sleept de gebruiker de
+   mail eerst naar het bureaublad. Kost niets extra in code.
 2. **Alleen bijlagen + plaktekst.** Dropzone voor PDF/STEP/Excel plus een
-   textarea waar de mailtekst in geplakt wordt. Lelijk maar werkt overal en is
-   de handmatige nooduitgang als Graph plat ligt. Bouw deze hoe dan ook.
+   textarea voor de mailtekst. De handmatige nooduitgang; hoe dan ook bouwen.
+3. **Graph-picker.** Zie §2.2 — komt met fase 2 vanzelf beschikbaar.
+
+### 2.4 `.msg` parsen — het echte risico van fase 1
+
+`.msg` is een OLE2 compound file met MAPI-property-streams, geen open
+mailformaat. Kandidaat: **`@kenjiuno/msgreader`** — bestaat, v1.28.0 op npm,
+pure JS, geen Outlook op de server nodig. Alternatief: `msg-parser` (v1.0.10),
+dat expliciet embedded messages en bijlagen noemt. *Geschiktheid is nog niet
+geverifieerd — eerst testen op een échte mail uit de eigen mailbox voordat er
+iets omheen gebouwd wordt.*
+
+Wat er getest moet worden op een echt bestand, in deze volgorde:
+
+| Te extraheren | Risico |
+|---|---|
+| Onderwerp, bodytekst | laag |
+| Ontvangstdatum | laag |
+| Bijlagen (naam + bytes) | midden — embedded messages en inline images |
+| **Afzender-e-mailadres** | **hoog** — zie hieronder |
+| `internetMessageId` | midden — bepaalt de idempotentie van §4 |
+
+Het afzenderadres is het bekende pijnpunt: bij interne/Exchange-afzenders staat
+er soms geen SMTP-adres maar een Exchange-DN
+(`/O=EXCHANGELABS/OU=…/CN=RECIPIENTS/CN=…`) in de property. Bij externe klanten
+— het geval dat hier telt — is het meestal wel een gewoon SMTP-adres, maar dat
+moet aangetoond worden, niet aangenomen. Terugval als het adres ontbreekt:
+matchen op weergavenaam uit `text/plain` (§2.1) en de gebruiker in het
+reviewscherm laten bevestigen. Nooit stil raden.
+
+Ook `internetMessageId` verdient aandacht: ontbreekt die in een gesleept `.msg`,
+dan moet de idempotentie-sleutel van §4 een hash over
+(afzender + onderwerp + ontvangstdatum) worden. Dat is zwakker, en het is beter
+dat nú te weten dan bij het bouwen van fase 2.
+
+**Concrete volgende stap:** één echte klantmail als `.msg` opslaan (mag een
+onschuldige zijn) en daarop de parser uitproberen. Dat beantwoordt de hele
+tabel hierboven in één keer.
 
 ---
 
@@ -286,9 +342,16 @@ instelling, geen verbouwing. Niet in fase 1 bouwen.
 
 ## 7. Bouwvolgorde
 
+**Fase 0 — parser-proef (een halve dag, doe dit eerst)**
+Eén echte klantmail als `.msg`, een `.msg`-parser erop, en kijken of onderwerp,
+body, bijlagen, afzenderadres en `internetMessageId` er bruikbaar uitkomen
+(§2.4). Valt het afzenderadres of het message-id tegen, dan verandert dat het
+ontwerp van §3.2 en §4 — beter nu weten dan halverwege fase 1a.
+
 **Fase 1a — ingest + review (grootste deel van de waarde)**
-`MailImport`-model → Graph-picker modal → normalisatie → relatie-suggestie →
-reviewscherm met handmatige regelinvoer → project + offerte aanmaken.
+`MailImport`-model → dropzone op een leeg project → `.msg` parsen →
+normalisatie → relatie-suggestie → reviewscherm met handmatige regelinvoer →
+project + offerte aanmaken.
 Zonder enige slimme matching is dit al sneller dan overtypen.
 
 **Fase 1b — matching**
@@ -306,7 +369,12 @@ poller die slechte concepten produceert kost meer tijd dan hij bespaart.
 
 ## 8. Open besluiten
 
-- [ ] Uitkomst van de drag-drop test (§2.1) — bepaalt of `.msg`-parsing nodig is.
+- [x] ~~Uitkomst van de drag-drop test (§2.1)~~ — **gemeten 2026-09-07: werkt.**
+      Gevolg: `.msg`-parsing is nodig (§2.4), de dropzone is de route voor fase 1.
+- [ ] Welke `.msg`-parser (`@kenjiuno/msgreader` of `msg-parser`), en levert die
+      een bruikbaar afzenderadres en `internetMessageId`? (§2.4 — fase 0)
+- [ ] Werkt de drag ook met bijlagen, met meerdere mails tegelijk, en in Edge?
+      (§2.1, nog niet gemeten)
 - [ ] Eigen postbus (`offertes@…`) of de persoonlijke mailbox van één gebruiker?
 - [ ] App-only + admin-consent, of delegated met bewaarde token? (§5.2)
 - [ ] Mag mailinhoud het netwerk verlaten voor AI-extractie? (§6)
