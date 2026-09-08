@@ -104,7 +104,10 @@ function findQty(text: string): number | null {
 /** Ordernummers uit het onderwerp: "koppel order: 2026077" → ['2026077']. */
 export function orderNumbersInSubject(subject: string): string[] {
   const out = new Set<string>()
-  for (const m of subject.matchAll(/\b(\d{6,10})\b/g)) out.add(m[1])
+  // Let op: geen `\b`, maar "niet nog meer cijfers". Klanten plakken een
+  // letterprefix aan hun ordernummer ("PUR2604307"), en `\b` matcht niet tussen
+  // een letter en een cijfer — dan werd het ordernummer niet herkend.
+  for (const m of subject.matchAll(/(?<!\d)(\d{6,10})(?!\d)/g)) out.add(m[1])
   return [...out]
 }
 
@@ -132,12 +135,10 @@ function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateL
   let tekening = base
   let positie: number | null = null
 
-  const orderMatch = base.match(/^(\d{6,10})[-_](\d{1,3})\b/)
-  if (orderMatch && orderNumbers.includes(orderMatch[1])) {
-    positie = parseInt(orderMatch[2], 10)
-    // De hele naam blijft de aanduiding van het onderdeel: "2026077-001" is
-    // wat de klant bedoelt, niet "2026077".
-    tekening = `${orderMatch[1]}-${orderMatch[2]}`
+  const viaOrder = stripOrderPrefix(base, orderNumbers)
+  if (viaOrder.positie !== null) {
+    positie = viaOrder.positie
+    tekening = viaOrder.tekening
   } else {
     // Los van rev- en aantal-aanduidingen houden we het deel vóór de eerste
     // spatie of haakje over als tekeningnummer.
@@ -196,12 +197,35 @@ function findCode(text: string): string | null {
 }
 
 /**
+ * Ordernummer en positie vooraan een aanduiding weghalen.
+ *
+ * Klanten zetten hun eigen order- en positienummer vóór ons tekeningnummer:
+ * `2604307-1-2615-0091-0530-1` is order 2604307, positie 1, tekening
+ * 2615-0091-0530-1. Dit moet op bestandsnamen én op de regels uit de
+ * orderpdf werken, anders levert dezelfde onderdeel twee regels op die niet
+ * samengevoegd worden.
+ */
+function stripOrderPrefix(
+  code: string,
+  orderNumbers: string[]
+): { tekening: string; positie: number | null } {
+  const m = code.match(/^(\d{6,10})[-_](\d{1,3})(?:[-_](.+))?$/)
+  if (!m || !orderNumbers.includes(m[1])) return { tekening: code, positie: null }
+  const rest = m[3]?.trim()
+  return {
+    tekening: rest ? stripExportStamp(rest) : `${m[1]}-${m[2]}`,
+    positie: parseInt(m[2], 10),
+  }
+}
+
+/**
  * Regels uit de tekst van een meegestuurde PDF — meestal de orderregeltabel
  * van de inkooporder. Daar staan de aantallen die in de bestandsnamen ontbreken.
  */
 function fromDocumentText(
   filename: string,
-  tekst: string
+  tekst: string,
+  orderNumbers: string[]
 ): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'>[] {
   const out: Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'>[] = []
   for (const line of tekst.split(/\r?\n/)) {
@@ -210,11 +234,14 @@ function fromDocumentText(
     const qty = findQty(trimmed)
     const code = findCode(trimmed)
     if (!code || qty === null) continue
+    // Zelfde behandeling als een bestandsnaam, anders wordt het aantal uit de
+    // ordertabel een losse regel naast de tekening in plaats van erbij.
+    const { tekening, positie } = stripOrderPrefix(stripExportStamp(code), orderNumbers)
     out.push({
       ruweTekst: trimmed,
-      tekening: stripExportStamp(code),
+      tekening,
       rev: findRev(trimmed),
-      positie: null,
+      positie,
       qty,
       bron: 'pdf' as CandidateSource,
       attachmentFilename: filename,
@@ -264,7 +291,7 @@ export function extractLines(mail: NormalizedMail): CandidateLine[] {
   // aan op de regels die de bestandsnamen al opleverden, en voegt regels toe
   // die de klant wel bestelde maar niet als tekening meestuurde.
   for (const att of mail.attachments) {
-    if (att.tekst) for (const kandidaat of fromDocumentText(att.filename, att.tekst)) add(kandidaat)
+    if (att.tekst) for (const k of fromDocumentText(att.filename, att.tekst, orderNumbers)) add(k)
   }
   for (const line of mail.bodyText.split(/\r?\n/)) add(fromBodyLine(line))
 

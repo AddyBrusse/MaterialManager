@@ -38,10 +38,21 @@ const SCORE = {
   alias: 1,
   tekeningExactRev: 0.95,
   tekeningExact: 0.85,
+  /** Ons tekeningnummer zit ín de aanduiding van de klant. */
+  tekeningBevat: 0.8,
   tekeningLoose: 0.75,
   naamExact: 0.6,
   naamDeel: 0.45,
 } as const
+
+/**
+ * Kortste nummer dat we in een langere klantaanduiding durven te herkennen.
+ *
+ * Klanten plakken hun eigen order- en positienummers om ons tekeningnummer
+ * heen. Zoeken naar een kort nummer binnen een lange string levert toevals-
+ * treffers op; vanaf tien tekens is dat vrijwel uitgesloten.
+ */
+const MIN_CONTAINED_LENGTH = 10
 
 /** Onder deze score is een treffer geen suggestie waard. */
 const MIN_SCORE = 0.45
@@ -81,6 +92,17 @@ function scoreArticle(
     }
     if (normalizeLoose(line.tekening) === normalizeLoose(article.tekening)) {
       return { ...base, score: SCORE.tekeningLoose, reden: `Tekening lijkt op ${article.tekening}.` }
+    }
+    // Ons nummer verstopt in dat van de klant: "2604307-1-2615-0091-0530-1"
+    // bevat "2615-0091-0530". Bewust letterlijk vergelijken, niet los: twee
+    // artikelen kunnen één cijfer schelen (…-0090-… naast …-0091-…) en dan
+    // mag er niets worden afgerond.
+    if (artRef.length >= MIN_CONTAINED_LENGTH && lineRef.includes(artRef)) {
+      return {
+        ...base,
+        score: SCORE.tekeningBevat,
+        reden: `Tekening ${article.tekening} zit in de aanduiding van de klant.`,
+      }
     }
   }
 

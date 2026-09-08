@@ -108,3 +108,37 @@ describe('matchLines', () => {
     expect(rows[0].id).toBe('a')
   })
 })
+
+
+describe('ons tekeningnummer verstopt in de aanduiding van de klant', () => {
+  // Uit de praktijk: de klant zet zijn ordernummer en positie vóór ons
+  // tekeningnummer, en twee van onze artikelen schelen één cijfer.
+  const platen: ArticleCandidate[] = [
+    { id: 'ART-0006', naam: 'Signal plate twistlock', tekening: '2615-0090-0530', rev: '0' },
+    { id: 'ART-0011', naam: 'Signaleringsplaat twistlock', tekening: '2615-0091-0530', rev: null },
+  ]
+
+  it('vindt het juiste artikel binnen de langere klantaanduiding', () => {
+    const r = matchLine(line({ tekening: '2604307-1-2615-0091-0530-1' }), platen)
+    expect(r.artikelId).toBe('ART-0011')
+    expect(r.status).toBe('match')
+    expect(r.matches[0].reden).toContain('zit in de aanduiding')
+  })
+
+  it('kiest de buurman met één cijfer verschil NIET', () => {
+    // 0090 naast 0091: precies het geval waar afronden een verkeerde plaat
+    // op de offerte zou zetten.
+    const r = matchLine(line({ tekening: '2604307-1-2615-0090-0530-1' }), platen)
+    expect(r.artikelId).toBe('ART-0006')
+    expect(r.matches).toHaveLength(1)
+  })
+
+  it('herkent het nummer ook zonder streepjes', () => {
+    expect(matchLine(line({ tekening: 'PO99/261500910530/A' }), platen).artikelId).toBe('ART-0011')
+  })
+
+  it('pikt geen kort nummer op binnen een lange string', () => {
+    const kort: ArticleCandidate[] = [{ id: 'ART-X', naam: 'Bout', tekening: '0530', rev: null }]
+    expect(matchLine(line({ tekening: '2604307-1-2615-0091-0530-1' }), kort).artikelId).toBeNull()
+  })
+})

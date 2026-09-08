@@ -95,9 +95,10 @@ describe('extractLines — bijlagenamen', () => {
     // Eén regel: het onderdeel. De drie bestandsvormen ervan tellen als één,
     // en de inkooporder telt niet mee.
     expect(lines).toHaveLength(1)
-    // Zonder exportstempel: die hoort niet bij het tekeningnummer (zie
-    // stripExportStamp) en verandert bij elke export.
-    expect(lines[0].tekening).toBe('2604307-1-2615-0091-0530-1')
+    // Ordernummer en positie eraf, exportstempel eraf: wat overblijft is het
+    // tekeningnummer van de klant, en dát staat in onze artikelen.
+    expect(lines[0].tekening).toBe('2615-0091-0530-1')
+    expect(lines[0].positie).toBe(1)
   })
 
   it('negeert offerte-, factuur- en pakbondocumenten', () => {
@@ -163,7 +164,7 @@ describe('exportstempel uit bestandsnamen', () => {
       subject: 'Inkooporder PUR2604307',
       attachments: [att('2604307-1-2615-0091-0530-1_20260904-0942.pdf')],
     }))
-    expect(lines[0].tekening).toBe('2604307-1-2615-0091-0530-1')
+    expect(lines[0].tekening).toBe('2615-0091-0530-1')
   })
 
   it('herkent ook andere schrijfwijzen van de stempel', () => {
@@ -186,9 +187,10 @@ describe('aantallen uit de tekst van een meegestuurde PDF', () => {
       attachments: [att('Purchase order_2604307.pdf', false, PO_TEKST)],
     }))
     const rows = lines.map(l => [l.tekening, l.qty])
+    // Ordernummer en positie zijn eraf: wat overblijft is het tekeningnummer.
     expect(rows).toEqual([
-      ['2604307-1-2615-0091-0530-1', 4],
-      ['2604307-1-2615-0091-0531-2', 12],
+      ['2615-0091-0530-1', 4],
+      ['2615-0091-0531-2', 12],
       ['123456', 2],
     ])
   })
@@ -203,10 +205,10 @@ describe('aantallen uit de tekst van een meegestuurde PDF', () => {
         att('Purchase order_2604307.pdf', false, PO_TEKST),
       ],
     }))
-    const regel = lines.find(l => l.tekening === '2604307-1-2615-0091-0530-1')
+    const regel = lines.find(l => l.tekening === '2615-0091-0530-1')
     expect(regel?.qty).toBe(4)
     // Eén regel voor dat onderdeel, niet twee.
-    expect(lines.filter(l => l.tekening === '2604307-1-2615-0091-0530-1')).toHaveLength(1)
+    expect(lines.filter(l => l.tekening === '2615-0091-0530-1')).toHaveLength(1)
   })
 
   it('leest een lang tekeningnummer in één stuk, niet afgekapt', () => {
@@ -221,5 +223,48 @@ describe('aantallen uit de tekst van een meegestuurde PDF', () => {
 
   it('doet niets als er geen tekst uit de PDF kwam (scan)', () => {
     expect(extractLines(mail({ attachments: [att('gescande order.pdf', false, null)] }))).toEqual([])
+  })
+})
+
+
+describe('ordernummer voor het tekeningnummer van de klant', () => {
+  // De praktijk bij deze klant: <ordernummer>-<positie>-<ons tekeningnummer>.
+  const PO = [
+    'Pos Article Description Qty Unit Price',
+    '10 2604307-1-2615-0091-0530-1 Signaleringsplaat 4 pcs 125,00',
+  ].join('\n')
+
+  it('houdt het tekeningnummer over, met de positie apart', () => {
+    const lines = extractLines(mail({
+      subject: 'Inkooporder PUR2604307 -',
+      attachments: [att('2604307-1-2615-0091-0530-1_20260904-0942.stp')],
+    }))
+    expect(lines[0].tekening).toBe('2615-0091-0530-1')
+    expect(lines[0].positie).toBe(1)
+  })
+
+  it('herkent het ordernummer ook als er letters aan vastgeplakt zitten', () => {
+    expect(orderNumbersInSubject('Inkooporder PUR2604307 -')).toEqual(['2604307'])
+  })
+
+  it('voegt bestandsnaam en orderregel samen tot één regel', () => {
+    // Zonder dezelfde behandeling in beide bronnen levert dit twee regels op:
+    // de tekening zonder aantal, en het aantal zonder tekening.
+    const lines = extractLines(mail({
+      subject: 'Inkooporder PUR2604307 -',
+      attachments: [
+        att('2604307-1-2615-0091-0530-1_20260904-0942.stp'),
+        att('Purchase order_2604307.pdf', false, PO),
+      ],
+    }))
+    expect(lines).toHaveLength(1)
+    expect(lines[0].tekening).toBe('2615-0091-0530-1')
+    expect(lines[0].qty).toBe(4)
+  })
+
+  it('laat een nummer met streepje met rust als het ordernummer niet klopt', () => {
+    const lines = extractLines(mail({ subject: 'Aanvraag', attachments: [att('9876543-2-1111-2222.pdf')] }))
+    expect(lines[0].tekening).toBe('9876543-2-1111-2222')
+    expect(lines[0].positie).toBeNull()
   })
 })
