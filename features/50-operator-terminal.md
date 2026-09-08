@@ -1,225 +1,269 @@
-# 50 — Operator Terminal App (Parked)
+# 50 — Machineterminal & tijdregistratie
 
-> **Status: PARKED** — discussed 2026-07-02, not yet started. Do not implement
-> until the user explicitly picks it back up. See `03-parked.md` for full
-> parked-items context.
-
----
-
-## What it is
-
-A dedicated tablet/kiosk app for shop-floor operators. Operators use it to:
-
-- See their active productie-stappen (machining steps)
-- Open or download the drawing / NC file for a job
-- Log time spent on each stap
-- Mark a stap as done
-- View which jobs are queued for their machine
-
-The **main ShopCommand web app** remains for office users. The operator
-terminal is a **separate, simplified UI** targeting a fixed tablet mounted at
-each machine.
+> **Status: ontwerp, niet gebouwd.** Herschreven 2026-09-08 na de keuze voor een
+> **pc met touchscreen per machine** (was: tablet) en voor een actor die een
+> **persoon óf een robot** kan zijn. Geen code voordat de open besluiten in §9
+> beslist zijn.
 
 ---
 
-## Architecture decision
+## 1. Waarom dit er komt
 
-New Vite app in the same monorepo: `apps/operator`.
+Er zijn twee doelen, en ze delen één bouwwerk.
+
+**Bedienen bij de machine.** De operator ziet zijn wachtrij, opent de tekening,
+krijgt het NC-programma waar het hoort, en vinkt af als de stap klaar is.
+
+**Meten wat het werkelijk kost.** Vandaag legt het systeem alleen `gereedOp`
+vast: het moment waarop iemand een stap afvinkte. Dat is een tijdstip, geen
+tijdsduur — en zeker geen machinetijd. De enige "waarheid" in de database is nu
+de calculatie, dus jullie eigen schatting. Zolang dat zo blijft, kan geen enkele
+analyse (en geen model) meer doen dan die schatting consistenter napraten.
+
+Het tweede doel heeft de langste doorlooptijd: data groeit per week, niet per
+sprint. Zie §8 — daarom kan het datamodel eerder landen dan de terminal.
+
+---
+
+## 2. Hardware: pc met touchscreen, geen tablet
+
+Gekozen 2026-09-08.
+
+| | Pc + touchscreen | Tablet |
+|---|---|---|
+| NC naar de machine | Zit op het netwerk, schrijft rechtstreeks in de machinemap op de NAS — **de USB-stick verdwijnt** | Alleen via een omweg |
+| Tekening lezen | 22" is leesbaar bij de machine | Knijpen en schuiven |
+| Beheer | Browser in kioskmodus op de bestaande webapp | App-store, accu, apparaatbeheer |
+| Kosten per plek | vergelijkbaar | vergelijkbaar |
+
+De NC-route is de doorslaggevende reden, en die stond niet in de vorige versie
+van dit document. Hij lost een probleem op dat losstaat van tijdregistratie.
+
+**Waar rekening mee te houden:**
+
+- Koelvloeistof, spanen en olie. Een spatwaterdicht scherm of een kast, en geen
+  toetsenbord — alles moet met de vingers kunnen.
+- Windows-updates die 's ochtends een dialoog over het kioskscherm zetten. Eén
+  keer goed inrichten (updates buiten werktijd, automatisch herstarten naar de
+  kiosk) of het blijft irriteren.
+- Per plek stroom en netwerk.
+
+De terminal draait de bestaande webapp in kioskmodus op een eigen route; er komt
+geen aparte Vite-app zoals de vorige versie voorstelde, tenzij §9 anders beslist.
+
+---
+
+## 3. Wie doet het werk: machine én actor
+
+Beslist 2026-09-08: **per machine én per persoon of robot.**
+
+Een stap wordt uitgevoerd op een machine, door een actor. Die actor is een mens
+of hij is er niet — bij onbemand draaien (robotcel, stangenlader, pallet­wisselaar,
+of gewoon een lange cyclus die 's nachts doorloopt) staat er niemand bij.
+
+Dat onderscheid is niet cosmetisch, want het **verandert de kostprijs**. De
+calculatie kent al twee losse tarieven per machine:
 
 ```
-StockManager/
-├── apps/web/          ← existing office UI
-├── apps/operator/     ← new tablet UI (this doc)
-├── apps/api/          ← shared Express backend
-└── packages/shared/   ← shared Zod schemas (both apps import)
+machineRatePerHour    ← de machine draait
+operatorRatePerHour   ← er staat iemand bij
 ```
 
-Both apps hit the same API on the NAS. The operator app is served from the
-same Express process under a different path (e.g. `/operator`), or as a
-separate bundle at the same root — to be decided at implementation time.
+Bij onbemand draaien telt alleen het eerste. Wie dat niet vastlegt, rekent
+onbemande uren te duur en weet niet hoeveel een robotcel oplevert — precies de
+vraag waarvoor je hem koopt.
+
+**Beperking om eerlijk over te zijn:** zonder koppeling met de besturing weet het
+systeem niet uit zichzelf dat er onbemand gedraaid is. De operator verklaart dat
+bij het starten ("laten lopen"). Een echte machinekoppeling (MTConnect, OPC UA,
+of desnoods een signaallampje op een IO-module) is een apart traject; zie §9.
 
 ---
 
-## Confirmed constraints (answered 2026-07-02)
+## 4. De registratie moet de calculatie spiegelen
 
-| Question | Answer |
+Dit is de belangrijkste ontwerpregel van dit document.
+
+De calculatie (`ArticleEstimate`) rekent per machineknoop met:
+
+- `setupMin` — instellen, **per batch**
+- `cycleMin` — draaien, **per stuk**
+
+Meet je alleen "deze stap duurde 3 uur", dan kun je dat nergens tegenaan
+leggen: je weet niet hoeveel daarvan instellen was en op hoeveel stuks de rest
+sloeg. De registratie moet dus dezelfde vorm hebben als de schatting, anders is
+vergelijken onmogelijk en is de hele dataset alleen achteraf leuk om naar te
+kijken.
+
+Daarom draagt elke tijdregel drie dingen die vaak vergeten worden:
+
+| Veld | Waarom |
 |---|---|
-| File storage for NC/drawings | Single NAS network share (one share for all) |
-| Machine assignment per tablet | Fixed — each tablet is permanently assigned to one machine |
-| Offline requirement | None — Wi-Fi LAN only, same as main app |
-| Multiple files per article/step | Yes — e.g. `.nc` + `.pdf` drawing + step setup sheet all attached to one stap |
+| `soort` — instellen of draaien | Anders kun je `setupMin` en `cycleMin` niet los toetsen |
+| `bemanning` — bemand of onbemand | Bepaalt of het operatortarief meetelt (§3) |
+| `aantalStuks` | Zonder dit geen cyclustijd per stuk, en `cycleMin` is per stuk |
 
 ---
 
-## Layout zones (tablet, landscape, ~1280×800)
+## 5. Datamodel
 
-```
-┌─────────────────────────────────────────────────────┐
-│  HEADER: machine name · current user · clock        │
-├──────────────────┬──────────────────────────────────┤
-│  JOB QUEUE       │  ACTIVE STEP                     │
-│  (left, ~35%)    │  (right, ~65%)                   │
-│                  │                                  │
-│  List of upcoming│  Article name + drawing          │
-│  stappen for     │  NC / drawing download           │
-│  this machine    │  ─────────────────────────       │
-│                  │  Time tracker (start / pause /   │
-│                  │    stop)                         │
-│                  │  ─────────────────────────       │
-│                  │  [ Stap gereed ] big button       │
-└──────────────────┴──────────────────────────────────┘
-```
-
----
-
-## Data model additions needed
-
-### New: `ArticleFile`
-
-Files attached to an article (drawings, NC programs, setup sheets).
-
-```prisma
-model ArticleFile {
-  id          String   @id @default(cuid())
-  articleId   String
-  type        String   // "drawing" | "nc" | "setup" | "other"
-  filename    String   // original filename
-  nasPath     String   // relative path from NAS share root
-  uploadedAt  DateTime @default(now())
-  article     Article  @relation(fields: [articleId], references: [id])
-}
-```
-
-### New: `TimeEntry`
-
-Operator time logs per productie-stap.
+### Nieuw: `TimeEntry`
 
 ```prisma
 model TimeEntry {
-  id              String         @id @default(cuid())
-  productieStapId String
-  operatorId      String
-  startedAt       DateTime
-  stoppedAt       DateTime?
-  durationMinutes Int?
-  productieStap   ProductieStap  @relation(fields: [productieStapId], references: [id])
-  operator        User           @relation(fields: [operatorId], references: [id])
+  id              String    @id @default(uuid())
+  productieStapId String    @map("productie_stap_id")
+  machineId       String    @map("machine_id")
+
+  // Wie: een mens, of niemand (onbemand). Nooit allebei leeg én bemand.
+  operatorId      String?   @map("operator_id")
+  bemanning       String    // 'bemand' | 'onbemand'
+
+  // Wat: instellen of draaien. Spiegelt setupMin / cycleMin (§4).
+  soort           String    // 'instellen' | 'draaien'
+
+  startedAt       DateTime  @map("started_at")
+  stoppedAt       DateTime? @map("stopped_at")
+  /** Afgeleid bij stoppen, maar apart opgeslagen: een correctie achteraf mag
+   *  de gemeten klok niet overschrijven. */
+  minuten         Int?
+  /** Aantal stuks dat in deze regel gemaakt is. Null bij instellen. */
+  aantalStuks     Int?      @map("aantal_stuks")
+
+  /** Handmatig bijgesteld, met reden. Zo blijft zichtbaar wat gemeten is en
+   *  wat iemand er later van vond — dat verschil is zelf een signaal. */
+  gecorrigeerd    Boolean   @default(false)
+  notitie         String?
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([productieStapId])
+  @@index([machineId, startedAt])
+  @@map("time_entries")
 }
 ```
 
-### Extended: `Machine`
+Meerdere regels per stap is normaal: instellen en draaien zijn aparte regels, een
+onderbreking levert een nieuwe regel op, en twee mensen aan één machine leveren
+twee gelijktijdige regels op.
 
-Add the network path to the machine's NC folder on the NAS share.
+### Uitgebreid: `Machine`
 
 ```prisma
 model Machine {
-  // ... existing fields ...
-  networkPath  String?   // UNC or relative NAS path: \\NAS\share\machines\DMG-450TC
+  // ... bestaande velden ...
+  networkPath String? @map("network_path")  // \\NAS\share\machines\DMG-450TC
+  /** Kan deze machine onbemand draaien? Stuurt of de terminal die knop toont. */
+  onbemandMogelijk Boolean @default(false) @map("onbemand_mogelijk")
 }
 ```
 
-### Extended: `ProductieStap`
+### Nieuw: `ArticleFile`
 
-Track completion and assigned operator.
-
-```prisma
-model ProductieStap {
-  // ... existing fields ...
-  gereedOp    DateTime?   // when the step was marked done
-  gereedDoor  String?     // User.id of operator who completed it
-  // relation to TimeEntry added above
-}
-```
+Ongewijzigd overgenomen uit de vorige versie: tekeningen, NC-programma's en
+instelbladen per artikel, met het pad op de NAS. Nodig omdat de terminal ze moet
+kunnen openen zonder dat iemand een map opzoekt.
 
 ---
 
-## Job folder plan
+## 6. Schermindeling (1920×1080, liggend)
 
-When an offerte is **accepted** (`accepteerOfferte` / `POST /:id/accepteer`),
-the backend creates a job folder on the NAS:
-
-```
-<NAS_SHARE_ROOT>/
-  jobs/
-    PRJ-0001/                    ← project folder (project.id)
-      PRJ-0001-klantnaam/        ← human-readable subfolder
-        drawings/                ← copies of article drawings
-        nc/                      ← NC programs per stap
-        docs/                    ← order confirmation PDF etc.
-```
-
-Implementation:
-- `NAS_SHARE_ROOT` env var in `.env` on the NAS (e.g. `/shared/ProductieData`)
-- `fs.mkdirSync` tree created in the `accepteer` transaction callback
-- PDF of OB auto-saved to `docs/`
-
-### NC push to machine
-
-When a productie-stap becomes **actief** (operator starts it on the terminal),
-the API copies the relevant NC file from the job folder to the machine's
-`networkPath` folder, so the CNC controller can pick it up automatically.
+Met een 22"-scherm hoeft er niets weggeklapt te worden: wachtrij, actieve stap
+en tekening passen naast elkaar. Dat is het verschil met het tabletontwerp, waar
+je moest wisselen.
 
 ```
-/jobs/PRJ-0001/.../nc/artikel-stap1.nc
-  → /machines/DMG-450TC/input/artikel-stap1.nc
+┌──────────────────────────────────────────────────────────────────────────┐
+│  DMG-450TC · Addy · 14:32                              [ wissel gebruiker ]│
+├───────────────┬──────────────────────────────┬───────────────────────────┤
+│  WACHTRIJ     │  ACTIEVE STAP                │  TEKENING                 │
+│  (~22%)       │  (~38%)                      │  (~40%)                   │
+│               │                              │                           │
+│  PRJ-2026-007 │  ART-0042 · As ø50x178       │   [ pdf / 3d-weergave ]   │
+│  ART-0042     │  Stap 2 van 4 · draaien      │                           │
+│  4 st         │  4 stuks                     │   [ NC naar machine ]     │
+│  ─────────    │  ───────────────────────     │                           │
+│  PRJ-2026-004 │   ⏱  01:12:40                │                           │
+│  ART-0031     │   instellen · bemand         │                           │
+│  12 st        │                              │                           │
+│  ─────────    │  [ pauze ]     [ stap klaar ]│                           │
+│  …            │                              │                           │
+│               │  [ overschakelen naar draaien ]                          │
+│               │  [ onbemand laten lopen ]    │                           │
+└───────────────┴──────────────────────────────┴───────────────────────────┘
 ```
+
+Knoppen zijn vingergroot (min. 44 px), en de belangrijkste — *stap klaar* —
+staat het verst van de rand zodat je hem niet per ongeluk raakt bij het
+schoonvegen van het scherm.
 
 ---
 
-## API surface (new endpoints)
+## 7. Wat er op de vloer misgaat, en wat het systeem daaraan doet
 
-All under `/api/operator/` — kept separate from office API routes.
+Een tijdregistratie die niet tegen de werkelijkheid kan, levert data op die je
+later niet durft te gebruiken. Deze gevallen moeten in het ontwerp zitten, niet
+achteraf aangeplakt:
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/operator/machine/:machineId/queue` | Active + upcoming stappen for this machine |
-| `GET` | `/operator/stap/:stapId` | Detail: article info + files + time entries |
-| `POST` | `/operator/stap/:stapId/start` | Start time entry, copy NC to machine folder |
-| `POST` | `/operator/stap/:stapId/pause` | Pause active time entry |
-| `POST` | `/operator/stap/:stapId/gereed` | Mark stap done, stop timer, set gereedOp/Door |
-| `GET` | `/operator/articles/:id/files` | List files for article |
-| `POST` | `/operator/articles/:id/files` | Upload file (multipart) |
-| `DELETE` | `/operator/files/:fileId` | Remove file |
-| `GET` | `/operator/files/:fileId/download` | Stream file from NAS |
+| Wat er gebeurt | Wat het systeem doet |
+|---|---|
+| Iemand vergeet te stoppen | Na een instelbare tijd (voorstel: 2× de geschatte tijd, minimaal een uur) een melding op de terminal, en de regel wordt gemarkeerd als "loopt nog" in plaats van stilzwijgend door te tellen |
+| De dag eindigt met een lopende regel | 's Nachts automatisch afsluiten op de laatste bekende activiteit, gemarkeerd als geschat — nooit stilzwijgend een nacht meetellen |
+| Twee mensen aan één machine | Twee gelijktijdige regels, elk met hun eigen actor. Geen conflict |
+| Onbemand doorgedraaid | Eén regel met `bemanning: 'onbemand'`, geen operator, alleen machinetarief |
+| Verkeerd gestart | Corrigeren mag, maar de gemeten klok blijft staan naast de correctie |
+| Terminal offline | Geen offline-eis (LAN, zoals de hoofdapp) — maar een gestarte regel mag niet verdwijnen bij een herstart van de browser |
 
----
-
-## Build phases
-
-### Phase 1 — Article file management (office UI, no new app yet)
-
-- `ArticleFile` Prisma model + migration
-- Upload endpoint + download/delete endpoints
-- File list panel in `ArticleDetailPage` or article drawer
-- Files visible to operator but managed from office
-
-### Phase 2 — Job folders
-
-- `Machine.networkPath` field + migration
-- `accepteer` handler: create job folder tree, copy OB PDF
-- Instellingen → Machines: add network path field
-
-### Phase 3 — Operator app (`apps/operator`)
-
-- New Vite app scaffold (Mantine, same theme tokens)
-- Machine selection screen (one-time setup, stored in `localStorage`)
-- Queue view + active step view
-- Time tracker component
-- "Stap gereed" flow
-- NC push on step start
-
-### Phase 4 — Office integration
-
-- Time report per project (productie cost vs estimate)
-- Operator utilisation view in Machines/Bedrijfskosten
-- NC push status visible in ProductieTab
+Het laatste punt van §7 is een ontwerpeis, geen implementatiedetail: de lopende
+regel staat op de server, niet in de browser.
 
 ---
 
-## Open questions (to decide at implementation time)
+## 8. Bouwvolgorde
 
-- **Auth on tablet**: same user-select dropdown as main app, or PIN per operator?
-- **NAS path env var**: configure in Instellingen → Bedrijf, or only in `.env`?
-- **Conflict if NC file already on machine**: overwrite silently or warn?
-- **File size limit**: NC files are small (<1 MB); drawings can be large PDFs — set limit?
-- **Serve operator app**: same Express process at `/operator`, or a second build target?
+De terminal is de voorkant; het datamodel is de basis. Ze hebben verschillende
+doorlooptijden, en dat is het argument om ze te scheiden.
+
+**Fase 0 — meten kan eerder dan de terminal.**
+`TimeEntry`, de API, en start/stop op de wachtrijkaart die er al staat. Draait op
+de kantoor-pc, met de mensen die er nu zijn. Vanaf dat moment groeit de dataset,
+terwijl de hardware nog uitgezocht wordt. Levert bovendien de kennis die het
+terminalontwerp beter maakt: hoe vaak wordt er vergeten te stoppen, hoe lang
+duren stappen echt, werken er twee mensen aan één machine.
+
+**Fase 1 — bestanden per artikel.** `ArticleFile`, upload en download, beheer
+vanuit kantoor. De terminal kan niets tonen wat er niet is.
+
+**Fase 2 — jobmappen en NC-route.** `Machine.networkPath`, mappenboom op de NAS
+bij het accepteren van een offerte, NC naar de machinemap bij het starten van een
+stap.
+
+**Fase 3 — de terminal.** Kioskroute, wachtrij, actieve stap, tijdregistratie met
+de knoppen uit §6.
+
+**Fase 4 — terugkoppeling naar kantoor.** Geschat versus werkelijk per project en
+per artikel. Dit is waar het om begonnen was: pas hier zie je of de calculatie
+klopt, en pas hier ontstaat de dataset voor een kostenschatter (zie het gesprek
+over LLM-schatting — dat komt hierná, niet ervoor).
+
+---
+
+## 9. Open besluiten
+
+- [ ] **Draait er nu al onbemand, en op welke machines?** Bepaalt of
+      `onbemandMogelijk` meteen zin heeft of voorbereidend is.
+- [ ] **Machinekoppeling later?** Een signaal uit de besturing (MTConnect / OPC UA
+      / IO-module) zou bemand-versus-onbemand en cyclustijden kunnen meten in
+      plaats van laten verklaren. Apart traject, maar het datamodel moet het niet
+      uitsluiten.
+- [ ] **Inloggen aan de terminal:** namenlijst zoals in de hoofdapp, of een pincode
+      per persoon? Een namenlijst op een gedeeld scherm is snel maar niemand is
+      dan echt "ingelogd".
+- [ ] **Kioskroute in de bestaande webapp, of toch `apps/operator`?** De vorige
+      versie koos een aparte app; met een pc-browser is een route in de bestaande
+      app waarschijnlijk genoeg en scheelt het een tweede bundel.
+- [ ] **NAS-pad instellen** in Instellingen → Bedrijf, of alleen via `.env`?
+- [ ] **NC al aanwezig op de machine:** overschrijven of waarschuwen?
+- [ ] **Automatisch afsluiten 's nachts:** op welk tijdstip, en telt zo'n
+      geschatte regel mee in de vergelijking geschat-versus-werkelijk of wordt hij
+      apart gehouden?
