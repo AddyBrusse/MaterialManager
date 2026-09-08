@@ -2317,3 +2317,148 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
   .st-stats { grid-template-columns: repeat(3, 1fr); }
   .st-recv-grid { grid-template-columns: 1fr; }
 }
+
+/* Mail-import: draaiend icoontje terwijl een gesleepte mail wordt gelezen. */
+@keyframes mi-spin { to { transform: rotate(360deg); } }
+
+/* Mail-import: regel boven de tabs met de mail waar dit project uit ontstond. */
+.prj-mail-linked {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 0 10px; padding: 7px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg-2); font-size: 12px; color: var(--text-2);
+}
+.prj-mail-linked > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== Mail-import controlescherm ===== */
+/* Zelfde kaartopmaak als de artikelkiezer (.ap-*): een kop met een dunne
+   scheiding op de sidebar-achtergrond, en de inhoud eronder. Maten volgen de
+   typografische schaal uit frontend/19-visual-design.md — tabeltekst 12.5px,
+   mono 12px, bijschriften 11.5px. Eerder stond hier een eigen setje van 10 tot
+   11.5px; dat las als een ander programma. */
+.mi-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.mi-card-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-3);
+}
+.mi-card-hd .title {
+  font-size: 12px; font-weight: 500; letter-spacing: .04em;
+  color: var(--text-3); text-transform: uppercase;
+}
+.mi-card-hd .badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 500;
+  background: var(--accent-soft); color: var(--accent);
+}
+.mi-card-hd .mi-warn { font-size: 11.5px; color: var(--warning); }
+.mi-card-body { padding: 11px 14px; font-size: 12.5px; }
+
+/* Onderwerp van de mail: de kop van deze kaart, niet een tabelregel. */
+.mi-onderwerp { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+
+/* Afzender en herkomst als rustige definitielijst. */
+.mi-meta { display: grid; grid-template-columns: 130px 1fr; gap: 5px 14px; font-size: 12.5px; }
+.mi-meta dt { color: var(--text-3); }
+.mi-meta dd { margin: 0; color: var(--text); }
+.mi-meta dd.mono { font-family: var(--font-mono); font-size: 12px; }
+
+/* Bijlagenlijst. */
+.mi-bijlage { display: flex; align-items: baseline; gap: 10px; padding: 3px 0; }
+.mi-bijlage .naam { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12.5px; }
+.mi-bijlage .maat { font-family: var(--font-mono); font-size: 12px; color: var(--text-3); white-space: nowrap; }
+.mi-noot { font-size: 11.5px; color: var(--text-3); margin: 1px 0 5px; }
+
+.mi-table { width: 100%; table-layout: fixed; font-size: 12.5px; }
+.mi-table td { vertical-align: top; }
+/* De preview-cel houdt zijn eigen hoogte, anders springt de rij bij het laden. */
+.mi-table td:first-child { padding-top: 8px; padding-bottom: 8px; }
+.mi-table .cell-mono { font-size: 12px; }
+/* Bestandsnamen onder een regel: bijschrift, en afkappen — ze mogen de rij
+   niet uit elkaar duwen. De volledige naam staat in de title. */
+.mi-bestand {
+  font-size: 11.5px; color: var(--text-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mi-toelichting { font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
+.mi-status { font-size: 11.5px; }
+.mi-samenvatting { font-size: 11.5px; color: var(--text-3); line-height: 1.55; }
+
+/* Voortgangsbalk voor het inlezen van een mail. De vulling komt uit een
+   voorspelling op basis van eerdere metingen (utils/voortgang.ts) — hij bereikt
+   nooit 100%, want klaar is hij pas als het antwoord er is. */
+.mi-voortgang {
+  height: 3px; margin-top: 6px; border-radius: 2px;
+  background: var(--bg-chip); overflow: hidden;
+}
+.mi-voortgang span {
+  display: block; height: 100%; border-radius: 2px;
+  background: var(--accent);
+  /* De breedte komt uit de voorspelling; de overgang maakt hem vloeiend
+     zonder de indruk te wekken dat er echte voortgang gemeten wordt. */
+  transition: width .3s linear;
+}
+
+/* Kop van het controlescherm: klant en contact naast de ordergegevens. */
+.mi-klantgrid {
+  display: grid;
+  grid-template-columns: 1.4fr 1.4fr auto auto 1fr;
+  gap: 12px 16px;
+  align-items: start;
+}
+@media (max-width: 1000px) { .mi-klantgrid { grid-template-columns: 1fr 1fr; } }
+.mi-kerngetal .k {
+  font-size: 11px; color: var(--text-3);
+  letter-spacing: .02em; margin-bottom: 3px;
+}
+.mi-kerngetal .v { font-size: 13px; font-weight: 500; }
+.mi-kerngetal .v.mono { font-family: var(--font-mono); font-size: 12.5px; }
+
+/* Waarschuwing binnen een kaart: prijsafwijking, offerte al gevuld. */
+.mi-alarm {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; font-size: 12px;
+  color: var(--danger); background: var(--danger-soft);
+  border-bottom: 1px solid var(--border);
+}
+.mi-alarm svg { flex-shrink: 0; }
+
+.mi-acties { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Technische details — standaard dicht. Alles wat je alleen nodig hebt als er
+   iets niet klopt, bij elkaar in plaats van verspreid over het scherm. */
+.mi-debug { margin-bottom: 12px; }
+.mi-debug > summary {
+  cursor: pointer; font-size: 12px; color: var(--text-3);
+  padding: 6px 2px; user-select: none;
+}
+.mi-debug > summary:hover { color: var(--text-2); }
+.mi-debug-body {
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-2); padding: 12px 14px;
+  display: grid; gap: 14px;
+}
+.mi-debug-blok .kop {
+  font-size: 11px; font-weight: 500; letter-spacing: .04em;
+  color: var(--text-3); text-transform: uppercase; margin-bottom: 6px;
+}
+.mi-bijlage-rij { padding: 2px 0; }
+.mi-tekstlaag {
+  width: 100%; height: 150px; margin-top: 4px; resize: vertical;
+  font-family: var(--font-mono); font-size: 12px; line-height: 1.5;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg); color: var(--text-2); padding: 6px;
+  white-space: pre; overflow: auto;
+}
+.mi-berichttekst {
+  white-space: pre-wrap; font-size: 12px; margin: 0;
+  max-height: 200px; overflow: auto; color: var(--text-2);
+}

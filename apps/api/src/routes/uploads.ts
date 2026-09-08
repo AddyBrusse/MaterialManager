@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import { config } from '../config'
 import { AppError } from '../middleware/error'
+import { sanitizeFilename } from '../lib/filenames'
 
 const router = Router()
 
@@ -15,13 +16,6 @@ function makeStorage(subdir: string) {
       cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`)
     },
   })
-}
-
-// Strip characters that are unsafe on Windows/NAS (SMB) filesystems, keeping
-// the rest of the original name readable — attachments are meant to be
-// browsable directly on disk (one folder per article), not just opaque blobs.
-function sanitizeFilename(name: string): string {
-  return name.replace(/[\\/:*?"<>|]/g, '_').slice(0, 200)
 }
 
 const photoUpload = multer({

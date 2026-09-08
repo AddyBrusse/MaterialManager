@@ -4,6 +4,7 @@ import cors from 'cors'
 import path from 'path'
 import fs from 'fs'
 import { config } from './config'
+import { assertSharedGebouwd } from './lib/shared-check'
 import { prisma } from './db/client'
 import { asyncHandler } from './lib/async-handler'
 import { userContext } from './middleware/user-context'
@@ -32,6 +33,7 @@ import reservationsRouter from './routes/reservations'
 import sequencesRouter from './routes/sequences'
 import preferencesRouter from './routes/preferences'
 import todosRouter from './routes/todos'
+import mailImportsRouter from './routes/mail-imports'
 
 const app = express()
 
@@ -40,7 +42,7 @@ const app = express()
 app.set('trust proxy', 1)
 
 // Ensure upload directories exist
-for (const dir of ['photos', 'drawings']) {
+for (const dir of ['photos', 'drawings', 'mail-imports']) {
   fs.mkdirSync(path.join(config.uploadsDir, dir), { recursive: true })
 }
 
@@ -84,6 +86,7 @@ app.use('/api/reservations', reservationsRouter)
 app.use('/api/sequences', sequencesRouter)
 app.use('/api/preferences', preferencesRouter)
 app.use('/api/todos', todosRouter)
+app.use('/api/mail-imports', mailImportsRouter)
 
 // Serve uploaded files
 app.use('/uploads', express.static(config.uploadsDir))
@@ -96,6 +99,10 @@ if (!config.isDev) {
 }
 
 app.use(errorMiddleware)
+
+// Vóór het luisteren: draait dit tegen een verse build van de gedeelde
+// schema's? Zo niet, meteen stoppen met een bruikbare melding.
+assertSharedGebouwd()
 
 app.listen(config.port, () => {
   console.log(`ShopCommand API running on port ${config.port} (${config.nodeEnv})`)

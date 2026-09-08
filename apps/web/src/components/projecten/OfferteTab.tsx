@@ -395,6 +395,7 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
             {/* Lines table */}
             {offerte.regels.length > 0 ? (
               <RegelsTable
+                projectId={project.id}
                 regels={offerte.regels}
                 grades={grades}
                 profiles={profiles}

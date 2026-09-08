@@ -24,7 +24,11 @@ export async function apiUpload<T>(path: string, file: File): Promise<{ data: T 
   const json = await res.json()
 
   if (!res.ok) {
-    const msg = json?.error?.message ?? `HTTP ${res.status}`
+    // De server stuurt bij een 500 in ontwikkeling de echte reden mee; die
+    // hoort in de melding, anders staat er alleen "Interne serverfout" en
+    // begint het zoeken opnieuw.
+    const reden = json?.error?.details?.reden
+    const msg = [json?.error?.message ?? `HTTP ${res.status}`, reden].filter(Boolean).join(' — ')
     throw new Error(msg)
   }
 
@@ -59,7 +63,11 @@ export async function apiFetch<T>(
   const json = raw ? JSON.parse(raw) : null
 
   if (!res.ok) {
-    const msg = json?.error?.message ?? `HTTP ${res.status}`
+    // De server stuurt bij een 500 in ontwikkeling de echte reden mee; die
+    // hoort in de melding, anders staat er alleen "Interne serverfout" en
+    // begint het zoeken opnieuw.
+    const reden = json?.error?.details?.reden
+    const msg = [json?.error?.message ?? `HTTP ${res.status}`, reden].filter(Boolean).join(' — ')
     throw new Error(msg)
   }
 

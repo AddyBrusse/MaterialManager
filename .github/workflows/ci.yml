@@ -26,3 +26,8 @@ jobs:
         # Root build runs: shared → api → web. The api workspace's `prebuild`
         # hook runs `prisma generate` first (no database needed for codegen).
         run: npm run build
+
+      - name: Test
+        # Unit tests only — no database needed. Runs after the build so the
+        # shared package is compiled before the workspaces import it.
+        run: npm test
