@@ -4,6 +4,7 @@ import cors from 'cors'
 import path from 'path'
 import fs from 'fs'
 import { config } from './config'
+import { assertSharedGebouwd } from './lib/shared-check'
 import { prisma } from './db/client'
 import { asyncHandler } from './lib/async-handler'
 import { userContext } from './middleware/user-context'
@@ -98,6 +99,10 @@ if (!config.isDev) {
 }
 
 app.use(errorMiddleware)
+
+// Vóór het luisteren: draait dit tegen een verse build van de gedeelde
+// schema's? Zo niet, meteen stoppen met een bruikbare melding.
+assertSharedGebouwd()
 
 app.listen(config.port, () => {
   console.log(`ShopCommand API running on port ${config.port} (${config.nodeEnv})`)
