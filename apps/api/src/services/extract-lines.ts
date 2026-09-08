@@ -122,6 +122,11 @@ function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateL
   const base = baseNameOf(filename)
   if (!base || IGNORED_EXTENSIONS.has(ext) || IGNORED_NAMES.test(base)) return null
   if (DOCUMENT_NAMES.test(base)) return null
+  // Een onderdeel wordt hier altijd met een nummer aangeduid. Een bijlage die
+  // alleen uit woorden bestaat ("order.pdf", "scan.pdf", "tekeningen.pdf") is
+  // een document, geen tekeningnummer — zonder deze regel wordt "order" een
+  // offerteregel.
+  if (!/\d{3,}/.test(base)) return null
   if (ext && !PART_EXTENSIONS.has(ext)) return null
 
   let tekening = base
@@ -163,20 +168,59 @@ function fromBodyLine(line: string): Omit<CandidateLine, 'id' | 'matches' | 'sta
   if (/^\s*>*\s*(van|from|aan|to|verzonden|sent|onderwerp|subject|cc)\s*:/i.test(trimmed)) return null
 
   const qty = findQty(trimmed)
-  // Een code met minstens één cijfer en wat lengte — anders vist dit gewone
-  // woorden uit de begeleidende tekst op.
-  const code = trimmed.match(/\b([A-Z]{0,4}[-_]?\d{4,10}(?:[-_][A-Z0-9]{1,4})?)\b/i)
+  const code = findCode(trimmed)
   if (!code || qty === null) return null
 
   return {
     ruweTekst: trimmed,
-    tekening: code[1],
+    tekening: code,
     rev: findRev(trimmed),
     positie: null,
     qty,
     bron: 'body' as CandidateSource,
     attachmentFilename: null,
   }
+}
+
+/**
+ * Een tekeningnummer in een regel tekst.
+ *
+ * De groepen achter het eerste getal worden herhaald gepakt: een nummer als
+ * `2604307-1-2615-0091-0530-1` is één code, niet `2604307-1` met rommel erna.
+ * Minstens vier cijfers aan het begin, anders vist dit posities en aantallen
+ * uit een ordertabel op.
+ */
+function findCode(text: string): string | null {
+  const m = text.match(/\b([A-Z]{0,4}[-_]?\d{4,10}(?:[-_][A-Z0-9]{1,6})*)\b/i)
+  return m ? m[1] : null
+}
+
+/**
+ * Regels uit de tekst van een meegestuurde PDF — meestal de orderregeltabel
+ * van de inkooporder. Daar staan de aantallen die in de bestandsnamen ontbreken.
+ */
+function fromDocumentText(
+  filename: string,
+  tekst: string
+): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'>[] {
+  const out: Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'>[] = []
+  for (const line of tekst.split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (trimmed.length < 6 || trimmed.length > 300) continue
+    const qty = findQty(trimmed)
+    const code = findCode(trimmed)
+    if (!code || qty === null) continue
+    out.push({
+      ruweTekst: trimmed,
+      tekening: stripExportStamp(code),
+      rev: findRev(trimmed),
+      positie: null,
+      qty,
+      bron: 'pdf' as CandidateSource,
+      attachmentFilename: filename,
+    })
+  }
+  return out
 }
 
 /** Twee bestanden van hetzelfde onderdeel (een pdf én een step) is één regel. */
@@ -215,6 +259,12 @@ export function extractLines(mail: NormalizedMail): CandidateLine[] {
   for (const att of mail.attachments) {
     if (att.isEmbeddedMessage) continue // dat is een bericht, geen onderdeel
     add(fromFilename(att.filename, orderNumbers))
+  }
+  // Dan de tekst uit de meegestuurde documenten: die vult vooral de aantallen
+  // aan op de regels die de bestandsnamen al opleverden, en voegt regels toe
+  // die de klant wel bestelde maar niet als tekening meestuurde.
+  for (const att of mail.attachments) {
+    if (att.tekst) for (const kandidaat of fromDocumentText(att.filename, att.tekst)) add(kandidaat)
   }
   for (const line of mail.bodyText.split(/\r?\n/)) add(fromBodyLine(line))
 

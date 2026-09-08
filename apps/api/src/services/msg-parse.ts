@@ -85,6 +85,9 @@ function attachmentsOf(d: FieldsData): MailAttachment[] {
     sizeBytes: a.contentLength ?? 0,
     path: null,
     isEmbeddedMessage: Boolean(a.innerMsgContent),
+    // Wordt bij het binnenhalen gevuld voor PDF's (zie services/pdf-text).
+    tekst: null,
+    tekstPath: null,
   }))
 }
 

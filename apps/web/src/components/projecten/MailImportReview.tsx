@@ -158,14 +158,51 @@ export function MailImportReview({
           <div className="ad-eyebrow"><IconPaperclip size={13} />Bijlagen ({mailImport.bijlagen.length})</div>
           <div className="info-rows">
             {mailImport.bijlagen.map((b) => (
-              <div className="info-line" key={b.path ?? b.filename}>
-                <span className="k" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
-                  {b.path ? <a href={b.path} target="_blank" rel="noreferrer">{b.filename}</a> : b.filename}
-                </span>
-                <span className="v mono">
-                  {Math.max(1, Math.round(b.sizeBytes / 1024))} kB
-                  {b.isEmbeddedMessage && <span style={{ color: 'var(--text-4)' }}> · bericht</span>}
-                </span>
+              <div key={b.path ?? b.filename}>
+                <div className="info-line">
+                  <span className="k" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                    {b.path ? <a href={b.path} target="_blank" rel="noreferrer">{b.filename}</a> : b.filename}
+                  </span>
+                  <span className="v mono">
+                    {Math.max(1, Math.round(b.sizeBytes / 1024))} kB
+                    {b.isEmbeddedMessage && <span style={{ color: 'var(--text-4)' }}> · bericht</span>}
+                  </span>
+                </div>
+                {/* De uitgelezen tekst van een PDF. Hieruit komen de aantallen,
+                    dus als een regel ontbreekt is dit de plek om te kijken wat
+                    er wél gelezen is. */}
+                {b.tekst && (
+                  <details style={{ margin: '2px 0 6px' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--text-4)' }}>
+                      Uitgelezen tekst ({b.tekst.length.toLocaleString('nl-NL')} tekens)
+                      {b.tekstPath && (
+                        <>
+                          {' · '}
+                          <a href={b.tekstPath} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                            volledig
+                          </a>
+                        </>
+                      )}
+                    </summary>
+                    <textarea
+                      readOnly
+                      value={b.tekst}
+                      spellCheck={false}
+                      style={{
+                        width: '100%', height: 160, marginTop: 4, resize: 'vertical',
+                        fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 11, lineHeight: 1.45,
+                        border: '1px solid var(--border)', borderRadius: 4,
+                        background: 'var(--bg-2)', color: 'var(--text-2)', padding: 6,
+                        whiteSpace: 'pre', overflow: 'auto',
+                      }}
+                    />
+                  </details>
+                )}
+                {!b.tekst && b.filename.toLowerCase().endsWith('.pdf') && !b.isEmbeddedMessage && (
+                  <div style={{ fontSize: 10.5, color: 'var(--text-4)', margin: '2px 0 6px' }}>
+                    Geen tekst uit deze PDF te halen — waarschijnlijk een scan.
+                  </div>
+                )}
               </div>
             ))}
           </div>

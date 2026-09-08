@@ -29,6 +29,13 @@ export const MailAttachmentSchema = z.object({
   path: z.string().nullable(),
   /** Een .msg-bijlage die zelf een bericht is (doorgestuurd als bijlage). */
   isEmbeddedMessage: z.boolean(),
+  /**
+   * Uitgelezen tekst van een PDF, ingekort voor weergave. Null als het geen
+   * PDF is of als er geen tekstlaag in zit (een scan).
+   */
+  tekst: z.string().nullable().default(null),
+  /** De volledige uitgelezen tekst als bestand, naast de bijlage zelf. */
+  tekstPath: z.string().nullable().default(null),
 })
 export type MailAttachment = z.infer<typeof MailAttachmentSchema>
 

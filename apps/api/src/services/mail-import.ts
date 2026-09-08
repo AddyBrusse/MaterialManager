@@ -14,6 +14,7 @@ import { sanitizeFilename } from '../lib/filenames'
 import { parseMsg, readAttachments } from './msg-parse'
 import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
 import { extractLines } from './extract-lines'
+import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
 
 /**
@@ -256,6 +257,19 @@ export async function ingestMsgBuffer(
   source: NormalizedMail['source'] = 'drop'
 ): Promise<IngestResult> {
   const { mail, embedded } = parseMsg(buf, source)
+
+  // Bijlagen meteen uitpakken: de tekst uit de meegestuurde PDF's (de
+  // inkooporder) is nodig vóór de extractie, want daar staan de aantallen.
+  const extracted = readAttachments(buf)
+  const teksten = await Promise.all(
+    extracted.map((a) => (a.isEmbeddedMessage ? Promise.resolve(null) : pdfText(a.content)))
+  )
+  mail.attachments = mail.attachments.map((a, i) => ({
+    ...a,
+    tekst: teksten[i] ? teksten[i]!.slice(0, MAX_TEXT_CHARS) : null,
+    tekstPath: null,
+  }))
+
   const own = await loadOwnIdentity(prisma)
   const resolutie = resolveSender(mail, embedded, own)
   const key = dedupeKey(mail)
@@ -328,14 +342,28 @@ export async function ingestMsgBuffer(
     bodyHtmlPath = `/uploads/mail-imports/${created.id}/body.html`
   }
 
-  const bijlagen: MailAttachment[] = readAttachments(buf).map((a) => {
+  const bijlagen: MailAttachment[] = extracted.map((a, i) => {
     const name = uniqueName(dir, a.filename)
     fs.writeFileSync(path.join(dir, name), a.content)
+
+    // De volledige uitgelezen tekst als los .txt naast de bijlage: in de app
+    // wordt een ingekorte versie getoond, maar bij twijfel wil je het geheel
+    // kunnen nalezen — ook rechtstreeks op de NAS.
+    let tekstPath: string | null = null
+    const volledig = teksten[i]
+    if (volledig) {
+      const txtName = uniqueName(dir, `${name}.txt`)
+      fs.writeFileSync(path.join(dir, txtName), volledig, 'utf8')
+      tekstPath = `/uploads/mail-imports/${created.id}/${txtName}`
+    }
+
     return {
       filename: a.filename,
       sizeBytes: a.content.length,
       path: `/uploads/mail-imports/${created.id}/${name}`,
       isEmbeddedMessage: a.isEmbeddedMessage,
+      tekst: volledig ? volledig.slice(0, MAX_TEXT_CHARS) : null,
+      tekstPath,
     }
   })
 
