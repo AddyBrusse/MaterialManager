@@ -235,10 +235,19 @@ function uniqueName(dir: string, filename: string): string {
   return `${Date.now()}-${safe}`
 }
 
+function loadKlantRelaties(prisma: PrismaClient) {
+  return prisma.relatie.findMany({
+    where: { type: { in: ['klant', 'beide'] } },
+    select: { id: true, naam: true, email: true, emailOfferte: true, emailFactuur: true, contacten: true },
+  })
+}
+
 export interface IngestResult {
   mailImport: MailImport
   /** True als deze mail al eerder binnengehaald was; er is dan niets nieuws gemaakt. */
   duplicate: boolean
+  /** True als die bestaande import opnieuw is uitgelezen omdat er nog niets over beslist was. */
+  refreshed?: boolean
 }
 
 export async function ingestMsgBuffer(
@@ -254,13 +263,36 @@ export async function ingestMsgBuffer(
   // Dezelfde mail twee keer inslepen is geen fout — dat gebeurt gewoon. De
   // bestaande import teruggeven is nuttiger dan een foutmelding.
   const existing = await prisma.mailImport.findUnique({ where: { dedupeKey: key } })
-  if (existing) return { mailImport: serializeMailImport(existing), duplicate: true }
+  if (existing) {
+    // ...maar wél opnieuw uitlezen zolang er nog niets over beslist is. De mail
+    // is dezelfde; onze herkenning kan intussen beter zijn geworden, en de
+    // klant of het artikel kan er sindsdien bij zijn gezet. Zonder dit krijg je
+    // bij een tweede poging stilzwijgend het oude resultaat terug.
+    const oud = (existing.kandidaten ?? []) as CandidateLine[]
+    const onaangeroerd =
+      !existing.projectId && existing.status === 'nieuw' && !oud.some((k) => k.handmatig)
 
-  const relaties = await prisma.relatie.findMany({
-    where: { type: { in: ['klant', 'beide'] } },
-    select: { id: true, naam: true, email: true, emailOfferte: true, emailFactuur: true, contacten: true },
-  })
-  const suggestion = suggestRelatie(resolutie.klant, relaties)
+    if (!onaangeroerd) return { mailImport: serializeMailImport(existing), duplicate: true }
+
+    const relaties = await loadKlantRelaties(prisma)
+    const suggestion = existing.relatieId
+      ? null
+      : suggestRelatie(resolutie.klant, relaties)
+    const relatieId = existing.relatieId ?? suggestion?.relatieId ?? null
+    const kandidaten = await buildCandidates(prisma, mail, relatieId)
+
+    const ververst = await prisma.mailImport.update({
+      where: { id: existing.id },
+      data: {
+        relatieId,
+        resolutie: resolutie as unknown as Prisma.InputJsonValue,
+        kandidaten: kandidaten as unknown as Prisma.InputJsonValue,
+      },
+    })
+    return { mailImport: serializeMailImport(ververst), duplicate: true, refreshed: true }
+  }
+
+  const suggestion = suggestRelatie(resolutie.klant, await loadKlantRelaties(prisma))
 
   // Regels uit de mail halen en tegen de artikeldatabase leggen (§3.4/§3.5).
   // Aliassen alleen van de vermoedelijke relatie: "P-4471" betekent iets

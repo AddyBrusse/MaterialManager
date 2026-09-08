@@ -34,9 +34,11 @@ export function MailDropzone({ projectId, onImported }: Props) {
       const result = await mailImportsApi.upload(file)
       if (result.duplicate) {
         notifications.show({
-          color: 'orange',
+          color: result.refreshed ? 'blue' : 'orange',
           title: 'Deze mail was er al',
-          message: 'Er is niets dubbel aangemaakt — de eerdere import wordt geopend.',
+          message: result.refreshed
+            ? 'De eerdere import is opnieuw uitgelezen — er was nog niets over beslist.'
+            : 'Er is niets dubbel aangemaakt; de eerdere import wordt geopend zoals hij was.',
         })
       }
       onImported(result.mailImport)

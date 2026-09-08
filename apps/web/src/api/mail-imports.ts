@@ -5,6 +5,8 @@ export interface IngestResult {
   mailImport: MailImport
   /** True als deze mail al eerder was binnengehaald — er is niets nieuws gemaakt. */
   duplicate: boolean
+  /** True als die bestaande import opnieuw is uitgelezen (er was nog niets over beslist). */
+  refreshed?: boolean
 }
 
 export interface UpdateMailImport {
