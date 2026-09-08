@@ -153,6 +153,7 @@ function OBCard({ project, ob, onChanged }: OBCardProps) {
         <div className="prj-off-body">
           {/* Regels table — shared with OfferteTab via RegelsTable */}
           <RegelsTable
+            projectId={project.id}
             regels={ob.regels}
             grades={grades}
             profiles={profiles}

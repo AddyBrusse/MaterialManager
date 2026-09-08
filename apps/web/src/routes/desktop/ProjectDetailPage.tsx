@@ -508,9 +508,18 @@ export function ProjectDetailPage() {
             // De relatie uit het reviewscherm is de bevestigde keuze; die hoort
             // meteen op het project te staan, samen met het onderwerp als naam
             // wanneer het project nog naamloos is.
+            // Ook de ordergegevens uit de mail: het kenmerk waarmee de klant
+            // hiernaar verwijst, en de datum waarop hij het wil hebben. Alleen
+            // wat nog leeg is — wie het zelf invulde had daar een reden voor.
+            // Dit gebeurt hier en niet in mail-naar-offerte.ts, omdat deze
+            // pagina die velden bezit en ze met een debounce persisteert.
             setMeta({
               relatieId,
               ...(meta.naam.trim() ? {} : { naam: saved.onderwerp.slice(0, 80) }),
+              ...(meta.klantRef.trim() || !saved.klantRef ? {} : { klantRef: saved.klantRef }),
+              ...(meta.levertijdDatum.trim() || !saved.leverdatum
+                ? {}
+                : { levertijdDatum: saved.leverdatum.slice(0, 10) }),
             })
             notifications.show({ color: 'green', message: 'Mail gekoppeld aan dit project.' })
           }}

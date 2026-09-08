@@ -104,11 +104,6 @@ export function MailImportReview({
           color: r.zonderPrijs > 0 ? 'orange' : 'green',
           title: `${r.aantalRegels} regel${r.aantalRegels === 1 ? '' : 's'} op offerte ${r.offerteId}`,
           message: [
-            r.projectVelden.length > 0
-              ? `Op het project ingevuld: ${r.projectVelden
-                  .map((v) => (v === 'klantRef' ? 'klantreferentie' : 'leverdatum'))
-                  .join(' en ')}.`
-              : null,
             nieuw > 0
               ? `${nieuw} nieuw artikel${nieuw === 1 ? '' : 'en'} aangemaakt (${r.nieuweArtikelen.join(', ')}) met de meegestuurde tekeningen.`
               : null,

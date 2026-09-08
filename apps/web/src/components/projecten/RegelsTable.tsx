@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { IconPencil, IconTrash } from '@tabler/icons-react'
 import type { Grade, Profile, OfferteRegel } from '@stockmanager/shared'
 import type { Machine } from '../../api/machines'
@@ -20,11 +21,14 @@ interface RegelsTableProps {
   onRowClick?: (r: OfferteRegel) => void
   onDeleteRegel?: (id: string) => void
   footerRows: ReactNode
+  /** Nodig om vanuit een regel naar het artikel te springen én terug te komen. */
+  projectId?: string
 }
 
 export function RegelsTable({
-  regels, grades, profiles, machines, isLocked, onRowClick, onDeleteRegel, footerRows,
+  regels, grades, profiles, machines, isLocked, onRowClick, onDeleteRegel, footerRows, projectId,
 }: RegelsTableProps) {
+  const navigate = useNavigate()
   const allArticles = articlesApi.list()
   const showActions = !isLocked && !!onDeleteRegel
 
@@ -80,8 +84,30 @@ export function RegelsTable({
                 style={{ cursor: onRowClick && !isLocked ? 'pointer' : 'default' }}
                 onClick={() => onRowClick && !isLocked && onRowClick(r)}
               >
+                {/* Het artikelnummer is de weg naar het artikel zelf — daar
+                    pas je de calculatie of de tekening aan. Klik stopt hier,
+                    anders opent ook de regel-drawer eronder. `returnTo` brengt
+                    je daarna terug, dezelfde afspraak als de artikelkiezer. */}
                 <td className="cell-muted cell-mono" style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.artikelId ?? '—'}
+                  {r.artikelId ? (
+                    <a
+                      href={`/artikelen/${r.artikelId}`}
+                      title={`Artikel ${r.artikelId} openen`}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        navigate(
+                          projectId
+                            ? `/artikelen/${r.artikelId}?returnTo=/projecten/${projectId}`
+                            : `/artikelen/${r.artikelId}`
+                        )
+                      }}
+                    >
+                      {r.artikelId}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td style={{ padding: '6px 8px' }}>
                   <ArtikelPreviewThumb article={art} />

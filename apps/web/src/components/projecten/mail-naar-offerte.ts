@@ -26,8 +26,6 @@ export interface OvernameResultaat {
   zonderPrijs: number
   /** Artikelen die hier zijn ontstaan omdat de klant iets nieuws vroeg. */
   nieuweArtikelen: string[]
-  /** Projectvelden die uit de mail zijn ingevuld, voor de melding achteraf. */
-  projectVelden: string[]
 }
 
 function omschrijvingVan(line: CandidateLine): string {
@@ -118,20 +116,12 @@ export async function neemRegelsOver({
     machines: machinesApi.listSync(),
   }
 
-  // Wat om de regels heen stond hoort bij het project, niet bij een regel: het
-  // ordernummer waarmee de klant hiernaar verwijst, en de datum waarop hij het
-  // wil hebben. Alleen invullen wat leeg is — wie het project met de hand heeft
-  // ingevuld, heeft daar een reden voor gehad.
+  // De projectvelden (klantreferentie, leverdatum) worden hier bewust *niet*
+  // geschreven. De projectpagina houdt die in eigen state en persisteert ze met
+  // een debounce; een update vanaf hier werd daar 400 ms later overheen
+  // geschreven en verdween zonder spoor. Wie het veld bezit, schrijft het —
+  // de pagina vult ze in via onLinked.
   let werkProject = project
-  const projectPatch: { klantRef?: string; levertijdDatum?: string } = {}
-  if (mailImport.klantRef && !werkProject.klantRef) projectPatch.klantRef = mailImport.klantRef
-  if (mailImport.leverdatum && !werkProject.levertijdDatum) {
-    projectPatch.levertijdDatum = mailImport.leverdatum.slice(0, 10)
-  }
-  if (Object.keys(projectPatch).length > 0) {
-    werkProject = projectsApi.update(werkProject.id, projectPatch)
-  }
-
   let offerte = werkProject.offertes[werkProject.offertes.length - 1]
   if (!offerte) {
     werkProject = projectsApi.addOfferte(werkProject.id)
@@ -173,6 +163,5 @@ export async function neemRegelsOver({
     aantalRegels: mailImport.kandidaten.length,
     zonderPrijs,
     nieuweArtikelen,
-    projectVelden: Object.keys(projectPatch),
   }
 }
