@@ -80,6 +80,7 @@ router.get(
 
 const UpdateMailImportSchema = z.object({
   relatieId: z.string().nullable().optional(),
+  contactId: z.string().nullable().optional(),
   intent: z.enum(MAIL_INTENTS).optional(),
   status: z.enum(MAIL_IMPORT_STATUSES).optional(),
   projectId: z.string().nullable().optional(),

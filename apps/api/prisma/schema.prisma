@@ -448,6 +448,9 @@ model MailImport {
   // Uitkomst van de afzender-resolutie (§3.2): direct, doorgestuurd of onbekend.
   resolutie     Json?
   relatieId     String?   @map("relatie_id")
+  // Het contact bij die relatie waar de mail vandaan kwam, als het adres te
+  // herleiden is. Gaat bij het koppelen mee naar het project.
+  contactId     String?   @map("contact_id")
   intent        String    @default("onbekend")
   // Wat de extractie voorstelde — bewaard zodat achteraf te zien is waarom een
   // regel verkeerd gematcht werd.

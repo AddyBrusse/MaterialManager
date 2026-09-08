@@ -33,6 +33,14 @@ const AiLineSchema = z.object({
     .nullable()
     .describe('Het tekening- of artikelnummer van de klant, precies zoals het er staat. Null als er geen nummer bij staat.'),
   omschrijving: z.string().nullable().describe('De omschrijving van het onderdeel, in de taal van de klant.'),
+  klantArtikel: z
+    .string()
+    .nullable()
+    .describe('Het artikelnummer van de klant zelf, als hij dat apart vermeldt (bijvoorbeeld bij "Uw artikelnummer"). Null als het er niet staat.'),
+  prijs: z
+    .number()
+    .nullable()
+    .describe('De stuksprijs die de klant noemt, in de valuta van het document. Alleen als die er echt staat; bij een offerteaanvraag meestal niet.'),
   qty: z.number().nullable().describe('Het gevraagde aantal stuks. Null als de klant geen aantal noemt.'),
   rev: z.string().nullable().describe('Revisie-aanduiding, bijvoorbeeld "B" of "01". Null als die er niet is.'),
   positie: z.number().nullable().describe('Regel- of positienummer op de order. Null als er geen posities zijn.'),
@@ -90,7 +98,9 @@ Belangrijk:
 - Elke regel krijgt een bronTekst die LETTERLIJK in het aangeleverde materiaal staat. Kopieer die tekst, parafraseer hem niet.
 - Zet in bronBestand de exacte bestandsnaam van de bijlage waar de regel uit komt, of null als hij uit de mailtekst komt.
 - Staat er geen enkel onderdeel in? Geef dan een lege lijst regels terug.
-- Neem ook het ordernummer van de klant en de gevraagde leverdatum over als die in het document staan. Verzin ze niet.`
+- Neem ook het ordernummer van de klant en de gevraagde leverdatum over als die in het document staan. Verzin ze niet.
+- Staat er een stuksprijs bij een regel, neem die dan over. Bedragen zijn per stuk, niet het regeltotaal; staat er alleen een totaal, deel dat dan niet zelf — geef dan null.
+- Het artikelnummer van de klant is iets anders dan het tekeningnummer. Staan ze allebei, geef ze allebei.`
 
 // ── De invoer voor het model ──────────────────────────────────────────────────
 
@@ -384,6 +394,9 @@ export function buildLines(
       positie: r.positie,
       qty: r.qty,
       bron: (r.bronBestand ? 'pdf' : 'body') as CandidateSource,
+      klantArtikel: r.klantArtikel,
+      klantPrijs: r.prijs,
+      omschrijving: r.omschrijving,
       attachmentFilename: r.bronBestand,
       bestanden: [],
       matches: [],

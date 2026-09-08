@@ -173,7 +173,17 @@ export function suggestRelatie(
 // ── Regels en artikelen ──────────────────────────────────────────────────────
 
 async function loadArticles(prisma: PrismaClient): Promise<ArticleCandidate[]> {
-  return prisma.article.findMany({ select: { id: true, naam: true, tekening: true, rev: true } })
+  // relatieId hoort erbij: een tekeningnummer is van de klant, dus een gelijk
+  // nummer bij een ándere klant mag nooit automatisch voorvullen (§3.5).
+  return prisma.article.findMany({
+    select: { id: true, naam: true, tekening: true, rev: true, relatieId: true },
+  })
+}
+
+/** Namen van relaties, zodat het reviewscherm kan zeggen bij wie een artikel hoort. */
+async function loadRelatieNamen(prisma: PrismaClient): Promise<Map<string, string>> {
+  const rijen = await prisma.relatie.findMany({ select: { id: true, naam: true } })
+  return new Map(rijen.map((r) => [r.id, r.naam]))
 }
 
 async function loadAliases(prisma: PrismaClient, relatieId: string | null): Promise<AliasCandidate[]> {
@@ -182,6 +192,33 @@ async function loadAliases(prisma: PrismaClient, relatieId: string | null): Prom
     where: { relatieId },
     select: { externalRef: true, articleId: true },
   })
+}
+
+/**
+ * Welk contact bij deze relatie stuurde de mail?
+ *
+ * Alleen op e-mailadres, want dat is het enige harde bewijs. Een naam die
+ * lijkt op een contact is te zwak: bij twee collega's met dezelfde voornaam
+ * zit je meteen fout, en een verkeerd contact op een offerte is pijnlijker
+ * dan een leeg veld.
+ */
+export function suggestContact(klantEmail: string | null, contacten: unknown): string | null {
+  const email = klantEmail?.toLowerCase().trim()
+  if (!email) return null
+  // Zelfde voorzichtigheid als contactEmails(): het veld komt uit een Json-kolom
+  // en is soms als string weggeschreven.
+  const lijst = typeof contacten === 'string' ? veiligeJson(contacten) : contacten
+  if (!Array.isArray(lijst)) return null
+  const treffers = lijst.filter(
+    (c): c is { id: string; email: string } =>
+      typeof c?.id === 'string' && typeof c?.email === 'string' &&
+      c.email.toLowerCase().trim() === email
+  )
+  return treffers.length === 1 ? treffers[0].id : null
+}
+
+function veiligeJson(v: string): unknown {
+  try { return JSON.parse(v) } catch { return null }
 }
 
 export interface CandidateResult {
@@ -235,7 +272,9 @@ export async function buildCandidates(
     )
   }
 
-  const [articles, aliases] = await Promise.all([loadArticles(prisma), loadAliases(prisma, relatieId)])
+  const [articles, aliases, relatieNamen] = await Promise.all([
+    loadArticles(prisma), loadAliases(prisma, relatieId), loadRelatieNamen(prisma),
+  ])
 
   try {
     const ai = await aiExtract(mail, buffers)
@@ -244,7 +283,10 @@ export async function buildCandidates(
       document: ai.document ?? document,
       bevestiging: ai.bevestiging,
     })
-    const kandidaten = scoreLines(matchLines(lines, articles, aliases), modelZekerheid)
+    const kandidaten = scoreLines(
+      matchLines(lines, articles, aliases, relatieId, relatieNamen),
+      modelZekerheid
+    )
     return {
       kandidaten,
       klantRef: ai.klantRef,
@@ -327,11 +369,15 @@ export async function rematchCandidates(
   kandidaten: CandidateLine[],
   relatieId: string | null
 ): Promise<CandidateLine[]> {
-  const [articles, aliases] = await Promise.all([loadArticles(prisma), loadAliases(prisma, relatieId)])
+  const [articles, aliases, relatieNamen] = await Promise.all([
+    loadArticles(prisma), loadAliases(prisma, relatieId), loadRelatieNamen(prisma),
+  ])
   const rematched = matchLines(
     kandidaten.map((k) => ({ ...k, matches: [], status: 'nieuw' as const, artikelId: null })),
     articles,
-    aliases
+    aliases,
+    relatieId,
+    relatieNamen
   )
   // Een handmatige keuze blijft staan — maar wél met de verse kandidatenlijst
   // eronder, zodat het reviewscherm nog steeds alternatieven kan tonen.
@@ -444,7 +490,14 @@ export async function ingestMsgBuffer(
     return { mailImport: serializeMailImport(ververst), duplicate: true, refreshed: true }
   }
 
-  const suggestion = suggestRelatie(resolutie.klant, await loadKlantRelaties(prisma))
+  const relaties = await loadKlantRelaties(prisma)
+  const suggestion = suggestRelatie(resolutie.klant, relaties)
+  const contactId = suggestion
+    ? suggestContact(
+        resolutie.klant?.email ?? null,
+        relaties.find((r) => r.id === suggestion.relatieId)?.contacten ?? []
+      )
+    : null
 
   // Regels uit de mail halen en tegen de artikeldatabase leggen (§3.4/§3.5).
   // Aliassen alleen van de vermoedelijke relatie: "P-4471" betekent iets
@@ -469,6 +522,7 @@ export async function ingestMsgBuffer(
       bijlagen: [],
       resolutie: resolutie as unknown as Prisma.InputJsonValue,
       relatieId: suggestion?.relatieId ?? null,
+      contactId,
       kandidaten: kandidaten as unknown as Prisma.InputJsonValue,
       extractie: rapport as unknown as Prisma.InputJsonValue,
       klantRef,
@@ -539,6 +593,7 @@ type MailImportRow = {
   relatieId: string | null
   intent: string
   kandidaten: unknown
+  contactId: string | null
   extractie: unknown
   klantRef: string | null
   leverdatum: Date | null

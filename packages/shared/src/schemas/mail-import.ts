@@ -111,6 +111,12 @@ export const ArticleMatchSchema = z.object({
   score: z.number(),
   /** Nederlandse uitleg voor het reviewscherm: waaróm deze treffer. */
   reden: z.string(),
+  /**
+   * Dit artikel staat op naam van een ándere klant. Blijft zichtbaar als
+   * kandidaat, maar wordt nooit automatisch gekozen — een tekeningnummer is van
+   * de klant, dus gelijke nummers bij twee klanten zeggen niets.
+   */
+  vanAndereKlant: z.boolean().default(false),
 })
 export type ArticleMatch = z.infer<typeof ArticleMatchSchema>
 
@@ -122,6 +128,19 @@ export const CandidateLineSchema = z.object({
   positie: z.number().int().nullable(),
   qty: z.number().nullable(),
   bron: z.enum(CANDIDATE_SOURCES),
+  /**
+   * Het artikelnummer van de klant zelf, als hij dat naast het tekeningnummer
+   * vermeldt ("Uw artikelnummer:"). Hier leert de matcher zijn aliassen van.
+   */
+  klantArtikel: z.string().nullable().default(null),
+  /**
+   * De stuksprijs die de klant in zijn document noemt. Alleen bij een order of
+   * bevestiging; bij een aanvraag staat er niets. Wordt vergeleken met onze
+   * eigen prijs — een klant die met een oude prijslijst werkt moet opvallen.
+   */
+  klantPrijs: z.number().nullable().default(null),
+  /** Omschrijving zoals de klant hem noemt. */
+  omschrijving: z.string().nullable().default(null),
   /** Bijlage waar deze regel vandaan komt, als die er is. */
   attachmentFilename: z.string().nullable(),
   /**
@@ -233,6 +252,8 @@ export const MailImportSchema = z.object({
   bijlagen: z.array(MailAttachmentSchema),
   resolutie: SenderResolutionSchema.nullable(),
   relatieId: z.string().nullable(),
+  /** Het contact bij die relatie waarvan de mail kwam, als het te herleiden is. */
+  contactId: z.string().nullable().default(null),
   intent: z.enum(MAIL_INTENTS),
   kandidaten: z.array(CandidateLineSchema),
   extractie: ExtractieRapportSchema.nullable().default(null),

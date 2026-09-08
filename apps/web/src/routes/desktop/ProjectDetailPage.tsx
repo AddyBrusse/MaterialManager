@@ -498,7 +498,7 @@ export function ProjectDetailPage() {
           opened
           mailImport={reviewImport}
           projectId={project.id}
-          relatieOptions={relatieOptions}
+          relaties={relaties}
           articleOptions={articleOptions}
           project={project}
           onClose={() => setReviewImport(null)}
@@ -515,6 +515,7 @@ export function ProjectDetailPage() {
             // pagina die velden bezit en ze met een debounce persisteert.
             setMeta({
               relatieId,
+              ...(saved.contactId ? { contactId: saved.contactId } : {}),
               ...(meta.naam.trim() ? {} : { naam: saved.onderwerp.slice(0, 80) }),
               ...(meta.klantRef.trim() || !saved.klantRef ? {} : { klantRef: saved.klantRef }),
               ...(meta.levertijdDatum.trim() || !saved.leverdatum

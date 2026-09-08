@@ -13,6 +13,8 @@ export interface ArticleCandidate {
   naam: string
   tekening?: string | null
   rev?: string | null
+  /** Van welke klant dit artikel is. Null = van niemand in het bijzonder. */
+  relatieId?: string | null
 }
 
 /** Klantnummer → ons artikel, geleerd uit eerdere correcties (§4). */
@@ -64,7 +66,11 @@ function scoreArticle(
   article: ArticleCandidate,
   aliasArticleIds: Set<string>
 ): ArticleMatch | null {
-  const base = { artikelId: article.id, naam: article.naam, tekening: article.tekening ?? null, rev: article.rev ?? null }
+  const base = {
+    artikelId: article.id, naam: article.naam,
+    tekening: article.tekening ?? null, rev: article.rev ?? null,
+    vanAndereKlant: false,
+  }
 
   if (aliasArticleIds.has(article.id)) {
     return { ...base, score: SCORE.alias, reden: 'Eerder al aan dit klantnummer gekoppeld.' }
@@ -130,10 +136,31 @@ function classify(matches: ArticleMatch[]): MatchStatus {
   return 'match'
 }
 
+/**
+ * Een treffer bij een artikel van een ándere klant.
+ *
+ * Tekeningnummers zijn van de klant, niet van ons: dat "4471" van een nieuwe
+ * klant gelijk is aan "4471" van Stinis zegt niets. Zonder deze rem werd zo'n
+ * regel automatisch voorgevuld met het artikel van de verkeerde klant —
+ * aangetoond met een test, en precies het soort fout dat pas opvalt als er
+ * verkeerd geoffreerd is.
+ *
+ * Wegfilteren doen we niet: soms maak je hetzelfde onderdeel voor twee klanten,
+ * en oude artikelen dragen helemaal geen relatie. De treffer blijft dus staan,
+ * maar hij wordt nooit meer automatisch gekozen en zegt van wie hij is.
+ */
+const ANDERE_KLANT_FACTOR = 0.8
+
+function vanAndereKlant(artikel: ArticleCandidate, relatieId: string | null): boolean {
+  return Boolean(relatieId && artikel.relatieId && artikel.relatieId !== relatieId)
+}
+
 export function matchLine(
   line: CandidateLine,
   articles: ArticleCandidate[],
-  aliases: AliasCandidate[] = []
+  aliases: AliasCandidate[] = [],
+  relatieId: string | null = null,
+  relatieNamen: Map<string, string> = new Map()
 ): CandidateLine {
   const ref = normalizeRef(line.tekening)
   const aliasArticleIds = new Set(
@@ -141,12 +168,25 @@ export function matchLine(
   )
 
   const matches = articles
-    .map((a) => scoreArticle(line, a, aliasArticleIds))
+    .map((a) => {
+      const m = scoreArticle(line, a, aliasArticleIds)
+      if (!m || !vanAndereKlant(a, relatieId)) return m
+      const naam = relatieNamen.get(a.relatieId!) ?? 'een andere klant'
+      return {
+        ...m,
+        score: m.score * ANDERE_KLANT_FACTOR,
+        reden: `${m.reden} Let op: dit artikel hoort bij ${naam}.`,
+        vanAndereKlant: true,
+      }
+    })
     .filter((m): m is ArticleMatch => m !== null && m.score >= MIN_SCORE)
     .sort((a, b) => b.score - a.score || a.naam.localeCompare(b.naam))
     .slice(0, 3)
 
-  const status = classify(matches)
+  // Een artikel van een andere klant vult nooit voor, hoe hoog de score ook is.
+  const status = matches[0]?.vanAndereKlant && classify(matches) === 'match'
+    ? 'twijfel'
+    : classify(matches)
   return {
     ...line,
     matches,
@@ -160,7 +200,9 @@ export function matchLine(
 export function matchLines(
   lines: CandidateLine[],
   articles: ArticleCandidate[],
-  aliases: AliasCandidate[] = []
+  aliases: AliasCandidate[] = [],
+  relatieId: string | null = null,
+  relatieNamen: Map<string, string> = new Map()
 ): CandidateLine[] {
-  return lines.map((l) => matchLine(l, articles, aliases))
+  return lines.map((l) => matchLine(l, articles, aliases, relatieId, relatieNamen))
 }

@@ -371,6 +371,20 @@ artikel betekent een verkeerde prijs in een offerte naar de klant.
 - Bijlagen gekoppeld aan het project en, waar een artikel gematcht is, aan dat
   artikel (bestaande attachments-structuur).
 
+#### Een tekeningnummer is van de klant
+
+`loadArticles` geeft de relatie van elk artikel mee, en `matchLine` weet welke
+klant deze mail is. Een treffer op een artikel van een **andere** klant blijft
+zichtbaar als kandidaat maar wordt nooit meer automatisch voorgevuld, en zegt
+erbij van wie hij is.
+
+Waarom dat moet: tekeningnummers zijn van de klant. Dat de "4471" van een nieuwe
+klant gelijk is aan de "4471" van Stinis zegt niets. Vóór deze rem werd zo'n
+regel automatisch gekoppeld aan het artikel van de verkeerde klant — aangetoond
+met een test op 2026-09-08, en precies het soort fout dat pas opvalt als er
+verkeerd geoffreerd is. Wegfilteren doen we niet: soms maak je hetzelfde
+onderdeel voor twee klanten, en oude artikelen dragen helemaal geen relatie.
+
 ### 3.6 Wat er bij het koppelen gebeurt — **GEBOUWD**
 
 "Koppelen en N regels overnemen" doet vier dingen, in deze volgorde:
@@ -401,6 +415,40 @@ Wat er ontstaat is overal een concept: niets is verstuurd, alles blijft
 aanpasbaar.
 
 ### 3.7 Review — de enige weg naar buiten
+
+Het controlescherm beantwoordt in volgorde de vragen die je bij een order stelt:
+
+**Wie is de klant?** Klant en contactpersoon staan bovenaan. Het contact wordt
+alleen op e-mailadres herleid (`suggestContact`) — een naam die lijkt op een
+contact is te zwak bewijs, en een verkeerd contact op een offerte is pijnlijker
+dan een leeg veld. Is de klant nog niet bekend, dan maak je hem hier aan met de
+gegevens van de afzender; koppelen blijft geblokkeerd tot er een klant staat.
+
+**Wat wil hij?** Eén regel per onderdeel: aantal, artikelnummer van de klant,
+ons tekeningnummer, omschrijving, zijn prijs, en ons artikel. De preview
+(3D-render of tekening) staat vooraan, want daar herken je een onderdeel het
+snelst aan.
+
+**Klopt de prijs?** Noemt de klant een stuksprijs, dan wordt die vergeleken met
+onze calculatie bij dát aantal (`mail-prijzen.ts`). Wijkt hij af, dan staat er
+een waarschuwing boven de tabel en is het bedrag rood met het verschil in de
+tooltip. Dit is het geval van de klant die bestelt tegen een oude prijslijst: de
+order ziet er normaal uit, en pas bij het factureren blijkt dat er te weinig op
+staat. Onder een cent verschil zwijgt hij — dat is afronding.
+
+**Technische details staan ingeklapt.** Uitgelezen pdf-tekst, zekerheids-
+onderbouwing, herkomst van de afzender en de ruwe berichttekst hebben één plek
+onderaan het scherm in plaats van evenveel gewicht als de regels zelf. Een
+scherm dat je dagelijks gebruikt hoort niet ingericht te zijn op het geval dat
+zelden voorkomt.
+
+**Tijdens het inlezen loopt er een teller.** Uploaden, pdf's lezen en twee
+lezingen door het model kosten tientallen seconden; zonder terugkoppeling lijkt
+het scherm te hangen. De dropzone toont welke stap loopt en hoe lang het al
+duurt — "het duurt lang" is iets anders dan "het doet niets", en dat verschil
+zie je alleen aan een lopende teller.
+
+
 
 Eén scherm, links de mail (afzender, tekst, bijlagen), rechts de voorgestelde
 regels met per regel de matchstatus. De gebruiker corrigeert, bevestigt, en pas

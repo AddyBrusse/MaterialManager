@@ -1,12 +1,17 @@
 import { useState } from 'react'
 import { Modal, Select } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { IconPaperclip, IconMailForward, IconMail } from '@tabler/icons-react'
+import { IconAlertTriangle, IconPlus } from '@tabler/icons-react'
 import { mailImportsApi } from '../../api/mail-imports'
 import { MailRegelsTable } from './MailRegelsTable'
+import { MailDebugPaneel } from './MailDebugPaneel'
+import { relatiesApi } from '../../api/relaties'
+import { gradesApi } from '../../api/grades'
+import { profilesApi } from '../../api/profiles'
+import { machinesApi } from '../../api/machines'
 import { neemRegelsOver } from './mail-naar-offerte'
-import type { Project } from '@stockmanager/shared'
-import { MAIL_INTENTS, type MailImport, type MailIntent, type SenderConfidence } from '@stockmanager/shared'
+import type { Project, Relatie } from '@stockmanager/shared'
+import { MAIL_INTENTS, type MailImport, type MailIntent } from '@stockmanager/shared'
 
 /**
  * Controlescherm — features/60-mail-import.md §3.7.
@@ -20,7 +25,8 @@ interface Props {
   opened: boolean
   mailImport: MailImport
   projectId: string
-  relatieOptions: { value: string; label: string }[]
+  /** Volledige relaties: nodig voor de contactpersonen bij de gekozen klant. */
+  relaties: Relatie[]
   articleOptions: { value: string; label: string }[]
   /** Nodig om de regels op de offerte te kunnen zetten. */
   project: Project
@@ -35,48 +41,28 @@ const INTENT_LABELS: Record<MailIntent, string> = {
   onbekend: 'Nog onbekend',
 }
 
-const CONFIDENCE_STYLE: Record<SenderConfidence, { color: string; label: string }> = {
-  hoog: { color: 'var(--success)', label: 'zeker' },
-  midden: { color: 'var(--warning)', label: 'waarschijnlijk' },
-  laag: { color: 'var(--danger)', label: 'onzeker — controleer' },
-}
-
-/**
- * Naam én adres als beide er zijn; anders wat er wél is. Veel .msg-berichten
- * dragen geen weergavenaam (gemeten, §2.4), en "— adres@klant.nl" leest dan
- * als een ontbrekend veld terwijl er niets mist.
- */
-function Address({ naam, email }: { naam: string | null; email: string | null }) {
-  if (!naam && !email) return <span style={{ color: 'var(--text-4)' }}>onbekend</span>
-  return (
-    <>
-      {naam}
-      {naam && email ? ' ' : null}
-      {email && <span className="mono" style={{ color: 'var(--text-4)' }}>{email}</span>}
-    </>
-  )
-}
-
-function Row({ k, children }: { k: string; children: React.ReactNode }) {
-  return (
-    <div className="info-line">
-      <span className="k">{k}</span>
-      <span className="v">{children}</span>
-    </div>
-  )
-}
-
 export function MailImportReview({
-  opened, mailImport, projectId, relatieOptions, articleOptions, project, onClose, onLinked, onOfferteChanged,
+  opened, mailImport, projectId, relaties, articleOptions, project, onClose, onLinked, onOfferteChanged,
 }: Props) {
   const [relatieId, setRelatieId] = useState<string | null>(mailImport.relatieId)
+  const [contactId, setContactId] = useState<string | null>(mailImport.contactId)
   const [intent, setIntent] = useState<MailIntent>(mailImport.intent)
   const [current, setCurrent] = useState<MailImport>(mailImport)
   const [busy, setBusy] = useState(false)
 
-  const res = mailImport.resolutie
-  const conf = res ? CONFIDENCE_STYLE[res.confidence] : null
-  const doorgestuurd = res?.origin === 'doorgestuurd'
+  const relatieOptions = relaties
+    .filter((r) => r.type !== 'leverancier')
+    .map((r) => ({ value: r.id, label: r.naam }))
+  const gekozenRelatie = relaties.find((r) => r.id === relatieId) ?? null
+  const contactOptions = (gekozenRelatie?.contacten ?? []).map((c) => ({
+    value: c.id,
+    label: [c.naam, c.functie].filter(Boolean).join(' · '),
+  }))
+  const bronnen = {
+    grades: gradesApi.listSync(),
+    profiles: profilesApi.listSync(),
+    machines: machinesApi.listSync(),
+  }
 
   // Al regels op de offerte? Dan niet nog eens overnemen — dat zou de offerte
   // stilletjes verdubbelen. De knop verdwijnt dan gewoon.
@@ -89,13 +75,14 @@ export function MailImportReview({
     try {
       const saved = await mailImportsApi.update(current.id, {
         relatieId,
+        contactId,
         intent,
         projectId,
         status: 'verwerkt',
       })
 
       if (overTeNemen > 0 && offerteIsLeeg) {
-        const klantNaam = relatieOptions.find((o) => o.value === relatieId)?.label ?? null
+        const klantNaam = gekozenRelatie?.naam ?? null
         const r = await neemRegelsOver({ project, mailImport: saved, klantNaam })
         onOfferteChanged()
 
@@ -164,172 +151,131 @@ export function MailImportReview({
     }
   }
 
+
+  /**
+   * De klant aanmaken die er nog niet is.
+   *
+   * Bij de eerste mail van een nieuwe klant liep je vast: koppelen is
+   * geblokkeerd zonder relatie, en de relatie moest ergens anders aangemaakt
+   * worden. Naam en adres van de afzender zijn hier al bekend, dus die vullen
+   * we vast in — de rest doet de gebruiker later op de relatiepagina.
+   */
+  async function maakRelatie() {
+    const naam = window.prompt(
+      'Naam van de nieuwe klant:',
+      current.afzenderNaam?.split('<')[0].trim() ||
+        current.afzenderEmail?.split('@')[1]?.split('.')[0] ||
+        ''
+    )
+    if (!naam?.trim()) return
+    setBusy(true)
+    try {
+      const { data } = await relatiesApi.create({
+        naam: naam.trim(),
+        type: 'klant',
+        email: current.afzenderEmail,
+        contacten: current.afzenderNaam
+          ? [{ id: `c${Date.now()}`, naam: current.afzenderNaam, email: current.afzenderEmail }]
+          : [],
+      } as Parameters<typeof relatiesApi.create>[0])
+      setRelatieId(data.id)
+      setContactId(data.contacten[0]?.id ?? null)
+      setCurrent(await mailImportsApi.update(current.id, { relatieId: data.id }))
+      notifications.show({ color: 'green', message: `${data.naam} aangemaakt en gekoppeld.` })
+    } catch (err) {
+      notifications.show({ color: 'red', title: 'Aanmaken mislukt', message: (err as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
-    <Modal opened={opened} onClose={onClose} size="1180px" title="Mail controleren" centered>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      size="1180px"
+      centered
+      title={current.onderwerp || 'Mail controleren'}
+    >
+      {/* Wie is de klant — de enige vraag die vóór alles beantwoord moet zijn. */}
       <div className="mi-card">
-        <div className="mi-card-hd">
-          {doorgestuurd ? <IconMailForward size={13} /> : <IconMail size={13} />}
-          <span className="title">{doorgestuurd ? 'Doorgestuurd bericht' : 'Bericht'}</span>
-        </div>
-        <div className="mi-card-body">
-          <div className="mi-onderwerp">{mailImport.onderwerp || '(geen onderwerp)'}</div>
-          <dl className="mi-meta">
-            <dt>Afzender</dt>
-            <dd><Address naam={mailImport.afzenderNaam} email={mailImport.afzenderEmail} /></dd>
-            {doorgestuurd && (
-              <>
-                <dt>Oorspronkelijk van</dt>
-                <dd><Address naam={res?.klant?.naam ?? null} email={res?.klant?.email ?? null} /></dd>
-              </>
+        <div className="mi-card-hd"><span className="title">Klant</span></div>
+        <div className="mi-card-body mi-klantgrid">
+          <div>
+            <Select
+              size="xs"
+              label="Klant"
+              placeholder="Kies een klant"
+              data={relatieOptions}
+              value={relatieId}
+              onChange={async (v) => {
+                setRelatieId(v)
+                setContactId(null)
+                try {
+                  // Andere klant = andere geleerde koppelingen, dus de server
+                  // legt de regels opnieuw langs de artikelen.
+                  setCurrent(await mailImportsApi.update(current.id, { relatieId: v }))
+                } catch { /* de keuze blijft staan; koppelen slaat hem opnieuw op */ }
+              }}
+              searchable
+              clearable
+            />
+            {!relatieId && (
+              <button className="st-btn sm ghost" style={{ marginTop: 6 }} onClick={maakRelatie} disabled={busy}>
+                <IconPlus size={13} /> Nieuwe klant aanmaken
+              </button>
             )}
-            <dt>Ontvangen</dt>
-            <dd>{mailImport.ontvangenOp ? new Date(mailImport.ontvangenOp).toLocaleString('nl-NL') : '—'}</dd>
-            {/* Wat de klant zelf als kenmerk gebruikt — daarmee zoekt hij later
-                terug, dus het hoort zichtbaar te zijn vóór je koppelt. */}
-            {mailImport.klantRef && (
-              <>
-                <dt>Referentie klant</dt>
-                <dd className="mono">{mailImport.klantRef}</dd>
-              </>
-            )}
-            {mailImport.leverdatum && (
-              <>
-                <dt>Gevraagde levering</dt>
-                <dd>{new Date(mailImport.leverdatum).toLocaleDateString('nl-NL')}</dd>
-              </>
-            )}
-            {res && conf && (
-              <>
-                <dt>Herkomst</dt>
-                <dd>
-                  <span style={{ color: conf.color, fontWeight: 600 }}>{conf.label}</span>
-                  <span style={{ color: 'var(--text-4)' }}> — {res.reden}</span>
-                </dd>
-              </>
-            )}
-          </dl>
+          </div>
+          <Select
+            size="xs"
+            label="Contact"
+            placeholder={relatieId ? 'Kies een contact' : 'Kies eerst een klant'}
+            data={contactOptions}
+            value={contactId}
+            onChange={setContactId}
+            disabled={!relatieId}
+            searchable
+            clearable
+          />
+          <div className="mi-kerngetal">
+            <div className="k">Referentie klant</div>
+            <div className="v mono">{current.klantRef ?? '—'}</div>
+          </div>
+          <div className="mi-kerngetal">
+            <div className="k">Gevraagde levering</div>
+            <div className="v">
+              {current.leverdatum ? new Date(current.leverdatum).toLocaleDateString('nl-NL') : '—'}
+            </div>
+          </div>
+          <Select
+            size="xs"
+            label="Soort bericht"
+            data={MAIL_INTENTS.map((i) => ({ value: i, label: INTENT_LABELS[i] }))}
+            value={intent}
+            onChange={(v) => setIntent((v as MailIntent) ?? 'onbekend')}
+          />
         </div>
       </div>
-
-      {mailImport.bijlagen.length > 0 && (
-        <div className="mi-card">
-          <div className="mi-card-hd">
-            <IconPaperclip size={13} />
-            <span className="title">Bijlagen</span>
-            <span className="badge">{mailImport.bijlagen.length}</span>
-          </div>
-          <div className="mi-card-body">
-            {mailImport.bijlagen.map((b) => (
-              <div key={b.path ?? b.filename}>
-                <div className="mi-bijlage">
-                  <span className="naam">
-                    {b.path ? <a href={b.path} target="_blank" rel="noreferrer">{b.filename}</a> : b.filename}
-                  </span>
-                  <span className="maat">
-                    {Math.max(1, Math.round(b.sizeBytes / 1024))} kB
-                    {b.isEmbeddedMessage && <span style={{ color: 'var(--text-4)' }}> · bericht</span>}
-                  </span>
-                </div>
-                {/* De uitgelezen tekst van een PDF. Hieruit komen de aantallen,
-                    dus als een regel ontbreekt is dit de plek om te kijken wat
-                    er wél gelezen is. */}
-                {b.tekst && (
-                  <details style={{ margin: '2px 0 6px' }}>
-                    <summary className="mi-noot" style={{ cursor: 'pointer' }}>
-                      Uitgelezen tekst ({b.tekst.length.toLocaleString('nl-NL')} tekens)
-                      {b.tekstPath && (
-                        <>
-                          {' · '}
-                          <a href={b.tekstPath} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-                            volledig
-                          </a>
-                        </>
-                      )}
-                    </summary>
-                    <textarea
-                      readOnly
-                      value={b.tekst}
-                      spellCheck={false}
-                      style={{
-                        width: '100%', height: 160, marginTop: 4, resize: 'vertical',
-                        fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.5,
-                        border: '1px solid var(--border)', borderRadius: 4,
-                        background: 'var(--bg-2)', color: 'var(--text-2)', padding: 6,
-                        whiteSpace: 'pre', overflow: 'auto',
-                      }}
-                    />
-                  </details>
-                )}
-                {!b.tekst && b.filename.toLowerCase().endsWith('.pdf') && !b.isEmbeddedMessage && (
-                  <div className="mi-noot">Geen tekst uit deze PDF te halen — waarschijnlijk een scan.</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <Select
-        size="xs"
-        label="Relatie"
-        description={
-          mailImport.relatieId
-            ? 'Voorgesteld op basis van de afzender — controleer of dit klopt.'
-            : 'Geen relatie herkend. Kies zelf de juiste klant.'
-        }
-        placeholder="Kies een relatie"
-        data={relatieOptions}
-        value={relatieId}
-        onChange={async (v) => {
-          setRelatieId(v)
-          // Een andere klant heeft andere geleerde koppelingen, dus de server
-          // legt de regels opnieuw langs de artikelen.
-          try {
-            setCurrent(await mailImportsApi.update(current.id, { relatieId: v }))
-          } catch { /* de keuze zelf blijft staan; koppelen slaat hem opnieuw op */ }
-        }}
-        searchable
-        clearable
-        mb="xs"
-      />
 
       <MailRegelsTable
         mailImport={current}
         articleOptions={articleOptions}
+        bronnen={bronnen}
         onChanged={setCurrent}
       />
 
-      <Select
-        size="xs"
-        label="Soort bericht"
-        data={MAIL_INTENTS.map((i) => ({ value: i, label: INTENT_LABELS[i] }))}
-        value={intent}
-        onChange={(v) => setIntent((v as MailIntent) ?? 'onbekend')}
-        mb="md"
-      />
-
-      {mailImport.bodyText && (
-        <details style={{ marginBottom: 12 }}>
-          <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--text-4)' }}>Berichttekst</summary>
-          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 11.5, maxHeight: 220, overflow: 'auto', marginTop: 6 }}>
-            {mailImport.bodyText}
-          </pre>
-        </details>
-      )}
+      <MailDebugPaneel mailImport={current} />
 
       {overTeNemen > 0 && !offerteIsLeeg && (
-        <div className="mi-noot" style={{ marginBottom: 10 }}>
-          De offerte heeft al regels — deze mailregels worden niet nog eens toegevoegd.
+        <div className="mi-alarm" style={{ marginBottom: 10 }}>
+          <IconAlertTriangle size={14} />
+          <span>De offerte heeft al regels — deze mailregels worden niet nog eens toegevoegd.</span>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-        <button
-          className="st-btn sm ghost"
-          onClick={reread}
-          disabled={busy}
-          title="Laat de AI opnieuw naar deze mail kijken. Kost een nieuwe aanroep van het model."
-        >
+      <div className="mi-acties">
+        <button className="st-btn sm ghost" onClick={reread} disabled={busy}
+          title="Laat de AI opnieuw naar deze mail kijken. Kost een nieuwe aanroep van het model.">
           Opnieuw uitlezen
         </button>
         <button className="st-btn sm ghost" onClick={ignore} disabled={busy}>Negeren</button>

@@ -11,6 +11,7 @@ export interface IngestResult {
 
 export interface UpdateMailImport {
   relatieId?: string | null
+  contactId?: string | null
   intent?: MailIntent
   status?: MailImportStatus
   projectId?: string | null

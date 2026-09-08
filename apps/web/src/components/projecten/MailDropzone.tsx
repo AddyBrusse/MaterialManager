@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { IconMail, IconLoader2 } from '@tabler/icons-react'
 import { mailImportsApi } from '../../api/mail-imports'
@@ -24,9 +24,35 @@ function isMsgFile(file: File): boolean {
   return file.name.toLowerCase().endsWith('.msg')
 }
 
+/**
+ * De stappen die het inlezen doorloopt, met de tekst die erbij hoort.
+ *
+ * Het duurt tientallen seconden — uploaden, pdf's uitlezen, en twee lezingen
+ * door het model — en zonder terugkoppeling lijkt het scherm te hangen. De
+ * verstreken tijd staat erbij omdat "het duurt lang" iets anders is dan "het
+ * doet niets", en dat verschil zie je alleen aan een lopende teller.
+ */
+const STAPPEN = [
+  { na: 0, tekst: 'Bericht uploaden…' },
+  { na: 3, tekst: 'Bijlagen uitpakken en pdf-tekst lezen…' },
+  { na: 8, tekst: 'De AI leest de order…' },
+  { na: 30, tekst: 'Controlelezing…' },
+  { na: 60, tekst: 'Nog bezig — een order met scans kost meer tijd…' },
+] as const
+
 export function MailDropzone({ projectId, onImported }: Props) {
   const [hot, setHot] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [seconden, setSeconden] = useState(0)
+
+  // Eén teller die loopt zolang er iets binnengehaald wordt.
+  useEffect(() => {
+    if (!busy) { setSeconden(0); return }
+    const t = setInterval(() => setSeconden((s) => s + 1), 1000)
+    return () => clearInterval(t)
+  }, [busy])
+
+  const stap = [...STAPPEN].reverse().find((s) => seconden >= s.na) ?? STAPPEN[0]
 
   async function ingest(file: File) {
     setBusy(true)
@@ -108,13 +134,20 @@ export function MailDropzone({ projectId, onImported }: Props) {
       ) : (
         <IconMail size={18} style={{ color: hot ? 'var(--accent)' : 'var(--text-4)' }} />
       )}
-      <div style={{ lineHeight: 1.35 }}>
+      <div style={{ lineHeight: 1.35, flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12.5, fontWeight: 600 }}>
-          {busy ? 'Bericht wordt gelezen…' : 'Sleep hier een mail uit Outlook'}
+          {busy ? stap.tekst : 'Sleep hier een mail uit Outlook'}
         </div>
-        <div style={{ fontSize: 11.5, color: 'var(--text-4)' }}>
-          De aanvraag of orderbevestiging wordt uitgelezen en klaargezet ter controle.
+        <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+          {busy
+            ? `${seconden} seconden bezig — dit duurt meestal een halve tot anderhalve minuut.`
+            : 'De aanvraag of orderbevestiging wordt uitgelezen en klaargezet ter controle.'}
         </div>
+        {busy && (
+          <div className="mi-voortgang" aria-label="bezig">
+            <span />
+          </div>
+        )}
       </div>
     </div>
   )
