@@ -177,9 +177,7 @@ export function MailImportReview({
           <span className="title">{doorgestuurd ? 'Doorgestuurd bericht' : 'Bericht'}</span>
         </div>
         <div className="mi-card-body">
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-            {mailImport.onderwerp || '(geen onderwerp)'}
-          </div>
+          <div className="mi-onderwerp">{mailImport.onderwerp || '(geen onderwerp)'}</div>
           <dl className="mi-meta">
             <dt>Afzender</dt>
             <dd><Address naam={mailImport.afzenderNaam} email={mailImport.afzenderEmail} /></dd>
@@ -228,11 +226,11 @@ export function MailImportReview({
           <div className="mi-card-body">
             {mailImport.bijlagen.map((b) => (
               <div key={b.path ?? b.filename}>
-                <div className="info-line">
-                  <span className="k" style={{ overflowWrap: 'anywhere', minWidth: 0 }}>
+                <div className="mi-bijlage">
+                  <span className="naam">
                     {b.path ? <a href={b.path} target="_blank" rel="noreferrer">{b.filename}</a> : b.filename}
                   </span>
-                  <span className="v mono">
+                  <span className="maat">
                     {Math.max(1, Math.round(b.sizeBytes / 1024))} kB
                     {b.isEmbeddedMessage && <span style={{ color: 'var(--text-4)' }}> · bericht</span>}
                   </span>
@@ -242,7 +240,7 @@ export function MailImportReview({
                     er wél gelezen is. */}
                 {b.tekst && (
                   <details style={{ margin: '2px 0 6px' }}>
-                    <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--text-4)' }}>
+                    <summary className="mi-noot" style={{ cursor: 'pointer' }}>
                       Uitgelezen tekst ({b.tekst.length.toLocaleString('nl-NL')} tekens)
                       {b.tekstPath && (
                         <>
@@ -259,7 +257,7 @@ export function MailImportReview({
                       spellCheck={false}
                       style={{
                         width: '100%', height: 160, marginTop: 4, resize: 'vertical',
-                        fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 11, lineHeight: 1.45,
+                        fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.5,
                         border: '1px solid var(--border)', borderRadius: 4,
                         background: 'var(--bg-2)', color: 'var(--text-2)', padding: 6,
                         whiteSpace: 'pre', overflow: 'auto',
@@ -268,9 +266,7 @@ export function MailImportReview({
                   </details>
                 )}
                 {!b.tekst && b.filename.toLowerCase().endsWith('.pdf') && !b.isEmbeddedMessage && (
-                  <div style={{ fontSize: 10.5, color: 'var(--text-4)', margin: '2px 0 6px' }}>
-                    Geen tekst uit deze PDF te halen — waarschijnlijk een scan.
-                  </div>
+                  <div className="mi-noot">Geen tekst uit deze PDF te halen — waarschijnlijk een scan.</div>
                 )}
               </div>
             ))}
@@ -327,7 +323,7 @@ export function MailImportReview({
       )}
 
       {overTeNemen > 0 && !offerteIsLeeg && (
-        <div style={{ fontSize: 11.5, color: 'var(--text-4)', marginBottom: 8 }}>
+        <div className="mi-noot" style={{ marginBottom: 10 }}>
           De offerte heeft al regels — deze mailregels worden niet nog eens toegevoegd.
         </div>
       )}

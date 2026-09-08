@@ -63,7 +63,7 @@ function Regel({
         <div className="cell-mono cell-strong" style={{ overflowWrap: 'anywhere' }}>
           {line.tekening ?? line.ruweTekst}
         </div>
-        {line.rev && <div className="cell-muted" style={{ fontSize: 10.5 }}>rev {line.rev}</div>}
+        {line.rev && <div className="mi-bestand">rev {line.rev}</div>}
         {/* Bestandsnamen zijn lang en zeggen bij het controleren weinig — ze
             mogen de rij niet uit elkaar duwen. Afkappen, volledige naam in de
             title, en de preview ernaast doet het echte werk. */}
@@ -83,11 +83,9 @@ function Regel({
           searchable
           clearable
         />
-        {toelichting && (
-          <div className="cell-muted" style={{ fontSize: 10.5, marginTop: 2 }}>{toelichting}</div>
-        )}
+        {toelichting && <div className="mi-toelichting">{toelichting}</div>}
       </td>
-      <td style={{ color: meta.color, fontSize: 11 }}>
+      <td className="mi-status" style={{ color: meta.color }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
           {meta.icon} {meta.label}
         </span>
@@ -134,7 +132,7 @@ export function MailRegelsTable({ mailImport, articleOptions, onChanged }: Props
           <span className="title">Regels</span>
         </div>
         <div className="mi-card-body">
-          <div style={{ fontSize: 12, color: mislukt ? 'var(--danger)' : 'var(--text-4)' }}>
+          <div style={{ color: mislukt ? 'var(--danger)' : 'var(--text-3)' }}>
             {mislukt
               ? mailImport.extractie!.foutmelding
               : 'Geen regels herkend in deze mail. Voeg ze straks handmatig toe aan de offerte.'}

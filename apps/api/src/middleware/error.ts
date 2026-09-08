@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import { ZodError } from 'zod'
+import { config } from '../config'
 
 export function errorMiddleware(
   err: unknown,
@@ -35,7 +36,18 @@ export function errorMiddleware(
   }
 
   console.error(err)
-  res.status(500).json({ error: { code: 'INTERNAL', message: 'Interne serverfout' } })
+  // In ontwikkeling de echte reden meesturen. "Interne serverfout" in het scherm
+  // en een stack in een terminal die niemand openheeft staan, betekent dat een
+  // fout melden neerkomt op raden — dat heeft ons een ronde gekost. Op de NAS
+  // (production) blijft de melding kaal: daar hoort geen interne informatie in
+  // een antwoord dat over het netwerk gaat.
+  res.status(500).json({
+    error: {
+      code: 'INTERNAL',
+      message: 'Interne serverfout',
+      ...(config.isDev && { details: { reden: err instanceof Error ? err.message : String(err) } }),
+    },
+  })
 }
 
 export class AppError extends Error {

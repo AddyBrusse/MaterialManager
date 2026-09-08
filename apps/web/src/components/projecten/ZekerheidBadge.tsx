@@ -28,7 +28,7 @@ export function ZekerheidBadge({ zekerheid, redenen }: { zekerheid: number; rede
       withArrow
       position="left"
       label={
-        <div style={{ fontSize: 11 }}>
+        <div style={{ fontSize: 11.5 }}>
           <strong>Zekerheid {procent}%</strong>
           <ul style={{ margin: '4px 0 0', paddingLeft: 14 }}>
             {redenen.map((r, i) => (
@@ -47,7 +47,7 @@ export function ZekerheidBadge({ zekerheid, redenen }: { zekerheid: number; rede
         >
           <span style={{ display: 'block', width: `${procent}%`, height: '100%', background: kleur }} />
         </span>
-        <span style={{ fontSize: 10.5, color: kleur, whiteSpace: 'nowrap' }}>{procent}%</span>
+        <span style={{ fontSize: 11.5, color: kleur, whiteSpace: 'nowrap' }}>{procent}%</span>
       </span>
     </Tooltip>
   )
@@ -60,7 +60,7 @@ export function ExtractieSamenvatting({ rapport }: { rapport: ExtractieRapport |
   const laagste = Math.round(rapport.laagsteZekerheid * 100)
 
   return (
-    <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 3, lineHeight: 1.5 }}>
+    <div className="mi-samenvatting">
       <span style={{ color: kleurVoor(rapport.zekerheid) }}>Zekerheid gemiddeld {procent}%</span>
       {rapport.laagsteZekerheid < rapport.zekerheid && <> · laagste regel {laagste}%</>}
       {rapport.aiGebruikt && <> · gelezen door {rapport.model}</>}
