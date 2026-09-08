@@ -61,13 +61,24 @@ function findRev(text: string): string | null {
   return m ? m[1].toUpperCase() : null
 }
 
-/** `(3x)`, `3x`, `x3`, `3 stuks`, `aantal: 3`. Nooit een jaartal of ordernummer. */
+/**
+ * `(3x)`, `3x`, `x3`, `3 stuks`, `aantal: 3`. Nooit een jaartal of maat.
+ *
+ * De twee vooruitkijk-guards zijn duurbetaald. Uit een pdf komt een regel als
+ * `2611-1456-0234 As ø50x178 4 4-9-2026pcs`: de leverdatum plakt tegen de
+ * eenheid aan, en dan werd het jaartal het aantal (gemeten op een echte
+ * offerteaanvraag, 2026-09-08). En `ø50x178` is een maat, geen 178 stuks.
+ * Liever geen aantal dan een verkeerd aantal: een leeg veld vraagt om aandacht,
+ * een fout getal niet.
+ */
 function findQty(text: string): number | null {
   const patterns = [
     /\((\d{1,4})\s*x\)/i,
     /\b(\d{1,4})\s*x\b/i,
-    /\bx\s*(\d{1,4})\b/i,
-    /\b(\d{1,4})\s*(?:stuks?|st\.?|pcs?)\b/i,
+    // geen maat: `50x178` is geen 178 stuks
+    /(?<!\d)x\s*(\d{1,4})\b/i,
+    // geen datum: de `2026` uit `4-9-2026pcs` is een jaartal
+    /(?<![\d\-/.])(\d{1,4})\s*(?:stuks?|st\.?|pcs?)\b/i,
     /\baantal\s*[:=]?\s*(\d{1,4})\b/i,
   ]
   for (const re of patterns) {
@@ -230,7 +241,7 @@ export function dedupeKeyOf(tekening: string | null, ruweTekst: string): string 
 export function leidendDocument(attachments: MailAttachment[]): MailAttachment | null {
   return (
     attachments.find(
-      (a) => !a.isEmbeddedMessage && a.tekst && classifyAttachment(a.filename) === 'document'
+      (a) => !a.isEmbeddedMessage && a.tekst && classifyAttachment(a.filename, a.tekst) === 'document'
     ) ?? null
   )
 }

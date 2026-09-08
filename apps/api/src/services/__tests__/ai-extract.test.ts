@@ -138,8 +138,21 @@ describe('mergeLines', () => {
 
   it('vult aan wat de regelmotor niet wist, zonder te overschrijven', () => {
     const { lines } = mergeLines([candidate({ qty: 4 })], [aiLine({ qty: 10, rev: 'B' })], hay)
-    expect(lines[0].qty).toBe(4) // getest patroon wint van het model
+    expect(lines[0].qty).toBe(4) // buiten het document wint het geteste patroon
     expect(lines[0].rev).toBe('B') // maar wat leeg was wordt wél gevuld
+  })
+
+  it('laat het model winnen op de ordertabel — daar ziet het de kolommen', () => {
+    // Gemeten: het patroon las "2026 stuks" uit `As ø50x178 4 4-9-2026pcs`,
+    // omdat de leverdatum tegen de eenheid aan plakte.
+    const uitPatroon = candidate({ tekening: '2611-1456-0234', qty: 2026, positie: null })
+    const uitTabel = aiLine({
+      tekening: '2611-1456-0234', qty: 4, positie: 10,
+      bronBestand: 'aanvraag.pdf', bronTekst: '2611-1456-0234 As ø50x178 4',
+    })
+    const { lines } = mergeLines([uitPatroon], [uitTabel], hay, { document: 'aanvraag.pdf' })
+    expect(lines[0].qty).toBe(4)
+    expect(lines[0].positie).toBe(10)
   })
 
   it('voegt een regel toe die alleen in de lopende tekst stond', () => {

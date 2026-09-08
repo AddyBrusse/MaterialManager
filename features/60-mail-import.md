@@ -324,6 +324,15 @@ we hebben en mogen die wél regels maken.
 De mailtekst mag altijd regels toevoegen: "en graag ook 2x P-4471 erbij" staat
 in geen enkel document.
 
+Herkenning van een document gaat op **inhoud vóór naam**. Elke klant verzint
+zijn eigen bestandsnaam — `Purchase offer_RFQ2600241_20260902_07-17.pdf` bleek
+op naam niet als document herkenbaar — maar in de tekst staat gewoon
+"Offerteaanvraag" en "Inkoopofferte". Let bij naamherkenning op de eigen
+woordgrens: `\brfq\b` matcht níet tussen `_` en `R`, dezelfde val als in
+`findRev`. En `RFQ2600241-1-…​dwg` is een tékening met het aanvraagnummer erin,
+geen document — daarom moet het losse woord door niet-alfanumeriek gevolgd
+worden.
+
 **Waarom dit moest:** zonder de rangorde stond hetzelfde onderdeel twee keer in
 het reviewscherm — één regel uit de ordertabel (mét aantal) en één uit de
 bestandsnaam van de tekening (zonder aantal). Waargenomen op echte mail van een

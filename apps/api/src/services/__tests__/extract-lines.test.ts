@@ -342,3 +342,30 @@ describe('rangorde: het handelsdocument gaat vóór de tekeningen', () => {
     expect(lines.map((l) => l.tekening)).toContain('P-4471')
   })
 })
+
+describe('aantallen uit pdf-tekst — de vallen die echte documenten opleveren', () => {
+  /** Zoals de regel er uitgelezen uitkomt: de leverdatum plakt tegen de eenheid. */
+  const AANVRAAG = [
+    'Offerteaanvraag RFQ2600241',
+    'Regel Artikel Omschrijving Aantal Leverdatum',
+    '2611-1456-0234 As ø50x178 4 4-9-2026pcs',
+  ].join('\n')
+
+  it('leest het jaartal uit een leverdatum niet als aantal', () => {
+    // Gemeten: dit gaf "2026 stuks" in het reviewscherm.
+    const { lines } = extractLines(
+      mail({ attachments: [att('Offerteaanvraag RFQ2600241.pdf', false, AANVRAAG)] })
+    )
+    expect(lines.every((l) => l.qty !== 2026)).toBe(true)
+  })
+
+  it('leest een maat niet als aantal', () => {
+    const { lines } = extractLines(mail({ bodyText: 'As ø50x178 graag offreren 123456' }))
+    expect(lines.every((l) => l.qty !== 178)).toBe(true)
+  })
+
+  it('leest een gewoon aantal nog steeds', () => {
+    const { lines } = extractLines(mail({ bodyText: '123456 - 4 pcs' }))
+    expect(lines[0].qty).toBe(4)
+  })
+})

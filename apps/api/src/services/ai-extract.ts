@@ -279,10 +279,15 @@ export interface MergeResult {
  * De twee motoren naast elkaar leggen.
  *
  * Regels die allebei vonden zijn het sterkst — daar zijn twee onafhankelijke
- * methodes het over eens. De regelmotor blijft leidend voor de velden die hij
- * al wist: die komen uit code die we getest hebben. De AI vult aan wat leeg was
- * (vooral aantallen uit lopende tekst) en voegt regels toe die geen bijlage
- * hadden.
+ * methodes het over eens. Buiten het handelsdocument blijft de regelmotor
+ * leidend voor wat hij al wist: dat komt uit code die we getest hebben.
+ *
+ * Bínnen het document is het andersom, en dat is een correctie op de eerste
+ * versie. De regelmotor leest een pdf als losse regels tekst; het model ziet de
+ * kolommen. Op een echte offerteaanvraag stond `As ø50x178 4 4-9-2026pcs` — de
+ * leverdatum plakte tegen de eenheid — en las het patroon 2026 stuks. Waar het
+ * model de ordertabel zelf heeft gelezen, wint dus het model voor aantal en
+ * positie.
  *
  * De rangorde uit §3.4 geldt hier net zo goed: is er een leidend document, dan
  * mag een AI-regel die alleen een tekeningbestand beschrijft geen nieuwe regel
@@ -313,9 +318,13 @@ export function mergeLines(
       bestaand.bronTekst = r.bronTekst
       bestaand.gegrond = gegrond
       bestaand.bronBestand = r.bronBestand ?? bestaand.bronBestand
-      if (bestaand.qty === null && r.qty !== null) bestaand.qty = r.qty
+      // Uit de ordertabel wint het model, elders wint het geteste patroon.
+      const uitTabel = opts.document != null && r.bronBestand === opts.document
+      const neem = (oud: number | null, nieuw: number | null) =>
+        nieuw !== null && (oud === null || uitTabel) ? nieuw : oud
+      bestaand.qty = neem(bestaand.qty, r.qty)
+      bestaand.positie = neem(bestaand.positie, r.positie)
       if (bestaand.rev === null && r.rev !== null) bestaand.rev = r.rev
-      if (bestaand.positie === null && r.positie !== null) bestaand.positie = r.positie
       modelZekerheid.set(bestaand.id, r.zekerheid)
       continue
     }

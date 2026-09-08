@@ -15,6 +15,26 @@ describe('classifyAttachment', () => {
     expect(classifyAttachment('123456_rev B.pdf')).toBe('tekening')
   })
 
+  it('herkent een offerteaanvraag, ook met een underscore ervoor', () => {
+    // Gemeten op echte mail: dit werd als tekening gezien, waardoor de aanvraag
+    // niet leidend was en elke tekening een eigen regel werd. `\brfq\b` matcht
+    // niet tussen `_` en `R` — dezelfde val als in findRev.
+    expect(classifyAttachment('Purchase offer_RFQ2600241_20260902_07-17.pdf')).toBe('document')
+    expect(classifyAttachment('RFQ 2600241.pdf')).toBe('document')
+  })
+
+  it('ziet het aanvraagnummer in een tekeningnaam niet aan voor een document', () => {
+    expect(classifyAttachment('RFQ2600241-1-2611-1456-0234-1_20260902-0717.dwg')).toBe('tekening')
+    expect(classifyAttachment('RFQ2600241-1-2611-1456-0234-2_20260902-0717.pdf')).toBe('tekening')
+  })
+
+  it('gelooft de inhoud eerder dan de naam', () => {
+    const tekst = 'BOERS METAALBEWERKING\nOfferteaanvraag RFQ2600241\nRegel Artikel Omschrijving Aantal'
+    // Een naam die op een tekening lijkt, maar de tekst zegt wat het is.
+    expect(classifyAttachment('2600241_20260902.pdf', tekst)).toBe('document')
+    expect(classifyAttachment('2600241_20260902.pdf', null)).toBe('tekening')
+  })
+
   it('houdt de rest erbuiten', () => {
     expect(classifyAttachment('image001.png')).toBe('overig')
     expect(classifyAttachment('smime.p7s')).toBe('overig')
