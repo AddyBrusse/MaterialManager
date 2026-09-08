@@ -2,16 +2,29 @@ import { useEffect, useState } from 'react'
 import { HoverCard, Loader } from '@mantine/core'
 import { IconPhotoOff, IconExternalLink, IconPrinter } from '@tabler/icons-react'
 import type { Article } from '../../api/articles'
-import { resolveArtikelPreviewSource, renderArtikelPreview, printPdfFile, PREVIEW_SIZE_LG } from '../../utils/artikelPreview'
+import {
+  resolveArtikelPreviewSource, renderArtikelPreview, printPdfFile, PREVIEW_SIZE_LG,
+  type ArtikelPreviewSource,
+} from '../../utils/artikelPreview'
 import { StepViewer } from '../planning-queue/StepViewer'
 
+/**
+ * De preview van een artikel: STEP-render als die er is, anders de pdf-tekening.
+ *
+ * Dun laagje over PreviewThumb — de weergave zelf kent geen artikelen, zodat
+ * losse bestanden (een tekening uit een gesleepte mail, nog vóór er een artikel
+ * bestaat) dezelfde thumbnail en hover krijgen.
+ */
+export function ArtikelPreviewThumb({ article, size = 100 }: { article: Article | null; size?: number }) {
+  return <PreviewThumb source={resolveArtikelPreviewSource(article)} size={size} />
+}
+
 interface Props {
-  article: Article | null
+  source: ArtikelPreviewSource | null
   size?: number
 }
 
-export function ArtikelPreviewThumb({ article, size = 100 }: Props) {
-  const source = resolveArtikelPreviewSource(article)
+export function PreviewThumb({ source, size = 100 }: Props) {
   const [dataUrl, setDataUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error' | 'empty'>(source ? 'loading' : 'empty')
   const [largeUrl, setLargeUrl] = useState<string | null>(null)

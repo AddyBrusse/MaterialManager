@@ -34,6 +34,23 @@ export function resolveArtikelPreviewSource(article: Article | null): ArtikelPre
   return null
 }
 
+/**
+ * Dezelfde keuze, maar op een kale lijst bestanden.
+ *
+ * Nodig voor de mail-import: daar hangen de tekeningen nog nergens aan, ze
+ * liggen los in de map van de import. Dezelfde voorkeur — 3D boven 2D, want een
+ * render herkent een onderdeel beter dan een tekening op duimnagelformaat.
+ */
+export function resolvePreviewSourceFromFiles(
+  files: { name: string; url: string | null }[]
+): ArtikelPreviewSource | null {
+  const step = files.find(f => f.url && STEP_FILE_RE.test(f.name))
+  if (step) return { kind: 'step', url: step.url as string, name: step.name }
+  const pdf = files.find(f => f.url && f.name.toLowerCase().endsWith('.pdf'))
+  if (pdf) return { kind: 'pdf', url: pdf.url as string, name: pdf.name }
+  return null
+}
+
 // ── Row thumbnail vs. hover-preview render sizes ────────────────────────────
 
 export const PREVIEW_SIZE_SM = 200 // 2x the 100px row thumbnail, for crispness

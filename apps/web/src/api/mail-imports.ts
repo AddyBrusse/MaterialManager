@@ -47,5 +47,16 @@ export const mailImportsApi = {
   reread: (id: string) =>
     apiFetch<MailImport>(`/mail-imports/${id}/opnieuw`, { method: 'POST' }).then((r) => r.data),
 
+  /**
+   * Tekeningen uit de mail naar de bijlagenmap van een artikel kopiëren.
+   * Gebeurt op de server: een STEP-assembly heen en weer sturen via de browser
+   * is zonde van de tijd. Geeft de bijlage-metadata terug voor het artikel.
+   */
+  copyFilesToArticle: (id: string, artikelId: string, bestanden: string[]) =>
+    apiFetch<{ name: string; path: string; sizeBytes: number; kind: string }[]>(
+      `/mail-imports/${id}/bestanden-naar-artikel`,
+      { method: 'POST', body: JSON.stringify({ artikelId, bestanden }) }
+    ).then((r) => r.data),
+
   remove: (id: string) => apiFetch<void>(`/mail-imports/${id}`, { method: 'DELETE' }),
 }

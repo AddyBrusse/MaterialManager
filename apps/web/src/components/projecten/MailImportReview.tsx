@@ -95,14 +95,29 @@ export function MailImportReview({
       })
 
       if (overTeNemen > 0 && offerteIsLeeg) {
-        const r = neemRegelsOver(project, current.kandidaten)
+        const klantNaam = relatieOptions.find((o) => o.value === relatieId)?.label ?? null
+        const r = await neemRegelsOver({ project, mailImport: saved, klantNaam })
         onOfferteChanged()
+
+        const nieuw = r.nieuweArtikelen.length
         notifications.show({
           color: r.zonderPrijs > 0 ? 'orange' : 'green',
           title: `${r.aantalRegels} regel${r.aantalRegels === 1 ? '' : 's'} op offerte ${r.offerteId}`,
-          message: r.zonderPrijs > 0
-            ? `${r.zonderPrijs} regel(s) zonder gekoppeld artikel staan op € 0 — die moet je zelf prijzen.`
-            : 'Prijzen komen uit de calculatie van het artikel.',
+          message: [
+            r.projectVelden.length > 0
+              ? `Op het project ingevuld: ${r.projectVelden
+                  .map((v) => (v === 'klantRef' ? 'klantreferentie' : 'leverdatum'))
+                  .join(' en ')}.`
+              : null,
+            nieuw > 0
+              ? `${nieuw} nieuw artikel${nieuw === 1 ? '' : 'en'} aangemaakt (${r.nieuweArtikelen.join(', ')}) met de meegestuurde tekeningen.`
+              : null,
+            r.zonderPrijs > 0
+              ? `${r.zonderPrijs} regel(s) staan op € 0 — daar moet nog een calculatie onder.`
+              : 'Prijzen komen uit de calculatie van het artikel.',
+          ]
+            .filter(Boolean)
+            .join(' '),
         })
       }
 
@@ -155,34 +170,62 @@ export function MailImportReview({
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} size="xl" title="Mail controleren" centered>
-      <div className="ad-card" style={{ marginBottom: 10 }}>
-        <div className="ad-eyebrow">
+    <Modal opened={opened} onClose={onClose} size="1180px" title="Mail controleren" centered>
+      <div className="mi-card">
+        <div className="mi-card-hd">
           {doorgestuurd ? <IconMailForward size={13} /> : <IconMail size={13} />}
-          {doorgestuurd ? 'Doorgestuurd bericht' : 'Bericht'}
+          <span className="title">{doorgestuurd ? 'Doorgestuurd bericht' : 'Bericht'}</span>
         </div>
-        <div className="info-primary" style={{ fontSize: 14 }}>{mailImport.onderwerp || '(geen onderwerp)'}</div>
-        <div className="info-rows">
-          <Row k="Afzender"><Address naam={mailImport.afzenderNaam} email={mailImport.afzenderEmail} /></Row>
-          {doorgestuurd && (
-            <Row k="Oorspronkelijk van"><Address naam={res?.klant?.naam ?? null} email={res?.klant?.email ?? null} /></Row>
-          )}
-          <Row k="Ontvangen">
-            {mailImport.ontvangenOp ? new Date(mailImport.ontvangenOp).toLocaleString('nl-NL') : '—'}
-          </Row>
-          {res && conf && (
-            <Row k="Herkomst">
-              <span style={{ color: conf.color, fontWeight: 600 }}>{conf.label}</span>
-              <span style={{ color: 'var(--text-4)' }}> — {res.reden}</span>
-            </Row>
-          )}
+        <div className="mi-card-body">
+          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+            {mailImport.onderwerp || '(geen onderwerp)'}
+          </div>
+          <dl className="mi-meta">
+            <dt>Afzender</dt>
+            <dd><Address naam={mailImport.afzenderNaam} email={mailImport.afzenderEmail} /></dd>
+            {doorgestuurd && (
+              <>
+                <dt>Oorspronkelijk van</dt>
+                <dd><Address naam={res?.klant?.naam ?? null} email={res?.klant?.email ?? null} /></dd>
+              </>
+            )}
+            <dt>Ontvangen</dt>
+            <dd>{mailImport.ontvangenOp ? new Date(mailImport.ontvangenOp).toLocaleString('nl-NL') : '—'}</dd>
+            {/* Wat de klant zelf als kenmerk gebruikt — daarmee zoekt hij later
+                terug, dus het hoort zichtbaar te zijn vóór je koppelt. */}
+            {mailImport.klantRef && (
+              <>
+                <dt>Referentie klant</dt>
+                <dd className="mono">{mailImport.klantRef}</dd>
+              </>
+            )}
+            {mailImport.leverdatum && (
+              <>
+                <dt>Gevraagde levering</dt>
+                <dd>{new Date(mailImport.leverdatum).toLocaleDateString('nl-NL')}</dd>
+              </>
+            )}
+            {res && conf && (
+              <>
+                <dt>Herkomst</dt>
+                <dd>
+                  <span style={{ color: conf.color, fontWeight: 600 }}>{conf.label}</span>
+                  <span style={{ color: 'var(--text-4)' }}> — {res.reden}</span>
+                </dd>
+              </>
+            )}
+          </dl>
         </div>
       </div>
 
       {mailImport.bijlagen.length > 0 && (
-        <div className="ad-card" style={{ marginBottom: 10 }}>
-          <div className="ad-eyebrow"><IconPaperclip size={13} />Bijlagen ({mailImport.bijlagen.length})</div>
-          <div className="info-rows">
+        <div className="mi-card">
+          <div className="mi-card-hd">
+            <IconPaperclip size={13} />
+            <span className="title">Bijlagen</span>
+            <span className="badge">{mailImport.bijlagen.length}</span>
+          </div>
+          <div className="mi-card-body">
             {mailImport.bijlagen.map((b) => (
               <div key={b.path ?? b.filename}>
                 <div className="info-line">

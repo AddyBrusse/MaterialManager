@@ -187,6 +187,9 @@ async function loadAliases(prisma: PrismaClient, relatieId: string | null): Prom
 export interface CandidateResult {
   kandidaten: CandidateLine[]
   rapport: ExtractieRapport
+  /** Ordernummer van de klant en gevraagde leverdatum uit het document. */
+  klantRef: string | null
+  leverdatum: string | null
 }
 
 /** Geen bijlage-inhoud bij de hand — dan kan het model geen scan bekijken. */
@@ -215,6 +218,8 @@ export async function buildCandidates(
 
   const zonderRegels = (foutmelding: string) => ({
     kandidaten: [],
+    klantRef: null,
+    leverdatum: null,
     rapport: buildRapport([], {
       aiGebruikt: false,
       model: config.ai.model,
@@ -242,6 +247,8 @@ export async function buildCandidates(
     const kandidaten = scoreLines(matchLines(lines, articles, aliases), modelZekerheid)
     return {
       kandidaten,
+      klantRef: ai.klantRef,
+      leverdatum: ai.leverdatum,
       rapport: buildRapport(kandidaten, {
         aiGebruikt: true,
         model: ai.model,
@@ -419,7 +426,9 @@ export async function ingestMsgBuffer(
       ? null
       : suggestRelatie(resolutie.klant, relaties)
     const relatieId = existing.relatieId ?? suggestion?.relatieId ?? null
-    const { kandidaten, rapport } = await buildCandidates(prisma, mail, relatieId, buffers)
+    const { kandidaten, rapport, klantRef, leverdatum } = await buildCandidates(
+      prisma, mail, relatieId, buffers
+    )
 
     const ververst = await prisma.mailImport.update({
       where: { id: existing.id },
@@ -428,6 +437,8 @@ export async function ingestMsgBuffer(
         resolutie: resolutie as unknown as Prisma.InputJsonValue,
         kandidaten: kandidaten as unknown as Prisma.InputJsonValue,
         extractie: rapport as unknown as Prisma.InputJsonValue,
+        klantRef,
+        leverdatum: leverdatum ? new Date(leverdatum) : null,
       },
     })
     return { mailImport: serializeMailImport(ververst), duplicate: true, refreshed: true }
@@ -438,7 +449,7 @@ export async function ingestMsgBuffer(
   // Regels uit de mail halen en tegen de artikeldatabase leggen (§3.4/§3.5).
   // Aliassen alleen van de vermoedelijke relatie: "P-4471" betekent iets
   // anders bij een andere klant.
-  const { kandidaten, rapport } = await buildCandidates(
+  const { kandidaten, rapport, klantRef, leverdatum } = await buildCandidates(
     prisma,
     mail,
     suggestion?.relatieId ?? null,
@@ -460,6 +471,8 @@ export async function ingestMsgBuffer(
       relatieId: suggestion?.relatieId ?? null,
       kandidaten: kandidaten as unknown as Prisma.InputJsonValue,
       extractie: rapport as unknown as Prisma.InputJsonValue,
+      klantRef,
+      leverdatum: leverdatum ? new Date(leverdatum) : null,
       status: 'nieuw',
     },
   })
@@ -527,6 +540,8 @@ type MailImportRow = {
   intent: string
   kandidaten: unknown
   extractie: unknown
+  klantRef: string | null
+  leverdatum: Date | null
   status: string
   projectId: string | null
   foutmelding: string | null
@@ -542,6 +557,7 @@ export function serializeMailImport(row: MailImportRow): MailImport {
     resolutie: (row.resolutie ?? null) as SenderResolution | null,
     kandidaten: (row.kandidaten ?? []) as MailImport['kandidaten'],
     extractie: (row.extractie ?? null) as MailImport['extractie'],
+    leverdatum: row.leverdatum?.toISOString() ?? null,
     source: row.source as MailImport['source'],
     intent: row.intent as MailImport['intent'],
     status: row.status as MailImport['status'],

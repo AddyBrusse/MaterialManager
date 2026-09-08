@@ -54,6 +54,14 @@ const AiResultSchema = z.object({
     .string()
     .nullable()
     .describe('De bestandsnaam van het handelsdocument (inkooporder, aanvraag, opdrachtbevestiging) waar de regels uit komen, of null als er geen was.'),
+  klantRef: z
+    .string()
+    .nullable()
+    .describe('Het order- of aanvraagnummer van de klant zelf, bijvoorbeeld "RFQ2600241" of "PUR2604307". Null als het er niet staat.'),
+  leverdatum: z
+    .string()
+    .nullable()
+    .describe('De gevraagde leverdatum als JJJJ-MM-DD. Staat er alleen een week of niets, geef dan null.'),
   regels: z.array(AiLineSchema).describe('De onderdelen die de klant wil, in de volgorde van de mail of order.'),
   opmerking: z.string().nullable().describe('Korte notitie in het Nederlands als er iets opvalt dat een mens moet weten.'),
 })
@@ -81,7 +89,8 @@ Belangrijk:
 - Vul niets aan wat er niet staat. Geen aantal genoemd? Dan qty null.
 - Elke regel krijgt een bronTekst die LETTERLIJK in het aangeleverde materiaal staat. Kopieer die tekst, parafraseer hem niet.
 - Zet in bronBestand de exacte bestandsnaam van de bijlage waar de regel uit komt, of null als hij uit de mailtekst komt.
-- Staat er geen enkel onderdeel in? Geef dan een lege lijst regels terug.`
+- Staat er geen enkel onderdeel in? Geef dan een lege lijst regels terug.
+- Neem ook het ordernummer van de klant en de gevraagde leverdatum over als die in het document staan. Verzin ze niet.`
 
 // ── De invoer voor het model ──────────────────────────────────────────────────
 
@@ -221,6 +230,9 @@ export interface AiExtractOutcome {
   regels: AiLine[]
   /** De regels uit de tweede lezing, of null als die niet is gedaan. */
   bevestiging: AiLine[] | null
+  /** Het ordernummer van de klant en de gevraagde leverdatum, als die er staan. */
+  klantRef: string | null
+  leverdatum: string | null
   intent: AiResult['intent']
   document: string | null
   opmerking: string | null
@@ -291,6 +303,8 @@ export async function aiExtract(
     bevestiging: bevestiging?.regels ?? null,
     intent: eerste.intent,
     document: eerste.document,
+    klantRef: eerste.klantRef,
+    leverdatum: eerste.leverdatum,
     opmerking: eerste.opmerking,
     model: config.ai.model,
     scans: [...scanNamen],

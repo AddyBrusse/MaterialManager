@@ -2329,3 +2329,49 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
   background: var(--bg-2); font-size: 12px; color: var(--text-2);
 }
 .prj-mail-linked > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== Mail-import controlescherm ===== */
+/* Zelfde kaartopmaak als de artikelkiezer (.ap-*): een kop met een dunne
+   scheiding op de sidebar-achtergrond, en de inhoud eronder. Zo leest het
+   scherm als onderdeel van het programma en niet als een los formulier. */
+.mi-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.mi-card-hd {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+}
+.mi-card-hd .title {
+  font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  color: var(--text-3); text-transform: uppercase;
+}
+.mi-card-hd .badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 500;
+  background: var(--accent-soft); color: var(--accent);
+}
+.mi-card-hd .mi-warn { font-size: 11px; color: var(--warning); }
+.mi-card-body { padding: 10px 12px; }
+/* Tussen kop en tabel hoort geen dubbele rand: de body draagt alleen de
+   samenvatting, de tabel begint er strak onder. */
+.mi-card-body:has(+ .mi-table) { padding-bottom: 8px; }
+
+.mi-table { width: 100%; table-layout: fixed; font-size: 11.5px; }
+.mi-table td { vertical-align: top; }
+.mi-bestand {
+  font-size: 10px; color: var(--text-4);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* De preview-cel houdt zijn eigen hoogte, anders springt de rij bij het laden. */
+.mi-table td:first-child { padding-top: 8px; padding-bottom: 8px; }
+
+/* Kop van het bericht: afzender en herkomst als rustige definitielijst. */
+.mi-meta { display: grid; grid-template-columns: 110px 1fr; gap: 4px 12px; font-size: 11.5px; }
+.mi-meta dt { color: var(--text-3); }
+.mi-meta dd { margin: 0; color: var(--text); }

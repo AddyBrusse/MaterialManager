@@ -236,6 +236,10 @@ export const MailImportSchema = z.object({
   intent: z.enum(MAIL_INTENTS),
   kandidaten: z.array(CandidateLineSchema),
   extractie: ExtractieRapportSchema.nullable().default(null),
+  /** Het order- of aanvraagnummer van de klant, zoals het in het document staat. */
+  klantRef: z.string().nullable().default(null),
+  /** De gevraagde leverdatum, ISO-datum. */
+  leverdatum: z.string().nullable().default(null),
   status: z.enum(MAIL_IMPORT_STATUSES),
   projectId: z.string().nullable(),
   foutmelding: z.string().nullable(),

@@ -1,8 +1,11 @@
 import { Router } from 'express'
 import multer from 'multer'
 import fs from 'fs'
+import path from 'path'
 import { z } from 'zod'
 import { prisma } from '../db/client'
+import { config } from '../config'
+import { sanitizeFilename } from '../lib/filenames'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { MAIL_IMPORT_STATUSES, MAIL_INTENTS } from '@stockmanager/shared'
@@ -217,7 +220,7 @@ router.post(
     }
 
     const bijlagen = (existing.bijlagen ?? []) as MailAttachment[]
-    const { kandidaten, rapport } = await buildCandidates(
+    const { kandidaten, rapport, klantRef, leverdatum } = await buildCandidates(
       prisma,
       mailUitRij(existing),
       existing.relatieId,
@@ -229,11 +232,64 @@ router.post(
       data: {
         kandidaten: kandidaten as unknown as object,
         extractie: rapport as unknown as object,
+        klantRef,
+        leverdatum: leverdatum ? new Date(leverdatum) : null,
         // Een genegeerde of mislukte import komt hiermee weer in behandeling.
         status: 'nieuw',
       },
     })
     res.json({ data: serializeMailImport(row) })
+  })
+)
+
+const CopyFilesSchema = z.object({
+  artikelId: z.string().regex(/^[A-Za-z0-9_-]+$/, 'Ongeldig artikel-id'),
+  bestanden: z.array(z.string()).min(1),
+})
+
+/**
+ * Tekeningen uit een mail naar de bijlagenmap van een artikel kopiëren.
+ *
+ * Server-side kopiëren, niet via de browser: een STEP-assembly is zo tientallen
+ * megabytes, en die eerst downloaden om hem meteen weer te uploaden is zonde van
+ * de tijd én van het netwerk op de werkvloer. De bestanden blijven ook in de
+ * mailmap staan — die map is het bewijsstuk van wat de klant stuurde.
+ *
+ * Geeft de bijlage-metadata terug in de vorm die `Article.attachments` verwacht;
+ * de client zet die op het artikel.
+ */
+router.post(
+  '/:id/bestanden-naar-artikel',
+  asyncHandler(async (req, res) => {
+    const body = CopyFilesSchema.parse(req.body)
+    const existing = await prisma.mailImport.findUnique({ where: { id: req.params.id } })
+    if (!existing) throw new AppError(404, 'NOT_FOUND', 'Mail-import niet gevonden')
+
+    const bijlagen = (existing.bijlagen ?? []) as MailAttachment[]
+    const bronMap = mailImportDir(existing.id)
+    const doelMap = path.join(config.uploadsDir, 'attachments', body.artikelId)
+    fs.mkdirSync(doelMap, { recursive: true })
+
+    const gekopieerd: { name: string; path: string; sizeBytes: number; kind: string }[] = []
+    for (const naam of body.bestanden) {
+      const bijlage = bijlagen.find((b) => b.filename === naam)
+      if (!bijlage?.path) continue
+      const bron = path.join(bronMap, path.basename(bijlage.path))
+      if (!fs.existsSync(bron)) continue
+
+      const doelNaam = `${Date.now()}-${sanitizeFilename(naam)}`
+      fs.copyFileSync(bron, path.join(doelMap, doelNaam))
+      gekopieerd.push({
+        name: naam,
+        path: `/uploads/attachments/${body.artikelId}/${doelNaam}`,
+        sizeBytes: fs.statSync(bron).size,
+        // Een tekening is een tekening, of hij nu als pdf of als model komt —
+        // de preview kiest zelf welke hij laat zien.
+        kind: 'drawing',
+      })
+    }
+
+    res.json({ data: gekopieerd })
   })
 )
 

@@ -455,6 +455,10 @@ model MailImport {
   // Hoe de extractie ging: welk model meelas en hoe zeker het resultaat is.
   // Zie apps/api/src/services/certainty.ts.
   extractie     Json?
+  // Wat er om de regels heen stond: het ordernummer van de klant en de
+  // gevraagde leverdatum. Gaat bij het koppelen mee naar het project.
+  klantRef      String?   @map("klant_ref")
+  leverdatum    DateTime?
   status        String    @default("nieuw")
   projectId     String?   @map("project_id")
   foutmelding   String?

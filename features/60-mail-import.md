@@ -371,6 +371,35 @@ artikel betekent een verkeerde prijs in een offerte naar de klant.
 - Bijlagen gekoppeld aan het project en, waar een artikel gematcht is, aan dat
   artikel (bestaande attachments-structuur).
 
+### 3.6 Wat er bij het koppelen gebeurt — **GEBOUWD**
+
+"Koppelen en N regels overnemen" doet vier dingen, in deze volgorde:
+
+1. **Projectgegevens invullen** — het ordernummer van de klant (`klantRef`) en de
+   gevraagde leverdatum, allebei door het model uit het document gehaald. Alleen
+   wat nog leeg was: wie het project met de hand invulde had daar een reden voor.
+2. **Ontbrekende artikelen aanmaken.** Vroeg de klant om iets dat niet in de
+   database staat, dan ontstaat daar een artikel voor — naam, tekeningnummer,
+   revisie — en de meegestuurde tekening en STEP worden er als bijlage aan
+   gehangen (server-side gekopieerd, de bytes gaan niet door de browser). Zonder
+   dit blijft die tekening in de mailmap liggen en begint de volgende aanvraag
+   van dezelfde klant weer bij nul. Er wordt géén calculatie verzonnen: dat
+   artikel heeft nog geen prijs, en die regel staat dus op € 0.
+3. **Regels op een concept-offerte zetten**, met de prijs bij het gevraagde
+   aantal (instelkosten gelden per batch). Ook bij een opdrachtbevestiging gaat
+   het eerst naar een offerte — één route is minder verrassend dan twee, en de
+   prijzen zijn sowieso te controleren voordat er iets de deur uit gaat.
+4. **De import op 'verwerkt' zetten** en aan het project koppelen.
+
+Bij een regel die aan een *bestaand* artikel hangt gaan de meegestuurde
+bestanden **niet** naar dat artikel: die houdt zijn eigen, gecontroleerde
+tekening. Een export uit het systeem van de klant mag die niet stilzwijgend
+vervangen. De bestanden blijven bij de mail-import staan, en die hangt aan het
+project.
+
+Wat er ontstaat is overal een concept: niets is verstuurd, alles blijft
+aanpasbaar.
+
 ### 3.7 Review — de enige weg naar buiten
 
 Eén scherm, links de mail (afzender, tekst, bijlagen), rechts de voorgestelde
