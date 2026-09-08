@@ -17,7 +17,7 @@ import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
 import { extractLines } from './extract-lines'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
-import { aiEnabled, aiExtract, aiFoutTekst, hasUnreadableAttachment, haystack, mergeLines } from './ai-extract'
+import { aiEnabled, aiExtract, aiFoutTekst, haystack, mergeLines, type AttachmentBuffers } from './ai-extract'
 import { buildRapport, scoreLines } from './certainty'
 
 /**
@@ -189,6 +189,9 @@ export interface CandidateResult {
   rapport: ExtractieRapport
 }
 
+/** Geen bijlage-inhoud bij de hand — dan kan het model geen scan bekijken. */
+const GEEN_BUFFERS: AttachmentBuffers = { get: () => undefined }
+
 /**
  * Regels uit een mail halen en meteen tegen de artikelen leggen.
  *
@@ -196,45 +199,60 @@ export interface CandidateResult {
  * — het taalmodel. De AI-stap mag nooit de import laten mislukken: valt hij weg
  * (geen sleutel, netwerk plat, model traag), dan staat de regelmotor er nog en
  * gaat de mail gewoon door, met de reden in het rapport.
+ *
+ * `buffers` draagt de inhoud van de bijlagen, zodat een gescande inkooporder als
+ * afbeelding aan het model gegeven kan worden. Bij een herberekening is die
+ * inhoud er niet meer; dan leest het model alleen de tekst.
  */
 export async function buildCandidates(
   prisma: PrismaClient,
   mail: NormalizedMail,
-  relatieId: string | null
+  relatieId: string | null,
+  buffers: AttachmentBuffers = GEEN_BUFFERS
 ): Promise<CandidateResult> {
   const [articles, aliases] = await Promise.all([loadArticles(prisma), loadAliases(prisma, relatieId)])
   const basis = extractLines(mail)
 
-  if (!aiEnabled()) {
-    const kandidaten = scoreLines(matchLines(basis, articles, aliases))
-    return {
-      kandidaten,
-      rapport: buildRapport(kandidaten, { aiGebruikt: false, model: null, foutmelding: null }),
-    }
-  }
-
-  try {
-    const ai = await aiExtract(mail)
-    const { lines, modelZekerheid } = mergeLines(basis, ai.regels, haystack(mail), {
-      grondingOncontroleerbaar: hasUnreadableAttachment(mail),
-    })
-    const kandidaten = scoreLines(matchLines(lines, articles, aliases), modelZekerheid)
-    return {
-      kandidaten,
-      rapport: buildRapport(kandidaten, { aiGebruikt: true, model: ai.model, foutmelding: null }),
-    }
-  } catch (err) {
-    const kandidaten = scoreLines(matchLines(basis, articles, aliases))
+  const zonderAi = (foutmelding: string | null, model: string | null) => {
+    const kandidaten = scoreLines(matchLines(basis.lines, articles, aliases))
     return {
       kandidaten,
       rapport: buildRapport(kandidaten, {
         aiGebruikt: false,
-        model: config.ai.model,
-        foutmelding: `De AI kon niet meelezen (${aiFoutTekst(
-          err
-        )}) — alleen de vaste patronen zijn gebruikt.`,
+        model,
+        foutmelding,
+        documentGebruikt: basis.document,
       }),
     }
+  }
+
+  if (!aiEnabled()) return zonderAi(null, null)
+
+  try {
+    const ai = await aiExtract(mail, buffers)
+    const { lines, modelZekerheid } = mergeLines(basis.lines, ai.regels, haystack(mail), {
+      scans: new Set(ai.scans),
+      // Het model mag zelf zeggen welk document het aanhield; kon het dat niet,
+      // dan valt het terug op wat de regelmotor als document herkende.
+      document: ai.document ?? basis.document,
+      attachments: mail.attachments,
+    })
+    const kandidaten = scoreLines(matchLines(lines, articles, aliases), modelZekerheid)
+    return {
+      kandidaten,
+      rapport: buildRapport(kandidaten, {
+        aiGebruikt: true,
+        model: ai.model,
+        foutmelding: null,
+        documentGebruikt: ai.document ?? basis.document,
+        gescandeBijlagen: ai.scans,
+      }),
+    }
+  } catch (err) {
+    return zonderAi(
+      `De AI kon niet meelezen (${aiFoutTekst(err)}) — alleen de vaste patronen zijn gebruikt.`,
+      config.ai.model
+    )
   }
 }
 
@@ -320,6 +338,11 @@ export async function ingestMsgBuffer(
     tekstPath: null,
   }))
 
+  // De inhoud bij de hand houden: een gescande inkooporder heeft geen tekstlaag
+  // en moet als afbeelding aan het model gegeven worden (§6.2).
+  const inhoud = new Map(extracted.map((a) => [a.filename, a.content]))
+  const buffers = { get: (naam: string) => inhoud.get(naam) }
+
   const own = await loadOwnIdentity(prisma)
   const resolutie = resolveSender(mail, embedded, own)
   const key = dedupeKey(mail)
@@ -343,7 +366,7 @@ export async function ingestMsgBuffer(
       ? null
       : suggestRelatie(resolutie.klant, relaties)
     const relatieId = existing.relatieId ?? suggestion?.relatieId ?? null
-    const { kandidaten, rapport } = await buildCandidates(prisma, mail, relatieId)
+    const { kandidaten, rapport } = await buildCandidates(prisma, mail, relatieId, buffers)
 
     const ververst = await prisma.mailImport.update({
       where: { id: existing.id },
@@ -362,7 +385,12 @@ export async function ingestMsgBuffer(
   // Regels uit de mail halen en tegen de artikeldatabase leggen (§3.4/§3.5).
   // Aliassen alleen van de vermoedelijke relatie: "P-4471" betekent iets
   // anders bij een andere klant.
-  const { kandidaten, rapport } = await buildCandidates(prisma, mail, suggestion?.relatieId ?? null)
+  const { kandidaten, rapport } = await buildCandidates(
+    prisma,
+    mail,
+    suggestion?.relatieId ?? null,
+    buffers
+  )
 
   const created = await prisma.mailImport.create({
     data: {

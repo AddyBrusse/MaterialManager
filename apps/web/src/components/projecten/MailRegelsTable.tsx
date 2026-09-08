@@ -52,6 +52,13 @@ function Regel({
           {line.tekening ?? line.ruweTekst}
         </div>
         {line.rev && <div style={{ fontSize: 10.5, color: 'var(--text-4)' }}>rev {line.rev}</div>}
+        {/* Tekeningen horen bíj een regel, niet ernaast — zonder dit stonden
+            dezelfde onderdeel twee keer in de lijst. */}
+        {line.bestanden.map((naam) => (
+          <div key={naam} style={{ fontSize: 10, color: 'var(--text-4)', overflowWrap: 'anywhere' }}>
+            📎 {naam}
+          </div>
+        ))}
       </td>
       <td style={{ textAlign: 'right', verticalAlign: 'top' }}>{line.qty ?? '—'}</td>
       <td style={{ verticalAlign: 'top' }}>

@@ -38,7 +38,7 @@ describe('orderNumbersInSubject', () => {
 
 describe('extractLines — bijlagenamen', () => {
   it('leest het gemeten patroon <ordernummer>-<positie>', () => {
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'koppel order: 2026077',
       attachments: [att('2026077-001.STEP'), att('2026077-002.STEP')],
     }))
@@ -48,19 +48,19 @@ describe('extractLines — bijlagenamen', () => {
   it('leest een streepje NIET als positie zonder ordernummer in het onderwerp', () => {
     // Zonder die controle zou elk tekeningnummer met een streepje stilletjes
     // een positienummer krijgen.
-    const lines = extractLines(mail({ subject: 'Offerteaanvraag', attachments: [att('123456-02.pdf')] }))
+    const { lines } = extractLines(mail({ subject: 'Offerteaanvraag', attachments: [att('123456-02.pdf')] }))
     expect(lines[0].positie).toBeNull()
     expect(lines[0].tekening).toBe('123456-02')
   })
 
   it('haalt revisie en aantal uit de naam', () => {
-    const lines = extractLines(mail({ attachments: [att('123456_rev B.pdf'), att('P-4471 (3x).pdf')] }))
+    const { lines } = extractLines(mail({ attachments: [att('123456_rev B.pdf'), att('P-4471 (3x).pdf')] }))
     expect(lines.find(l => l.tekening === '123456')?.rev).toBe('B')
     expect(lines.find(l => l.tekening === 'P-4471')?.qty).toBe(3)
   })
 
   it('ziet een tekening en zijn model als één regel', () => {
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'koppel order: 2026077',
       attachments: [att('2026077-001.STEP'), att('2026077-001.pdf')],
     }))
@@ -68,7 +68,7 @@ describe('extractLines — bijlagenamen', () => {
   })
 
   it('negeert bijlagen die geen onderdeel zijn', () => {
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       attachments: [att('handtekening.p7s'), att('image001.gif'), att('logo.pdf'), att('offerte.xlsx')],
     }))
     expect(lines).toEqual([])
@@ -77,13 +77,13 @@ describe('extractLines — bijlagenamen', () => {
   it('negeert een bijlagenaam zonder nummer', () => {
     // Onderdelen worden met een nummer aangeduid; "order.pdf" en "scan.pdf"
     // zijn documenten en werden anders zelf een regel.
-    expect(extractLines(mail({ attachments: [att('order.pdf'), att('scan.pdf'), att('tekeningen.pdf')] }))).toEqual([])
+    expect(extractLines(mail({ attachments: [att('order.pdf'), att('scan.pdf'), att('tekeningen.pdf')] })).lines).toEqual([])
   })
 
   it('negeert het handelsdocument zelf', () => {
     // Waargenomen op echte klantmail: de inkooporder rijdt als pdf mee naast
     // de tekeningen, en werd anders zelf een offerteregel.
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'Inkooporder PUR2604307',
       attachments: [
         att('Purchase order_2604307_20260904_09-42.pdf'),
@@ -102,20 +102,20 @@ describe('extractLines — bijlagenamen', () => {
   })
 
   it('negeert offerte-, factuur- en pakbondocumenten', () => {
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       attachments: [att('Offerte 2026-123.pdf'), att('Factuur_998.pdf'), att('Packing list.pdf'), att('RFQ 5512.pdf')],
     }))
     expect(lines).toEqual([])
   })
 
   it('negeert een meegestuurd bericht', () => {
-    expect(extractLines(mail({ attachments: [att('Doorgestuurd.msg', true)] }))).toEqual([])
+    expect(extractLines(mail({ attachments: [att('Doorgestuurd.msg', true)] })).lines).toEqual([])
   })
 })
 
 describe('extractLines — vorm van het resultaat', () => {
   it('markeert niets als handmatig gekozen', () => {
-    const lines = extractLines(mail({ subject: 'order 2026077', attachments: [att('2026077-001.STEP')] }))
+    const { lines } = extractLines(mail({ subject: 'order 2026077', attachments: [att('2026077-001.STEP')] }))
     expect(lines[0].handmatig).toBe(false)
     expect(lines[0].artikelId).toBeNull()
     expect(lines[0].status).toBe('nieuw')
@@ -124,28 +124,28 @@ describe('extractLines — vorm van het resultaat', () => {
 
 describe('extractLines — bodytekst', () => {
   it('leest aantal + code uit een regel', () => {
-    const lines = extractLines(mail({ bodyText: 'Graag prijs voor 3x 123456\nGroet' }))
+    const { lines } = extractLines(mail({ bodyText: 'Graag prijs voor 3x 123456\nGroet' }))
     expect(lines).toHaveLength(1)
     expect(lines[0].tekening).toBe('123456')
     expect(lines[0].qty).toBe(3)
   })
 
   it('leest ook "- 5 stuks"', () => {
-    const lines = extractLines(mail({ bodyText: 'P-4471 - 5 stuks' }))
+    const { lines } = extractLines(mail({ bodyText: 'P-4471 - 5 stuks' }))
     expect(lines[0].qty).toBe(5)
   })
 
   it('laat gewone zinnen met rust', () => {
-    expect(extractLines(mail({ bodyText: 'Hoi Addy,\n\nKun je hier eens naar kijken?\n\nGroet, Remco' }))).toEqual([])
+    expect(extractLines(mail({ bodyText: 'Hoi Addy,\n\nKun je hier eens naar kijken?\n\nGroet, Remco' })).lines).toEqual([])
   })
 
   it('leest een doorstuur-kop niet als regel', () => {
     const body = 'Van: Inkoop <inkoop@klant.nl>\nVerzonden: donderdag 3 september 2026 10:12\nOnderwerp: 2026077'
-    expect(extractLines(mail({ bodyText: body }))).toEqual([])
+    expect(extractLines(mail({ bodyText: body })).lines).toEqual([])
   })
 
   it('vult het aantal uit de body aan op een regel uit een bijlagenaam', () => {
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'order 2026077',
       attachments: [att('2026077-001.STEP')],
       bodyText: 'Van deze willen we er 4x',
@@ -160,7 +160,7 @@ describe('exportstempel uit bestandsnamen', () => {
     // Gemeten op mail van Stinis: het systeem exporteert met de exporttijd in
     // de naam. Zonder strippen matcht niets, en leert de alias niets — de
     // stempel is elke mail anders.
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'Inkooporder PUR2604307',
       attachments: [att('2604307-1-2615-0091-0530-1_20260904-0942.pdf')],
     }))
@@ -168,21 +168,21 @@ describe('exportstempel uit bestandsnamen', () => {
   })
 
   it('herkent ook andere schrijfwijzen van de stempel', () => {
-    expect(extractLines(mail({ attachments: [att('123456_20260904_09-42.pdf')] }))[0].tekening).toBe('123456')
-    expect(extractLines(mail({ attachments: [att('123456-2026-09-04.pdf')] }))[0].tekening).toBe('123456')
+    expect(extractLines(mail({ attachments: [att('123456_20260904_09-42.pdf')] })).lines[0].tekening).toBe('123456')
+    expect(extractLines(mail({ attachments: [att('123456-2026-09-04.pdf')] })).lines[0].tekening).toBe('123456')
   })
 
   it('kapt een tekeningnummer NIET af dat toevallig op cijfers eindigt', () => {
     // 99999999 is geen geldige datum (maand 99), dus dit hoort te blijven staan.
-    expect(extractLines(mail({ attachments: [att('DEEL-99999999.pdf')] }))[0].tekening).toBe('DEEL-99999999')
-    expect(extractLines(mail({ attachments: [att('2026077-001.STEP')] }))[0].tekening).toBe('2026077-001')
+    expect(extractLines(mail({ attachments: [att('DEEL-99999999.pdf')] })).lines[0].tekening).toBe('DEEL-99999999')
+    expect(extractLines(mail({ attachments: [att('2026077-001.STEP')] })).lines[0].tekening).toBe('2026077-001')
   })
 })
 
 
 describe('aantallen uit de tekst van een meegestuurde PDF', () => {
   it('haalt het aantal uit de orderregeltabel', () => {
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'Inkooporder PUR2604307',
       attachments: [att('Purchase order_2604307.pdf', false, PO_TEKST)],
     }))
@@ -198,7 +198,7 @@ describe('aantallen uit de tekst van een meegestuurde PDF', () => {
   it('vult het aantal aan op de regel die uit de bestandsnaam kwam', () => {
     // De tekening levert de regel, de order levert het aantal — precies het
     // geval uit de praktijk: bestandsnamen dragen zelden een aantal.
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'Inkooporder PUR2604307',
       attachments: [
         att('2604307-1-2615-0091-0530-1_20260904-0942.stp'),
@@ -212,17 +212,17 @@ describe('aantallen uit de tekst van een meegestuurde PDF', () => {
   })
 
   it('leest een lang tekeningnummer in één stuk, niet afgekapt', () => {
-    const lines = extractLines(mail({ attachments: [att('order.pdf', false, '10 2604307-1-2615-0091-0530-1 Bracket 4 pcs')] }))
+    const { lines } = extractLines(mail({ attachments: [att('order.pdf', false, '10 2604307-1-2615-0091-0530-1 Bracket 4 pcs')] }))
     expect(lines[0].tekening).toBe('2604307-1-2615-0091-0530-1')
   })
 
   it('ziet kopregels en totalen niet aan voor orderregels', () => {
     const ruis = ['PURCHASE ORDER', 'Pos Article Description Qty Unit Price', 'Delivery: week 42 Total: 1.234,00 EUR', 'Order no. PUR2604307'].join('\n')
-    expect(extractLines(mail({ attachments: [att('order.pdf', false, ruis)] }))).toEqual([])
+    expect(extractLines(mail({ attachments: [att('order.pdf', false, ruis)] })).lines).toEqual([])
   })
 
   it('doet niets als er geen tekst uit de PDF kwam (scan)', () => {
-    expect(extractLines(mail({ attachments: [att('gescande order.pdf', false, null)] }))).toEqual([])
+    expect(extractLines(mail({ attachments: [att('gescande order.pdf', false, null)] })).lines).toEqual([])
   })
 })
 
@@ -235,7 +235,7 @@ describe('ordernummer voor het tekeningnummer van de klant', () => {
   ].join('\n')
 
   it('houdt het tekeningnummer over, met de positie apart', () => {
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'Inkooporder PUR2604307 -',
       attachments: [att('2604307-1-2615-0091-0530-1_20260904-0942.stp')],
     }))
@@ -250,7 +250,7 @@ describe('ordernummer voor het tekeningnummer van de klant', () => {
   it('voegt bestandsnaam en orderregel samen tot één regel', () => {
     // Zonder dezelfde behandeling in beide bronnen levert dit twee regels op:
     // de tekening zonder aantal, en het aantal zonder tekening.
-    const lines = extractLines(mail({
+    const { lines } = extractLines(mail({
       subject: 'Inkooporder PUR2604307 -',
       attachments: [
         att('2604307-1-2615-0091-0530-1_20260904-0942.stp'),
@@ -263,8 +263,82 @@ describe('ordernummer voor het tekeningnummer van de klant', () => {
   })
 
   it('laat een nummer met streepje met rust als het ordernummer niet klopt', () => {
-    const lines = extractLines(mail({ subject: 'Aanvraag', attachments: [att('9876543-2-1111-2222.pdf')] }))
+    const { lines } = extractLines(mail({ subject: 'Aanvraag', attachments: [att('9876543-2-1111-2222.pdf')] }))
     expect(lines[0].tekening).toBe('9876543-2-1111-2222')
     expect(lines[0].positie).toBeNull()
+  })
+})
+
+describe('rangorde: het handelsdocument gaat vóór de tekeningen', () => {
+  const order = () =>
+    att('Purchase order_2604307_20260904_09-42.pdf', false, PO_TEKST)
+
+  it('maakt van een tekening geen tweede regel als de order leesbaar is', () => {
+    // Het geval uit de praktijk: dezelfde onderdeel stond twee keer in het
+    // reviewscherm — één regel uit de ordertabel (mét aantal) en één uit de
+    // bestandsnaam van de tekening (zonder aantal).
+    const { lines, document } = extractLines(
+      mail({
+        subject: 'Inkooporder PUR2604307',
+        attachments: [
+          order(),
+          att('2604307-1-2615-0091-0530-1_20260904-0942.dwg'),
+          att('2604307-1-2615-0091-0530-1_20260904-0942.stp'),
+          att('2604307-1-2615-0091-0530-1_20260904-0942.pdf'),
+        ],
+      })
+    )
+    expect(document).toBe('Purchase order_2604307_20260904_09-42.pdf')
+    expect(lines).toHaveLength(3) // de drie regels uit de order, niet meer
+    const eerste = lines.find((l) => l.tekening === '2615-0091-0530-1')!
+    expect(eerste.qty).toBe(4)
+  })
+
+  it('hangt de meegestuurde tekeningen aan de regel waar ze bij horen', () => {
+    const { lines } = extractLines(
+      mail({
+        subject: 'Inkooporder PUR2604307',
+        attachments: [
+          order(),
+          att('2604307-1-2615-0091-0530-1_20260904-0942.dwg'),
+          att('2604307-1-2615-0091-0530-1_20260904-0942.stp'),
+        ],
+      })
+    )
+    const eerste = lines.find((l) => l.tekening === '2615-0091-0530-1')!
+    expect(eerste.bestanden).toEqual([
+      '2604307-1-2615-0091-0530-1_20260904-0942.dwg',
+      '2604307-1-2615-0091-0530-1_20260904-0942.stp',
+    ])
+    // en die bestanden hangen niet óók aan een andere regel
+    expect(lines.find((l) => l.tekening === '123456')!.bestanden).toEqual([])
+  })
+
+  it('valt terug op de bestandsnamen als de order een scan is', () => {
+    // Geen tekstlaag in de order — dan is de bestandsnaam alles wat de
+    // regelmotor heeft, en mag die wél een regel maken.
+    const { lines, document } = extractLines(
+      mail({
+        subject: 'Inkooporder PUR2604307',
+        attachments: [
+          att('Purchase order_2604307.pdf', false, null),
+          att('2604307-1-2615-0091-0530-1_20260904-0942.stp'),
+        ],
+      })
+    )
+    expect(document).toBeNull()
+    expect(lines).toHaveLength(1)
+    expect(lines[0].tekening).toBe('2615-0091-0530-1')
+  })
+
+  it('laat de mailtekst altijd regels toevoegen — ook naast een order', () => {
+    const { lines } = extractLines(
+      mail({
+        subject: 'Inkooporder PUR2604307',
+        bodyText: 'En graag ook 2x P-4471 erbij.',
+        attachments: [order()],
+      })
+    )
+    expect(lines.map((l) => l.tekening)).toContain('P-4471')
   })
 })

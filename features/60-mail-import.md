@@ -304,6 +304,31 @@ van signaalwaarde:
 4. **PDF-tekst** — tekstlaag uit de PDF halen. Let op: scans zonder tekstlaag
    leveren niets op zonder OCR (buiten scope, zie open besluiten).
 
+#### Rangorde: document vóór tekening (2026-09-08)
+
+Een klantmail draagt twee soorten bijlagen, en die zijn niet gelijkwaardig:
+
+| Soort | Wat het is | Wat we ermee doen |
+|---|---|---|
+| **document** | inkooporder, aanvraag, opdrachtbevestiging | bepaalt de regels: welke onderdelen, hoeveel, in welke volgorde |
+| **tekening** | dwg, step, pdf met een tekeningnummer | hangt *aan* een regel; wordt zelf nooit een regel zolang er een document is |
+| overig | handtekeningplaatjes, voorwaarden, losse rommel | genegeerd |
+
+`attachment-kind.ts` doet die indeling; `leidendDocument()` kiest het eerste
+leesbare document. Is er zo'n document, dan maakt alleen zijn regeltabel regels
+en worden de tekeningen via `hoortBij()` aan de juiste regel gehangen — de klant
+noemt zijn tekening `<order>-<positie>-<ons nummer>-<rev>`, dus het onze zit
+erin besloten. Is er géén leesbaar document, dan zijn de bestandsnamen alles wat
+we hebben en mogen die wél regels maken.
+
+De mailtekst mag altijd regels toevoegen: "en graag ook 2x P-4471 erbij" staat
+in geen enkel document.
+
+**Waarom dit moest:** zonder de rangorde stond hetzelfde onderdeel twee keer in
+het reviewscherm — één regel uit de ordertabel (mét aantal) en één uit de
+bestandsnaam van de tekening (zonder aantal). Waargenomen op echte mail van een
+klant, 2026-09-08.
+
 ### 3.5 Artikel-matching
 
 > **Gebouwd** — `services/extract-lines.ts` en `services/match-articles.ts`.
@@ -451,17 +476,35 @@ Het model krijgt onderwerp, body, bijlagenamen en de al uitgelezen pdf-tekst
 (`messages.parse` + `zodOutputFormat`) regels terug:
 `{ tekening, omschrijving, qty, rev, positie, bronTekst, zekerheid }`.
 
-### 6.2 Tegen verzinsels: gronding
+### 6.2 Gescande documenten: het model kijkt ernaar
+
+`pdf-text.ts` haalt alleen een tekstlaag eruit. Een gescande inkooporder levert
+niets op — en dat is precies het document dat de regels zou moeten bepalen.
+Waargenomen op echte mail van een klant: beide pdf's waren scans, dus de order
+is nooit gelezen en de extractie viel terug op bestandsnamen.
+
+Daarom gaat een pdf zonder tekstlaag als **document-blok** mee naar het model,
+dat hem gewoon kan bekijken (`scansVoorModel`). Handelsdocumenten eerst: als er
+maar plek is voor een paar, hoort de inkooporder erbij en niet drie tekeningen.
+Grenzen: 8 MB per bijlage, hoogstens 3 stuks. Een gescande pagina kost als
+afbeelding meer tokens dan tekst — dat is de prijs van een leesbare order.
+
+### 6.3 Tegen verzinsels: gronding, per regel
 
 Elke regel moet een `bronTekst` meebrengen die **letterlijk** in de mail of
 bijlage staat. `isGrounded()` zoekt die terug (genormaliseerd op spaties, en
 anders op alle losse woorden — pdf-tekst komt met andere regelovergangen terug
 dan het model teruggeeft). Staat hij er niet, dan blijft de regel wél staan —
 misschien klopt hij — maar met een zichtbaar lagere zekerheid en een
-waarschuwing in het reviewscherm. Bij een scan zonder tekstlaag valt niets terug
-te zoeken; dan is `gegrond` null en telt dat als *onzeker*, niet als *fout*.
+waarschuwing in het reviewscherm.
 
-### 6.3 Samenvoegen
+Uit een scan valt niets terug te zoeken: die regels krijgen `gegrond: null`, wat
+als *onzeker* telt en niet als *fout*. Dat oordeel gaat **per regel**, op grond
+van `bronBestand` — het model zegt zelf uit welke bijlage een regel komt. De
+eerste versie zette de controle voor de héle mail uit zodra er ergens een scan
+bij zat; een verzonnen regel uit de mailtekst liftte daar dan op mee.
+
+### 6.4 Samenvoegen
 
 `mergeLines()` legt de twee uitkomsten naast elkaar op hetzelfde dedupe-sleutel
 als §3.4. De regelmotor blijft leidend voor wat hij al wist (getest patroon wint
@@ -470,7 +513,7 @@ voegt regels toe die geen bijlage hadden. Een regel die **beide** motoren vonden
 krijgt `extractor: 'beide'` en een bonus op de zekerheid: twee onafhankelijke
 methodes die hetzelfde zeggen is het sterkste signaal dat we hebben.
 
-### 6.4 Zekerheidsscore
+### 6.5 Zekerheidsscore
 
 Per regel, `certainty.ts`, gewogen over drie dingen:
 
@@ -490,7 +533,7 @@ soort regels achteraf klopte. Echte nauwkeurigheid kan pas uit de correcties die
 mensen in het reviewscherm maken — die worden nu wel bewaard (als `ArticleAlias`
 en in `kandidaten`) maar nog niet geteld.
 
-### 6.5 Bedrijfszekerheid
+### 6.6 Bedrijfszekerheid
 
 - **Geen sleutel, geen probleem.** Zonder `ANTHROPIC_API_KEY`, of met `MAIL_AI=uit`,
   draait alleen de regelmotor. De import werkt gewoon door, alleen minder flexibel.

@@ -64,6 +64,18 @@ export function ExtractieSamenvatting({ rapport }: { rapport: ExtractieRapport |
       <span style={{ color: kleurVoor(rapport.zekerheid) }}>Zekerheid gemiddeld {procent}%</span>
       {rapport.laagsteZekerheid < rapport.zekerheid && <> · laagste regel {laagste}%</>}
       {rapport.aiGebruikt ? <> · gelezen door {rapport.model}</> : <> · alleen vaste patronen</>}
+      {/* Welke bron de regels bepaalde is het eerste wat je wilt weten bij een
+          controle: kwam dit uit de order van de klant of uit bestandsnamen? */}
+      {rapport.documentGebruikt ? (
+        <div>Regels uit <strong>{rapport.documentGebruikt}</strong>; meegestuurde tekeningen zijn eraan gehangen.</div>
+      ) : (
+        <div>Geen leesbaar order- of aanvraagdocument gevonden — regels uit de mail en de bestandsnamen.</div>
+      )}
+      {rapport.gescandeBijlagen.length > 0 && (
+        <div>
+          Als afbeelding gelezen (geen tekstlaag): {rapport.gescandeBijlagen.join(', ')}
+        </div>
+      )}
       {rapport.ongegrondeRegels > 0 && (
         <span style={{ color: 'var(--danger)' }}>
           {' '}· {rapport.ongegrondeRegels} regel(s) niet terug te vinden in de mail

@@ -102,7 +102,13 @@ export function scoreLines(
 
 export function buildRapport(
   lines: CandidateLine[],
-  opts: { aiGebruikt: boolean; model: string | null; foutmelding: string | null }
+  opts: {
+    aiGebruikt: boolean
+    model: string | null
+    foutmelding: string | null
+    documentGebruikt?: string | null
+    gescandeBijlagen?: string[]
+  }
 ): ExtractieRapport {
   const scores = lines.map((l) => l.zekerheid)
   return {
@@ -113,6 +119,8 @@ export function buildRapport(
       : 0,
     laagsteZekerheid: scores.length ? Math.min(...scores) : 0,
     ongegrondeRegels: lines.filter((l) => l.gegrond === false && l.extractor !== 'regels').length,
+    documentGebruikt: opts.documentGebruikt ?? null,
+    gescandeBijlagen: opts.gescandeBijlagen ?? [],
     foutmelding: opts.foutmelding,
   }
 }

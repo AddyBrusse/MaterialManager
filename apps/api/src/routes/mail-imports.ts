@@ -89,6 +89,8 @@ function hertelRapport(bestaand: unknown, kandidaten: CandidateLine[]) {
     aiGebruikt: oud?.aiGebruikt ?? false,
     model: oud?.model ?? null,
     foutmelding: oud?.foutmelding ?? null,
+    documentGebruikt: oud?.documentGebruikt ?? null,
+    gescandeBijlagen: oud?.gescandeBijlagen ?? [],
   })
 }
 

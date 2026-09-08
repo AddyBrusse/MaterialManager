@@ -124,6 +124,14 @@ export const CandidateLineSchema = z.object({
   bron: z.enum(CANDIDATE_SOURCES),
   /** Bijlage waar deze regel vandaan komt, als die er is. */
   attachmentFilename: z.string().nullable(),
+  /**
+   * Tekeningen en modellen die bij deze regel horen.
+   *
+   * Een tekening is een bijlage bíj een onderdeel, geen onderdeel op zichzelf.
+   * Zodra het handelsdocument leesbaar is, komen de meegestuurde bestanden hier
+   * terecht in plaats van dat ze een eigen regel worden.
+   */
+  bestanden: z.array(z.string()).default([]),
   /** Beste kandidaten uit de artikeldatabase, hoogste score eerst. */
   matches: z.array(ArticleMatchSchema).default([]),
   status: z.enum(MATCH_STATUSES).default('nieuw'),
@@ -142,8 +150,16 @@ export const CandidateLineSchema = z.object({
    * Wordt gecontroleerd: staat het er niet echt, dan telt het niet mee.
    */
   bronTekst: z.string().nullable().default(null),
-  /** Stond `bronTekst` echt in de mail of bijlage? Null bij de regelmotor. */
-  gegrond: z.boolean().nullable().default(false),
+  /**
+   * Stond `bronTekst` echt in de mail of bijlage?
+   *  true  — letterlijk teruggevonden
+   *  false — niet teruggevonden terwijl dat wel had gemoeten: mogelijk verzonnen
+   *  null  — niet te controleren (de regel komt uit een scan die het model als
+   *          plaatje heeft gelezen) of niet van toepassing (de regelmotor)
+   */
+  gegrond: z.boolean().nullable().default(null),
+  /** De bijlage waar het model deze regel uit haalde; null als het de mailtekst was. */
+  bronBestand: z.string().nullable().default(null),
   /**
    * 0-1. Een *vertrouwensindicatie*, geen gemeten nauwkeurigheid: hoe goed
    * onderbouwd deze regel is (gevonden, gegrond, gekoppeld, compleet).
@@ -167,6 +183,15 @@ export const ExtractieRapportSchema = z.object({
   laagsteZekerheid: z.number().min(0).max(1),
   /** Regels die het model noemde maar niet letterlijk kon onderbouwen. */
   ongegrondeRegels: z.number().int(),
+  /**
+   * Het handelsdocument dat de regels bepaalde, als dat er was. Is dit gevuld,
+   * dan zijn tekeningen aan die regels gehangen in plaats van zelf een regel
+   * geworden. Null betekent: geen leesbaar document, dus uit de mail en de
+   * bestandsnamen gehaald.
+   */
+  documentGebruikt: z.string().nullable().default(null),
+  /** Bijlagen zonder tekstlaag die als afbeelding aan het model zijn gegeven. */
+  gescandeBijlagen: z.array(z.string()).default([]),
   /** Gevuld als de AI-stap faalde; de regelmotor draaide dan alleen. */
   foutmelding: z.string().nullable(),
 })

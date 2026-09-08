@@ -1,4 +1,12 @@
-import type { CandidateLine, CandidateSource, NormalizedMail } from '@stockmanager/shared'
+import type { CandidateLine, CandidateSource, MailAttachment, NormalizedMail } from '@stockmanager/shared'
+import { baseNameOf, classifyAttachment, hoortBij } from './attachment-kind'
+
+/** Wat een patroon oplevert: de velden die uit de tekst zelf komen. De rest
+ *  (id, koppeling, zekerheid) wordt er in extractLines omheen gezet. */
+type Kandidaat = Pick<
+  CandidateLine,
+  'ruweTekst' | 'tekening' | 'rev' | 'positie' | 'qty' | 'bron' | 'attachmentFilename'
+>
 
 /**
  * Regels uit een mail halen — features/60-mail-import.md §3.4.
@@ -11,35 +19,6 @@ import type { CandidateLine, CandidateSource, NormalizedMail } from '@stockmanag
  * Wat hier uitkomt zijn *kandidaten*, geen regels. Er wordt niets van
  * aangemaakt zonder dat iemand het in het reviewscherm heeft gezien.
  */
-
-/** Bijlagen die nooit een onderdeel zijn — handtekeningplaatjes en dergelijke. */
-const IGNORED_EXTENSIONS = new Set(['.p7s', '.p7m', '.asc', '.vcf', '.ics', '.gif'])
-const IGNORED_NAMES = /^(image\d*|oledata|winmail|logo|signature|banner)/i
-
-/**
- * Het handelsdocument zelf is geen onderdeel.
- *
- * Een klantmail draagt vaak de inkooporder of offerteaanvraag als pdf mee,
- * naast de tekeningen. Zonder deze filter wordt "Purchase order_2604307.pdf"
- * een offerteregel — waargenomen op echte mail van een klant.
- */
-const DOCUMENT_NAMES =
-  /(purchase[\s_-]*order|inkooporder|bestelbon|bestelling|order[\s_-]*(bevestiging|confirmation)|offerte|aanvraag|quotation|\bquote\b|\brfq\b|invoice|factuur|pakbon|packing[\s_-]*list|voorwaarden|terms)/i
-
-/** Bestandstypen die in deze werkplaats een onderdeel aanduiden. */
-const PART_EXTENSIONS = new Set([
-  '.step', '.stp', '.iges', '.igs', '.sldprt', '.ipt', '.x_t', '.stl', '.dxf', '.dwg', '.pdf',
-])
-
-function extensionOf(filename: string): string {
-  const dot = filename.lastIndexOf('.')
-  return dot === -1 ? '' : filename.slice(dot).toLowerCase()
-}
-
-function baseNameOf(filename: string): string {
-  const dot = filename.lastIndexOf('.')
-  return (dot === -1 ? filename : filename.slice(0, dot)).trim()
-}
 
 /**
  * Exportstempel achteraan een bestandsnaam weghalen.
@@ -120,17 +99,9 @@ export function orderNumbersInSubject(subject: string): string[] {
  * onderwerp is — anders is `123456-02` gewoon een tekeningnummer met een
  * streepje erin, en dat mag niet stilletjes als positie 2 gelden.
  */
-function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'> | null {
-  const ext = extensionOf(filename)
+function fromFilename(filename: string, orderNumbers: string[]): Kandidaat | null {
+  if (classifyAttachment(filename) !== 'tekening') return null
   const base = baseNameOf(filename)
-  if (!base || IGNORED_EXTENSIONS.has(ext) || IGNORED_NAMES.test(base)) return null
-  if (DOCUMENT_NAMES.test(base)) return null
-  // Een onderdeel wordt hier altijd met een nummer aangeduid. Een bijlage die
-  // alleen uit woorden bestaat ("order.pdf", "scan.pdf", "tekeningen.pdf") is
-  // een document, geen tekeningnummer — zonder deze regel wordt "order" een
-  // offerteregel.
-  if (!/\d{3,}/.test(base)) return null
-  if (ext && !PART_EXTENSIONS.has(ext)) return null
 
   let tekening = base
   let positie: number | null = null
@@ -162,7 +133,7 @@ function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateL
 }
 
 /** Bodyregels als `3x 123456` of `123456 - 3 stuks`. */
-function fromBodyLine(line: string): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'> | null {
+function fromBodyLine(line: string): Kandidaat | null {
   const trimmed = line.trim()
   if (trimmed.length < 4 || trimmed.length > 200) return null
   // Doorstuur-koppen zijn geen regels (§3.2 leest die apart).
@@ -226,8 +197,8 @@ function fromDocumentText(
   filename: string,
   tekst: string,
   orderNumbers: string[]
-): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'>[] {
-  const out: Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'>[] = []
+): Kandidaat[] {
+  const out: Kandidaat[] = []
   for (const line of tekst.split(/\r?\n/)) {
     const trimmed = line.trim()
     if (trimmed.length < 6 || trimmed.length > 300) continue
@@ -255,12 +226,37 @@ export function dedupeKeyOf(tekening: string | null, ruweTekst: string): string 
   return (tekening ?? ruweTekst).toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
-export function extractLines(mail: NormalizedMail): CandidateLine[] {
+/** Het handelsdocument dat de regels mag bepalen — het eerste dat leesbaar is. */
+export function leidendDocument(attachments: MailAttachment[]): MailAttachment | null {
+  return (
+    attachments.find(
+      (a) => !a.isEmbeddedMessage && a.tekst && classifyAttachment(a.filename) === 'document'
+    ) ?? null
+  )
+}
+
+export interface ExtractResult {
+  lines: CandidateLine[]
+  /** De inkooporder of aanvraag die de regels bepaalde, of null. */
+  document: string | null
+}
+
+/**
+ * Regels uit een mail halen.
+ *
+ * De rangorde is wat hier telt (§3.4). Is er een leesbaar handelsdocument, dan
+ * bepaalt dát de regels en worden de meegestuurde tekeningen eraan gehangen —
+ * een tekening is een bijlage bij een onderdeel, niet een tweede bestelling van
+ * datzelfde onderdeel. Pas zonder zo'n document vallen we terug op de
+ * bestandsnamen, want dan is dat alles wat we hebben.
+ */
+export function extractLines(mail: NormalizedMail): ExtractResult {
   const orderNumbers = orderNumbersInSubject(mail.subject)
+  const document = leidendDocument(mail.attachments)
   const byKey = new Map<string, CandidateLine>()
   let seq = 0
 
-  const add = (partial: Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'> | null) => {
+  const add = (partial: Kandidaat | null) => {
     if (!partial) return
     const key = dedupeKeyOf(partial.tekening, partial.ruweTekst)
     if (!key) return
@@ -275,6 +271,7 @@ export function extractLines(mail: NormalizedMail): CandidateLine[] {
     byKey.set(key, {
       ...partial,
       id: `kand-${++seq}`,
+      bestanden: [],
       matches: [],
       status: 'nieuw',
       artikelId: null,
@@ -282,26 +279,55 @@ export function extractLines(mail: NormalizedMail): CandidateLine[] {
       extractor: 'regels',
       bronTekst: null,
       gegrond: null,
+      bronBestand: partial.attachmentFilename,
       zekerheid: 0,
       zekerheidRedenen: [],
     })
   }
 
-  // Bijlagen eerst: die wegen het zwaarst en bepalen dus de volgorde.
-  for (const att of mail.attachments) {
-    if (att.isEmbeddedMessage) continue // dat is een bericht, geen onderdeel
-    add(fromFilename(att.filename, orderNumbers))
+  if (document) {
+    // Het document is de waarheid: alleen zijn regeltabel maakt regels.
+    for (const k of fromDocumentText(document.filename, document.tekst!, orderNumbers)) add(k)
+  } else {
+    // Geen leesbaar document. Dan zijn de bijlagenamen het sterkste signaal dat
+    // er is, en vult de tekst van de overige pdf's de aantallen aan.
+    for (const att of mail.attachments) {
+      if (att.isEmbeddedMessage) continue
+      add(fromFilename(att.filename, orderNumbers))
+    }
+    for (const att of mail.attachments) {
+      if (att.tekst) for (const k of fromDocumentText(att.filename, att.tekst, orderNumbers)) add(k)
+    }
   }
-  // Dan de tekst uit de meegestuurde documenten: die vult vooral de aantallen
-  // aan op de regels die de bestandsnamen al opleverden, en voegt regels toe
-  // die de klant wel bestelde maar niet als tekening meestuurde.
-  for (const att of mail.attachments) {
-    if (att.tekst) for (const k of fromDocumentText(att.filename, att.tekst, orderNumbers)) add(k)
-  }
+
+  // De mailtekst mag altijd regels toevoegen: wat de klant erbij tikt ("en
+  // graag ook 5x ...") staat in geen enkel document.
   for (const line of mail.bodyText.split(/\r?\n/)) add(fromBodyLine(line))
 
   const lines = [...byKey.values()]
+  hangBestandenAan(lines, mail.attachments)
+
   // Op positie sorteren als de klant die meegaf; anders blijft de
   // bijlagevolgorde staan, en dat is meestal de volgorde van de order.
-  return lines.sort((a, b) => (a.positie ?? 9999) - (b.positie ?? 9999))
+  lines.sort((a, b) => (a.positie ?? 9999) - (b.positie ?? 9999))
+  return { lines, document: document?.filename ?? null }
+}
+
+/**
+ * Tekeningen bij hun regel zetten.
+ *
+ * Een bestand dat bij geen enkele regel hoort blijft gewoon in de bijlagenlijst
+ * staan; het wordt niet stilletijgend weggegooid en ook niet alsnog een regel —
+ * als het document de regels bepaalde, is dat document leidend.
+ */
+export function hangBestandenAan(lines: CandidateLine[], attachments: MailAttachment[]): void {
+  for (const att of attachments) {
+    if (att.isEmbeddedMessage) continue
+    if (classifyAttachment(att.filename) !== 'tekening') continue
+    for (const line of lines) {
+      if (hoortBij(att.filename, line.tekening) && !line.bestanden.includes(att.filename)) {
+        line.bestanden.push(att.filename)
+      }
+    }
+  }
 }
