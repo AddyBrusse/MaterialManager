@@ -429,6 +429,36 @@ model Todo {
 // hij gesleept is (fase 1) of door de poller opgehaald (fase 2). Bestaat vooral
 // voor idempotentie en als audit-trail: waarom stelde de matcher dit voor.
 
+/// Eén meting van het inlezen van een mail.
+///
+/// Bestaat om de wachttijd te kunnen voorspellen uit wat er hier écht gebeurt,
+/// in plaats van uit een aanname. Bestandsgrootte bleek een zwakke maatstaf
+/// (een pdf van 1,1 MB uitlezen kost 24-243 ms); wat telt is hoeveel tekst en
+/// hoeveel gescande pagina's er naar het model gaan, en of de controlelezing
+/// meedraait. Die kenmerken staan er daarom bij, zodat de voorspelling later
+/// verfijnd kan worden zonder opnieuw te moeten meten.
+model IngestRun {
+  id            String   @id @default(uuid())
+  mailImportId  String?  @map("mail_import_id")
+  /// 'drop' bij het inslepen, 'opnieuw' bij een herlezing.
+  soort         String
+  bytes         Int
+  bijlagen      Int
+  /// Aantal tekens dat uit de pdf's kwam en dus naar het model ging.
+  tekens        Int
+  /// Bijlagen die als afbeelding meegingen omdat er geen tekstlaag in zat.
+  scans         Int
+  aiGebruikt    Boolean  @map("ai_gebruikt")
+  controle      Boolean
+  /// Gemeten duur van begin tot eind, in milliseconden.
+  duurMs        Int      @map("duur_ms")
+  gelukt        Boolean
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("ingest_runs")
+}
+
 model MailImport {
   id            String    @id @default(uuid())
   source        String

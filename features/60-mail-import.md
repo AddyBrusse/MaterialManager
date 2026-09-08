@@ -219,6 +219,32 @@ bijlagen: [{ bestandsnaam, mimetype, bytes }]
 Bijlagen worden weggeschreven volgens het bestaande uploads-patroon
 (`config.uploadsDir`), niet in de database.
 
+#### Hoe lang duurt het, en de voortgangsbalk
+
+Het inlezen kost tientallen seconden — uploaden, pdf's lezen, en twee lezingen
+door het model. Zonder terugkoppeling lijkt het scherm te hangen.
+
+**Bestandsgrootte voorspelt dat niet.** Gemeten: een pdf van 1,1 MB en twaalf
+pagina's uitlezen kost 24–243 ms, en uploaden over de LAN is verwaarloosbaar. De
+tijd zit in het modelgesprek, en dat schaalt met hoeveel tekst en hoeveel
+gescande pagina's eruit komen — een grote pdf mét tekstlaag is dus sneller dan
+een klein scannetje.
+
+Die getallen kent alleen de server, ná het uitpakken, en de POST blokkeert.
+Daarom voorspellen we uit **gemeten runs op deze installatie**: elke ingest en
+elke herlezing schrijft een rij in `ingest_runs` (bytes, bijlagen, tekens, scans,
+controlelezing, duur). `schatDuur` neemt de mediaan van vergelijkbare runs — zelf
+twee van hetzelfde soort mail zeggen meer dan vijf van een ander soort, want
+anders krijgt een grote gescande order de mediaan van kleine tekstmails
+toegeschoven (gemeten: 44 s waar 92 s hoorde).
+
+De balk (`utils/voortgang.ts`) gedraagt zich naar wat we werkelijk weten: hij
+loopt naar 90 % op het voorspelde moment en kruipt daarna asymptotisch verder,
+maar bereikt nooit 100 % — klaar is hij pas als het antwoord er is. Valt de
+voorspelling tegen, dan staat er "langer dan de 41 s die deze mails meestal
+kosten" in plaats van een balk die op vol blijft hangen. Zonder metingen loopt
+hij blind en zegt de tekst dat eerlijk.
+
 ### 3.2 Relatie-resolutie
 
 Matchen op afzenderadres tegen `Relatie.email`, `emailOfferte`, `emailFactuur`

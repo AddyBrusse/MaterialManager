@@ -11,10 +11,11 @@ import { AppError } from '../middleware/error'
 import { MAIL_IMPORT_STATUSES, MAIL_INTENTS } from '@stockmanager/shared'
 import { looksLikeMsg } from '../services/msg-parse'
 import {
-  buffersUitMap, buildCandidates, ingestMsgBuffer, mailImportDir, mailUitRij,
+  buffersUitMap, buildCandidates, ingestMsgBuffer, legMetingVast, mailImportDir, mailUitRij,
   rematchCandidates, serializeMailImport,
 } from '../services/mail-import'
 import { buildRapport, scoreLine } from '../services/certainty'
+import { schatDuur } from '../services/ingest-duur'
 import { normalizeRef } from '../services/match-articles'
 import type { CandidateLine, ExtractieRapport, MailAttachment } from '@stockmanager/shared'
 
@@ -66,6 +67,29 @@ router.get(
       take: 200,
     })
     res.json({ data: rows.map(serializeMailImport) })
+  })
+)
+
+/**
+ * Hoe lang gaat het inlezen ongeveer duren?
+ *
+ * Uit gemeten runs op deze installatie, niet uit een aanname. De browser weet
+ * bij het slepen alleen hoe groot het bestand is; die maat gaat mee zodat
+ * vergelijkbare mails elkaar voorspellen zodra er genoeg zijn.
+ */
+router.get(
+  '/schatting',
+  asyncHandler(async (req, res) => {
+    const bytes = Number(req.query.bytes ?? 0)
+    // Genoeg om een mediaan op te baseren, weinig genoeg om mee te schuiven als
+    // het model of de mail verandert.
+    const metingen = await prisma.ingestRun.findMany({
+      where: { gelukt: true },
+      select: { bytes: true, duurMs: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    })
+    res.json({ data: schatDuur(metingen, Number.isFinite(bytes) ? bytes : 0) })
   })
 )
 
@@ -220,6 +244,7 @@ router.post(
       )
     }
 
+    const begonnenOp = Date.now()
     const bijlagen = (existing.bijlagen ?? []) as MailAttachment[]
     const { kandidaten, rapport, klantRef, leverdatum } = await buildCandidates(
       prisma,
@@ -239,6 +264,20 @@ router.post(
         status: 'nieuw',
       },
     })
+
+    await legMetingVast(prisma, {
+      mailImportId: row.id,
+      soort: 'opnieuw',
+      bytes: bijlagen.reduce((n, b) => n + b.sizeBytes, 0),
+      bijlagen: bijlagen.length,
+      tekens: bijlagen.reduce((n, b) => n + (b.tekst?.length ?? 0), 0),
+      scans: rapport.gescandeBijlagen.length,
+      aiGebruikt: rapport.aiGebruikt,
+      controle: rapport.controleGedaan,
+      duurMs: Date.now() - begonnenOp,
+      gelukt: rapport.foutmelding === null,
+    })
+
     res.json({ data: serializeMailImport(row) })
   })
 )

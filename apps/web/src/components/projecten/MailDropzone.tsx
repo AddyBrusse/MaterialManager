@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { notifications } from '@mantine/notifications'
 import { IconMail, IconLoader2 } from '@tabler/icons-react'
-import { mailImportsApi } from '../../api/mail-imports'
+import { mailImportsApi, type IngestSchatting } from '../../api/mail-imports'
+import { voortgang, voortgangTekst } from '../../utils/voortgang'
 import type { MailImport } from '@stockmanager/shared'
 
 /**
@@ -33,29 +34,34 @@ function isMsgFile(file: File): boolean {
  * doet niets", en dat verschil zie je alleen aan een lopende teller.
  */
 const STAPPEN = [
-  { na: 0, tekst: 'Bericht uploaden…' },
-  { na: 3, tekst: 'Bijlagen uitpakken en pdf-tekst lezen…' },
-  { na: 8, tekst: 'De AI leest de order…' },
-  { na: 30, tekst: 'Controlelezing…' },
-  { na: 60, tekst: 'Nog bezig — een order met scans kost meer tijd…' },
+  { deel: 0, tekst: 'Bericht uploaden…' },
+  { deel: 0.1, tekst: 'Bijlagen uitpakken en pdf-tekst lezen…' },
+  { deel: 0.25, tekst: 'De AI leest de order…' },
+  { deel: 0.6, tekst: 'Controlelezing…' },
 ] as const
 
 export function MailDropzone({ projectId, onImported }: Props) {
   const [hot, setHot] = useState(false)
   const [busy, setBusy] = useState(false)
   const [seconden, setSeconden] = useState(0)
+  const [schatting, setSchatting] = useState<IngestSchatting | null>(null)
 
-  // Eén teller die loopt zolang er iets binnengehaald wordt.
+  // Een tiende seconde, zodat de balk vloeiend loopt in plaats van te springen.
   useEffect(() => {
     if (!busy) { setSeconden(0); return }
-    const t = setInterval(() => setSeconden((s) => s + 1), 1000)
+    const t = setInterval(() => setSeconden((s) => s + 0.1), 100)
     return () => clearInterval(t)
   }, [busy])
 
-  const stap = [...STAPPEN].reverse().find((s) => seconden >= s.na) ?? STAPPEN[0]
+  const deel = voortgang(seconden, schatting?.verwachtSeconden ?? null)
+  // De stap volgt de voortgang, niet de klok: bij een snelle installatie hoort
+  // "de AI leest" eerder te verschijnen dan bij een trage.
+  const stap = [...STAPPEN].reverse().find((s) => deel >= s.deel) ?? STAPPEN[0]
 
   async function ingest(file: File) {
     setBusy(true)
+    // De schatting is een hulpmiddel; komt hij niet, dan loopt de balk blind.
+    mailImportsApi.schatting(file.size).then(setSchatting)
     try {
       const result = await mailImportsApi.upload(file)
       if (result.duplicate) {
@@ -140,12 +146,18 @@ export function MailDropzone({ projectId, onImported }: Props) {
         </div>
         <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
           {busy
-            ? `${seconden} seconden bezig — dit duurt meestal een halve tot anderhalve minuut.`
+            ? voortgangTekst(seconden, schatting)
             : 'De aanvraag of orderbevestiging wordt uitgelezen en klaargezet ter controle.'}
         </div>
         {busy && (
-          <div className="mi-voortgang" aria-label="bezig">
-            <span />
+          <div
+            className="mi-voortgang"
+            role="progressbar"
+            aria-valuenow={Math.round(deel * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <span style={{ width: `${(deel * 100).toFixed(1)}%` }} />
           </div>
         )}
       </div>

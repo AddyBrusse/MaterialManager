@@ -425,11 +425,38 @@ export interface IngestResult {
   refreshed?: boolean
 }
 
+/**
+ * Eén meting wegschrijven. Faalt nooit hard: een mislukte meting mag het
+ * inlezen van een mail niet in de weg zitten — het is een hulpmiddel, geen doel.
+ */
+export async function legMetingVast(
+  prisma: PrismaClient,
+  meting: {
+    mailImportId: string | null
+    soort: 'drop' | 'opnieuw'
+    bytes: number
+    bijlagen: number
+    tekens: number
+    scans: number
+    aiGebruikt: boolean
+    controle: boolean
+    duurMs: number
+    gelukt: boolean
+  }
+): Promise<void> {
+  try {
+    await prisma.ingestRun.create({ data: meting })
+  } catch {
+    /* meten is bijzaak */
+  }
+}
+
 export async function ingestMsgBuffer(
   prisma: PrismaClient,
   buf: Buffer,
   source: NormalizedMail['source'] = 'drop'
 ): Promise<IngestResult> {
+  const begonnenOp = Date.now()
   const { mail, embedded } = parseMsg(buf, source)
 
   // Bijlagen meteen uitpakken: de tekst uit de meegestuurde PDF's (de
@@ -570,6 +597,19 @@ export async function ingestMsgBuffer(
   const saved = await prisma.mailImport.update({
     where: { id: created.id },
     data: { bijlagen: bijlagen as unknown as Prisma.InputJsonValue, bodyHtmlPath },
+  })
+
+  await legMetingVast(prisma, {
+    mailImportId: saved.id,
+    soort: 'drop',
+    bytes: buf.length,
+    bijlagen: bijlagen.length,
+    tekens: bijlagen.reduce((n, b) => n + (b.tekst?.length ?? 0), 0),
+    scans: rapport.gescandeBijlagen.length,
+    aiGebruikt: rapport.aiGebruikt,
+    controle: rapport.controleGedaan,
+    duurMs: Date.now() - begonnenOp,
+    gelukt: rapport.foutmelding === null,
   })
 
   return { mailImport: serializeMailImport(saved), duplicate: false }

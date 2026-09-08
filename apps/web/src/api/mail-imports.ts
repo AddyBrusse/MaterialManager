@@ -9,6 +9,13 @@ export interface IngestResult {
   refreshed?: boolean
 }
 
+export interface IngestSchatting {
+  verwachtSeconden: number | null
+  ondergrensSeconden: number | null
+  bovengrensSeconden: number | null
+  gebaseerdOp: number
+}
+
 export interface UpdateMailImport {
   relatieId?: string | null
   contactId?: string | null
@@ -40,6 +47,15 @@ export const mailImportsApi = {
       method: 'PATCH',
       body: JSON.stringify({ artikelId }),
     }).then((r) => r.data),
+
+  /**
+   * Hoe lang gaat dit ongeveer duren? Uit gemeten runs op deze installatie.
+   * Faalt stil: zonder schatting loopt de balk gewoon blind.
+   */
+  schatting: (bytes: number) =>
+    apiFetch<IngestSchatting>(`/mail-imports/schatting?bytes=${bytes}`)
+      .then((r) => r.data)
+      .catch(() => null),
 
   /**
    * De mail opnieuw laten uitlezen. Gooit de vorige uitkomst weg — handmatige
