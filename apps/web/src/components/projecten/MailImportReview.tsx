@@ -115,6 +115,32 @@ export function MailImportReview({
     }
   }
 
+  /**
+   * Opnieuw laten uitlezen. Waarschuwen als er al keuzes in staan: die gaan
+   * weg, en dat is precies wat je soms wilt maar nooit per ongeluk.
+   */
+  async function reread() {
+    const handmatig = current.kandidaten.filter((k) => k.handmatig).length
+    if (
+      handmatig > 0 &&
+      !window.confirm(
+        `Er ${handmatig === 1 ? 'staat 1 handmatige koppeling' : `staan ${handmatig} handmatige koppelingen`} in deze mail. ` +
+          'Opnieuw uitlezen gooit die weg. Doorgaan?'
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    try {
+      setCurrent(await mailImportsApi.reread(current.id))
+      notifications.show({ color: 'green', title: 'Opnieuw uitgelezen', message: 'De mail is vers bekeken.' })
+    } catch (err) {
+      notifications.show({ color: 'red', title: 'Opnieuw uitlezen mislukt', message: (err as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function ignore() {
     setBusy(true)
     try {
@@ -264,6 +290,14 @@ export function MailImportReview({
       )}
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button
+          className="st-btn sm ghost"
+          onClick={reread}
+          disabled={busy}
+          title="Laat de AI opnieuw naar deze mail kijken. Kost een nieuwe aanroep van het model."
+        >
+          Opnieuw uitlezen
+        </button>
         <button className="st-btn sm ghost" onClick={ignore} disabled={busy}>Negeren</button>
         <button className="st-btn primary sm" onClick={link} disabled={busy || !relatieId}>
           {busy

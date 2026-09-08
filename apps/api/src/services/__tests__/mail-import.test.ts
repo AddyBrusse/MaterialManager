@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { suggestRelatie, type RelatieMatchCandidate } from '../mail-import'
+import { mailUitRij, suggestRelatie, type RelatieMatchCandidate } from '../mail-import'
 import { sanitizeFilename } from '../../lib/filenames'
 
 const relaties: RelatieMatchCandidate[] = [
@@ -101,5 +101,34 @@ describe('sanitizeFilename', () => {
     expect(sanitizeFilename('')).toBe('bestand')
     expect(sanitizeFilename('   ')).toBe('bestand')
     expect(sanitizeFilename('a'.repeat(500)).length).toBe(200)
+  })
+})
+
+describe('mailUitRij', () => {
+  const rij = {
+    id: 'mi-1', source: 'drop', messageId: '<a@b>', dedupeKey: 'k',
+    afzenderNaam: 'Dick Boer', afzenderEmail: 'DickBoer@stinis.com',
+    onderwerp: 'Offerteaanvraag RFQ2600241', ontvangenOp: new Date('2026-09-02T07:17:00Z'),
+    bodyText: 'Zie bijlage.', bodyHtmlPath: null,
+    bijlagen: [{ filename: 'aanvraag.pdf', sizeBytes: 10, path: '/uploads/x/aanvraag.pdf', isEmbeddedMessage: false, tekst: 'Offerteaanvraag', tekstPath: null }],
+    resolutie: null, relatieId: null, intent: 'onbekend', kandidaten: [], extractie: null,
+    status: 'genegeerd', projectId: null, foutmelding: null,
+    createdAt: new Date(), updatedAt: new Date(),
+  }
+
+  it('bouwt de mail terug uit de opgeslagen rij', () => {
+    // Het originele .msg bewaren we niet; alles wat de extractie nodig heeft
+    // staat in de rij en op schijf.
+    const mail = mailUitRij(rij as never)
+    expect(mail.subject).toBe('Offerteaanvraag RFQ2600241')
+    expect(mail.bodyText).toBe('Zie bijlage.')
+    expect(mail.from).toEqual({ naam: 'Dick Boer', email: 'DickBoer@stinis.com' })
+    expect(mail.receivedAt).toBe('2026-09-02T07:17:00.000Z')
+    expect(mail.attachments[0].tekst).toBe('Offerteaanvraag')
+  })
+
+  it('laat de afzender leeg als de rij die niet draagt', () => {
+    const mail = mailUitRij({ ...rij, afzenderNaam: null, afzenderEmail: null } as never)
+    expect(mail.from).toBeNull()
   })
 })

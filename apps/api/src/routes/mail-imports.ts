@@ -7,10 +7,13 @@ import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { MAIL_IMPORT_STATUSES, MAIL_INTENTS } from '@stockmanager/shared'
 import { looksLikeMsg } from '../services/msg-parse'
-import { ingestMsgBuffer, mailImportDir, rematchCandidates, serializeMailImport } from '../services/mail-import'
+import {
+  buffersUitMap, buildCandidates, ingestMsgBuffer, mailImportDir, mailUitRij,
+  rematchCandidates, serializeMailImport,
+} from '../services/mail-import'
 import { buildRapport, scoreLine } from '../services/certainty'
 import { normalizeRef } from '../services/match-articles'
-import type { CandidateLine, ExtractieRapport } from '@stockmanager/shared'
+import type { CandidateLine, ExtractieRapport, MailAttachment } from '@stockmanager/shared'
 
 const router = Router()
 
@@ -184,6 +187,50 @@ router.patch(
       data: {
         kandidaten: updated as unknown as object,
         extractie: hertelRapport(existing.extractie, updated) as unknown as object,
+      },
+    })
+    res.json({ data: serializeMailImport(row) })
+  })
+)
+
+/**
+ * De mail opnieuw laten uitlezen.
+ *
+ * Nodig zodra de extractie beter is geworden, of als een eerdere poging niets
+ * opleverde: de mail zelf opnieuw slepen helpt dan niet, want die wordt op zijn
+ * bericht-id herkend en teruggegeven zoals hij was. Dit gooit de vorige
+ * uitkomst weg — handmatige koppelingen inbegrepen — en leest opnieuw.
+ *
+ * Kost een nieuwe aanroep van het model, dus alleen op verzoek.
+ */
+router.post(
+  '/:id/opnieuw',
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.mailImport.findUnique({ where: { id: req.params.id } })
+    if (!existing) throw new AppError(404, 'NOT_FOUND', 'Mail-import niet gevonden')
+    if (existing.projectId) {
+      throw new AppError(
+        409,
+        'IN_USE',
+        'Deze mail is al aan een project gekoppeld. Maak die koppeling eerst ongedaan.'
+      )
+    }
+
+    const bijlagen = (existing.bijlagen ?? []) as MailAttachment[]
+    const { kandidaten, rapport } = await buildCandidates(
+      prisma,
+      mailUitRij(existing),
+      existing.relatieId,
+      buffersUitMap(existing.id, bijlagen)
+    )
+
+    const row = await prisma.mailImport.update({
+      where: { id: req.params.id },
+      data: {
+        kandidaten: kandidaten as unknown as object,
+        extractie: rapport as unknown as object,
+        // Een genegeerde of mislukte import komt hiermee weer in behandeling.
+        status: 'nieuw',
       },
     })
     res.json({ data: serializeMailImport(row) })

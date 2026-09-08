@@ -260,6 +260,56 @@ export async function buildCandidates(
 }
 
 /**
+ * Een opgeslagen import opnieuw laten uitlezen — features/60-mail-import.md §3.7.
+ *
+ * Het originele `.msg` bewaren we niet, maar dat hoeft ook niet: onderwerp,
+ * bericht en alle bijlagen staan op schijf, inclusief de uitgelezen pdf-tekst.
+ * Daarmee is de genormaliseerde mail weer op te bouwen en kan het model er vers
+ * naar kijken — met de bijlage-inhoud erbij, zodat een gescande order nog steeds
+ * als afbeelding meegaat.
+ *
+ * Bedoeld om na een verbetering aan de extractie te kunnen herhalen zonder de
+ * mail opnieuw te slepen. Het kost een nieuwe aanroep van het model, dus dit
+ * gebeurt alleen als iemand erom vraagt.
+ */
+export function mailUitRij(row: MailImportRow): NormalizedMail {
+  const bijlagen = (row.bijlagen ?? []) as MailAttachment[]
+  return {
+    source: row.source as NormalizedMail['source'],
+    messageId: row.messageId,
+    subject: row.onderwerp,
+    bodyText: row.bodyText,
+    bodyHtml: null,
+    receivedAt: row.ontvangenOp?.toISOString() ?? null,
+    from: row.afzenderEmail || row.afzenderNaam
+      ? { naam: row.afzenderNaam, email: row.afzenderEmail }
+      : null,
+    to: [],
+    cc: [],
+    attachments: bijlagen,
+    rawHeaders: null,
+  }
+}
+
+/** De opgeslagen bijlagen van schijf, zodat scans weer als afbeelding meekunnen. */
+export function buffersUitMap(id: string, bijlagen: MailAttachment[]): AttachmentBuffers {
+  const dir = mailImportDir(id)
+  return {
+    get(filename: string) {
+      const bijlage = bijlagen.find((b) => b.filename === filename)
+      if (!bijlage?.path) return undefined
+      const opSchijf = path.join(dir, path.basename(bijlage.path))
+      try {
+        return fs.readFileSync(opSchijf)
+      } catch {
+        // Bestand weg of map opgeruimd: dan leest het model alleen de tekst.
+        return undefined
+      }
+    },
+  }
+}
+
+/**
  * Opnieuw matchen met de aliassen van een andere relatie.
  *
  * Nodig zodra iemand in het reviewscherm de relatie corrigeert: de geleerde

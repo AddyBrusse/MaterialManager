@@ -40,5 +40,12 @@ export const mailImportsApi = {
       body: JSON.stringify({ artikelId }),
     }).then((r) => r.data),
 
+  /**
+   * De mail opnieuw laten uitlezen. Gooit de vorige uitkomst weg — handmatige
+   * koppelingen inbegrepen — en laat het model er vers naar kijken.
+   */
+  reread: (id: string) =>
+    apiFetch<MailImport>(`/mail-imports/${id}/opnieuw`, { method: 'POST' }).then((r) => r.data),
+
   remove: (id: string) => apiFetch<void>(`/mail-imports/${id}`, { method: 'DELETE' }),
 }

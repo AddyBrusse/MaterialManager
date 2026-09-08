@@ -383,6 +383,20 @@ Dat geldt ook in fase 2.
 
 ---
 
+#### Opnieuw uitlezen
+
+`POST /mail-imports/:id/opnieuw` laat het model vers naar een al binnengehaalde
+mail kijken. Nodig omdat de mail opnieuw slepen niet helpt: die wordt op zijn
+`dedupeKey` herkend en teruggegeven zoals hij was zodra er iets mee gedaan is
+(genegeerd, gekoppeld, of een handmatige keuze).
+
+Het originele `.msg` bewaren we niet, en dat hoeft ook niet: onderwerp, bericht
+en alle bijlagen staan op schijf, inclusief de uitgelezen pdf-tekst
+(`mailUitRij` + `buffersUitMap`). Een gescande order gaat dus nog steeds als
+afbeelding mee. De vorige uitkomst gaat weg — handmatige koppelingen inbegrepen
+— dus het reviewscherm vraagt eerst om bevestiging als die er zijn. Een mail die
+al aan een project hangt wordt geweigerd (409).
+
 ## 4. Datamodel-toevoegingen
 
 ### `MailImport`
