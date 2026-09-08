@@ -82,6 +82,15 @@ export type SenderResolution = z.infer<typeof SenderResolutionSchema>
 // ── Kandidaat-regel uit extractie ─────────────────────────────────────────────
 
 export const CANDIDATE_SOURCES = ['bijlagenaam', 'onderwerp', 'body', 'sheet', 'pdf'] as const
+
+/**
+ * Wie de regel heeft gevonden.
+ *  regels — de vaste patronen in extract-lines.ts
+ *  ai     — het taalmodel dat de mail en de pdf-tekst heeft gelezen
+ *  beide  — allebei, onafhankelijk, met dezelfde uitkomst
+ */
+export const EXTRACTORS = ['regels', 'ai', 'beide'] as const
+export type Extractor = typeof EXTRACTORS[number]
 export type CandidateSource = typeof CANDIDATE_SOURCES[number]
 
 /**
@@ -126,8 +135,42 @@ export const CandidateLineSchema = z.object({
    * een handmatige nooit stilletjes worden overschreven.
    */
   handmatig: z.boolean().default(false),
+  /** Wie deze regel vond. Regels die allebei de motoren vonden zijn 'beide'. */
+  extractor: z.enum(EXTRACTORS).default('regels'),
+  /**
+   * Het letterlijke stuk brontekst waar het model deze regel op baseerde.
+   * Wordt gecontroleerd: staat het er niet echt, dan telt het niet mee.
+   */
+  bronTekst: z.string().nullable().default(null),
+  /** Stond `bronTekst` echt in de mail of bijlage? Null bij de regelmotor. */
+  gegrond: z.boolean().nullable().default(false),
+  /**
+   * 0-1. Een *vertrouwensindicatie*, geen gemeten nauwkeurigheid: hoe goed
+   * onderbouwd deze regel is (gevonden, gegrond, gekoppeld, compleet).
+   * Zie apps/api/src/services/certainty.ts.
+   */
+  zekerheid: z.number().min(0).max(1).default(0),
+  /** Nederlandse uitleg bij die score, voor het reviewscherm. */
+  zekerheidRedenen: z.array(z.string()).default([]),
 })
 export type CandidateLine = z.infer<typeof CandidateLineSchema>
+
+// ── Extractierapport ──────────────────────────────────────────────────────────
+
+export const ExtractieRapportSchema = z.object({
+  /** Heeft het taalmodel meegelezen, en met welk model. */
+  aiGebruikt: z.boolean(),
+  model: z.string().nullable(),
+  /** Gemiddelde zekerheid over alle regels, 0-1. */
+  zekerheid: z.number().min(0).max(1),
+  /** Laagste zekerheid van een enkele regel — dat is de regel om na te kijken. */
+  laagsteZekerheid: z.number().min(0).max(1),
+  /** Regels die het model noemde maar niet letterlijk kon onderbouwen. */
+  ongegrondeRegels: z.number().int(),
+  /** Gevuld als de AI-stap faalde; de regelmotor draaide dan alleen. */
+  foutmelding: z.string().nullable(),
+})
+export type ExtractieRapport = z.infer<typeof ExtractieRapportSchema>
 
 // ── MailImport (rij in de database) ───────────────────────────────────────────
 
@@ -148,6 +191,7 @@ export const MailImportSchema = z.object({
   relatieId: z.string().nullable(),
   intent: z.enum(MAIL_INTENTS),
   kandidaten: z.array(CandidateLineSchema),
+  extractie: ExtractieRapportSchema.nullable().default(null),
   status: z.enum(MAIL_IMPORT_STATUSES),
   projectId: z.string().nullable(),
   foutmelding: z.string().nullable(),

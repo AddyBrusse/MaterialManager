@@ -390,6 +390,11 @@ exists in the Zod schema but not yet in `schema.prisma`).
 **Why:** It was `overflow: hidden`, which suited the three original pop-out pages (Wachtrij, Prognose, ToDo) because they manage their own internal scroll regions. Once any page became poppable, long document pages (project/artikel detail) were clipped with no way to scroll.
 **Trade-off:** None observed — the self-managing pages get the same container they had in the main window, so they still fill the viewport without a spurious scrollbar.
 
+## 2026-09-08 — Mail-import leest met een taalmodel; koppelen blijft in code
+**Decision:** Inkomende klantmail wordt bij het inlezen ook door de Claude API (`claude-opus-5`) gelezen — onderwerp, body en de uitgelezen pdf-tekst gaan mee — die via een Zod-schema regels teruggeeft (`apps/api/src/services/ai-extract.ts`). Het **kiezen van het artikel** blijft bij `match-articles.ts`. De vaste patronen (`extract-lines.ts`) blijven draaien; de twee uitkomsten worden samengevoegd en elke regel krijgt een zekerheidsscore (`certainty.ts`), zichtbaar in het reviewscherm. De sleutel staat in de omgeving (`ANTHROPIC_API_KEY`), niet in de database; `MAIL_AI=uit` zet het meelezen uit.
+**Why:** Pdf-layouts verschillen per klant en veranderen, en een mail als "graag 10x de signaalplaat" heeft helemaal geen layout — daar komt een regelmotor niet doorheen. Artikelkeuze hoort er juist níet bij: `2615-0090-0530` en `2615-0091-0530` bestaan allebei in de database en schelen één cijfer, dus die keuze moet uit code komen die te testen is. Elke AI-regel draagt een `bronTekst` die letterlijk in het materiaal moet staan, anders zakt de zekerheid zichtbaar — een verzinsel mag er niet ongemerkt doorheen.
+**Trade-off:** Klantmail verlaat het eigen netwerk (akkoord gegeven door de eigenaar), er zijn API-kosten per mail, en de QNAP heeft uitgaand internet nodig. Valt de API weg, dan draait alleen de regelmotor en staat de reden in het rapport. De zekerheidsscore is een *vertrouwensindicatie*, geen gemeten nauwkeurigheid: die kan pas uit de correcties in het reviewscherm, en die worden nog niet geteld.
+
 ---
 
 (Template for new entries)

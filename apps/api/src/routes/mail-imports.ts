@@ -8,8 +8,9 @@ import { AppError } from '../middleware/error'
 import { MAIL_IMPORT_STATUSES, MAIL_INTENTS } from '@stockmanager/shared'
 import { looksLikeMsg } from '../services/msg-parse'
 import { ingestMsgBuffer, mailImportDir, rematchCandidates, serializeMailImport } from '../services/mail-import'
+import { buildRapport, scoreLine } from '../services/certainty'
 import { normalizeRef } from '../services/match-articles'
-import type { CandidateLine } from '@stockmanager/shared'
+import type { CandidateLine, ExtractieRapport } from '@stockmanager/shared'
 
 const router = Router()
 
@@ -78,6 +79,19 @@ const UpdateMailImportSchema = z.object({
   projectId: z.string().nullable().optional(),
 })
 
+/**
+ * Het rapport bijwerken na een correctie, met behoud van wat er bij het
+ * inlezen gebeurde: welk model meelas en of dat toen misging.
+ */
+function hertelRapport(bestaand: unknown, kandidaten: CandidateLine[]) {
+  const oud = (bestaand ?? null) as ExtractieRapport | null
+  return buildRapport(kandidaten, {
+    aiGebruikt: oud?.aiGebruikt ?? false,
+    model: oud?.model ?? null,
+    foutmelding: oud?.foutmelding ?? null,
+  })
+}
+
 // Het reviewscherm corrigeert hier de suggesties: de juiste relatie, het juiste
 // intent, en uiteindelijk 'verwerkt' of 'genegeerd'.
 router.patch(
@@ -97,7 +111,15 @@ router.patch(
 
     const row = await prisma.mailImport.update({
       where: { id: req.params.id },
-      data: { ...body, ...(kandidaten ? { kandidaten: kandidaten as unknown as object } : {}) },
+      data: {
+        ...body,
+        ...(kandidaten
+          ? {
+              kandidaten: kandidaten as unknown as object,
+              extractie: hertelRapport(existing.extractie, kandidaten) as unknown as object,
+            }
+          : {}),
+      },
     })
     res.json({ data: serializeMailImport(row) })
   })
@@ -132,13 +154,15 @@ router.patch(
 
     const updated = kandidaten.map((k) =>
       k.id === req.params.lineId
-        ? {
+        ? // Een handmatige koppeling verandert de zekerheid van deze regel, dus
+          // die wordt meteen opnieuw bepaald.
+          scoreLine({
             ...k,
             artikelId,
             status: artikelId ? ('match' as const) : ('nieuw' as const),
             // Vastleggen dát een mens dit koos — een herberekening laat het dan staan.
             handmatig: artikelId !== null,
-          }
+          })
         : k
     )
 
@@ -155,7 +179,10 @@ router.patch(
 
     const row = await prisma.mailImport.update({
       where: { id: req.params.id },
-      data: { kandidaten: updated as unknown as object },
+      data: {
+        kandidaten: updated as unknown as object,
+        extractie: hertelRapport(existing.extractie, updated) as unknown as object,
+      },
     })
     res.json({ data: serializeMailImport(row) })
   })

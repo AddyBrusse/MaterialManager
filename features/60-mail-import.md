@@ -430,25 +430,77 @@ nooit stilletjes verdwijnen.
 
 ---
 
-## 6. Extractie: deterministisch vs. AI
+## 6. Extractie: deterministisch vs. AI — **GEBOUWD**
 
 De regels uit §3.4/§3.5 werken goed op gestructureerde mail (bestandsnamen,
 Excel-orders, vaste klanten) en **slecht op vrije tekst** zoals
-*"kun je me een prijs geven voor 5 van die flenzen van vorig jaar"*.
+*"kun je me een prijs geven voor 5 van die flenzen van vorig jaar"*. Elke klant
+maakt zijn pdf anders; een regelmotor kent alleen de vormen die we hebben gezien.
 
-Een LLM die naar een Zod-schema extraheert is daar aanzienlijk beter in, maar
-betekent: uitgaand internet vanaf de QNAP, een API-sleutel, en klantmail die het
-eigen netwerk verlaat.
+Sinds 2026-09-08 draaien er daarom **twee motoren naast elkaar** op elke mail.
 
-Aanpak: de extractor achter **één interface** bouwen —
+### 6.1 Werkverdeling: de AI leest, de code kiest
 
-```
-extractLines(mail: NormalizedMail): Promise<CandidateLine[]>
-```
+| Stap | Wie | Waarom |
+|---|---|---|
+| Wat vraagt de klant? | Claude (`claude-opus-5`) | Layouts verschillen per klant; lezen is precies wat een taalmodel goed kan. |
+| Welk artikel uit onze database is dat? | `match-articles.ts` | `2615-0090-0530` en `2615-0091-0530` bestaan allebei en schelen één cijfer. Die keuze hoort in code die te testen is, niet in een model dat aannemelijk gokt. |
 
-— met eerst een deterministische implementatie. Een AI-implementatie (Claude API,
-of een lokaal model via Ollama als de data binnen moet blijven) is dan later een
-instelling, geen verbouwing. Niet in fase 1 bouwen.
+Het model krijgt onderwerp, body, bijlagenamen en de al uitgelezen pdf-tekst
+(`pdf-text.ts`), en geeft via een Zod-schema
+(`messages.parse` + `zodOutputFormat`) regels terug:
+`{ tekening, omschrijving, qty, rev, positie, bronTekst, zekerheid }`.
+
+### 6.2 Tegen verzinsels: gronding
+
+Elke regel moet een `bronTekst` meebrengen die **letterlijk** in de mail of
+bijlage staat. `isGrounded()` zoekt die terug (genormaliseerd op spaties, en
+anders op alle losse woorden — pdf-tekst komt met andere regelovergangen terug
+dan het model teruggeeft). Staat hij er niet, dan blijft de regel wél staan —
+misschien klopt hij — maar met een zichtbaar lagere zekerheid en een
+waarschuwing in het reviewscherm. Bij een scan zonder tekstlaag valt niets terug
+te zoeken; dan is `gegrond` null en telt dat als *onzeker*, niet als *fout*.
+
+### 6.3 Samenvoegen
+
+`mergeLines()` legt de twee uitkomsten naast elkaar op hetzelfde dedupe-sleutel
+als §3.4. De regelmotor blijft leidend voor wat hij al wist (getest patroon wint
+van model); de AI vult aan wat leeg was — vooral aantallen uit lopende tekst — en
+voegt regels toe die geen bijlage hadden. Een regel die **beide** motoren vonden
+krijgt `extractor: 'beide'` en een bonus op de zekerheid: twee onafhankelijke
+methodes die hetzelfde zeggen is het sterkste signaal dat we hebben.
+
+### 6.4 Zekerheidsscore
+
+Per regel, `certainty.ts`, gewogen over drie dingen:
+
+| Weegt | Wat het meet |
+|---|---|
+| 35 % herkenning | Hoe hij gevonden is, of het citaat klopt, of beide motoren het eens zijn |
+| 45 % koppeling | Hoe sterk de artikelmatch is (handmatig = 1, twijfel telt maar deels) |
+| 20 % volledigheid | Weten we een tekeningnummer én een aantal |
+
+In het reviewscherm staat per regel een balkje met percentage; de tooltip somt
+de redenen op. Boven de tabel staat het gemiddelde, de laagste regel, welk model
+meelas en hoeveel regels niet te onderbouwen waren.
+
+**Wees hier eerlijk over:** dit is een *vertrouwensindicatie*, geen gemeten
+nauwkeurigheid. Het zegt hoe goed onderbouwd een regel is, niet hoe vaak dit
+soort regels achteraf klopte. Echte nauwkeurigheid kan pas uit de correcties die
+mensen in het reviewscherm maken — die worden nu wel bewaard (als `ArticleAlias`
+en in `kandidaten`) maar nog niet geteld.
+
+### 6.5 Bedrijfszekerheid
+
+- **Geen sleutel, geen probleem.** Zonder `ANTHROPIC_API_KEY`, of met `MAIL_AI=uit`,
+  draait alleen de regelmotor. De import werkt gewoon door, alleen minder flexibel.
+- **De AI mag de import nooit laten mislukken.** Faalt de aanroep (netwerk plat,
+  limiet bereikt, sleutel verlopen), dan wordt de regelmotor gebruikt en staat de
+  reden in het rapport, in gewone taal.
+- **De sleutel staat in de omgeving, niet in de database** — hij hoort niet in een
+  backup van de shopdata terecht te komen.
+- **Klantmail verlaat het netwerk.** Akkoord gegeven op 2026-09-08; zie
+  `decisions/90-decisions-log.md`.
 
 ---
 

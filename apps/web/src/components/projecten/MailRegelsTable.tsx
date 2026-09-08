@@ -4,6 +4,7 @@ import { notifications } from '@mantine/notifications'
 import { IconCheck, IconHelpCircle, IconPlus } from '@tabler/icons-react'
 import { mailImportsApi } from '../../api/mail-imports'
 import type { CandidateLine, MailImport, MatchStatus } from '@stockmanager/shared'
+import { ExtractieSamenvatting, ZekerheidBadge } from './ZekerheidBadge'
 
 /**
  * De regels die uit de mail zijn gehaald, met hun koppeling — §3.5/§3.7.
@@ -72,6 +73,9 @@ function Regel({
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap' }}>
           {meta.icon} {meta.label}
         </span>
+        <div style={{ marginTop: 3 }}>
+          <ZekerheidBadge zekerheid={line.zekerheid} redenen={line.zekerheidRedenen} />
+        </div>
       </td>
     </tr>
   )
@@ -99,6 +103,7 @@ export function MailRegelsTable({ mailImport, articleOptions, onChanged }: Props
         <div style={{ fontSize: 12, color: 'var(--text-4)' }}>
           Geen regels herkend in deze mail. Voeg ze straks handmatig toe aan de offerte.
         </div>
+        <ExtractieSamenvatting rapport={mailImport.extractie} />
       </div>
     )
   }
@@ -110,6 +115,7 @@ export function MailRegelsTable({ mailImport, articleOptions, onChanged }: Props
       <div className="ad-eyebrow">
         Regels ({lines.length})
         {open > 0 && <span style={{ color: 'var(--warning)' }}> · {open} nog te koppelen</span>}
+        <ExtractieSamenvatting rapport={mailImport.extractie} />
       </div>
       {/* Vaste kolombreedtes: de inhoud (lange tekeningnummers, lange
           artikelnamen in de select) mag de tabel niet breder maken dan de
@@ -120,8 +126,8 @@ export function MailRegelsTable({ mailImport, articleOptions, onChanged }: Props
             <th style={{ width: '6%' }}>#</th>
             <th style={{ width: '30%' }}>Tekening</th>
             <th style={{ width: '10%', textAlign: 'right' }}>Aantal</th>
-            <th style={{ width: '36%' }}>Artikel</th>
-            <th style={{ width: '18%' }}>Status</th>
+            <th style={{ width: '33%' }}>Artikel</th>
+            <th style={{ width: '21%' }}>Status</th>
           </tr>
         </thead>
         <tbody>

@@ -120,7 +120,7 @@ export function orderNumbersInSubject(subject: string): string[] {
  * onderwerp is — anders is `123456-02` gewoon een tekeningnummer met een
  * streepje erin, en dat mag niet stilletjes als positie 2 gelden.
  */
-function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'> | null {
+function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'> | null {
   const ext = extensionOf(filename)
   const base = baseNameOf(filename)
   if (!base || IGNORED_EXTENSIONS.has(ext) || IGNORED_NAMES.test(base)) return null
@@ -162,7 +162,7 @@ function fromFilename(filename: string, orderNumbers: string[]): Omit<CandidateL
 }
 
 /** Bodyregels als `3x 123456` of `123456 - 3 stuks`. */
-function fromBodyLine(line: string): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'> | null {
+function fromBodyLine(line: string): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'> | null {
   const trimmed = line.trim()
   if (trimmed.length < 4 || trimmed.length > 200) return null
   // Doorstuur-koppen zijn geen regels (§3.2 leest die apart).
@@ -226,8 +226,8 @@ function fromDocumentText(
   filename: string,
   tekst: string,
   orderNumbers: string[]
-): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'>[] {
-  const out: Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'>[] = []
+): Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'>[] {
+  const out: Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'>[] = []
   for (const line of tekst.split(/\r?\n/)) {
     const trimmed = line.trim()
     if (trimmed.length < 6 || trimmed.length > 300) continue
@@ -251,7 +251,7 @@ function fromDocumentText(
 }
 
 /** Twee bestanden van hetzelfde onderdeel (een pdf én een step) is één regel. */
-function dedupeKeyOf(tekening: string | null, ruweTekst: string): string {
+export function dedupeKeyOf(tekening: string | null, ruweTekst: string): string {
   return (tekening ?? ruweTekst).toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
@@ -260,7 +260,7 @@ export function extractLines(mail: NormalizedMail): CandidateLine[] {
   const byKey = new Map<string, CandidateLine>()
   let seq = 0
 
-  const add = (partial: Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig'> | null) => {
+  const add = (partial: Omit<CandidateLine, 'id' | 'matches' | 'status' | 'artikelId' | 'handmatig' | 'extractor' | 'bronTekst' | 'gegrond' | 'zekerheid' | 'zekerheidRedenen'> | null) => {
     if (!partial) return
     const key = dedupeKeyOf(partial.tekening, partial.ruweTekst)
     if (!key) return
@@ -279,6 +279,11 @@ export function extractLines(mail: NormalizedMail): CandidateLine[] {
       status: 'nieuw',
       artikelId: null,
       handmatig: false,
+      extractor: 'regels',
+      bronTekst: null,
+      gegrond: null,
+      zekerheid: 0,
+      zekerheidRedenen: [],
     })
   }
 

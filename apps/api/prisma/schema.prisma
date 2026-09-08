@@ -452,6 +452,9 @@ model MailImport {
   // Wat de extractie voorstelde — bewaard zodat achteraf te zien is waarom een
   // regel verkeerd gematcht werd.
   kandidaten    Json      @default("[]")
+  // Hoe de extractie ging: welk model meelas en hoe zeker het resultaat is.
+  // Zie apps/api/src/services/certainty.ts.
+  extractie     Json?
   status        String    @default("nieuw")
   projectId     String?   @map("project_id")
   foutmelding   String?

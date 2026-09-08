@@ -3,6 +3,7 @@ import path from 'path'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import type {
   CandidateLine,
+  ExtractieRapport,
   MailAddress,
   MailAttachment,
   MailImport,
@@ -16,6 +17,8 @@ import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
 import { extractLines } from './extract-lines'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
+import { aiEnabled, aiExtract, aiFoutTekst, hasUnreadableAttachment, haystack, mergeLines } from './ai-extract'
+import { buildRapport, scoreLines } from './certainty'
 
 /**
  * Binnenhalen van een mail — features/60-mail-import.md §3.1–§3.2.
@@ -181,14 +184,58 @@ async function loadAliases(prisma: PrismaClient, relatieId: string | null): Prom
   })
 }
 
-/** Regels uit een mail halen en meteen tegen de artikelen leggen. */
+export interface CandidateResult {
+  kandidaten: CandidateLine[]
+  rapport: ExtractieRapport
+}
+
+/**
+ * Regels uit een mail halen en meteen tegen de artikelen leggen.
+ *
+ * Twee motoren naast elkaar (§6): de vaste patronen, en — als er een sleutel is
+ * — het taalmodel. De AI-stap mag nooit de import laten mislukken: valt hij weg
+ * (geen sleutel, netwerk plat, model traag), dan staat de regelmotor er nog en
+ * gaat de mail gewoon door, met de reden in het rapport.
+ */
 export async function buildCandidates(
   prisma: PrismaClient,
   mail: NormalizedMail,
   relatieId: string | null
-) {
+): Promise<CandidateResult> {
   const [articles, aliases] = await Promise.all([loadArticles(prisma), loadAliases(prisma, relatieId)])
-  return matchLines(extractLines(mail), articles, aliases)
+  const basis = extractLines(mail)
+
+  if (!aiEnabled()) {
+    const kandidaten = scoreLines(matchLines(basis, articles, aliases))
+    return {
+      kandidaten,
+      rapport: buildRapport(kandidaten, { aiGebruikt: false, model: null, foutmelding: null }),
+    }
+  }
+
+  try {
+    const ai = await aiExtract(mail)
+    const { lines, modelZekerheid } = mergeLines(basis, ai.regels, haystack(mail), {
+      grondingOncontroleerbaar: hasUnreadableAttachment(mail),
+    })
+    const kandidaten = scoreLines(matchLines(lines, articles, aliases), modelZekerheid)
+    return {
+      kandidaten,
+      rapport: buildRapport(kandidaten, { aiGebruikt: true, model: ai.model, foutmelding: null }),
+    }
+  } catch (err) {
+    const kandidaten = scoreLines(matchLines(basis, articles, aliases))
+    return {
+      kandidaten,
+      rapport: buildRapport(kandidaten, {
+        aiGebruikt: false,
+        model: config.ai.model,
+        foutmelding: `De AI kon niet meelezen (${aiFoutTekst(
+          err
+        )}) — alleen de vaste patronen zijn gebruikt.`,
+      }),
+    }
+  }
 }
 
 /**
@@ -210,10 +257,13 @@ export async function rematchCandidates(
   )
   // Een handmatige keuze blijft staan — maar wél met de verse kandidatenlijst
   // eronder, zodat het reviewscherm nog steeds alternatieven kan tonen.
-  return rematched.map((fresh, i) =>
-    kandidaten[i].handmatig
-      ? { ...fresh, artikelId: kandidaten[i].artikelId, status: kandidaten[i].status, handmatig: true }
-      : fresh
+  // De zekerheid hangt aan de koppeling, dus die moet mee opnieuw berekend.
+  return scoreLines(
+    rematched.map((fresh, i) =>
+      kandidaten[i].handmatig
+        ? { ...fresh, artikelId: kandidaten[i].artikelId, status: kandidaten[i].status, handmatig: true }
+        : fresh
+    )
   )
 }
 
@@ -293,7 +343,7 @@ export async function ingestMsgBuffer(
       ? null
       : suggestRelatie(resolutie.klant, relaties)
     const relatieId = existing.relatieId ?? suggestion?.relatieId ?? null
-    const kandidaten = await buildCandidates(prisma, mail, relatieId)
+    const { kandidaten, rapport } = await buildCandidates(prisma, mail, relatieId)
 
     const ververst = await prisma.mailImport.update({
       where: { id: existing.id },
@@ -301,6 +351,7 @@ export async function ingestMsgBuffer(
         relatieId,
         resolutie: resolutie as unknown as Prisma.InputJsonValue,
         kandidaten: kandidaten as unknown as Prisma.InputJsonValue,
+        extractie: rapport as unknown as Prisma.InputJsonValue,
       },
     })
     return { mailImport: serializeMailImport(ververst), duplicate: true, refreshed: true }
@@ -311,7 +362,7 @@ export async function ingestMsgBuffer(
   // Regels uit de mail halen en tegen de artikeldatabase leggen (§3.4/§3.5).
   // Aliassen alleen van de vermoedelijke relatie: "P-4471" betekent iets
   // anders bij een andere klant.
-  const kandidaten = await buildCandidates(prisma, mail, suggestion?.relatieId ?? null)
+  const { kandidaten, rapport } = await buildCandidates(prisma, mail, suggestion?.relatieId ?? null)
 
   const created = await prisma.mailImport.create({
     data: {
@@ -327,6 +378,7 @@ export async function ingestMsgBuffer(
       resolutie: resolutie as unknown as Prisma.InputJsonValue,
       relatieId: suggestion?.relatieId ?? null,
       kandidaten: kandidaten as unknown as Prisma.InputJsonValue,
+      extractie: rapport as unknown as Prisma.InputJsonValue,
       status: 'nieuw',
     },
   })
@@ -393,6 +445,7 @@ type MailImportRow = {
   relatieId: string | null
   intent: string
   kandidaten: unknown
+  extractie: unknown
   status: string
   projectId: string | null
   foutmelding: string | null
@@ -407,6 +460,7 @@ export function serializeMailImport(row: MailImportRow): MailImport {
     bijlagen: (row.bijlagen ?? []) as MailAttachment[],
     resolutie: (row.resolutie ?? null) as SenderResolution | null,
     kandidaten: (row.kandidaten ?? []) as MailImport['kandidaten'],
+    extractie: (row.extractie ?? null) as MailImport['extractie'],
     source: row.source as MailImport['source'],
     intent: row.intent as MailImport['intent'],
     status: row.status as MailImport['status'],
