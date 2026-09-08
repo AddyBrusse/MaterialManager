@@ -63,7 +63,8 @@ export function ExtractieSamenvatting({ rapport }: { rapport: ExtractieRapport |
     <div style={{ fontSize: 10.5, color: 'var(--text-4)', marginTop: 3, lineHeight: 1.5 }}>
       <span style={{ color: kleurVoor(rapport.zekerheid) }}>Zekerheid gemiddeld {procent}%</span>
       {rapport.laagsteZekerheid < rapport.zekerheid && <> · laagste regel {laagste}%</>}
-      {rapport.aiGebruikt ? <> · gelezen door {rapport.model}</> : <> · alleen vaste patronen</>}
+      {rapport.aiGebruikt && <> · gelezen door {rapport.model}</>}
+      {rapport.controleGedaan && <> · met controlelezing</>}
       {/* Welke bron de regels bepaalde is het eerste wat je wilt weten bij een
           controle: kwam dit uit de order van de klant of uit bestandsnamen? */}
       {rapport.documentGebruikt ? (
@@ -77,9 +78,14 @@ export function ExtractieSamenvatting({ rapport }: { rapport: ExtractieRapport |
         </div>
       )}
       {rapport.ongegrondeRegels > 0 && (
-        <span style={{ color: 'var(--danger)' }}>
-          {' '}· {rapport.ongegrondeRegels} regel(s) niet terug te vinden in de mail
-        </span>
+        <div style={{ color: 'var(--danger)' }}>
+          {rapport.ongegrondeRegels} regel(s) niet letterlijk terug te vinden in de mail — nakijken.
+        </div>
+      )}
+      {rapport.onbevestigdeRegels > 0 && (
+        <div style={{ color: 'var(--danger)' }}>
+          {rapport.onbevestigdeRegels} regel(s) waarover de twee lezingen het oneens waren — nakijken.
+        </div>
       )}
       {rapport.foutmelding && (
         <div style={{ color: 'var(--warning)' }}>{rapport.foutmelding}</div>

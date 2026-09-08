@@ -464,14 +464,18 @@ nooit stilletjes verdwijnen.
 
 ---
 
-## 6. Extractie: deterministisch vs. AI — **GEBOUWD**
+## 6. Extractie: alleen de AI — **GEBOUWD**
 
-De regels uit §3.4/§3.5 werken goed op gestructureerde mail (bestandsnamen,
-Excel-orders, vaste klanten) en **slecht op vrije tekst** zoals
-*"kun je me een prijs geven voor 5 van die flenzen van vorig jaar"*. Elke klant
-maakt zijn pdf anders; een regelmotor kent alleen de vormen die we hebben gezien.
+Sinds 2026-09-08 leest **alleen** het taalmodel de mail. De patroonmotor
+(`extract-lines.ts`) is verwijderd. Zekerheid gaat hier boven dekking: liever
+geen regel dan een verkeerde regel.
 
-Sinds 2026-09-08 draaien er daarom **twee motoren naast elkaar** op elke mail.
+**Waarom eruit:** patronen kennen alleen de vormen die we hebben gezien. Op een
+echte offerteaanvraag stond `2611-1456-0234 As ø50x178 4 4-9-2026pcs` — de
+leverdatum plakte in de uitgelezen pdf-tekst tegen de eenheid aan — en las het
+patroon **2026 stuks**. Een leeg veld vraagt om aandacht; een fout getal dat er
+uitziet als een gelezen aantal niet. Elke guard die we erbij zetten dekte precies
+één waargenomen layout af, en de volgende klant heeft er weer een andere.
 
 ### 6.1 Werkverdeling: de AI leest, de code kiest
 
@@ -479,80 +483,67 @@ Sinds 2026-09-08 draaien er daarom **twee motoren naast elkaar** op elke mail.
 |---|---|---|
 | Wat vraagt de klant? | Claude (`claude-opus-5`) | Layouts verschillen per klant; lezen is precies wat een taalmodel goed kan. |
 | Welk artikel uit onze database is dat? | `match-articles.ts` | `2615-0090-0530` en `2615-0091-0530` bestaan allebei en schelen één cijfer. Die keuze hoort in code die te testen is, niet in een model dat aannemelijk gokt. |
+| Welke bijlage is het handelsdocument? | `attachment-kind.ts` | Deterministisch, op inhoud vóór naam; stuurt de rangorde uit §3.4. |
 
-Het model krijgt onderwerp, body, bijlagenamen en de al uitgelezen pdf-tekst
-(`pdf-text.ts`), en geeft via een Zod-schema
-(`messages.parse` + `zodOutputFormat`) regels terug:
-`{ tekening, omschrijving, qty, rev, positie, bronTekst, zekerheid }`.
+Het model krijgt onderwerp, body, bijlagenamen en de uitgelezen pdf-tekst, en
+geeft via een Zod-schema (`messages.parse` + `zodOutputFormat`) regels terug:
+`{ tekening, omschrijving, qty, rev, positie, bronBestand, bronTekst, zekerheid }`.
 
 ### 6.2 Gescande documenten: het model kijkt ernaar
 
 `pdf-text.ts` haalt alleen een tekstlaag eruit. Een gescande inkooporder levert
-niets op — en dat is precies het document dat de regels zou moeten bepalen.
-Waargenomen op echte mail van een klant: beide pdf's waren scans, dus de order
-is nooit gelezen en de extractie viel terug op bestandsnamen.
+niets op — en dat is precies het document dat de regels moet bepalen. Zo'n pdf
+gaat als **document-blok** mee, handelsdocumenten eerst (`scansVoorModel`),
+hoogstens 3 bijlagen van maximaal 8 MB.
 
-Daarom gaat een pdf zonder tekstlaag als **document-blok** mee naar het model,
-dat hem gewoon kan bekijken (`scansVoorModel`). Handelsdocumenten eerst: als er
-maar plek is voor een paar, hoort de inkooporder erbij en niet drie tekeningen.
-Grenzen: 8 MB per bijlage, hoogstens 3 stuks. Een gescande pagina kost als
-afbeelding meer tokens dan tekst — dat is de prijs van een leesbare order.
+### 6.3 Drie controles op wat eruit komt
 
-### 6.3 Tegen verzinsels: gronding, per regel
+Elk op een andere manier van fout gaan, en **geen ervan gooit een regel weg** —
+ze bepalen de zekerheid, en een mens beslist. Stil verwijderen zou het ergste van
+twee werelden zijn: je ziet niet dát er iets stond en je kunt het niet nakijken.
 
-Elke regel moet een `bronTekst` meebrengen die **letterlijk** in de mail of
-bijlage staat. `isGrounded()` zoekt die terug (genormaliseerd op spaties, en
-anders op alle losse woorden — pdf-tekst komt met andere regelovergangen terug
-dan het model teruggeeft). Staat hij er niet, dan blijft de regel wél staan —
-misschien klopt hij — maar met een zichtbaar lagere zekerheid en een
-waarschuwing in het reviewscherm.
+| Controle | Vangt | Hoe |
+|---|---|---|
+| `gegrond` | een verzonnen regel | `bronTekst` moet letterlijk in de mail of bijlage staan (genormaliseerd op spaties; anders alle losse woorden) |
+| `tekeningGegrond` | een verschoven cijfer | het tekeningnummer zélf moet er teken voor teken staan — de duurste fout die deze functie kan maken |
+| `bevestigd` | toeval | een **tweede, onafhankelijke lezing** van dezelfde mail moet dezelfde regel met hetzelfde aantal opleveren |
 
-Uit een scan valt niets terug te zoeken: die regels krijgen `gegrond: null`, wat
-als *onzeker* telt en niet als *fout*. Dat oordeel gaat **per regel**, op grond
-van `bronBestand` — het model zegt zelf uit welke bijlage een regel komt. De
-eerste versie zette de controle voor de héle mail uit zodra er ergens een scan
-bij zat; een verzonnen regel uit de mailtekst liftte daar dan op mee.
+De controlelezing verving het "twee motoren zijn het eens"-signaal dat wegviel
+met de patroonmotor, en is sterker: die tweede lezing kijkt naar dezelfde tabel
+in plaats van naar een bestandsnaam. Kost wel twee keer de invoer-tokens — uit
+met `MAIL_AI_CONTROLE=uit`. Uit een scan valt niets terug te zoeken; die regels
+krijgen `null` en tellen als *onzeker*, niet als *fout*.
 
-### 6.4 Samenvoegen
-
-`mergeLines()` legt de twee uitkomsten naast elkaar op hetzelfde dedupe-sleutel
-als §3.4. De regelmotor blijft leidend voor wat hij al wist (getest patroon wint
-van model); de AI vult aan wat leeg was — vooral aantallen uit lopende tekst — en
-voegt regels toe die geen bijlage hadden. Een regel die **beide** motoren vonden
-krijgt `extractor: 'beide'` en een bonus op de zekerheid: twee onafhankelijke
-methodes die hetzelfde zeggen is het sterkste signaal dat we hebben.
-
-### 6.5 Zekerheidsscore
+### 6.4 Zekerheidsscore
 
 Per regel, `certainty.ts`, gewogen over drie dingen:
 
 | Weegt | Wat het meet |
 |---|---|
-| 35 % herkenning | Hoe hij gevonden is, of het citaat klopt, of beide motoren het eens zijn |
-| 45 % koppeling | Hoe sterk de artikelmatch is (handmatig = 1, twijfel telt maar deels) |
-| 20 % volledigheid | Weten we een tekeningnummer én een aantal |
+| 35 % herkenning | zelfrapportage van het model, gecorrigeerd met de drie controles hierboven |
+| 45 % koppeling | hoe sterk de artikelmatch is (handmatig = 1, twijfel telt maar deels) |
+| 20 % volledigheid | weten we een tekeningnummer én een aantal |
 
-In het reviewscherm staat per regel een balkje met percentage; de tooltip somt
-de redenen op. Boven de tabel staat het gemiddelde, de laagste regel, welk model
-meelas en hoeveel regels niet te onderbouwen waren.
+In het reviewscherm staat per regel een balkje met percentage; de tooltip somt de
+redenen op. Boven de tabel het gemiddelde, de laagste regel, of er een
+controlelezing was, en hoeveel regels ongegrond of onbevestigd zijn.
 
 **Wees hier eerlijk over:** dit is een *vertrouwensindicatie*, geen gemeten
 nauwkeurigheid. Het zegt hoe goed onderbouwd een regel is, niet hoe vaak dit
 soort regels achteraf klopte. Echte nauwkeurigheid kan pas uit de correcties die
-mensen in het reviewscherm maken — die worden nu wel bewaard (als `ArticleAlias`
-en in `kandidaten`) maar nog niet geteld.
+mensen in het reviewscherm maken; die worden bewaard maar nog niet geteld.
 
-### 6.6 Bedrijfszekerheid
+### 6.5 Wat er gebeurt als de AI wegvalt
 
-- **Geen sleutel, geen probleem.** Zonder `ANTHROPIC_API_KEY`, of met `MAIL_AI=uit`,
-  draait alleen de regelmotor. De import werkt gewoon door, alleen minder flexibel.
-- **De AI mag de import nooit laten mislukken.** Faalt de aanroep (netwerk plat,
-  limiet bereikt, sleutel verlopen), dan wordt de regelmotor gebruikt en staat de
-  reden in het rapport, in gewone taal.
-- **De sleutel staat in de omgeving, niet in de database** — hij hoort niet in een
-  backup van de shopdata terecht te komen.
-- **Klantmail verlaat het netwerk.** Akkoord gegeven op 2026-09-08; zie
-  `decisions/90-decisions-log.md`.
+Er is geen terugval meer. Zonder sleutel, met `MAIL_AI=uit`, of bij een storing
+levert een gesleepte mail **geen regels** op, met de reden in gewone taal in het
+reviewscherm. Dat is de bedoeling: de afzender, de bijlagen en de relatie zijn er
+nog, en de regels worden dan handmatig toegevoegd. Een leeg scherm met een
+melding is eerlijker dan een half resultaat dat er compleet uitziet.
+
+De sleutel staat in de omgeving, niet in de database — hij hoort niet in een
+backup van de shopdata. Klantmail verlaat het netwerk; akkoord gegeven op
+2026-09-08, zie `decisions/90-decisions-log.md`.
 
 ---
 

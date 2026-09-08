@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { CandidateLine, NormalizedMail } from '@stockmanager/shared'
-import { buildPrompt, grondingVan, haystack, isGrounded, mergeLines, scansVoorModel, type AiLine } from '../ai-extract'
+import {
+  bevestigdDoor, buildLines, buildPrompt, grondingVan, haystack, isGrounded,
+  scansVoorModel, tekeningStaatErIn, type AiLine,
+} from '../ai-extract'
 
 function mail(partial: Partial<NormalizedMail> = {}): NormalizedMail {
   return {
@@ -13,16 +16,6 @@ function mail(partial: Partial<NormalizedMail> = {}): NormalizedMail {
 
 function attachment(filename: string, tekst: string | null) {
   return { filename, sizeBytes: 100, path: null, isEmbeddedMessage: false, tekst, tekstPath: null }
-}
-
-function candidate(partial: Partial<CandidateLine> = {}): CandidateLine {
-  return {
-    id: 'kand-1', ruweTekst: '2615-0091-0530.step', tekening: '2615-0091-0530', rev: null, positie: null,
-    qty: null, bron: 'bijlagenaam', attachmentFilename: '2615-0091-0530.step', bestanden: [], matches: [],
-    status: 'nieuw', artikelId: null, handmatig: false, extractor: 'regels', bronTekst: null, gegrond: null,
-    bronBestand: null, zekerheid: 0, zekerheidRedenen: [],
-    ...partial,
-  }
 }
 
 function aiLine(partial: Partial<AiLine> = {}): AiLine {
@@ -125,58 +118,79 @@ describe('buildPrompt', () => {
   })
 })
 
-describe('mergeLines', () => {
-  const hay = haystack(mail({ attachments: [attachment('order.pdf', '2615-0091-0530 10x de signaalplaat')] }))
+describe('tekeningStaatErIn', () => {
+  const hay = 'Pos 1 2615-0091-0530 Signaleringsplaat aantal 10'
 
-  it('vouwt dezelfde regel van beide motoren samen', () => {
-    const { lines, modelZekerheid } = mergeLines([candidate()], [aiLine()], hay)
-    expect(lines).toHaveLength(1)
-    expect(lines[0].extractor).toBe('beide')
-    expect(lines[0].id).toBe('kand-1')
-    expect(modelZekerheid.get('kand-1')).toBe(0.9)
+  it('vindt het nummer ook met andere leestekens', () => {
+    expect(tekeningStaatErIn('2615.0091.0530', hay)).toBe(true)
+    expect(tekeningStaatErIn('2615 0091 0530', hay)).toBe(true)
   })
 
-  it('vult aan wat de regelmotor niet wist, zonder te overschrijven', () => {
-    const { lines } = mergeLines([candidate({ qty: 4 })], [aiLine({ qty: 10, rev: 'B' })], hay)
-    expect(lines[0].qty).toBe(4) // buiten het document wint het geteste patroon
-    expect(lines[0].rev).toBe('B') // maar wat leeg was wordt wél gevuld
+  it('accepteert geen enkel cijfer verschil', () => {
+    // 2615-0090-0530 en 2615-0091-0530 bestaan allebei in de database.
+    expect(tekeningStaatErIn('2615-0090-0530', hay)).toBe(false)
   })
 
-  it('laat het model winnen op de ordertabel — daar ziet het de kolommen', () => {
-    // Gemeten: het patroon las "2026 stuks" uit `As ø50x178 4 4-9-2026pcs`,
-    // omdat de leverdatum tegen de eenheid aan plakte.
-    const uitPatroon = candidate({ tekening: '2611-1456-0234', qty: 2026, positie: null })
-    const uitTabel = aiLine({
-      tekening: '2611-1456-0234', qty: 4, positie: 10,
-      bronBestand: 'aanvraag.pdf', bronTekst: '2611-1456-0234 As ø50x178 4',
-    })
-    const { lines } = mergeLines([uitPatroon], [uitTabel], hay, { document: 'aanvraag.pdf' })
-    expect(lines[0].qty).toBe(4)
-    expect(lines[0].positie).toBe(10)
+  it('is onwaar zonder nummer of bij een te kort nummer', () => {
+    expect(tekeningStaatErIn(null, hay)).toBe(false)
+    expect(tekeningStaatErIn('26', hay)).toBe(false)
+  })
+})
+
+describe('bevestigdDoor', () => {
+  const regel = aiLine({ tekening: '2615-0091-0530', qty: 10 })
+
+  it('is null als er geen controlelezing was', () => {
+    expect(bevestigdDoor(regel, null)).toBe(null)
   })
 
-  it('voegt een regel toe die alleen in de lopende tekst stond', () => {
-    const { lines } = mergeLines([], [aiLine()], hay)
+  it('is waar als de tweede lezing dezelfde regel met hetzelfde aantal vond', () => {
+    expect(bevestigdDoor(regel, [aiLine({ tekening: '2615.0091.0530', qty: 10 })])).toBe(true)
+  })
+
+  it('is onwaar als de tweede lezing een ander aantal vond', () => {
+    expect(bevestigdDoor(regel, [aiLine({ tekening: '2615-0091-0530', qty: 4 })])).toBe(false)
+  })
+
+  it('is onwaar als de tweede lezing de regel helemaal niet vond', () => {
+    expect(bevestigdDoor(regel, [])).toBe(false)
+  })
+})
+
+describe('buildLines', () => {
+  const bron = mail({ attachments: [attachment('order.pdf', '2615-0091-0530 10x de signaalplaat')] })
+
+  it('zet een modelregel om naar een kandidaat met de controles erop', () => {
+    const { lines, modelZekerheid } = buildLines([aiLine()], bron)
     expect(lines).toHaveLength(1)
     expect(lines[0].extractor).toBe('ai')
     expect(lines[0].gegrond).toBe(true)
+    expect(lines[0].tekeningGegrond).toBe(true)
     expect(lines[0].qty).toBe(10)
+    expect(modelZekerheid.get(lines[0].id)).toBe(0.9)
   })
 
   it('markeert een regel die niet in de bron terug te vinden is', () => {
-    const { lines } = mergeLines([], [aiLine({ tekening: '9999-9999', bronTekst: '5x koppelstuk 9999-9999' })], hay)
+    const { lines } = buildLines([aiLine({ tekening: '9999-9999', bronTekst: '5x koppelstuk 9999-9999' })], bron)
     expect(lines[0].gegrond).toBe(false)
+    expect(lines[0].tekeningGegrond).toBe(false)
   })
 
   it('laat gronding open voor een regel die uit een scan komt', () => {
     const regel = aiLine({ tekening: '9999-9999', bronTekst: '5x koppelstuk', bronBestand: 'scan.pdf' })
-    const { lines } = mergeLines([], [regel], hay, { scans: new Set(['scan.pdf']) })
+    const { lines } = buildLines([regel], bron, { scans: new Set(['scan.pdf']) })
     expect(lines[0].gegrond).toBe(null)
+    expect(lines[0].tekeningGegrond).toBe(null)
+  })
+
+  it('neemt de uitkomst van de controlelezing over', () => {
+    const { lines } = buildLines([aiLine()], bron, { bevestiging: [aiLine({ qty: 4 })] })
+    expect(lines[0].bevestigd).toBe(false)
   })
 
   it('laat een tekening geen tweede regel maken als het document leidend is', () => {
-    // Dit is het geval uit de praktijk: de order noemt 2615-0091-0530 en de
-    // tekening heet 2604307-1-2615-0091-0530-1. Twee regels voor één onderdeel.
+    // Het geval uit de praktijk: de order noemt 2615-0091-0530 en de tekening
+    // heet 2604307-1-2615-0091-0530-1. Twee regels voor één onderdeel.
     const uitOrder = aiLine({
       tekening: '2615-0091-0530', qty: 60, positie: 10,
       bronBestand: 'Purchase order_2604307.pdf', bronTekst: '10 2615-0091-0530 60',
@@ -185,24 +199,24 @@ describe('mergeLines', () => {
       tekening: '2604307-1-2615-0091-0530-1', qty: null, positie: 1,
       bronBestand: '2604307-1-2615-0091-0530-1.pdf', bronTekst: '2604307-1-2615-0091-0530-1',
     })
-    const { lines } = mergeLines([], [uitOrder, uitTekening], hay, {
+    const { lines } = buildLines([uitOrder, uitTekening], bron, {
       document: 'Purchase order_2604307.pdf',
-      scans: new Set(['Purchase order_2604307.pdf']),
     })
     expect(lines).toHaveLength(1)
     expect(lines[0].qty).toBe(60)
   })
 
   it('hangt de tekeningbestanden aan de regel waar ze bij horen', () => {
-    const uitOrder = aiLine({ tekening: '2615-0091-0530', qty: 60, bronBestand: 'PO.pdf', bronTekst: '2615-0091-0530' })
-    const { lines } = mergeLines([], [uitOrder], hay, {
-      document: 'PO.pdf',
+    const met = mail({
       attachments: [
+        attachment('PO.pdf', '2615-0091-0530 aantal 60'),
         attachment('2604307-1-2615-0091-0530-1.dwg', null),
         attachment('2604307-1-2615-0091-0530-1.stp', null),
         attachment('iets-anders-123456.stp', null),
       ],
     })
+    const regel = aiLine({ tekening: '2615-0091-0530', qty: 60, bronBestand: 'PO.pdf', bronTekst: '2615-0091-0530' })
+    const { lines } = buildLines([regel], met, { document: 'PO.pdf' })
     expect(lines[0].bestanden).toEqual([
       '2604307-1-2615-0091-0530-1.dwg',
       '2604307-1-2615-0091-0530-1.stp',
@@ -210,11 +224,9 @@ describe('mergeLines', () => {
   })
 
   it('sorteert op positie als de klant die meegaf', () => {
-    const { lines } = mergeLines(
-      [],
+    const { lines } = buildLines(
       [aiLine({ tekening: 'A-1', positie: 2, bronTekst: 'A-1' }), aiLine({ tekening: 'B-2', positie: 1, bronTekst: 'B-2' })],
-      hay,
-      { grondingOncontroleerbaar: true }
+      bron
     )
     expect(lines.map((l) => l.tekening)).toEqual(['B-2', 'A-1'])
   })

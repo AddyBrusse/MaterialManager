@@ -1,3 +1,5 @@
+import type { CandidateLine, MailAttachment } from '@stockmanager/shared'
+
 /**
  * Wat voor soort bijlage is dit? — features/60-mail-import.md §3.4.
  *
@@ -96,4 +98,38 @@ export function hoortBij(bestandsnaam: string, tekening: string | null): boolean
 
 function normalize(s: string): string {
   return s.toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+/**
+ * Het handelsdocument dat de regels bepaalt — het eerste dat we vinden.
+ *
+ * Een scan telt net zo goed mee: het model krijgt die als afbeelding en kan hem
+ * gewoon lezen. Alleen een tekstlaag eisen zou juist de gescande inkooporder
+ * buitensluiten, en dat is precies het document waar het om gaat.
+ */
+export function leidendDocument(attachments: MailAttachment[]): MailAttachment | null {
+  return (
+    attachments.find(
+      (a) => !a.isEmbeddedMessage && classifyAttachment(a.filename, a.tekst) === 'document'
+    ) ?? null
+  )
+}
+
+/**
+ * Tekeningen bij hun regel zetten.
+ *
+ * Een bestand dat bij geen enkele regel hoort blijft gewoon in de bijlagenlijst
+ * staan; het wordt niet stilzwijgend weggegooid en ook niet alsnog een regel —
+ * als het document de regels bepaalde, is dat document leidend.
+ */
+export function hangBestandenAan(lines: CandidateLine[], attachments: MailAttachment[]): void {
+  for (const att of attachments) {
+    if (att.isEmbeddedMessage) continue
+    if (classifyAttachment(att.filename) !== 'tekening') continue
+    for (const line of lines) {
+      if (hoortBij(att.filename, line.tekening) && !line.bestanden.includes(att.filename)) {
+        line.bestanden.push(att.filename)
+      }
+    }
+  }
 }

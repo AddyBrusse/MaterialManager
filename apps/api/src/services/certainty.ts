@@ -9,26 +9,34 @@ import type { CandidateLine, ExtractieRapport } from '@stockmanager/shared'
  * correcties die mensen in het reviewscherm maken; die meten we (nog) niet.
  *
  * Drie dingen bepalen of je een regel kunt vertrouwen:
- *  herkenning   — is hij echt gevonden, en staat hij letterlijk in de bron
+ *  herkenning   — is hij echt gelezen: staat het citaat er letterlijk, staat het
+ *                 tekeningnummer er teken voor teken, en zei de controlelezing
+ *                 hetzelfde
  *  koppeling    — is hij aan een artikel uit onze database te hangen
  *  volledigheid — weten we ook een aantal en een tekeningnummer
+ *
+ * Geen enkele controle gooit een regel wég. Ze duwen de score omlaag, en een
+ * mens beslist. Stil verwijderen zou het ergste van twee werelden zijn: je ziet
+ * niet dát er iets stond en je kunt het niet nakijken.
  */
 
 const WEIGHT = { herkenning: 0.35, koppeling: 0.45, volledigheid: 0.2 } as const
 
-/** Een regel die alleen de vaste patronen vonden: degelijk, maar niet gelezen. */
-const REGELMOTOR_HERKENNING = 0.7
-/** Twee motoren die onafhankelijk hetzelfde vonden zegt meer dan één. */
-const EENSGEZIND_BONUS = 0.15
 /** Het model noemt een regel maar kan hem niet letterlijk aanwijzen: verzonnen. */
 const ONGEGROND_FACTOR = 0.4
+/** Erger nog: het tekeningnummer zelf staat er niet. Eén cijfer verschil is een ander onderdeel. */
+const TEKENING_ONGEGROND_FACTOR = 0.3
 /** Uit een scan valt niets letterlijk terug te zoeken; niet fout, wel onzeker. */
 const ONCONTROLEERBAAR_FACTOR = 0.7
+/** Twee onafhankelijke lezingen die hetzelfde zeggen is het sterkste signaal dat we hebben. */
+const BEVESTIGD_BONUS = 0.15
+/** Twee lezingen die elkaar tegenspreken: dit is de regel om na te kijken. */
+const ONBEVESTIGD_FACTOR = 0.45
 /** Bij twijfel telt de treffer maar deels mee — er is immers een concurrent. */
 const TWIJFEL_FACTOR = 0.6
 
 export interface CertaintyInput {
-  /** Wat het model zelf zei over deze regel, 0-1. Null bij de regelmotor. */
+  /** Wat het model zelf zei over deze regel, 0-1. */
   modelZekerheid?: number | null
 }
 
@@ -39,14 +47,12 @@ function clamp(n: number): number {
 export function scoreLine(line: CandidateLine, input: CertaintyInput = {}): CandidateLine {
   const redenen: string[] = []
 
-  // ── herkenning ──
-  let herkenning =
-    line.extractor === 'regels'
-      ? REGELMOTOR_HERKENNING
-      : clamp(input.modelZekerheid ?? 0.7)
+  // ── herkenning: is deze regel echt gelezen, of aannemelijk gemaakt? ──
+  let herkenning = clamp(input.modelZekerheid ?? 0.7)
 
   if (line.extractor === 'regels') {
-    redenen.push('Gevonden met vaste patronen')
+    // Regels uit een oudere import, van de inmiddels verwijderde patroonmotor.
+    redenen.push('Gevonden met de oude vaste patronen (vóór 2026-09-08)')
   } else if (line.gegrond === false) {
     herkenning *= ONGEGROND_FACTOR
     redenen.push('Let op: de aangehaalde tekst staat niet letterlijk in de mail of bijlage')
@@ -54,15 +60,27 @@ export function scoreLine(line: CandidateLine, input: CertaintyInput = {}): Cand
     herkenning *= ONCONTROLEERBAAR_FACTOR
     redenen.push('Niet te controleren: de bijlage heeft geen tekstlaag (een scan)')
   } else {
-    redenen.push('Gelezen door de AI en terug te vinden in de brontekst')
+    redenen.push('Aangehaalde tekst letterlijk teruggevonden in de bron')
   }
 
-  if (line.extractor === 'beide') {
-    herkenning = clamp(herkenning + EENSGEZIND_BONUS)
-    redenen.push('Zowel de vaste patronen als de AI vonden deze regel')
+  // Het tekeningnummer apart: daar zit de duurste fout.
+  if (line.tekeningGegrond === false) {
+    herkenning *= TEKENING_ONGEGROND_FACTOR
+    redenen.push(`Let op: tekeningnummer ${line.tekening ?? ''} staat nergens letterlijk in de mail`)
+  } else if (line.tekeningGegrond === true) {
+    redenen.push('Tekeningnummer teken voor teken teruggevonden')
   }
 
-  // ── koppeling ──
+  // De tweede lezing.
+  if (line.bevestigd === true) {
+    herkenning = clamp(herkenning + BEVESTIGD_BONUS)
+    redenen.push('Twee onafhankelijke lezingen kwamen op dezelfde regel uit')
+  } else if (line.bevestigd === false) {
+    herkenning *= ONBEVESTIGD_FACTOR
+    redenen.push('De controlelezing kwam op iets anders uit — nakijken')
+  }
+
+  // ── koppeling: hangt er een artikel uit onze database aan? ──
   const best = line.matches[0]
   let koppeling = 0
   if (line.handmatig) {
@@ -108,6 +126,7 @@ export function buildRapport(
     foutmelding: string | null
     documentGebruikt?: string | null
     gescandeBijlagen?: string[]
+    controleGedaan?: boolean
   }
 ): ExtractieRapport {
   const scores = lines.map((l) => l.zekerheid)
@@ -119,6 +138,8 @@ export function buildRapport(
       : 0,
     laagsteZekerheid: scores.length ? Math.min(...scores) : 0,
     ongegrondeRegels: lines.filter((l) => l.gegrond === false && l.extractor !== 'regels').length,
+    controleGedaan: opts.controleGedaan ?? false,
+    onbevestigdeRegels: lines.filter((l) => l.bevestigd === false).length,
     documentGebruikt: opts.documentGebruikt ?? null,
     gescandeBijlagen: opts.gescandeBijlagen ?? [],
     foutmelding: opts.foutmelding,

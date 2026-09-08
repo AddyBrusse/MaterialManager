@@ -161,6 +161,21 @@ export const CandidateLineSchema = z.object({
   /** De bijlage waar het model deze regel uit haalde; null als het de mailtekst was. */
   bronBestand: z.string().nullable().default(null),
   /**
+   * Staat het tekeningnummer zélf letterlijk in de mail of bijlage?
+   *
+   * De scherpste controle die er is. Een verzonnen of "gecorrigeerd" cijfer in
+   * een tekeningnummer is de duurste fout die deze functie kan maken —
+   * 2615-0090-0530 en 2615-0091-0530 zijn allebei echte, verschillende
+   * onderdelen. Null als de regel uit een scan komt: dan valt er niets te zoeken.
+   */
+  tekeningGegrond: z.boolean().nullable().default(null),
+  /**
+   * Vond een tweede, onafhankelijke lezing dezelfde regel met hetzelfde aantal?
+   *
+   * Null als er geen controlelezing is gedaan (uitgezet in de instellingen).
+   */
+  bevestigd: z.boolean().nullable().default(null),
+  /**
    * 0-1. Een *vertrouwensindicatie*, geen gemeten nauwkeurigheid: hoe goed
    * onderbouwd deze regel is (gevonden, gegrond, gekoppeld, compleet).
    * Zie apps/api/src/services/certainty.ts.
@@ -183,6 +198,10 @@ export const ExtractieRapportSchema = z.object({
   laagsteZekerheid: z.number().min(0).max(1),
   /** Regels die het model noemde maar niet letterlijk kon onderbouwen. */
   ongegrondeRegels: z.number().int(),
+  /** Is er een tweede lezing gedaan, en wat kwam daaruit? */
+  controleGedaan: z.boolean().default(false),
+  /** Regels waarover de twee lezingen het oneens waren. */
+  onbevestigdeRegels: z.number().int().default(0),
   /**
    * Het handelsdocument dat de regels bepaalde, als dat er was. Is dit gevuld,
    * dan zijn tekeningen aan die regels gehangen in plaats van zelf een regel

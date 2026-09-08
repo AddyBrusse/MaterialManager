@@ -14,10 +14,10 @@ import { config } from '../config'
 import { sanitizeFilename } from '../lib/filenames'
 import { parseMsg, readAttachments } from './msg-parse'
 import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
-import { extractLines } from './extract-lines'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
-import { aiEnabled, aiExtract, aiFoutTekst, haystack, mergeLines, type AttachmentBuffers } from './ai-extract'
+import { aiEnabled, aiExtract, aiFoutTekst, buildLines, type AttachmentBuffers } from './ai-extract'
+import { leidendDocument } from './attachment-kind'
 import { buildRapport, scoreLines } from './certainty'
 
 /**
@@ -195,10 +195,11 @@ const GEEN_BUFFERS: AttachmentBuffers = { get: () => undefined }
 /**
  * Regels uit een mail halen en meteen tegen de artikelen leggen.
  *
- * Twee motoren naast elkaar (§6): de vaste patronen, en — als er een sleutel is
- * — het taalmodel. De AI-stap mag nooit de import laten mislukken: valt hij weg
- * (geen sleutel, netwerk plat, model traag), dan staat de regelmotor er nog en
- * gaat de mail gewoon door, met de reden in het rapport.
+ * Het taalmodel is sinds 2026-09-08 de énige extractor (§6). De patroonmotor is
+ * eruit: die kende alleen de vormen die we hadden gezien en gaf op een onbekende
+ * layout stilletjes een fout aantal terug. Zonder sleutel of bij een storing
+ * levert een mail dus géén regels op, met de reden erbij — dat is de bedoeling.
+ * Een leeg scherm vraagt om aandacht, een verkeerd voorgevuld aantal niet.
  *
  * `buffers` draagt de inhoud van de bijlagen, zodat een gescande inkooporder als
  * afbeelding aan het model gegeven kan worden. Bij een herberekening is die
@@ -210,32 +211,33 @@ export async function buildCandidates(
   relatieId: string | null,
   buffers: AttachmentBuffers = GEEN_BUFFERS
 ): Promise<CandidateResult> {
-  const [articles, aliases] = await Promise.all([loadArticles(prisma), loadAliases(prisma, relatieId)])
-  const basis = extractLines(mail)
+  const document = leidendDocument(mail.attachments)?.filename ?? null
 
-  const zonderAi = (foutmelding: string | null, model: string | null) => {
-    const kandidaten = scoreLines(matchLines(basis.lines, articles, aliases))
-    return {
-      kandidaten,
-      rapport: buildRapport(kandidaten, {
-        aiGebruikt: false,
-        model,
-        foutmelding,
-        documentGebruikt: basis.document,
-      }),
-    }
+  const zonderRegels = (foutmelding: string) => ({
+    kandidaten: [],
+    rapport: buildRapport([], {
+      aiGebruikt: false,
+      model: config.ai.model,
+      foutmelding,
+      documentGebruikt: document,
+    }),
+  })
+
+  if (!aiEnabled()) {
+    return zonderRegels(
+      'Er is niets uitgelezen: het meelezen staat uit of er is geen API-sleutel ingesteld. ' +
+        'Voeg de regels handmatig toe, of zet ANTHROPIC_API_KEY.'
+    )
   }
 
-  if (!aiEnabled()) return zonderAi(null, null)
+  const [articles, aliases] = await Promise.all([loadArticles(prisma), loadAliases(prisma, relatieId)])
 
   try {
     const ai = await aiExtract(mail, buffers)
-    const { lines, modelZekerheid } = mergeLines(basis.lines, ai.regels, haystack(mail), {
+    const { lines, modelZekerheid } = buildLines(ai.regels, mail, {
       scans: new Set(ai.scans),
-      // Het model mag zelf zeggen welk document het aanhield; kon het dat niet,
-      // dan valt het terug op wat de regelmotor als document herkende.
-      document: ai.document ?? basis.document,
-      attachments: mail.attachments,
+      document: ai.document ?? document,
+      bevestiging: ai.bevestiging,
     })
     const kandidaten = scoreLines(matchLines(lines, articles, aliases), modelZekerheid)
     return {
@@ -244,14 +246,15 @@ export async function buildCandidates(
         aiGebruikt: true,
         model: ai.model,
         foutmelding: null,
-        documentGebruikt: ai.document ?? basis.document,
+        documentGebruikt: ai.document ?? document,
         gescandeBijlagen: ai.scans,
+        controleGedaan: ai.bevestiging !== null,
       }),
     }
   } catch (err) {
-    return zonderAi(
-      `De AI kon niet meelezen (${aiFoutTekst(err)}) — alleen de vaste patronen zijn gebruikt.`,
-      config.ai.model
+    return zonderRegels(
+      `Er is niets uitgelezen: ${aiFoutTekst(err)}. Probeer de mail opnieuw te slepen, ` +
+        'of voeg de regels handmatig toe.'
     )
   }
 }

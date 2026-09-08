@@ -3,27 +3,28 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod/v4'
 import type { CandidateLine, CandidateSource, MailAttachment, NormalizedMail } from '@stockmanager/shared'
 import { config } from '../config'
-import { dedupeKeyOf, hangBestandenAan } from './extract-lines'
-import { classifyAttachment, hoortBij } from './attachment-kind'
+import { classifyAttachment, hangBestandenAan, hoortBij, leidendDocument } from './attachment-kind'
 import { looksLikePdf } from './pdf-text'
 
 /**
  * De mail door een taalmodel laten lezen — features/60-mail-import.md §6.
  *
- * Waarom: de vaste patronen in extract-lines.ts werken alleen op de vormen die
- * we hebben gezien. Elke klant maakt zijn pdf anders, en een mail met "graag
- * 10x de signaalplaat en 4x tekening 2615-0091-0530" heeft helemaal geen vorm.
- * Het model leest gewoon wat er staat.
+ * Dit is sinds 2026-09-08 de enige extractor. De vaste patronen zijn eruit: die
+ * werkten alleen op de vormen die we hadden gezien, en elke klant maakt zijn pdf
+ * anders. Op een echte offerteaanvraag las het patroon `4-9-2026pcs` als 2026
+ * stuks omdat de leverdatum tegen de eenheid aan plakte — een fout getal dat er
+ * uitziet als een gelezen aantal. Liever geen regel dan een verkeerde regel.
  *
  * Wat het model *niet* doet: kiezen welk artikel uit onze database erbij hoort.
  * Dat blijft match-articles.ts. 2615-0090-0530 en 2615-0091-0530 bestaan allebei
  * en schelen één cijfer; die keuze hoort in code die we kunnen testen, niet in
  * een model dat aannemelijk gokt.
  *
- * Tegen verzinsels: elke regel moet een `bronTekst` meebrengen die letterlijk in
- * de mail of de bijlage staat. Kan het model dat niet, dan blijft de regel wel
- * staan (misschien klopt hij) maar met een duidelijk lagere zekerheid en een
- * waarschuwing in het reviewscherm.
+ * Drie controles op wat eruit komt, elk op een andere manier van fout gaan:
+ *  1. `bronTekst` moet letterlijk in de mail of bijlage staan (verzonnen regel)
+ *  2. het tekeningnummer zelf moet er letterlijk staan (verschoven cijfer)
+ *  3. een tweede, onafhankelijke lezing moet dezelfde regel opleveren (toeval)
+ * Geen ervan gooit een regel weg — ze bepalen de zekerheid, en een mens beslist.
  */
 
 const AiLineSchema = z.object({
@@ -218,6 +219,8 @@ export function aiFoutTekst(err: unknown): string {
 
 export interface AiExtractOutcome {
   regels: AiLine[]
+  /** De regels uit de tweede lezing, of null als die niet is gedaan. */
+  bevestiging: AiLine[] | null
   intent: AiResult['intent']
   document: string | null
   opmerking: string | null
@@ -226,21 +229,17 @@ export interface AiExtractOutcome {
   scans: string[]
 }
 
-/** Roept het model aan. Gooit door bij een fout — de aanroeper valt terug op de regelmotor. */
-export async function aiExtract(
+/** Eén lezing van de mail. Gooit door bij een fout — de aanroeper vertelt het de gebruiker. */
+async function leesEenmaal(
   mail: NormalizedMail,
-  buffers: AttachmentBuffers
-): Promise<AiExtractOutcome> {
-  const model = config.ai.model
-  const scans = scansVoorModel(mail, buffers)
-  const scanNamen = new Set(scans.map((s) => s.filename))
-
+  scans: { filename: string; inhoud: Buffer }[],
+  scanNamen: Set<string>
+): Promise<AiResult> {
   const content: Anthropic.ContentBlockParam[] = [
     { type: 'text', text: buildPrompt(mail, scanNamen) },
   ]
   for (const scan of scans) {
-    const buf = buffers.get(scan.filename)
-    if (!buf) continue
+    const buf = scan.inhoud
     content.push({ type: 'text', text: `--- AFBEELDING VAN BIJLAGE: ${scan.filename} ---` })
     content.push({
       type: 'document',
@@ -249,89 +248,119 @@ export async function aiExtract(
   }
 
   const response = await getClient().messages.parse({
-    model,
+    model: config.ai.model,
     max_tokens: 16000,
     system: SYSTEM,
     messages: [{ role: 'user', content }],
-    output_config: { format: zodOutputFormat(AiResultSchema) },
+    output_config: { effort: config.ai.effort, format: zodOutputFormat(AiResultSchema) },
   })
   const parsed = response.parsed_output
   if (!parsed) throw new Error('Het model gaf geen bruikbare structuur terug')
+  return parsed
+}
+
+/**
+ * De mail lezen, en de uitkomst laten bevestigen door een tweede lezing.
+ *
+ * Twee losse aanroepen op dezelfde invoer. Waar ze hetzelfde zeggen is dat het
+ * sterkste signaal dat we hebben; waar ze uiteenlopen is dat precies de regel om
+ * na te kijken. Dit verving het "twee motoren zijn het eens"-signaal dat wegviel
+ * toen de patroonmotor eruit ging, en het is een sterker signaal: de tweede
+ * lezing kijkt naar dezelfde tabel in plaats van naar een bestandsnaam.
+ *
+ * Het kost wel twee keer de invoer-tokens. Uit met MAIL_AI_CONTROLE=uit.
+ */
+export async function aiExtract(
+  mail: NormalizedMail,
+  buffers: AttachmentBuffers
+): Promise<AiExtractOutcome> {
+  const scans = scansVoorModel(mail, buffers)
+  const scanNamen = new Set(scans.map((s) => s.filename))
+  const metInhoud = scans.map((a) => ({ ...a, inhoud: buffers.get(a.filename)! }))
+
+  const eerste = await leesEenmaal(mail, metInhoud, scanNamen)
+  let bevestiging: AiResult | null = null
+  if (config.ai.controle) {
+    // Faalt de controlelezing, dan telt dat als "niet gecontroleerd" en niet als
+    // een mislukte import: de eerste lezing is er nog.
+    bevestiging = await leesEenmaal(mail, metInhoud, scanNamen).catch(() => null)
+  }
+
   return {
-    regels: parsed.regels,
-    intent: parsed.intent,
-    document: parsed.document,
-    opmerking: parsed.opmerking,
-    model,
+    regels: eerste.regels,
+    bevestiging: bevestiging?.regels ?? null,
+    intent: eerste.intent,
+    document: eerste.document,
+    opmerking: eerste.opmerking,
+    model: config.ai.model,
     scans: [...scanNamen],
   }
 }
 
-// ── Samenvoegen met de regelmotor ─────────────────────────────────────────────
+// ── Van modelregels naar kandidaten ───────────────────────────────────────────
 
-export interface MergeResult {
+/** Twee aanduidingen van hetzelfde onderdeel op één noemer brengen. */
+export function dedupeKeyOf(tekening: string | null, ruweTekst: string): string {
+  return (tekening ?? ruweTekst).toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+export interface BuildResult {
   lines: CandidateLine[]
   /** Zelfgerapporteerde zekerheid per regel-id, voor certainty.ts. */
   modelZekerheid: Map<string, number>
 }
 
 /**
- * De twee motoren naast elkaar leggen.
+ * Staat het tekeningnummer zélf letterlijk in de bron?
  *
- * Regels die allebei vonden zijn het sterkst — daar zijn twee onafhankelijke
- * methodes het over eens. Buiten het handelsdocument blijft de regelmotor
- * leidend voor wat hij al wist: dat komt uit code die we getest hebben.
- *
- * Bínnen het document is het andersom, en dat is een correctie op de eerste
- * versie. De regelmotor leest een pdf als losse regels tekst; het model ziet de
- * kolommen. Op een echte offerteaanvraag stond `As ø50x178 4 4-9-2026pcs` — de
- * leverdatum plakte tegen de eenheid — en las het patroon 2026 stuks. Waar het
- * model de ordertabel zelf heeft gelezen, wint dus het model voor aantal en
- * positie.
- *
- * De rangorde uit §3.4 geldt hier net zo goed: is er een leidend document, dan
- * mag een AI-regel die alleen een tekeningbestand beschrijft geen nieuwe regel
- * worden. Zonder die grens levert een order met tekeningen erbij nog steeds
- * dubbele regels op, ook al leest het model het document goed.
+ * De scherpste van de drie controles. Vergelijken op alleen letters en cijfers,
+ * want punt, streep en underscore verschillen per systeem — maar geen enkel
+ * cijfer mag verschillen. Precies dáár zit de dure fout: 2615-0090-0530 en
+ * 2615-0091-0530 bestaan allebei.
  */
-export function mergeLines(
-  deterministisch: CandidateLine[],
+export function tekeningStaatErIn(tekening: string | null, hay: string): boolean {
+  if (!tekening) return false
+  const naakt = tekening.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (naakt.length < 4) return false
+  return hay.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(naakt)
+}
+
+/** Is deze regel ook door de tweede lezing gevonden, met hetzelfde aantal? */
+export function bevestigdDoor(regel: AiLine, tweede: AiLine[] | null): boolean | null {
+  if (tweede === null) return null
+  const key = dedupeKeyOf(regel.tekening, regel.bronTekst)
+  const match = tweede.find((t) => dedupeKeyOf(t.tekening, t.bronTekst) === key)
+  if (!match) return false
+  return match.qty === regel.qty
+}
+
+/**
+ * De regels van het model omzetten naar kandidaten, met de drie controles erop.
+ *
+ * Er wordt niets weggegooid op grond van een controle — een regel die zakt komt
+ * gewoon met een lage zekerheid in het reviewscherm, en een mens beslist. Wél
+ * weggelaten wordt een regel die een tekéning beschrijft terwijl er een leidend
+ * document is: dat is geen tweede bestelling maar een bijlage bij een regel.
+ */
+export function buildLines(
   ai: AiLine[],
-  hay: string,
-  opts: { scans?: Set<string>; document?: string | null; attachments?: MailAttachment[] } = {}
-): MergeResult {
+  mail: NormalizedMail,
+  opts: { scans?: Set<string>; document?: string | null; bevestiging?: AiLine[] | null } = {}
+): BuildResult {
   const scans = opts.scans ?? new Set<string>()
+  const hay = haystack(mail)
+  const document = opts.document ?? leidendDocument(mail.attachments)?.filename ?? null
   const byKey = new Map<string, CandidateLine>()
   const modelZekerheid = new Map<string, number>()
-  for (const l of deterministisch) byKey.set(dedupeKeyOf(l.tekening, l.ruweTekst), { ...l })
+  let seq = 0
 
-  let seq = deterministisch.length
   for (const r of ai) {
     const ruweTekst = r.bronTekst.trim() || [r.tekening, r.omschrijving].filter(Boolean).join(' ')
     const key = dedupeKeyOf(r.tekening, ruweTekst)
-    if (!key) continue
+    if (!key || byKey.has(key)) continue
+    if (document && komtVanTekening(r, document)) continue
 
-    const gegrond = grondingVan(r, hay, scans)
-    const bestaand = byKey.get(key)
-    if (bestaand) {
-      bestaand.extractor = 'beide'
-      bestaand.bronTekst = r.bronTekst
-      bestaand.gegrond = gegrond
-      bestaand.bronBestand = r.bronBestand ?? bestaand.bronBestand
-      // Uit de ordertabel wint het model, elders wint het geteste patroon.
-      const uitTabel = opts.document != null && r.bronBestand === opts.document
-      const neem = (oud: number | null, nieuw: number | null) =>
-        nieuw !== null && (oud === null || uitTabel) ? nieuw : oud
-      bestaand.qty = neem(bestaand.qty, r.qty)
-      bestaand.positie = neem(bestaand.positie, r.positie)
-      if (bestaand.rev === null && r.rev !== null) bestaand.rev = r.rev
-      modelZekerheid.set(bestaand.id, r.zekerheid)
-      continue
-    }
-
-    // Het document is leidend: een losse tekening mag er geen regel bij maken.
-    if (opts.document && komtVanTekening(r, opts.document)) continue
-
+    const uitScan = Boolean(r.bronBestand && scans.has(r.bronBestand))
     const id = `ai-${++seq}`
     byKey.set(key, {
       id,
@@ -349,7 +378,10 @@ export function mergeLines(
       handmatig: false,
       extractor: 'ai',
       bronTekst: r.bronTekst,
-      gegrond,
+      gegrond: grondingVan(r, hay, scans),
+      // Uit een scan valt niets terug te zoeken: onbekend, niet fout.
+      tekeningGegrond: tekeningStaatErIn(r.tekening, hay) ? true : uitScan ? null : false,
+      bevestigd: bevestigdDoor(r, opts.bevestiging ?? null),
       bronBestand: r.bronBestand,
       zekerheid: 0,
       zekerheidRedenen: [],
@@ -358,12 +390,12 @@ export function mergeLines(
   }
 
   const lines = [...byKey.values()]
-  if (opts.attachments) hangBestandenAan(lines, opts.attachments)
+  hangBestandenAan(lines, mail.attachments)
   lines.sort((a, b) => (a.positie ?? 9999) - (b.positie ?? 9999))
   return { lines, modelZekerheid }
 }
 
-/** Een AI-regel die uit een tekeningbestand komt in plaats van uit het document. */
+/** Een regel die uit een tekeningbestand komt in plaats van uit het document. */
 function komtVanTekening(regel: AiLine, document: string): boolean {
   if (!regel.bronBestand || regel.bronBestand === document) return false
   return classifyAttachment(regel.bronBestand) === 'tekening' || hoortBij(regel.bronBestand, regel.tekening)

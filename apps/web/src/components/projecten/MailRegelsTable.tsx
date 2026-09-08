@@ -103,12 +103,19 @@ export function MailRegelsTable({ mailImport, articleOptions, onChanged }: Props
     }
   }
 
+  // Niets uitgelezen mét een foutmelding is iets anders dan een mail zonder
+  // regels: het eerste moet opvallen, want er is dan geen tweede motor die het
+  // stilletjes overneemt.
+  const mislukt = Boolean(mailImport.extractie?.foutmelding)
+
   if (lines.length === 0) {
     return (
       <div className="ad-card" style={{ marginBottom: 10 }}>
         <div className="ad-eyebrow">Regels</div>
-        <div style={{ fontSize: 12, color: 'var(--text-4)' }}>
-          Geen regels herkend in deze mail. Voeg ze straks handmatig toe aan de offerte.
+        <div style={{ fontSize: 12, color: mislukt ? 'var(--danger)' : 'var(--text-4)' }}>
+          {mislukt
+            ? mailImport.extractie!.foutmelding
+            : 'Geen regels herkend in deze mail. Voeg ze straks handmatig toe aan de offerte.'}
         </div>
         <ExtractieSamenvatting rapport={mailImport.extractie} />
       </div>
