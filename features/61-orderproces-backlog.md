@@ -97,14 +97,18 @@ vermeld.
   blijft. Tabwisselingen gebruiken `replace`, dus vijf keer klikken kost geen
   vijf stappen terug om de pagina te verlaten.
 
-- [ ] **2. Documentenpagina `/documenten`**
+- [x] **2. Documentenpagina `/documenten`** — *gedaan 2026-09-09*
   Platte lijst van alle offertes, OB's, paklijsten en facturen door elkaar:
-  nummer, type, klant, datum, bedrag, status. Filters op type, periode en
-  klant. Klik → project op de juiste tab (punt 1).
-  Nu is er geen enkele plek waar documenten wonen; je kunt een factuurnummer
-  wel in de zoekbalk op `/projecten` plakken (die doorzoekt ook verborgen
-  kolommen), maar niets in de UI suggereert dat.
-  *Hangt af van 0a; daarna is dit een gewone query over de vier tabellen.*
+  nummer, soort, klant, project, referentie, datum, status, regels, bedrag.
+  Zoeken op nummer, project, klant of referentie; filters op soort en klant.
+  Een rij opent het project op de tab van dát document (punt 1).
+  `GET /api/documenten` doet vier gerichte queries — dat kan pas sinds de
+  documenten eigen tabellen hebben.
+
+  Nog niet gedaan: filteren op periode, en sorteren op een kolom. De lijst
+  staat op datum aflopend en het filteren gebeurt in de browser, net als op de
+  projectenlijst. Bij een paar duizend documenten is dat prima; daarna moet het
+  filter naar de server.
 
 - [ ] **3. Zoeken op alle offertes, niet alleen de huidige**
   `projectColumns.tsx` zoekt via `currentOfferte(p)` — de geaccepteerde,

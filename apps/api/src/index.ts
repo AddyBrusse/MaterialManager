@@ -33,6 +33,7 @@ import reservationsRouter from './routes/reservations'
 import sequencesRouter from './routes/sequences'
 import preferencesRouter from './routes/preferences'
 import todosRouter from './routes/todos'
+import documentenRouter from './routes/documenten'
 import mailImportsRouter from './routes/mail-imports'
 
 const app = express()
@@ -86,6 +87,7 @@ app.use('/api/reservations', reservationsRouter)
 app.use('/api/sequences', sequencesRouter)
 app.use('/api/preferences', preferencesRouter)
 app.use('/api/todos', todosRouter)
+app.use('/api/documenten', documentenRouter)
 app.use('/api/mail-imports', mailImportsRouter)
 
 // Serve uploaded files
