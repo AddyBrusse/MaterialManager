@@ -337,7 +337,7 @@ Een klantmail draagt twee soorten bijlagen, en die zijn niet gelijkwaardig:
 | Soort | Wat het is | Wat we ermee doen |
 |---|---|---|
 | **document** | inkooporder, aanvraag, opdrachtbevestiging | bepaalt de regels: welke onderdelen, hoeveel, in welke volgorde |
-| **tekening** | dwg, step, pdf met een tekeningnummer | hangt *aan* een regel; wordt zelf nooit een regel zolang er een document is |
+| **tekening** | dwg, step, iges en de rest van de tekenpakket-formaten, plus een pdf die een onderdeel benoemt | hangt *aan* een regel; wordt zelf nooit een regel zolang er een document is |
 | overig | handtekeningplaatjes, voorwaarden, losse rommel | genegeerd |
 
 **Zips worden eerst uitgepakt.** Klanten sturen hun tekeningen regelmatig
@@ -365,6 +365,14 @@ leesbare document. Is er zo'n document, dan maakt alleen zijn regeltabel regels
 en worden de tekeningen aan de juiste regel gehangen. Is er géén leesbaar
 document, dan zijn de bestandsnamen alles wat we hebben en mogen die wél regels
 maken.
+
+Een tekenpakket-formaat is altijd een tekening, hoe het bestand ook heet. Bij een
+pdf ligt het lastiger: die draagt zowel tekeningen als alles wat er verder
+meekomt. Daar geldt dat de naam moet zeggen *welk* onderdeel het is en niet
+alleen *wat* het is — `scan.pdf`, `tekeningen.pdf` en `bijlage 2.pdf` blijven
+'overig'. Er stond hier eerst een regel die minstens drie cijfers in de naam
+eiste, op de aanname dat een onderdeel altijd een nummer draagt; dat klopt voor
+de ene klant en niet voor de andere.
 
 `hangBestandenAan()` koppelt in drie stappen, van sterkst naar zwakst:
 

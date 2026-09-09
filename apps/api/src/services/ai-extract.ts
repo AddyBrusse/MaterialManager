@@ -516,7 +516,7 @@ export function buildLines(
   }
 
   const lines = [...byKey.values()]
-  hangBestandenAan(lines, mail.attachments)
+  hangBestandenAan(lines, mail.attachments, document)
   lines.sort((a, b) => (a.positie ?? 9999) - (b.positie ?? 9999))
   return { lines, modelZekerheid }
 }

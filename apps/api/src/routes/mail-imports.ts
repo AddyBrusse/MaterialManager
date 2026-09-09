@@ -16,7 +16,7 @@ import {
   rematchCandidates, serializeMailImport, vulZipsAan,
 } from '../services/mail-import'
 import { buildRapport, scoreLine } from '../services/certainty'
-import { hangBestandenAan } from '../services/attachment-kind'
+import { hangBestandenAan, leidendDocument } from '../services/attachment-kind'
 import { schatDuur } from '../services/ingest-duur'
 import { normalizeRef } from '../services/match-articles'
 import type { CandidateLine, ExtractieRapport, MailAttachment } from '@stockmanager/shared'
@@ -369,7 +369,7 @@ router.post(
     // Zips die bij de eerste import nog niet werden uitgepakt alsnog uitpakken.
     const bijlagen = await vulZipsAan(existing.id, (existing.bijlagen ?? []) as MailAttachment[])
     const kandidaten = (existing.kandidaten ?? []) as CandidateLine[]
-    hangBestandenAan(kandidaten, bijlagen)
+    hangBestandenAan(kandidaten, bijlagen, leidendDocument(bijlagen)?.filename ?? null)
 
     const bronMap = mailImportDir(existing.id)
     const perArtikel: { artikelId: string; toegevoegd: number }[] = []
