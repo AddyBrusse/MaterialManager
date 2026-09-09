@@ -60,6 +60,28 @@ ordertabel om vraagt.
 Dit is één wijziging die een hele klasse fouten wegneemt, en het maakt de
 scan-uitzondering overbodig: gescand of niet, het gaat dezelfde route.
 
+**Om verduidelijking: er worden geen screenshots gemaakt.** De pdf-bytes gaan als
+`document`-blok mee; het omzetten naar pagina's gebeurt aan de kant van de API.
+Wij renderen niets en slaan niets extra's op. (`renderArtikelPreview` met pdfjs
+is iets anders: dat maakt de duimnagels in het controlescherm en blijft zoals het
+is.)
+
+### 3.1b Niet alles altijd — escaleren in trappen
+
+Alles meesturen is duur en traag. Daarom in trappen, van goedkoop naar duur:
+
+1. **Altijd native:** het handelsdocument. Eén of twee pagina's, en juist dát is
+   het document met de ordertabel waar de fouten in zitten.
+2. **Tekeningen eerst alleen op naam.** De deterministische matcher doet zijn
+   werk. Bij de Stinis-aanvraag en de Veratio-bestelling was dat genoeg — daar
+   hoeft geen enkele tekening naar het model.
+3. **Alleen als een regel géén bestand krijgt:** de eerste pagina van de
+   onbekende tekeningen alsnog meesturen, zodat het model het titelblok kan
+   lezen en de koppeling op het echte tekeningnummer kan leggen.
+
+Zo betaalt de gewone mail de goedkope route en alleen de lastige mail de volle
+prijs. Ruwe inschatting: van ~€0,25 per mail naar ~€0,05 voor het overgrote deel.
+
 ### 3.2 Het model deelt de bijlagen in
 
 `classifyAttachment` verdwijnt als beslisser. Het model krijgt de bestandsnamen
@@ -158,7 +180,85 @@ tekeningnummer, welke bestanden aan welke regel. Dan wordt "helpt deze
 wijziging?" een meting in plaats van een gok — en dat is wat prompt-werk
 überhaupt beheersbaar maakt.
 
-## 6. Wat het kost
+### 5.1 Hoe de set eruitziet
+
+Eén map per mail, met de mail zelf en het goede antwoord ernaast:
+
+```
+apps/api/src/services/__tests__/mails/
+  stinis-rfq2600241/
+    mail.msg
+    verwacht.json
+  veratio-2663270-offerteaanvraag/
+    mail.msg
+    verwacht.json
+  veratio-2690655-bestelling/
+    mail.msg
+    verwacht.json
+```
+
+`verwacht.json` bevat **alleen de velden waar je iets van vindt**:
+
+```json
+{
+  "regels": [
+    {
+      "tekening": "206413050_507957355_A_",
+      "qty": 2,
+      "materiaalDoorKlant": true,
+      "bestanden": [
+        "206413050_507957355_A_Bewerken.pdf",
+        "206413050_507957355_A_.stp"
+      ]
+    }
+  ]
+}
+```
+
+Dat is geen slordigheid maar de belangrijkste eigenschap van de set: **de scorer
+vergelijkt alleen wat er in het bestand staat.** Komt er later een veld bij —
+zoals `certificaat` vandaag — dan blijven alle bestaande fixtures geldig; je vult
+het nieuwe veld alleen in bij de mails waar het speelt. Zonder die eigenschap
+moet je bij elke schemawijziging alle testdata bijwerken, en dan verrot de set
+binnen een maand.
+
+### 5.2 Waar de mails staan
+
+**In de repo**, naast de tests (besloten 2026-09-09). Daarmee draait de set
+automatisch mee bij elke wijziging en kan hij niet stilletjes achterlopen.
+
+De prijs daarvan is bewust aanvaard: deze mails bevatten klantprijzen,
+contactgegevens en tekeningen van Veratio en Stinis, en die staan daarmee voorgoed
+in de git-geschiedenis en in elke kloon. De repo is privé en het team is vier man.
+Het alternatief — de set op de NAS, buiten git — betekent dat CI hem niet kan
+draaien, en een testset die alleen handmatig start is een testset die doodbloedt.
+
+### 5.3 Aanpassen, later
+
+| Wat verandert | Hoe | Release nodig? |
+|---|---|---|
+| Deze klant doet iets anders | klantprofiel typen (§4) | nee |
+| Algemene leesregel | prompt in code, gemeten tegen de set | ja |
+| Nieuwe vorm ontdekt | mail toevoegen aan de set | nee |
+| Nieuw veld in het schema | veld invullen bij de mails waar het speelt | ja, voor het veld zelf |
+
+## 6. Wat het kost aan tijd
+
+Dit is gemeten, niet geschat — `ingest_runs` legt elke inleesbeurt vast:
+
+| Situatie | Gemeten duur |
+|---|---|
+| Kleine mail, alles als tekst | ~44 s |
+| Grote gescande order, pagina's als afbeelding naar het model | ~92 s |
+
+Ruwweg een **verdubbeling** dus, en dat is geen aanname: scans gaan nu al als
+afbeelding mee, dus het verschil tussen die twee regels ís wat deze wijziging
+breed zou maken. De escalatie uit §3.1b houdt de gewone mail aan de snelle kant.
+
+De voortgangsbalk corrigeert zichzelf — die voorspelt uit de eigen historie, dus
+na een paar mails klopt de verwachte tijd weer.
+
+## 7. Wat het kost aan geld
 
 Bij dit volume is nauwkeurigheid alles en zijn tokens bijzaak. Ruwe schatting per
 mail, met `claude-opus-5` op hoge denkdiepte:
@@ -177,22 +277,25 @@ overtypen scheelt is dat niets, maar het is wel een bewuste keuze: de tekeningen
 meesturen is het duurste onderdeel, en dat is precies het onderdeel dat de
 koppeling betrouwbaar maakt.
 
-## 7. Bouwvolgorde
+## 8. Bouwvolgorde
 
 Elke stap is los te bouwen en levert op zichzelf iets op.
 
-- [ ] **A. Testset.** De drie mails met hun goede antwoord, plus een script dat
-      scoort. Dit eerst, anders is de rest niet te beoordelen.
+- [ ] **A. Testset.** De drie mails met hun goede antwoord (§5.1), plus een
+      script dat scoort. Dit eerst, anders is de rest niet te beoordelen.
 - [ ] **B. Handelsdocument native meesturen.** Kleinste wijziging, grootste
-      directe winst. Meet met A wat het doet.
-- [ ] **C. Bijlage-indeling naar het model**, met `hoortBij` als controle
+      directe winst. Meet met A wat het doet — zowel de score als de duur, want
+      die laatste gaat omhoog (§6).
+- [ ] **C. Escalatie inbouwen** (§3.1b): tekeningen alleen meesturen als een
+      regel er anders geen krijgt. Houdt de gewone mail snel en goedkoop.
+- [ ] **D. Bijlage-indeling naar het model**, met `hoortBij` als controle
       ernaast. Dit haalt de klasse bugs van vandaag structureel weg.
-- [ ] **D. Klantprofiel als bewerkbaar veld** bij de relatie.
-- [ ] **E. Correcties als voorbeelden** voor die klant.
-- [ ] **F. Citations** voor de gronding, zodra §3.3 is uitgezocht.
-- [ ] **G. Tweede lezing als controle**, en met A meten welke variant wint.
+- [ ] **E. Klantprofiel als bewerkbaar veld** bij de relatie.
+- [ ] **F. Correcties als voorbeelden** voor die klant.
+- [ ] **G. Citations** voor de gronding, zodra §3.3 is uitgezocht.
+- [ ] **H. Tweede lezing als controle**, en met A meten welke variant wint.
 
-## 8. Wat ik niet zou doen
+## 9. Wat ik niet zou doen
 
 - **Fine-tunen.** In de Claude API zoals die nu is bestaat geen fine-tuning. En
   zelfs als het kon: het vraagt honderden voorbeelden, levert een bevroren model
@@ -203,7 +306,7 @@ Elke stap is los te bouwen en levert op zichzelf iets op.
 - **RAG.** Er is geen corpus om uit te zoeken; de mail zelf is de invoer.
 - **Artikelmatching naar het model.** Zie §2.
 
-## 9. Open punten
+## 10. Open punten
 
 - Kunnen citations samen met een strict tool als uitvoervorm? Zo niet, dan wordt
   het een aparte tweede aanroep. **Dit moet als eerste uitgezocht worden**, want
