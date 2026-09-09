@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconChevronRight, IconCheck,
@@ -20,6 +20,8 @@ import { IconLock, IconCloudCheck, IconCloudUpload, IconCloudX, IconMail } from 
 import { Ic, Icon } from '../../components/articles/calc-icons'
 import { MailDropzone } from '../../components/projecten/MailDropzone'
 import { MailImportReview } from '../../components/projecten/MailImportReview'
+import { ProjectStatusActies } from '../../components/projecten/ProjectStatusActies'
+import { ProjectReserveringen } from '../../components/projecten/ProjectReserveringen'
 import { mailImportsApi } from '../../api/mail-imports'
 import { articlesApi } from '../../api/articles'
 import type { MailImport } from '@stockmanager/shared'
@@ -93,7 +95,19 @@ function SaveIndicator({ state }: { state: 'idle' | 'saving' | 'saved' | 'error'
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-type Tab = 'offertes' | 'opdrachtbevestiging' | 'productie' | 'paklijst' | 'factuur'
+const TABS = ['offertes', 'opdrachtbevestiging', 'productie', 'paklijst', 'factuur'] as const
+type Tab = typeof TABS[number]
+
+// De open tab staat in de URL (?tab=factuur) zodat een document deelbaar en te
+// bookmarken is: /projecten/PRJ-2026-003?tab=factuur opent meteen de factuur.
+// De documentenpagina (punt 2 uit features/61-orderproces-backlog.md) linkt
+// hierop. Zonder parameter, of bij een onbekende waarde, staat de offertetab
+// open — dat is waar een project begint.
+const STANDAARD_TAB: Tab = 'offertes'
+
+function leesTab(waarde: string | null): Tab {
+  return (TABS as readonly string[]).includes(waarde ?? '') ? (waarde as Tab) : STANDAARD_TAB
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -125,7 +139,18 @@ export function ProjectDetailPage() {
     retryDelay: 300,
   })
 
-  const [tab, setTab]           = useState<Tab>('offertes')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = leesTab(searchParams.get('tab'))
+  // `replace` zodat vijf keer klikken geen vijf stappen in de geschiedenis
+  // oplevert waar je doorheen moet om de pagina te verlaten.
+  const setTab = useCallback((t: Tab) => {
+    setSearchParams(vorige => {
+      const volgende = new URLSearchParams(vorige)
+      if (t === STANDAARD_TAB) volgende.delete('tab')
+      else volgende.set('tab', t)
+      return volgende
+    }, { replace: true })
+  }, [setSearchParams])
   const [confirmRevert, setConfirmRevert] = useState(false)
   // Mail-import (features/60-mail-import.md §2.2/§3.7): een gesleepte mail komt
   // eerst in `reviewImport` en raakt het project pas als iemand hem koppelt.
@@ -375,7 +400,12 @@ export function ProjectDetailPage() {
               <h1 className="ad-h1">
                 {meta.naam || <span style={{ color: 'var(--text-4)', fontStyle: 'italic', fontWeight: 500 }}>Naamloos project</span>}
               </h1>
-              <span className={`badge ${cfg.cls}`}><span className="dot" />{cfg.label}</span>
+              <span className={`badge ${cfg.cls}`} title={project.statusReden ?? undefined}>
+                <span className="dot" />{cfg.label}
+              </span>
+              {project.statusReden && (
+                <span style={{ fontSize: 12, color: 'var(--text-3)' }}>— {project.statusReden}</span>
+              )}
               <StageTrack status={project.status} compact />
             </div>
             <div className="ad-metaline">{metaLine}</div>
@@ -383,6 +413,7 @@ export function ProjectDetailPage() {
           <div className="ad-title-actions">
             {!isReadOnly && <SaveIndicator state={saveState} />}
             {!isReadOnly && <RevertBtn />}
+            {!isReadOnly && <ProjectStatusActies project={project} onChanged={rerender} />}
             {!isReadOnly && <NextActionBtn />}
           </div>
         </div>
@@ -560,7 +591,10 @@ export function ProjectDetailPage() {
       <div className={`tab-body${isReadOnly ? ' prj-ro-shield' : ''}`}>
         {tab === 'offertes'             && <OfferteTab               project={project} onChanged={rerender} />}
         {tab === 'opdrachtbevestiging'  && <OpdrachtbevestigingTab   project={project} onChanged={rerender} />}
-        {tab === 'productie'            && <ProductieTab             project={project} onChanged={rerender} />}
+        {tab === 'productie'            && <>
+          <ProductieTab project={project} onChanged={rerender} />
+          <ProjectReserveringen projectId={project.id} />
+        </>}
         {tab === 'paklijst'             && <PaklijstTab              project={project} onChanged={() => { rerender() }} />}
         {tab === 'factuur'              && <FactuurTab               project={project} onChanged={() => { rerender() }} />}
       </div>

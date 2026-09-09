@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
 import { ProjectSchema, type Project, type ProductieOrder, type ProductieStap } from '@stockmanager/shared'
+import { persist } from '../services/project-store'
 
 const prisma = new PrismaClient()
 
@@ -97,6 +98,8 @@ function project(overrides: Partial<Project> & Pick<Project, 'id' | 'naam' | 'pr
   return {
     relatieId: null,
     contactId: null,
+    statusReden: null,
+    statusVorige: null,
     klantRef: null,
     status: 'productie',
     levertijdDatum: null,
@@ -244,20 +247,15 @@ async function seedProjects() {
   const projects = buildTestProjects()
   for (const p of projects) {
     ProjectSchema.parse(p)
-    await prisma.project.upsert({
-      where: { id: p.id },
-      update: {
-        naam: p.naam, relatieId: p.relatieId, contactId: p.contactId, klantRef: p.klantRef,
-        status: p.status, levertijdDatum: p.levertijdDatum, notities: p.notities,
-        offertes: p.offertes as object[], opdrachtbevestiging: (p.opdrachtbevestiging as object) ?? null,
-        productieOrders: p.productieOrders as object[], paklijst: (p.paklijst as object) ?? null,
-        factuur: (p.factuur as object) ?? null,
-      },
-      create: {
-        id: p.id, naam: p.naam, relatieId: p.relatieId, contactId: p.contactId, klantRef: p.klantRef,
-        status: p.status, levertijdDatum: p.levertijdDatum, notities: p.notities,
-        offertes: p.offertes as object[], productieOrders: p.productieOrders as object[],
-      },
+    // De kop moet bestaan voordat de documenten eraan gehangen kunnen worden;
+    // `persist` doet de rest, precies zoals de routes dat ook doen.
+    await prisma.$transaction(async (tx) => {
+      await tx.project.upsert({
+        where: { id: p.id },
+        update: {},
+        create: { id: p.id, naam: p.naam, status: p.status },
+      })
+      await persist(tx, p)
     })
     console.log('Seeded test project:', p.id, '-', p.naam)
   }

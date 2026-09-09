@@ -106,6 +106,17 @@ export function effectiveMachine(stap: ProductieStap): string {
 }
 
 // ── Flatten projects → planning items ───────────────────────────────────────
+
+/**
+ * Een project dat stilligt of afgeblazen is hoort geen plek in de
+ * machinewachtrij of in de prognose te bezetten. De orders en afgevinkte
+ * stappen blijven gewoon bestaan — ze tellen alleen niet mee in de planning,
+ * en komen terug zodra iemand het project hervat.
+ */
+export function teltMeeInPlanning(project: Project): boolean {
+  return project.status !== 'on_hold' && project.status !== 'geannuleerd'
+}
+
 export function buildStapItems(
   projects: Project[],
   articles: Article[],
@@ -113,6 +124,7 @@ export function buildStapItems(
 ): PlanningStapItem[] {
   const result: PlanningStapItem[] = []
   for (const project of projects) {
+    if (!teltMeeInPlanning(project)) continue
     for (const order of project.productieOrders) {
       if (order.status === 'gereed' && !opts.includeDone) continue
       for (const stap of order.stappen) {
@@ -206,6 +218,7 @@ export function berekenGhostBelasting(
     }
   }
   for (const project of projects) {
+    if (!teltMeeInPlanning(project)) continue
     if (!project.levertijdDatum) continue
     const deadlineDay = dayIndexForDate(project.levertijdDatum, windowStart)
 

@@ -183,6 +183,8 @@ export const projectsApi = {
       contactId: body.contactId,
       klantRef: body.klantRef,
       status: 'concept',
+      statusReden: null,
+      statusVorige: null,
       levertijdDatum: body.levertijdDatum,
       notities: body.notities,
       offertes: [],
@@ -679,6 +681,45 @@ export const projectsApi = {
     return updated
   },
 
+  // ── On hold / annuleren ───────────────────────────────────────────────────
+  // Documenten en afgevinkte stappen blijven staan; het project verdwijnt
+  // alleen uit de planning (zie utils/planningSharedUtils.ts).
+
+  stopProject(projectId: string, status: 'on_hold' | 'geannuleerd', reden: string): Project {
+    const updated = updateCache(projectId, p => ({
+      ...p,
+      status,
+      statusReden: reden,
+      statusVorige: p.status === 'on_hold' || p.status === 'geannuleerd' ? p.statusVorige : p.status,
+      updatedAt: now(),
+    }))
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/status/stop`, {
+        method: 'POST',
+        body: JSON.stringify({ status, reden }),
+      }),
+      status === 'on_hold' ? 'On hold zetten mislukt' : 'Annuleren mislukt',
+    )
+    return updated
+  },
+
+  hervatProject(projectId: string): Project {
+    const updated = updateCache(projectId, p => ({
+      ...p,
+      status: p.statusVorige ?? 'concept',
+      statusReden: null,
+      statusVorige: null,
+      updatedAt: now(),
+    }))
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/status/hervat`, { method: 'POST' }),
+      'Hervatten mislukt',
+    )
+    return updated
+  },
+
   // ── Opdrachtbevestiging ───────────────────────────────────────────────────
 
   updateOB(projectId: string, patch: { notities?: string; levertijdDatum?: string | null }): Project {
@@ -708,16 +749,14 @@ export const projectsApi = {
 
 // ── Computed helpers for UI ────────────────────────────────────────────────────
 
-export function deriveProjectStatus(p: Project): Project['status'] {
-  if (p.status === 'on_hold' || p.status === 'geannuleerd') return p.status
-  if (p.factuur) return 'gefactureerd'
-  if (p.paklijst?.verzondenOp) return 'verzonden'
-  if (p.paklijst) return 'paklijst'
-  if (p.productieOrders.length > 0) return 'productie'
-  if (p.offertes.some(o => o.status === 'geaccepteerd')) return 'bevestigd'
-  if (p.offertes.some(o => o.status === 'verzonden')) return 'offerte'
-  return 'concept'
-}
+// De status van een project komt van de server: elke overgang (verzenden,
+// accepteren, gereedmelden, paklijst, factuur, en de reverts) zet hem daar. Er
+// stond hier ooit een `deriveProjectStatus` die de status opnieuw afleidde uit
+// de documenten, maar die werd nergens aangeroepen én was het oneens met de
+// routes: zodra er productieorders bestonden zei hij 'productie', terwijl een
+// zojuist geaccepteerde offerte 'bevestigd' hoort te geven. Twee bronnen van
+// waarheid waarvan er één stil verkeerd was — vandaar weg. Wie de status wil
+// weten leest `project.status`.
 
 export function getAcceptedOfferte(p: Project) {
   return p.offertes.find(o => o.status === 'geaccepteerd') ?? null

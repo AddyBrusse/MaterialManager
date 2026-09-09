@@ -5,7 +5,7 @@ import { Menu, Tooltip } from '@mantine/core'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
-  IconClipboardList, IconChartBar, IconArrowsSort, IconCheck, IconLogout,
+  IconClipboardList, IconChartBar, IconArrowsSort, IconCheck, IconLogout, IconFileText,
   IconChecklist, IconListNumbers, IconExternalLink,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
@@ -31,6 +31,7 @@ import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
 import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
+import { DocumentenPage } from '../../routes/desktop/DocumentenPage'
 import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
@@ -114,6 +115,7 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
       label: 'Productie',
       items: [
         { to: '/projecten',       label: 'Projecten',      Icon: IconClipboardList, count: null },
+        { to: '/documenten',      label: 'Documenten',     Icon: IconFileText,      count: null },
         { to: '/zaagcalculator',  label: 'Zaagcalculator', Icon: IconCut,           count: null },
         { to: '/zaagplanner',     label: 'Zaagplanner',    Icon: IconArrowsSort,    count: zaagflowCount || null, disabled: true, disabledReason: 'Hiervoor gaan we een andere applicatie gebruiken' },
         { to: '/zaagflow',        label: 'ZaagFlow',       Icon: IconListCheck,     count: zaagflowCount || null },
@@ -328,6 +330,7 @@ export function AppLayout() {
             <Route path="/relaties/:id"    element={<RelatieDetailPage />} />
             <Route path="/projecten"       element={<ProjectenPage />} />
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
+            <Route path="/documenten"      element={<DocumentenPage />} />
             <Route path="/planning-queue"  element={<PopoutAware path="/planning-queue" label="Wachtrij" openRoutes={openRoutes}><PlanningQueuePage /></PopoutAware>} />
             <Route path="/prognose"        element={<PopoutAware path="/prognose" label="Prognose" openRoutes={openRoutes}><PrognosePage /></PopoutAware>} />
             <Route path="/todos"           element={<PopoutAware path="/todos" label="ToDo" openRoutes={openRoutes}><TodosPage /></PopoutAware>} />

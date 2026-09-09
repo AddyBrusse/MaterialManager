@@ -2,13 +2,14 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../db/client'
 import {
-  CreateProjectSchema, UpdateProjectSchema,
+  CreateProjectSchema, UpdateProjectSchema, ProjectStatusStopSchema,
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
+import { PROJECT_INCLUDE, serialize, persist } from '../services/project-store'
 import type { Prisma } from '@prisma/client'
 
 const router = Router()
@@ -19,43 +20,43 @@ function now() { return new Date().toISOString() }
 
 type Db = typeof prisma | Prisma.TransactionClient
 
-async function nextDocId(db: Db, prefix: 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT' | 'OB'): Promise<string> {
-  const result = await db.$queryRaw<{ last_n: number }[]>`
-    INSERT INTO doc_sequences (prefix, last_n) VALUES (${prefix}, 1)
-    ON CONFLICT (prefix) DO UPDATE SET last_n = doc_sequences.last_n + 1
-    RETURNING last_n
-  `
-  const n = result[0].last_n
-  const year = new Date().getFullYear()
-  return `${prefix}-${year}-${String(n).padStart(3, '0')}`
-}
+type DocPrefix = 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT' | 'OB'
 
-type ProjectRow = {
-  id: string; naam: string; relatieId: string | null; contactId: string | null
-  klantRef: string | null; status: string; levertijdDatum: string | null
-  notities: string; offertes: unknown; opdrachtbevestiging: unknown
-  productieOrders: unknown; paklijst: unknown; factuur: unknown
-  createdAt: Date; updatedAt: Date
-}
-
-function serialize(row: ProjectRow): Project {
-  return {
-    id: row.id,
-    naam: row.naam,
-    relatieId: row.relatieId,
-    contactId: row.contactId,
-    klantRef: row.klantRef,
-    status: row.status as Project['status'],
-    levertijdDatum: row.levertijdDatum,
-    notities: row.notities,
-    offertes: (row.offertes as Offerte[]) ?? [],
-    opdrachtbevestiging: (row.opdrachtbevestiging as Opdrachtbevestiging | null) ?? null,
-    productieOrders: (row.productieOrders as ProductieOrder[]) ?? [],
-    paklijst: (row.paklijst as Paklijst | null) ?? null,
-    factuur: (row.factuur as Factuur | null) ?? null,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+// Bestaat dit nummer al? Sinds de documenten eigen tabellen hebben is het id een
+// globale primary key, dus moet een uitgegeven nummer echt vrij zijn.
+async function docIdBezet(db: Db, prefix: DocPrefix, id: string): Promise<boolean> {
+  const waar = { where: { id }, select: { id: true } }
+  switch (prefix) {
+    case 'PRJ':  return !!(await db.project.findUnique(waar))
+    case 'OFF':  return !!(await db.offerte.findUnique(waar))
+    case 'OB':   return !!(await db.opdrachtbevestiging.findUnique(waar))
+    case 'PROD': return !!(await db.productieOrder.findUnique(waar))
+    case 'PL':   return !!(await db.paklijst.findUnique(waar))
+    case 'FACT': return !!(await db.factuur.findUnique(waar))
   }
+}
+
+// De teller in doc_sequences is leidend, maar hij kan achterlopen op wat er in de
+// tabellen staat — na een teruggezette backup, of als er ooit handmatig een rij
+// bij is gezet. Vroeger was dat onschuldig (documenten zaten in de JSONB-kolom
+// van hun eigen project); nu zou het nummer botsen met een bestaand document.
+// Daarom doortellen tot er een vrij nummer ligt, met een bovengrens zodat een
+// kapotte teller niet in een oneindige lus eindigt.
+async function nextDocId(db: Db, prefix: DocPrefix): Promise<string> {
+  const year = new Date().getFullYear()
+  for (let poging = 0; poging < 50; poging++) {
+    const result = await db.$queryRaw<{ last_n: number }[]>`
+      INSERT INTO doc_sequences (prefix, last_n) VALUES (${prefix}, 1)
+      ON CONFLICT (prefix) DO UPDATE SET last_n = doc_sequences.last_n + 1
+      RETURNING last_n
+    `
+    const id = `${prefix}-${year}-${String(result[0].last_n).padStart(3, '0')}`
+    if (!(await docIdBezet(db, prefix, id))) return id
+  }
+  throw new AppError(
+    500, 'INTERNAL',
+    `Geen vrij ${prefix}-nummer gevonden; controleer de teller in doc_sequences`,
+  )
 }
 
 // Every mutation below goes through this helper: it locks the project row
@@ -76,34 +77,19 @@ async function withProject(
       SELECT id FROM projects WHERE id = ${id} FOR UPDATE
     `
     if (locked.length === 0) throw new AppError(404, 'NOT_FOUND', 'Project niet gevonden')
-    const row = await tx.project.findUniqueOrThrow({ where: { id } })
-    const current = serialize(row as ProjectRow)
+    const row = await tx.project.findUniqueOrThrow({ where: { id }, include: PROJECT_INCLUDE })
+    const current = serialize(row)
     const next = await mutate(current, tx)
-    const saved = await tx.project.update({
-      where: { id },
-      data: {
-        naam: next.naam,
-        relatieId: next.relatieId,
-        contactId: next.contactId,
-        klantRef: next.klantRef,
-        status: next.status,
-        levertijdDatum: next.levertijdDatum,
-        notities: next.notities,
-        offertes: next.offertes as object[],
-        opdrachtbevestiging: (next.opdrachtbevestiging as object) ?? null,
-        productieOrders: next.productieOrders as object[],
-        paklijst: (next.paklijst as object) ?? null,
-        factuur: (next.factuur as object) ?? null,
-      },
-    })
-    return serialize(saved as ProjectRow)
+    await persist(tx, next)
+    const saved = await tx.project.findUniqueOrThrow({ where: { id }, include: PROJECT_INCLUDE })
+    return serialize(saved)
   })
 }
 
 async function getProject(id: string): Promise<Project> {
-  const row = await prisma.project.findUnique({ where: { id } })
+  const row = await prisma.project.findUnique({ where: { id }, include: PROJECT_INCLUDE })
   if (!row) throw new AppError(404, 'NOT_FOUND', 'Project niet gevonden')
-  return serialize(row as ProjectRow)
+  return serialize(row)
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
@@ -111,8 +97,11 @@ async function getProject(id: string): Promise<Project> {
 router.get(
   '/',
   asyncHandler(async (_req, res) => {
-    const rows = await prisma.project.findMany({ orderBy: { createdAt: 'desc' } })
-    res.json({ data: rows.map(r => serialize(r as ProjectRow)) })
+    const rows = await prisma.project.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: PROJECT_INCLUDE,
+    })
+    res.json({ data: rows.map(serialize) })
   }),
 )
 
@@ -146,12 +135,11 @@ router.post(
           klantRef: body.klantRef,
           levertijdDatum: body.levertijdDatum,
           notities: body.notities,
-          offertes: [],
-          productieOrders: [],
         },
+        include: PROJECT_INCLUDE,
       })
     })
-    res.status(201).json({ data: serialize(row as ProjectRow) })
+    res.status(201).json({ data: serialize(row) })
   }),
 )
 
@@ -171,6 +159,57 @@ router.delete(
       throw new AppError(404, 'NOT_FOUND', 'Project niet gevonden')
     })
     res.status(204).end()
+  }),
+)
+
+// ── On hold / annuleren ───────────────────────────────────────────────────────
+// Beide statussen bestonden al in de enum, de badges en het filter, maar er was
+// geen route die ze zette. Het project wordt niet uitgekleed: offertes,
+// opdrachtbevestiging en productieorders blijven staan, inclusief afgevinkte
+// stappen. Wat wél verandert is dat de planning het project overslaat — een
+// stilliggend project hoort geen plek in de machinewachtrij te bezetten. Dat
+// filter zit aan de kant die de wachtrij opbouwt (planningSharedUtils).
+
+router.post(
+  '/:id/status/stop',
+  asyncHandler(async (req, res) => {
+    const { status, reden } = ProjectStatusStopSchema.parse(req.body)
+    const updated = await withProject(req.params.id, (p) => {
+      if (p.status === status) {
+        throw new AppError(400, 'BAD_REQUEST', `Project staat al op ${status}`)
+      }
+      return {
+        ...p,
+        status,
+        statusReden: reden,
+        // Al gepauzeerd en nu annuleren: bewaar waar het oorspronkelijk vandaan
+        // kwam, niet de tussenstand 'on_hold' — anders komt hervatten daar uit.
+        statusVorige: p.status === 'on_hold' || p.status === 'geannuleerd'
+          ? p.statusVorige
+          : p.status,
+        updatedAt: now(),
+      }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+router.post(
+  '/:id/status/hervat',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      if (p.status !== 'on_hold' && p.status !== 'geannuleerd') {
+        throw new AppError(400, 'BAD_REQUEST', 'Project ligt niet stil')
+      }
+      return {
+        ...p,
+        status: p.statusVorige ?? 'concept',
+        statusReden: null,
+        statusVorige: null,
+        updatedAt: now(),
+      }
+    })
+    res.json({ data: updated })
   }),
 )
 

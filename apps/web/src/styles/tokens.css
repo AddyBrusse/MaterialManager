@@ -671,6 +671,8 @@ table.st-tbl tbody tr:last-child td { border-bottom: 0; }
   border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
 }
 textarea.st-input { height: auto; min-height: 78px; padding: 8px 10px; resize: vertical; }
+/* Compacte variant voor velden die naast een .st-btn.sm in een actiebalk staan. */
+.st-input.sm, .st-select.sm { height: 28px; font-size: 12.5px; padding: 0 8px; }
 
 .st-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .st-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
@@ -2430,6 +2432,11 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
   border-bottom: 1px solid var(--border);
 }
 .mi-alarm svg { flex-shrink: 0; }
+
+/* Materiaalkolom in het controlescherm: het materiaal zelf op leesgrootte, de
+   herkomst en het certificaat eronder als bijschrift. */
+.mi-materiaal-bron { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.mi-certificaat { font-size: 11px; color: var(--accent); margin-top: 1px; }
 
 .mi-acties { display: flex; gap: 8px; justify-content: flex-end; }
 

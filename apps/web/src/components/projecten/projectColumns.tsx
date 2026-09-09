@@ -181,10 +181,16 @@ export const PROJECT_COLUMNS: ProjectColumn[] = [
   {
     id: 'status', label: 'Status', width: 130, defaultVisible: true,
     sortValue: p => stageSort(p.status),
-    searchText: p => statusCfg(p.status).label,
+    searchText: p => `${statusCfg(p.status).label} ${p.statusReden ?? ''}`,
     render: p => {
       const cfg = statusCfg(p.status)
-      return <span className={`st-badge ${cfg.cls}`}><span className="dot" />{cfg.label}</span>
+      // De reden staat in de tooltip: in de kolom past hij niet, maar zonder
+      // reden is 'On Hold' over een maand een raadsel.
+      return (
+        <span className={`st-badge ${cfg.cls}`} title={p.statusReden ?? undefined}>
+          <span className="dot" />{cfg.label}
+        </span>
+      )
     },
   },
   {

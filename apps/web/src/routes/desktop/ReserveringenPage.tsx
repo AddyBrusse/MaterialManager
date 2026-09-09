@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { IconTrash, IconCut, IconAlertTriangle, IconPrinter, IconX } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { reservationsStore, initReservations, type ZaagReservation } from '../../api/reservations'
@@ -219,6 +220,7 @@ function ReservationGroup({
             <th style={{ textAlign: 'right' }}>Stuks</th>
             <th style={{ textAlign: 'right' }}>Gereserveerde lengte</th>
             <th>Machine</th>
+            <th>Project</th>
             <th>Aangemaakt</th>
             <th style={{ width: 40 }} />
           </tr>
@@ -237,6 +239,13 @@ function ReservationGroup({
                 {fmm(r.sawLength)}
               </td>
               <td className="cell-muted" style={{ fontSize: 12 }}>{r.machine}</td>
+              {/* Waar dit materiaal voor vastligt. Leeg bij voorraad- of intern
+                  werk, dat is een geldige situatie en geen ontbrekende invoer. */}
+              <td style={{ fontSize: 12 }}>
+                {r.projectId
+                  ? <Link to={`/projecten/${r.projectId}`} className="cell-mono" onClick={e => e.stopPropagation()}>{r.projectId}</Link>
+                  : <span className="cell-muted">—</span>}
+              </td>
               <td className="cell-muted" style={{ fontSize: 12 }}>{formatDate(r.createdAt)}</td>
               <td>
                 <button

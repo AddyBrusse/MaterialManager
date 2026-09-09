@@ -31,12 +31,46 @@ const AiLineSchema = z.object({
   tekening: z
     .string()
     .nullable()
-    .describe('Het tekening- of artikelnummer van de klant, precies zoals het er staat. Null als er geen nummer bij staat.'),
-  omschrijving: z.string().nullable().describe('De omschrijving van het onderdeel, in de taal van de klant.'),
+    .describe(
+      'ALLEEN het tekeningnummer, precies zoals het er staat en verder niets: geen omschrijving, ' +
+        'geen revisie, geen positienummer, geen aantal. Bijvoorbeeld "2615-0090-0530". ' +
+        'Staat er geen tekeningnummer, dan null — vul hier nooit een omschrijving in.',
+    ),
+  omschrijving: z
+    .string()
+    .nullable()
+    .describe(
+      'ALLEEN wat het onderdeel IS, in de woorden van de klant: de benaming, vorm of het materiaal. ' +
+        'Bijvoorbeeld "Steunbeugel RVS 304" of "Flens 80mm". Geen samenvatting van de regel. ' +
+        'Neem hier NOOIT het tekeningnummer, de revisie, het positienummer, het aantal, de prijs of ' +
+        'de leverdatum in op — die velden bestaan apart. Noemt de klant geen benaming, dan null.',
+    ),
   klantArtikel: z
     .string()
     .nullable()
     .describe('Het artikelnummer van de klant zelf, als hij dat apart vermeldt (bijvoorbeeld bij "Uw artikelnummer"). Null als het er niet staat.'),
+  materiaal: z
+    .string()
+    .nullable()
+    .describe(
+      'Het materiaal zoals de klant het opgeeft, met vorm en maat als die erbij staan: ' +
+        '"RVS-316L rondstaf 30", "S355 vierkant staf 40". Null als de klant geen materiaal noemt.',
+    ),
+  materiaalDoorKlant: z
+    .boolean()
+    .nullable()
+    .describe(
+      'Wie levert het materiaal? true bij "toegeleverd materiaal" of "materiaal wordt aangeleverd" ' +
+        '(de klant brengt het), false bij "uit uw materiaal" of "materiaal door u" (wij kopen het in). ' +
+        'Null als de klant er niets over zegt — raad dit niet.',
+    ),
+  certificaat: z
+    .string()
+    .nullable()
+    .describe(
+      'Gevraagd materiaalcertificaat, bijvoorbeeld "3.1" bij "Inclusief 3.1". Null als er geen ' +
+        'certificaat gevraagd wordt.',
+    ),
   prijs: z
     .number()
     .nullable()
@@ -100,7 +134,29 @@ Belangrijk:
 - Staat er geen enkel onderdeel in? Geef dan een lege lijst regels terug.
 - Neem ook het ordernummer van de klant en de gevraagde leverdatum over als die in het document staan. Verzin ze niet.
 - Staat er een stuksprijs bij een regel, neem die dan over. Bedragen zijn per stuk, niet het regeltotaal; staat er alleen een totaal, deel dat dan niet zelf — geef dan null.
-- Het artikelnummer van de klant is iets anders dan het tekeningnummer. Staan ze allebei, geef ze allebei.`
+- Het artikelnummer van de klant is iets anders dan het tekeningnummer. Staan ze allebei, geef ze allebei.
+
+Houd de velden strikt uit elkaar. Dit is waar het het vaakst misgaat:
+- tekening = alléén het nummer. Niet de omschrijving erbij, niet de revisie eraan geplakt.
+- omschrijving = alléén wat het onderdeel IS. Geen samenvatting van de hele regel.
+- Elk gegeven staat in precies één veld. Herhaal het tekeningnummer dus niet in de omschrijving,
+  en zet het aantal, de prijs, de positie of de leverdatum nergens anders dan in hun eigen veld.
+
+Een ordertabel met "Pos. 10 | 2615-0090-0530 rev B | Steunbeugel RVS 304 | 25 st | € 12,50" wordt:
+  positie 10, tekening "2615-0090-0530", rev "B", omschrijving "Steunbeugel RVS 304", qty 25, prijs 12.50
+En dus NIET: omschrijving "Pos. 10 2615-0090-0530 rev B Steunbeugel RVS 304 25 st".
+Staat er geen aparte benaming naast het nummer, dan is omschrijving null — niet het nummer nog een keer.
+
+Materiaal en certificaat horen ook in hun eigen veld, niet in de omschrijving:
+- materiaal = het materiaal met vorm en maat: "RVS-316L rondstaf 30".
+- materiaalDoorKlant = wie het levert. "Toegeleverd materiaal" betekent dat de klant het aanlevert (true).
+  "Uit uw materiaal" betekent dat wij het inkopen (false). Zegt de klant er niets over, dan null.
+- certificaat = bijvoorbeeld "3.1" als er om een materiaalcertificaat gevraagd wordt.
+
+"2x  Toegeleverd materiaal RVS-316L rondstaf 30" wordt dus:
+  qty 2, materiaal "RVS-316L rondstaf 30", materiaalDoorKlant true, omschrijving null.
+En "1x  Uit uw materiaal RVS-316L Inclusief 3.1" wordt:
+  qty 1, materiaal "RVS-316L", materiaalDoorKlant false, certificaat "3.1", omschrijving null.`
 
 // ── De invoer voor het model ──────────────────────────────────────────────────
 
@@ -359,6 +415,46 @@ export function bevestigdDoor(regel: AiLine, tweede: AiLine[] | null): boolean |
 }
 
 /**
+ * De omschrijving ontdoen van wat al in een eigen veld staat.
+ *
+ * Het model krijgt te horen dat een omschrijving géén samenvatting van de regel
+ * is, maar een prompt is een verzoek en geen garantie. Zonder deze controle
+ * belandt "Pos. 10 2615-0090-0530 rev B Steunbeugel" in de omschrijving, en dan
+ * staat het tekeningnummer op twee plekken — of alleen daar, waardoor het
+ * koppelen van tekeningbestanden (dat op het nummer matcht) niets meer vindt.
+ *
+ * Er wordt alleen weggehaald wat aantoonbaar dubbel is: het tekeningnummer en de
+ * revisie. Wat er daarna overblijft is de benaming; blijft er niets zinnigs
+ * over, dan is de omschrijving leeg — dat is eerlijker dan het nummer nog eens.
+ */
+export function schoonOmschrijving(
+  omschrijving: string | null,
+  tekening: string | null,
+  rev: string | null,
+): string | null {
+  if (!omschrijving) return null
+  let uit = omschrijving
+  if (tekening) {
+    // Ook varianten met andere scheidingstekens: 2615.0090.0530 naast 2615-0090-0530.
+    const patroon = tekening
+      .split(/[^A-Za-z0-9]+/)
+      .filter(Boolean)
+      .map((deel) => deel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('[^A-Za-z0-9]*')
+    if (patroon) uit = uit.replace(new RegExp(patroon, 'gi'), ' ')
+  }
+  if (rev) uit = uit.replace(new RegExp(`\\brev\\.?\\s*${rev.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), ' ')
+  uit = uit
+    // "Pos. 10" gaat als geheel weg; alleen het woord weghalen laat de 10 staan.
+    .replace(/\b(pos\.?|positie|item|regel)\s*\d+\b/gi, ' ')
+    .replace(/\b(pos\.?|positie|rev\.?|revisie)\b/gi, ' ')
+    .replace(/[\s.,;:_\-|]+/g, ' ')
+    .trim()
+  // Alleen nog cijfers en losse leestekens over? Dan stond er geen benaming.
+  return /[A-Za-z]{2,}/.test(uit) ? uit : null
+}
+
+/**
  * De regels van het model omzetten naar kandidaten, met de drie controles erop.
  *
  * Er wordt niets weggegooid op grond van een controle — een regel die zakt komt
@@ -396,7 +492,10 @@ export function buildLines(
       bron: (r.bronBestand ? 'pdf' : 'body') as CandidateSource,
       klantArtikel: r.klantArtikel,
       klantPrijs: r.prijs,
-      omschrijving: r.omschrijving,
+      omschrijving: schoonOmschrijving(r.omschrijving, r.tekening, r.rev),
+      materiaal: r.materiaal,
+      materiaalDoorKlant: r.materiaalDoorKlant,
+      certificaat: r.certificaat,
       attachmentFilename: r.bronBestand,
       bestanden: [],
       matches: [],

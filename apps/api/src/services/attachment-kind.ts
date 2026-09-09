@@ -123,13 +123,42 @@ export function leidendDocument(attachments: MailAttachment[]): MailAttachment |
  * als het document de regels bepaalde, is dat document leidend.
  */
 export function hangBestandenAan(lines: CandidateLine[], attachments: MailAttachment[]): void {
-  for (const att of attachments) {
-    if (att.isEmbeddedMessage) continue
-    if (classifyAttachment(att.filename) !== 'tekening') continue
+  const tekeningen = attachments.filter(
+    (a) => !a.isEmbeddedMessage && classifyAttachment(a.filename) === 'tekening',
+  )
+
+  function koppel(line: CandidateLine, filename: string): void {
+    if (!line.bestanden.includes(filename)) line.bestanden.push(filename)
+  }
+
+  // Stap 1 — het tekeningnummer zit in de bestandsnaam. Het sterkste signaal, en
+  // het enige dat ook klopt als er vijf regels en vijf tekeningen zijn.
+  for (const att of tekeningen) {
     for (const line of lines) {
-      if (hoortBij(att.filename, line.tekening) && !line.bestanden.includes(att.filename)) {
-        line.bestanden.push(att.filename)
-      }
+      if (hoortBij(att.filename, line.tekening)) koppel(line, att.filename)
     }
+  }
+
+  // Stap 2 — het model zegt zelf uit welke bijlage de regel komt. Wijst dat naar
+  // een tekening, dan hoort die tekening bij die regel; dat is geen gok maar een
+  // uitspraak over dit specifieke document. Vangt de gevallen waarin de klant
+  // zijn bestand anders noemt dan zijn tekeningnummer.
+  for (const line of lines) {
+    const bron = line.attachmentFilename
+    if (bron && tekeningen.some((a) => a.filename === bron)) koppel(line, bron)
+  }
+
+  // Stap 3 — het vangnet: één regel die na stap 1 en 2 nog nérgens een bestand
+  // aan heeft hangen, krijgt de losse tekeningen uit de mail. Zonder dit wordt
+  // een nieuw artikel aangemaakt terwijl de tekening in de mailmap blijft
+  // liggen — precies waarvoor de klant hem meestuurde.
+  //
+  // Twee voorwaarden houden het eerlijk. Eén regel, want bij meer regels is niet
+  // te zeggen welke tekening waarbij hoort en is de verkeerde tekening aan een
+  // artikel hangen erger dan geen tekening. En alleen als die regel nog niets
+  // heeft: heeft stap 1 al op het nummer gematcht, dan is een overgebleven
+  // tekening juist een aanwijzing dat hij ergens anders bij hoort.
+  if (lines.length === 1 && lines[0].bestanden.length === 0) {
+    for (const att of tekeningen) koppel(lines[0], att.filename)
   }
 }
