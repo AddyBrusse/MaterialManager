@@ -239,7 +239,9 @@ export function MailImportReview({
     <Modal
       opened={opened}
       onClose={onClose}
-      size="1180px"
+      // Op een smal scherm knijpt 1180px terug tot de vensterbreedte en wordt
+      // de regeltabel onleesbaar krap; zo houdt hij altijd wat lucht.
+      size="min(1180px, 96vw)"
       centered
       title={current.onderwerp || 'Mail controleren'}
     >
@@ -249,7 +251,7 @@ export function MailImportReview({
         <div className="mi-card-body mi-klantgrid">
           <div>
             <Select
-              size="xs"
+              size="sm"
               label="Klant"
               placeholder="Kies een klant"
               data={relatieOptions}
@@ -273,7 +275,7 @@ export function MailImportReview({
             )}
           </div>
           <Select
-            size="xs"
+            size="sm"
             label="Contact"
             placeholder={relatieId ? 'Kies een contact' : 'Kies eerst een klant'}
             data={contactOptions}
@@ -294,7 +296,7 @@ export function MailImportReview({
             </div>
           </div>
           <Select
-            size="xs"
+            size="sm"
             label="Soort bericht"
             data={MAIL_INTENTS.map((i) => ({ value: i, label: INTENT_LABELS[i] }))}
             value={intent}
