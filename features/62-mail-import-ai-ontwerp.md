@@ -82,20 +82,29 @@ Alles meesturen is duur en traag. Daarom in trappen, van goedkoop naar duur:
 Zo betaalt de gewone mail de goedkope route en alleen de lastige mail de volle
 prijs. Ruwe inschatting: van ~€0,25 per mail naar ~€0,05 voor het overgrote deel.
 
-### 3.2 Het model deelt de bijlagen in
+### 3.2 Het titelblok lezen, niet de bestandsnaam raden
 
-`classifyAttachment` verdwijnt als beslisser. Het model krijgt de bestandsnamen
-plus, voor tekeningen, de eerste pagina, en geeft per bijlage terug wat het is en
-bij welke regel het hoort.
+Het echte tekeningnummer staat in het **titelblok van de tekening**. Bij de
+Veratio-aanvraag stond er letterlijk `Drawing No 507957355` in de pdf, terwijl wij
+zaten te raden uit `206413050_507957355_A_Bewerken.pdf`.
 
-Waarom dat beter werkt: het echte tekeningnummer staat in het titelblok van de
-tekening. Bij de Veratio-aanvraag stond er letterlijk `Drawing No 507957355` in
-de pdf. Het model dat de tekening zíet, hoeft niet uit de bestandsnaam te raden —
-het leest het nummer en legt de koppeling op wat er staat.
+Dit is ook wat de markt doet: [CNCQuote](https://cncquote.io/) leest het titelblok
+voor materiaal en nummers rechtstreeks van de pdf, en er zijn losse API's die
+alléén dit doen ([Werk24](https://docs.werk24.io/features/title_block.html),
+[Apryse](https://apryse.com/blog/automate-cad-title-block-extraction)).
 
-De bestaande matcher (`hoortBij`) blijft bestaan, maar als **controle** naast het
-oordeel van het model, niet als beslisser. Waar ze het eens zijn: hoge zekerheid.
-Waar ze verschillen: laag, en dat zie je in het controlescherm.
+Met het echte nummer in handen wordt de koppeling een opzoeking in onze eigen
+artikeldatabase (§4.1) in plaats van een oordeel over een bestandsnaam. Daarmee
+kunnen weg: `classifyAttachment`, `hoortBij` in drie trappen, `komtVanTekening` en
+`schoonOmschrijving` — ruwweg de helft van de 1674 regels die dit nu kost.
+
+Let op: een **STEP-bestand heeft geen titelblok**; dat is pure geometrie. In de
+praktijk komen ze in paren (`Motor Housing_v2.pdf` naast `Motor Housing.step`),
+dus de pdf levert het nummer en de step hangt eraan op naam.
+
+De bestandsnaam blijft meedoen als extra signaal — [Paperless Parts wijst
+bestanden toe "based on filenames *and* AI suggestions"](https://www.paperlessparts.com/press/paperless-parts-cuts-quote-setup-time-by-90-with-new-ai-supported-workflow/),
+dus niet het één óf het ander. Maar hij is niet langer de bron van waarheid.
 
 ### 3.3 Gronding via citations in plaats van zelfgebouwd
 
@@ -133,31 +142,81 @@ houden en laten meten in plaats van er nu over te beslissen.
 
 ## 4. Wat het systeem per klant onthoudt
 
-Dit is het deel dat het "dynamisch" maakt: klantkennis wordt data, geen code.
+Dit deel is herschreven op 2026-09-09 na het bekijken van Basecone, dat precies
+dit probleem oplost voor facturen. Hun aanpak is eenvoudiger dan wat hier eerst
+stond, en wij hebben de kern er al van.
 
-**Een klantprofiel per relatie.** Vrije tekst, door jou aanpasbaar in het scherm,
-die meegaat in de prompt bij elke mail van die klant:
+### 4.1 De omkering
 
-> *Veratio noemt tekeningen bij naam, niet bij nummer. Nummerformaat in de
-> ordertekst is `<artikelnr>_<tekeningnr>_<rev>_`; een streepje op de derde plek
-> betekent geen revisie. Stuurt tekeningen altijd in een zip. "Toegeleverd
-> materiaal" betekent dat zij het materiaal aanleveren.*
+Basecone vergelijkt de factuurgegevens met de **stamgegevens uit het
+boekhoudsysteem**: *"zodra er voldoende overeenkomsten zijn (dit zou zelfs één
+uniek element kunnen zijn), maakt Basecone de match en selecteert de
+leverancier"*.
 
-Geen release nodig om dat te veranderen. Wat vandaag een regex-wijziging was, is
-dan een zin die jij typt.
+Ze proberen het document dus niet in het abstracte te begrijpen. Ze zoeken welke
+van hun **bekende** entiteiten dit is.
 
-**Voorbeelden uit je eigen correcties.** Dit bestaat al half: `ArticleAlias`
-onthoudt welk klantartikelnummer bij welk van onze artikelen hoort, gevuld
-doordat iemand in het controlescherm corrigeert. Datzelfde principe uitbreiden
-naar de extractie: elke correctie wordt een voorbeeld, en de laatste stuk of tien
-gaan als voorbeelden mee in de prompt voor die klant.
+Toegepast op ons: wij vragen bij een tekening *"is dit een tekening en bij welke
+regel hoort hij"* — en daar hebben we regels voor geschreven die blijven breken.
+De betere vraag is *"welk van onze bekende artikelen is dit"*. Staat er
+`507957355` in het titelblok, dan is dat een opzoeking in onze eigen
+artikeldatabase, geen oordeel over een bestandsnaam.
 
-Na drie mails van een nieuwe klant weet het systeem hoe ze werken, zonder dat er
-iemand aan te pas is gekomen.
+Dat wordt bovendien vanzelf beter naarmate er meer artikelen zijn — het
+tegenovergestelde van regels, die met elke nieuwe klant brozer worden.
 
-**Kosten:** het profiel en de voorbeelden zijn een stabiel voorvoegsel, dus
-prompt caching maakt ze vrijwel gratis (ongeveer een tiende van de normale
-invoerprijs bij hergebruik).
+### 4.2 Het leren bestaat al
+
+`ArticleAlias` is precies de Basecone-lus, en hij staat er al. Corrigeer je in
+het controlescherm een regel naar een ander artikel, dan wordt
+`(relatie, tekening) → artikel` bewaard; dezelfde klant met hetzelfde nummer
+staat de volgende keer meteen goed. Geen model dat traint, geen gewichten — een
+opzoektabel die jouw correctie onthoudt.
+
+Wat eraan moet gebeuren is klein: de tabel leert nu alleen van `line.tekening`.
+Laat hem ook leren van het tekeningnummer uit het titelblok en van de
+bestandsnaam. Zelfde tabel, meer sleutels die naar hetzelfde artikel wijzen.
+
+### 4.3 Twee soorten fouten, en maar één is zo leerbaar
+
+| Soort | Voorbeeld | Leerbaar als tabel? |
+|---|---|---|
+| **Koppelfout** | dit nummer hoort bij dat artikel | **ja** |
+| **Leesfout** | aantal 2026 in plaats van 2 | nee |
+
+Koppelfouten zijn het grootste deel van het werk én perfect leerbaar. Leesfouten
+los je niet op met geheugen maar met beter lezen — dat is wat §3.1 (native pdf)
+en het titelblok doen.
+
+### 4.4 Zelf regels toevoegen, in volgorde van veiligheid
+
+| | Wat | Risico |
+|---|---|---|
+| 1 | Correcties in het controlescherm (automatisch) | geen — bestaat al |
+| 2 | Een koppeling zelf intypen: klantnummer → artikel | laag |
+| 3 | Een goede mail aanwijzen als voorbeeld voor die klant | laag |
+| 4 | Vrije leesinstructie per klant ("het aantal staat in kolom Hoev.") | hoger |
+
+De eerste drie zijn data. Alleen de vierde verandert hóe het model leest, en dat
+is het enige waar een testset echt voor nodig is voordat je hem aanzet. Een
+voorbeeld aanwijzen (3) werkt in de praktijk beter dan een geschreven regel (4):
+je hoeft niet te formuleren wat je bedoelt, en het is echte data in plaats van een
+bewering over data.
+
+### 4.5 Het deksel dat open moet kunnen
+
+Op de relatiepagina: **wat heeft het systeem van deze klant geleerd?** Een lijst
+met een prullenbak per regel, en zichtbaar of een regel uit een correctie kwam of
+met de hand is ingetypt (`createdBy` en `createdAt` staan er al).
+
+Dit is geen bijzaak. Zonder dat scherm onthoudt het systeem stilletjes dingen die
+je niet kunt zien; leert het per ongeluk een verkeerde koppeling, dan zit die er
+voor altijd in, matcht elke volgende mail fout mét hoge zekerheid, en snap je niet
+waarom. Dát is hoe zo'n systeem ondoorgrondelijk wordt — niet door de techniek,
+maar door het ontbreken van een deksel dat opengaat.
+
+Basecone doet hetzelfde: hun boekingsregels per leverancier zijn zichtbaar en
+aanpasbaar.
 
 ## 5. Meten — dit is geen luxe, dit is de voorwaarde
 
@@ -283,17 +342,23 @@ Elke stap is los te bouwen en levert op zichzelf iets op.
 
 - [ ] **A. Testset.** De drie mails met hun goede antwoord (§5.1), plus een
       script dat scoort. Dit eerst, anders is de rest niet te beoordelen.
-- [ ] **B. Handelsdocument native meesturen.** Kleinste wijziging, grootste
-      directe winst. Meet met A wat het doet — zowel de score als de duur, want
-      die laatste gaat omhoog (§6).
-- [ ] **C. Escalatie inbouwen** (§3.1b): tekeningen alleen meesturen als een
+- [ ] **B. Handelsdocument native meesturen** (§3.1). Kleinste wijziging,
+      grootste directe winst. Meet met A wat het doet — zowel de score als de
+      duur, want die laatste gaat omhoog (§6).
+- [ ] **C. Titelblok lezen** (§3.2) en het nummer opzoeken in onze artikelen
+      (§4.1). Dit haalt de klasse bugs van vandaag structureel weg.
+- [ ] **D. Opruimen.** `classifyAttachment`, `hoortBij` in drie trappen,
+      `komtVanTekening`, `schoonOmschrijving` — weg, zodra C ze overbodig maakt.
+      Meten met A dat er niets stukgaat.
+- [ ] **E. Escalatie** (§3.1b): tekeningen alleen volledig meesturen als een
       regel er anders geen krijgt. Houdt de gewone mail snel en goedkoop.
-- [ ] **D. Bijlage-indeling naar het model**, met `hoortBij` als controle
-      ernaast. Dit haalt de klasse bugs van vandaag structureel weg.
-- [ ] **E. Klantprofiel als bewerkbaar veld** bij de relatie.
-- [ ] **F. Correcties als voorbeelden** voor die klant.
-- [ ] **G. Citations** voor de gronding, zodra §3.3 is uitgezocht.
-- [ ] **H. Tweede lezing als controle**, en met A meten welke variant wint.
+- [ ] **F. Het geleerde zichtbaar maken** (§4.5) op de relatiepagina, met een
+      prullenbak per regel. Klein, en het verschil tussen vertrouwen en niet.
+- [ ] **G. Zelf een koppeling kunnen intypen** (§4.4 stap 2).
+- [ ] **H. Een goede mail als voorbeeld aanwijzen** (§4.4 stap 3).
+- [ ] **I. Citations** voor de gronding, zodra §3.3 is uitgezocht.
+- [ ] **J. Vrije leesinstructie per klant** (§4.4 stap 4) — als laatste, en
+      alleen als A t/m H de gaten niet dichten.
 
 ## 9. Wat ik niet zou doen
 
