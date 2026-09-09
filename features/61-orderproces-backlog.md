@@ -35,14 +35,44 @@ als een order gereed is of de paklijst verzonden is.
 
 ## Fase 0 — beslissen (geen code)
 
-- [ ] **0. Documentopslag: JSONB of eigen tabellen?**
-  Offertes, OB, paklijst en factuur zitten nu als JSON in de `projects`-rij.
-  Werkt voor de huidige schermen, maar is niet te queryen: geen omzet per
-  maand, geen openstaand bedrag, geen index op factuurnummer.
-  Bepaalt hoe punt 2, 3, 9 en 12 gebouwd worden.
-  Voorstel: **factuur** naar een eigen tabel (queryen, indexeren,
-  betaalstatus, bewaarplicht), offerte/OB/paklijst voorlopig JSONB laten.
-  Beslissing loggen in `decisions/90-decisions-log.md`.
+- [x] **0. Documentopslag: JSONB of eigen tabellen?** — *besloten 2026-09-09*
+  **Alle vier de documenten (offerte, OB, paklijst, factuur) krijgen een eigen
+  tabel met een `projectId`-FK.** `projects` houdt naam, relatie, contact,
+  klantreferentie, status, leverdatum en notities.
+  Onderbouwing en trade-offs staan in `decisions/90-decisions-log.md`.
+
+  Uitvoering is punt 0a hieronder; de rest van de lijst gaat daarvan uit.
+
+- [ ] **0a. Migratie: documenten uit JSONB naar de vier tabellen**
+  Prisma-modellen + migratie, bestaande projectrijen omzetten, en de
+  serverkant meeverhuizen: `withProject` (row lock + read-modify-write op
+  één rij), `serialize`, en `deriveProjectStatus` dat zijn gegevens nu uit
+  meerdere tabellen moet halen. Frontend: de vier tabs veranderen van
+  databron.
+  Dit is de zwaarste losse stap in de lijst — apart bouwen en verifiëren
+  vóór er functionaliteit bovenop komt.
+
+### Bewaarplicht — uitgangspunten
+
+Uitgezocht op 2026-09-09, uit openbare bronnen (Belastingdienst,
+Rijksoverheid, art. 52 AWR); **nog niet door een boekhouder bevestigd**.
+
+- Bewaartermijn **7 jaar** voor de hele administratie, **10 jaar** voor
+  gegevens over onroerende zaken.
+- Het gaat om meer dan facturen: grootboek, debiteuren/crediteuren, in- en
+  verkoopadministratie, contracten. Een geaccepteerde offerte en de
+  opdrachtbevestiging horen bij de verkoopadministratie.
+- **Digitaal bewaren mag**, en is zelfs het uitgangspunt: bewaren in de vorm
+  waarin je het hebt verzonden of ontvangen. Een verstuurde pdf uitprinten en
+  het bestand weggooien is juist fout.
+- Converteren mag onder voorwaarden (art. 52 AWR): juiste en volledige
+  weergave, de hele termijn beschikbaar, binnen redelijke tijd leesbaar, en
+  de echtheidskenmerken gaan mee.
+- Gevolg voor ons: de factuur-pdf wordt nu telkens opnieuw gegenereerd uit
+  live data en de huidige template, dus na een layoutwijziging is niet meer
+  aan te tonen wát er verstuurd is. Zie punt 17.
+- Het archief moet de 7 jaar overleven. Op één QNAP is een backupstrategie
+  daarmee onderdeel van de bewaarplicht, geen losse zorg.
 
 ## Fase 1 — vinden en overzicht
 
@@ -60,8 +90,7 @@ vermeld.
   Nu is er geen enkele plek waar documenten wonen; je kunt een factuurnummer
   wel in de zoekbalk op `/projecten` plakken (die doorzoekt ook verborgen
   kolommen), maar niets in de UI suggereert dat.
-  *Hangt af van 0: met JSONB moet de API dit uit alle projectrijen
-  platslaan, met tabellen is het een gewone query.*
+  *Hangt af van 0a; daarna is dit een gewone query over de vier tabellen.*
 
 - [ ] **3. Zoeken op alle offertes, niet alleen de huidige**
   `projectColumns.tsx` zoekt via `currentOfferte(p)` — de geaccepteerde,
@@ -123,8 +152,8 @@ mutatie, geen reservering, in de hele keten niet.
 
 - [ ] **13. Creditnota**
   Een verzonden factuur kan nu alleen weg via `revertGefactureerd`, die hem
-  gewoon weggooit.
-  *Hangt af van 0 en 12.*
+  gewoon weggooit — bij een verzonden factuur mag dat niet.
+  *Hangt af van 0a en 12.*
 
 ## Fase 4 — documenten
 
@@ -142,10 +171,13 @@ mutatie, geen reservering, in de hele keten niet.
   *Hangt af van 14 en 15.*
 
 - [ ] **17. Verzonden facturen archiveren**
-  PDF's worden telkens opnieuw gegenereerd uit de huidige data. Voor offerte
-  en OB is dat veilig (bevroren snapshots), voor een factuur wil je een kopie
-  van wat er daadwerkelijk de deur uit ging.
-  *Hangt af van 15. Bewaartermijn eerst navragen bij de boekhouder.*
+  Pdf's worden telkens opnieuw gegenereerd uit de huidige data én de huidige
+  template. De regels zijn bevroren, de vórm niet — verandert het briefpapier
+  of de layout, dan ziet een factuur uit 2026 er volgend jaar anders uit dan
+  wat de klant kreeg. Bewaren: de pdf-bytes zoals verstuurd, plus aan wie en
+  wanneer.
+  *Hangt af van 15. Zie de uitgangspunten bij fase 0. Bewaartermijn nog
+  bevestigen bij de boekhouder.*
 
 ## Los
 
@@ -159,4 +191,4 @@ mutatie, geen reservering, in de hele keten niet.
 
 ## Voorgestelde volgorde
 
-0 → 1 → 2 → 4 → 5 → fase 2 in één stuk → 10 → 11 → 12 → 14 → 15 → 16 → rest.
+0 (gedaan) → 0a → 1 → 2 → 4 → 5 → fase 2 in één stuk → 10 → 11 → 12 → 14 → 15 → 16 → rest.
