@@ -342,10 +342,27 @@ Een klantmail draagt twee soorten bijlagen, en die zijn niet gelijkwaardig:
 
 `attachment-kind.ts` doet die indeling; `leidendDocument()` kiest het eerste
 leesbare document. Is er zo'n document, dan maakt alleen zijn regeltabel regels
-en worden de tekeningen via `hoortBij()` aan de juiste regel gehangen — de klant
-noemt zijn tekening `<order>-<positie>-<ons nummer>-<rev>`, dus het onze zit
-erin besloten. Is er géén leesbaar document, dan zijn de bestandsnamen alles wat
-we hebben en mogen die wél regels maken.
+en worden de tekeningen aan de juiste regel gehangen. Is er géén leesbaar
+document, dan zijn de bestandsnamen alles wat we hebben en mogen die wél regels
+maken.
+
+`hangBestandenAan()` koppelt in drie stappen, van sterkst naar zwakst:
+
+1. **Het tekeningnummer zit in de bestandsnaam** (`hoortBij`) — de klant noemt
+   zijn tekening `<order>-<positie>-<ons nummer>-<rev>`, dus het onze zit erin
+   besloten. Dit is het enige signaal dat ook klopt bij vijf regels en vijf
+   tekeningen.
+2. **Het model wijst de bijlage zelf aan** (`attachmentFilename`). Wijst die naar
+   een tekening, dan hoort die tekening bij die regel — een uitspraak over dít
+   document, geen gok. Vangt de klant die zijn bestand anders noemt dan zijn
+   tekeningnummer.
+3. **Vangnet bij één regel zonder treffer**: krijgt die regel na stap 1 en 2 nog
+   niets, dan gaan alle losse tekeningen eraan. Zonder dit wordt er een nieuw
+   artikel aangemaakt terwijl de tekening in de mailmap blijft liggen — precies
+   waarvoor de klant hem meestuurde. Twee voorwaarden houden het eerlijk: bij
+   meer regels valt niet te zeggen welke tekening waarbij hoort, en heeft de
+   regel al een treffer, dan is een overgebleven tekening juist een aanwijzing
+   dat hij ergens anders bij hoort.
 
 De mailtekst mag altijd regels toevoegen: "en graag ook 2x P-4471 erbij" staat
 in geen enkel document.

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { classifyAttachment, hoortBij } from '../attachment-kind'
+import { classifyAttachment, hoortBij, hangBestandenAan } from '../attachment-kind'
+import type { CandidateLine, MailAttachment } from '@stockmanager/shared'
 
 describe('classifyAttachment', () => {
   it('herkent het handelsdocument aan zijn naam', () => {
@@ -64,5 +65,58 @@ describe('hoortBij', () => {
 
   it('is onwaar zonder tekeningnummer', () => {
     expect(hoortBij('van-alles.stp', null)).toBe(false)
+  })
+})
+
+describe('hangBestandenAan', () => {
+  const att = (filename: string): MailAttachment => ({
+    filename, contentType: 'application/octet-stream', sizeBytes: 1,
+    path: `/x/${filename}`, tekst: null, isEmbeddedMessage: false,
+  })
+  const regel = (over: Partial<CandidateLine> = {}): CandidateLine => ({
+    id: 'r1', ruweTekst: 'x', tekening: null, rev: null, positie: null, qty: 1,
+    bron: 'pdf', klantArtikel: null, klantPrijs: null, omschrijving: null,
+    attachmentFilename: null, bestanden: [], artikelId: null, artikelNaam: null,
+    matchStatus: 'geen', matchScore: 0, matchReden: '', zekerheid: 0,
+    gegrond: null, tekeningGegrond: null, bevestigd: null, vanAndereKlant: false,
+    ...over,
+  } as CandidateLine)
+
+  it('koppelt op het tekeningnummer in de bestandsnaam', () => {
+    const r = regel({ tekening: '2615-0091-0530' })
+    hangBestandenAan([r], [att('2604307-1-2615-0091-0530-1.dwg'), att('iets-anders-123456.stp')])
+    expect(r.bestanden).toEqual(['2604307-1-2615-0091-0530-1.dwg'])
+  })
+
+  it('koppelt de bijlage waar het model zegt dat de regel uit komt', () => {
+    // De klant noemt zijn bestand anders dan zijn tekeningnummer; het model weet
+    // wél uit welke bijlage het de regel haalde. Dat is geen gok.
+    const r = regel({ tekening: 'ABC-999', attachmentFilename: 'onderdeel-778899.dwg' })
+    hangBestandenAan([r], [att('onderdeel-778899.dwg')])
+    expect(r.bestanden).toEqual(['onderdeel-778899.dwg'])
+  })
+
+  it('geeft een enkele regel zonder treffer alsnog de tekeningen uit de mail', () => {
+    // Anders wordt er een nieuw artikel aangemaakt terwijl de tekening in de
+    // mailmap blijft liggen — precies waarvoor de klant hem meestuurde.
+    const r = regel({ tekening: null })
+    hangBestandenAan([r], [att('losse-tekening-4455.pdf'), att('model-4455.stp')])
+    expect(r.bestanden).toEqual(['losse-tekening-4455.pdf', 'model-4455.stp'])
+  })
+
+  it('laat een overgebleven tekening liggen als de regel er al een heeft', () => {
+    // Heeft stap 1 op het nummer gematcht, dan is een overgebleven tekening
+    // juist een aanwijzing dat die ergens anders bij hoort.
+    const r = regel({ tekening: '2615-0091-0530' })
+    hangBestandenAan([r], [att('2604307-1-2615-0091-0530-1.dwg'), att('iets-anders-123456.stp')])
+    expect(r.bestanden).not.toContain('iets-anders-123456.stp')
+  })
+
+  it('gokt niet bij meerdere regels', () => {
+    const a = regel({ id: 'a', tekening: 'AAA-111111' })
+    const b = regel({ id: 'b', tekening: 'BBB-222222' })
+    hangBestandenAan([a, b], [att('naamloze-tekening-9988.pdf')])
+    expect(a.bestanden).toEqual([])
+    expect(b.bestanden).toEqual([])
   })
 })
