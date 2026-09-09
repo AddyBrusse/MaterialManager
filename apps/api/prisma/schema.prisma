@@ -369,6 +369,10 @@ model Project {
   status              String   @default("concept")
   levertijdDatum      String?  @map("levertijd_datum")
   notities            String   @default("")
+  // Alleen gevuld bij on_hold en geannuleerd: waarom, en waar het project
+  // vandaan kwam zodat hervatten naar precies die stap terugkeert.
+  statusReden         String?  @map("status_reden")
+  statusVorige        String?  @map("status_vorige")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 

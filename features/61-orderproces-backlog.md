@@ -114,16 +114,27 @@ vermeld.
   `projectColumns.tsx` zoekt via `currentOfferte(p)` — de geaccepteerde,
   anders de laatste. Een vervallen offerte is daardoor onvindbaar.
 
-- [ ] **4. `on_hold` en `geannuleerd` bereikbaar maken**
-  Beide statussen bestaan in de enum, de badges, het filter op
-  `ProjectenPage` en in `deriveProjectStatus`, maar nergens in de code wordt
-  een project erop gezet. Via `PATCH /:id` kan het technisch wel — er is
-  alleen geen knop. Nodig: knop, reden, en een besluit over wat er met
-  lopende productieorders en reserveringen gebeurt.
+- [x] **4. `on_hold` en `geannuleerd` bereikbaar maken** — *gedaan 2026-09-09*
+  Knoppen in de projectkop met een **verplichte reden**; die staat naast de
+  badge en in de tooltip op de projectenlijst, en is doorzoekbaar. Het project
+  onthoudt waar het vandaan kwam (`statusVorige`), zodat hervatten terugkeert
+  naar precies die stap — ook als je eerst on hold zette en daarna annuleerde.
 
-- [ ] **5. `deriveProjectStatus` versus het opgeslagen `status`-veld**
-  Er zijn nu twee bronnen van waarheid die uit elkaar kunnen lopen. Kiezen
-  welke leidend is. Doen vóór punt 4 iets aan de statussen verandert.
+  Wat er met lopende productieorders gebeurt: **niets wordt weggegooid**. Orders
+  en afgevinkte stappen blijven staan. Wat wél verandert is dat de planning het
+  project overslaat: `buildStapItems` en `berekenGhostBelasting` slaan een
+  stilgelegd project over, dus het bezet geen plek meer in de machinewachtrij en
+  telt niet mee in de prognose. Bij hervatten komt het terug op zijn plek.
+
+  Reserveringen zijn hier nog niet bij betrokken — die bestaan nog niet per
+  project (punt 6). Zodra ze er zijn moet on hold ook daar iets doen.
+
+- [x] **5. `deriveProjectStatus` versus het opgeslagen `status`-veld** — *gedaan 2026-09-09*
+  `deriveProjectStatus` is verwijderd. Hij werd **nergens aangeroepen** en was
+  het bovendien oneens met de routes: zodra er productieorders bestonden gaf hij
+  'productie', terwijl een zojuist geaccepteerde offerte 'bevestigd' hoort te
+  geven. Het opgeslagen `status`-veld is nu de enige bron van waarheid; de
+  routes zetten het bij elke overgang.
 
 ## Fase 2 — materiaal
 
@@ -209,4 +220,4 @@ mutatie, geen reservering, in de hele keten niet.
 
 ## Voorgestelde volgorde
 
-0 en 0a (gedaan) → 1 → 2 → 4 → 5 → fase 2 in één stuk → 10 → 11 → 12 → 14 → 15 → 16 → rest.
+0, 0a, 1, 2, 4 en 5 (gedaan) → fase 2 in één stuk → 10 → 11 → 12 → 14 → 15 → 16 → rest.

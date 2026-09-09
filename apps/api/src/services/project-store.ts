@@ -59,6 +59,8 @@ export function serialize(row: ProjectRow): Project {
     contactId: row.contactId,
     klantRef: row.klantRef,
     status: row.status as Project['status'],
+    statusReden: row.statusReden,
+    statusVorige: (row.statusVorige as Project['status'] | null) ?? null,
     levertijdDatum: row.levertijdDatum,
     notities: row.notities,
     offertes: row.offertes.map((o): Offerte => ({
@@ -229,6 +231,8 @@ export async function persist(tx: Db, next: Project): Promise<void> {
       contactId: next.contactId,
       klantRef: next.klantRef,
       status: next.status,
+      statusReden: next.statusReden,
+      statusVorige: next.statusVorige,
       levertijdDatum: next.levertijdDatum,
       notities: next.notities,
     },

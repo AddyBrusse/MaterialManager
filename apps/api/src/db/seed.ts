@@ -98,6 +98,8 @@ function project(overrides: Partial<Project> & Pick<Project, 'id' | 'naam' | 'pr
   return {
     relatieId: null,
     contactId: null,
+    statusReden: null,
+    statusVorige: null,
     klantRef: null,
     status: 'productie',
     levertijdDatum: null,

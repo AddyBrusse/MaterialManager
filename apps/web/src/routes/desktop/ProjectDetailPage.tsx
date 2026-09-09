@@ -20,6 +20,7 @@ import { IconLock, IconCloudCheck, IconCloudUpload, IconCloudX, IconMail } from 
 import { Ic, Icon } from '../../components/articles/calc-icons'
 import { MailDropzone } from '../../components/projecten/MailDropzone'
 import { MailImportReview } from '../../components/projecten/MailImportReview'
+import { ProjectStatusActies } from '../../components/projecten/ProjectStatusActies'
 import { mailImportsApi } from '../../api/mail-imports'
 import { articlesApi } from '../../api/articles'
 import type { MailImport } from '@stockmanager/shared'
@@ -398,7 +399,12 @@ export function ProjectDetailPage() {
               <h1 className="ad-h1">
                 {meta.naam || <span style={{ color: 'var(--text-4)', fontStyle: 'italic', fontWeight: 500 }}>Naamloos project</span>}
               </h1>
-              <span className={`badge ${cfg.cls}`}><span className="dot" />{cfg.label}</span>
+              <span className={`badge ${cfg.cls}`} title={project.statusReden ?? undefined}>
+                <span className="dot" />{cfg.label}
+              </span>
+              {project.statusReden && (
+                <span style={{ fontSize: 12, color: 'var(--text-3)' }}>— {project.statusReden}</span>
+              )}
               <StageTrack status={project.status} compact />
             </div>
             <div className="ad-metaline">{metaLine}</div>
@@ -406,6 +412,7 @@ export function ProjectDetailPage() {
           <div className="ad-title-actions">
             {!isReadOnly && <SaveIndicator state={saveState} />}
             {!isReadOnly && <RevertBtn />}
+            {!isReadOnly && <ProjectStatusActies project={project} onChanged={rerender} />}
             {!isReadOnly && <NextActionBtn />}
           </div>
         </div>

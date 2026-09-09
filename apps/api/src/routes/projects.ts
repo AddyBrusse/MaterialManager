@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { prisma } from '../db/client'
 import {
-  CreateProjectSchema, UpdateProjectSchema,
+  CreateProjectSchema, UpdateProjectSchema, ProjectStatusStopSchema,
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
@@ -159,6 +159,57 @@ router.delete(
       throw new AppError(404, 'NOT_FOUND', 'Project niet gevonden')
     })
     res.status(204).end()
+  }),
+)
+
+// ── On hold / annuleren ───────────────────────────────────────────────────────
+// Beide statussen bestonden al in de enum, de badges en het filter, maar er was
+// geen route die ze zette. Het project wordt niet uitgekleed: offertes,
+// opdrachtbevestiging en productieorders blijven staan, inclusief afgevinkte
+// stappen. Wat wél verandert is dat de planning het project overslaat — een
+// stilliggend project hoort geen plek in de machinewachtrij te bezetten. Dat
+// filter zit aan de kant die de wachtrij opbouwt (planningSharedUtils).
+
+router.post(
+  '/:id/status/stop',
+  asyncHandler(async (req, res) => {
+    const { status, reden } = ProjectStatusStopSchema.parse(req.body)
+    const updated = await withProject(req.params.id, (p) => {
+      if (p.status === status) {
+        throw new AppError(400, 'BAD_REQUEST', `Project staat al op ${status}`)
+      }
+      return {
+        ...p,
+        status,
+        statusReden: reden,
+        // Al gepauzeerd en nu annuleren: bewaar waar het oorspronkelijk vandaan
+        // kwam, niet de tussenstand 'on_hold' — anders komt hervatten daar uit.
+        statusVorige: p.status === 'on_hold' || p.status === 'geannuleerd'
+          ? p.statusVorige
+          : p.status,
+        updatedAt: now(),
+      }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+router.post(
+  '/:id/status/hervat',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      if (p.status !== 'on_hold' && p.status !== 'geannuleerd') {
+        throw new AppError(400, 'BAD_REQUEST', 'Project ligt niet stil')
+      }
+      return {
+        ...p,
+        status: p.statusVorige ?? 'concept',
+        statusReden: null,
+        statusVorige: null,
+        updatedAt: now(),
+      }
+    })
+    res.json({ data: updated })
   }),
 )
 

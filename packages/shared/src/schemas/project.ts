@@ -163,6 +163,10 @@ export const ProjectSchema = z.object({
   contactId: z.string().nullable(),
   klantRef: z.string().nullable(),
   status: z.enum(PROJECT_STATUSES),
+  // Alleen gevuld bij on_hold en geannuleerd: waarom het project stilligt, en
+  // naar welke status hervatten terugkeert.
+  statusReden: z.string().nullable(),
+  statusVorige: z.enum(PROJECT_STATUSES).nullable(),
   levertijdDatum: z.string().nullable(),
   notities: z.string(),
   offertes: z.array(OfferteSchema),
@@ -174,6 +178,14 @@ export const ProjectSchema = z.object({
   updatedAt: z.string(),
 })
 export type Project = z.infer<typeof ProjectSchema>
+
+// Reden bij het on hold zetten of annuleren. Verplicht: een project dat
+// stilligt zonder uitleg levert over een maand alleen maar vragen op.
+export const ProjectStatusStopSchema = z.object({
+  status: z.enum(['on_hold', 'geannuleerd']),
+  reden: z.string().min(1, 'Reden is verplicht'),
+})
+export type ProjectStatusStop = z.infer<typeof ProjectStatusStopSchema>
 
 export const CreateProjectSchema = z.object({
   naam: z.string().min(1, 'Naam is verplicht'),

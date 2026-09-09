@@ -671,6 +671,8 @@ table.st-tbl tbody tr:last-child td { border-bottom: 0; }
   border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
 }
 textarea.st-input { height: auto; min-height: 78px; padding: 8px 10px; resize: vertical; }
+/* Compacte variant voor velden die naast een .st-btn.sm in een actiebalk staan. */
+.st-input.sm, .st-select.sm { height: 28px; font-size: 12.5px; padding: 0 8px; }
 
 .st-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .st-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
