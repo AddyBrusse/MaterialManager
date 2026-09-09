@@ -347,6 +347,14 @@ komt bij het inlezen als losse bijlagen naast de zip te staan
 namen in zo'n zip dragen hetzelfde nummer als de regels in de mail. De zip zelf
 blijft in de lijst staan als bewijsstuk en telt als 'overig'.
 
+Een mail die vóór het uitpakken binnenkwam draagt alleen de zip in zijn
+bijlagenlijst. "Opnieuw uitlezen" en de knop **Tekeningen alsnog koppelen**
+pakken die alsnog uit vanaf schijf (`vulZipsAan`). Die tweede knop is er voor de
+mail die al aan een project gekoppeld is: opnieuw uitlezen kan dan niet — dat
+gooit de regels weg die de offerte al heeft overgenomen — en de mail opnieuw
+slepen ook niet, want die wordt op zijn bericht-id herkend. Hij raakt alleen de
+bijlagen van de al bestaande artikelen; twee keer klikken voegt niets dubbel toe.
+
 Grenzen, want een zip is invoer van buiten: maximaal honderd bestanden, 25 MB per
 bestand en 100 MB in totaal, alleen de bestandsnaam (dus geen `../`), en geen
 zips binnen zips. Een kapotte zip levert een lege lijst op in plaats van een

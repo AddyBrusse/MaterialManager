@@ -4,6 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { z } from 'zod'
 import { prisma } from '../db/client'
+import type { Prisma } from '@prisma/client'
 import { config } from '../config'
 import { sanitizeFilename } from '../lib/filenames'
 import { asyncHandler } from '../lib/async-handler'
@@ -15,6 +16,7 @@ import {
   rematchCandidates, serializeMailImport, vulZipsAan,
 } from '../services/mail-import'
 import { buildRapport, scoreLine } from '../services/certainty'
+import { hangBestandenAan } from '../services/attachment-kind'
 import { schatDuur } from '../services/ingest-duur'
 import { normalizeRef } from '../services/match-articles'
 import type { CandidateLine, ExtractieRapport, MailAttachment } from '@stockmanager/shared'
@@ -240,7 +242,9 @@ router.post(
       throw new AppError(
         409,
         'IN_USE',
-        'Deze mail is al aan een project gekoppeld. Maak die koppeling eerst ongedaan.'
+        'Deze mail is al aan een project gekoppeld; opnieuw uitlezen zou de regels ' +
+          'weggooien die de offerte al heeft overgenomen. Ontbreken alleen de tekeningen ' +
+          'bij de artikelen, gebruik dan "Tekeningen alsnog koppelen".'
       )
     }
 
@@ -340,6 +344,89 @@ router.post(
     }
 
     res.json({ data: { bestanden: gekopieerd, overgeslagen } })
+  })
+)
+
+/**
+ * De tekeningen uit deze mail alsnog aan de artikelen hangen.
+ *
+ * Voor de situatie waarin de mail al gekoppeld is aan een project en de
+ * artikelen dus al bestaan, maar zonder tekening — omdat de zip destijds niet
+ * werd uitgepakt, of omdat het koppelen stilzwijgend niets kopieerde. Opnieuw
+ * uitlezen kan dan niet (dat gooit de kandidaten weg terwijl een offerte ze al
+ * heeft overgenomen) en de mail opnieuw slepen ook niet (die wordt op zijn
+ * bericht-id herkend). Zonder deze route zit je klem.
+ *
+ * Raakt alleen de bijlagen van de artikelen: geen project, geen offerte, geen
+ * regels. Twee keer draaien voegt niets dubbel toe.
+ */
+router.post(
+  '/:id/tekeningen-naar-artikelen',
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.mailImport.findUnique({ where: { id: req.params.id } })
+    if (!existing) throw new AppError(404, 'NOT_FOUND', 'Mail-import niet gevonden')
+
+    // Zips die bij de eerste import nog niet werden uitgepakt alsnog uitpakken.
+    const bijlagen = await vulZipsAan(existing.id, (existing.bijlagen ?? []) as MailAttachment[])
+    const kandidaten = (existing.kandidaten ?? []) as CandidateLine[]
+    hangBestandenAan(kandidaten, bijlagen)
+
+    const bronMap = mailImportDir(existing.id)
+    const perArtikel: { artikelId: string; toegevoegd: number }[] = []
+    const overgeslagen: { naam: string; reden: string }[] = []
+
+    for (const line of kandidaten) {
+      if (!line.artikelId || line.bestanden.length === 0) continue
+      const artikel = await prisma.article.findUnique({ where: { id: line.artikelId } })
+      if (!artikel) { overgeslagen.push({ naam: line.artikelId, reden: 'artikel bestaat niet' }); continue }
+
+      const huidig = (artikel.attachments ?? []) as { name?: string }[]
+      const alAanwezig = new Set(huidig.map((a) => a.name))
+      const doelMap = path.join(config.uploadsDir, 'attachments', line.artikelId)
+      fs.mkdirSync(doelMap, { recursive: true })
+
+      const toegevoegd: unknown[] = []
+      for (const naam of line.bestanden) {
+        if (alAanwezig.has(naam)) continue
+        const bijlage = bijlagen.find((b) => b.filename === naam)
+        if (!bijlage?.path) { overgeslagen.push({ naam, reden: 'niet opgeslagen' }); continue }
+        const bron = path.join(bronMap, path.basename(bijlage.path))
+        if (!fs.existsSync(bron)) { overgeslagen.push({ naam, reden: 'bestand ontbreekt op schijf' }); continue }
+
+        const doelNaam = `${Date.now()}-${sanitizeFilename(naam)}`
+        fs.copyFileSync(bron, path.join(doelMap, doelNaam))
+        toegevoegd.push({
+          id: `att_${line.artikelId}_${toegevoegd.length}_${Date.now()}`,
+          kind: 'drawing',
+          name: naam,
+          sizeBytes: fs.statSync(bron).size,
+          machine: null,
+          note: `Uit mail van ${existing.afzenderEmail ?? 'klant'}`,
+          path: `/uploads/attachments/${line.artikelId}/${doelNaam}`,
+          uploadedAt: new Date().toISOString(),
+        })
+      }
+
+      if (toegevoegd.length > 0) {
+        await prisma.article.update({
+          where: { id: line.artikelId },
+          data: { attachments: [...huidig, ...toegevoegd] as unknown as Prisma.InputJsonValue },
+        })
+        perArtikel.push({ artikelId: line.artikelId, toegevoegd: toegevoegd.length })
+      }
+    }
+
+    // De aangevulde bijlagen en de bijgewerkte koppelingen bewaren, zodat het
+    // reviewscherm de previews ook laat zien.
+    const row = await prisma.mailImport.update({
+      where: { id: existing.id },
+      data: {
+        bijlagen: bijlagen as unknown as Prisma.InputJsonValue,
+        kandidaten: kandidaten as unknown as Prisma.InputJsonValue,
+      },
+    })
+
+    res.json({ data: { mailImport: serializeMailImport(row), artikelen: perArtikel, overgeslagen } })
   })
 )
 

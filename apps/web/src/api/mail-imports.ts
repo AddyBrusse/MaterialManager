@@ -85,5 +85,17 @@ export const mailImportsApi = {
       { method: 'POST', body: JSON.stringify({ artikelId, bestanden }) }
     ).then((r) => r.data),
 
+  /**
+   * De tekeningen uit deze mail alsnog aan de al bestaande artikelen hangen.
+   * Voor een mail die al aan een project gekoppeld is: opnieuw uitlezen kan dan
+   * niet en opnieuw slepen ook niet, dus zonder dit zit je klem.
+   */
+  tekeningenNaarArtikelen: (id: string) =>
+    apiFetch<{
+      mailImport: MailImport
+      artikelen: { artikelId: string; toegevoegd: number }[]
+      overgeslagen: { naam: string; reden: string }[]
+    }>(`/mail-imports/${id}/tekeningen-naar-artikelen`, { method: 'POST' }).then((r) => r.data),
+
   remove: (id: string) => apiFetch<void>(`/mail-imports/${id}`, { method: 'DELETE' }),
 }

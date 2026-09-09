@@ -150,6 +150,40 @@ export function MailImportReview({
     }
   }
 
+  /**
+   * De tekeningen alsnog aan de al bestaande artikelen hangen.
+   *
+   * Voor een mail die al gekoppeld is: opnieuw uitlezen kan dan niet (dat gooit
+   * de regels weg die de offerte al heeft overgenomen) en opnieuw slepen ook
+   * niet. Dit raakt alleen de bijlagen van de artikelen.
+   */
+  async function tekeningenAlsnog() {
+    setBusy(true)
+    try {
+      const r = await mailImportsApi.tekeningenNaarArtikelen(current.id)
+      setCurrent(r.mailImport)
+      const totaal = r.artikelen.reduce((n, a) => n + a.toegevoegd, 0)
+      notifications.show({
+        color: totaal > 0 ? 'green' : r.overgeslagen.length > 0 ? 'red' : 'orange',
+        title: totaal > 0
+          ? `${totaal} tekening${totaal === 1 ? '' : 'en'} gekoppeld`
+          : 'Geen tekening toegevoegd',
+        message: [
+          totaal > 0
+            ? `Verdeeld over ${r.artikelen.length} artikel${r.artikelen.length === 1 ? '' : 'en'}.`
+            : 'De artikelen hadden ze al, of er hing geen bestand aan deze regels.',
+          r.overgeslagen.length > 0
+            ? `Niet gelukt: ${r.overgeslagen.map((o) => `${o.naam} (${o.reden})`).join(', ')}.`
+            : null,
+        ].filter(Boolean).join(' '),
+      })
+    } catch (err) {
+      notifications.show({ color: 'red', title: 'Koppelen mislukt', message: (err as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function ignore() {
     setBusy(true)
     try {
@@ -289,6 +323,10 @@ export function MailImportReview({
         <button className="st-btn sm ghost" onClick={reread} disabled={busy}
           title="Laat de AI opnieuw naar deze mail kijken. Kost een nieuwe aanroep van het model.">
           Opnieuw uitlezen
+        </button>
+        <button className="st-btn sm ghost" onClick={tekeningenAlsnog} disabled={busy}
+          title="Hangt de tekeningen uit deze mail alsnog aan de artikelen die er al zijn. Raakt het project en de offerte niet aan.">
+          Tekeningen alsnog koppelen
         </button>
         <button className="st-btn sm ghost" onClick={ignore} disabled={busy}>Negeren</button>
         <button className="st-btn primary sm" onClick={link} disabled={busy || !relatieId}>
