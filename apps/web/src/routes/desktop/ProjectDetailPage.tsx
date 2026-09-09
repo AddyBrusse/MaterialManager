@@ -21,6 +21,7 @@ import { Ic, Icon } from '../../components/articles/calc-icons'
 import { MailDropzone } from '../../components/projecten/MailDropzone'
 import { MailImportReview } from '../../components/projecten/MailImportReview'
 import { ProjectStatusActies } from '../../components/projecten/ProjectStatusActies'
+import { ProjectReserveringen } from '../../components/projecten/ProjectReserveringen'
 import { mailImportsApi } from '../../api/mail-imports'
 import { articlesApi } from '../../api/articles'
 import type { MailImport } from '@stockmanager/shared'
@@ -590,7 +591,10 @@ export function ProjectDetailPage() {
       <div className={`tab-body${isReadOnly ? ' prj-ro-shield' : ''}`}>
         {tab === 'offertes'             && <OfferteTab               project={project} onChanged={rerender} />}
         {tab === 'opdrachtbevestiging'  && <OpdrachtbevestigingTab   project={project} onChanged={rerender} />}
-        {tab === 'productie'            && <ProductieTab             project={project} onChanged={rerender} />}
+        {tab === 'productie'            && <>
+          <ProductieTab project={project} onChanged={rerender} />
+          <ProjectReserveringen projectId={project.id} />
+        </>}
         {tab === 'paklijst'             && <PaklijstTab              project={project} onChanged={() => { rerender() }} />}
         {tab === 'factuur'              && <FactuurTab               project={project} onChanged={() => { rerender() }} />}
       </div>

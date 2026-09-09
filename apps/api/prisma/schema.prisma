@@ -345,6 +345,8 @@ model Article {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  reserveringen ZaagReservering[]
+
   @@map("articles")
 }
 
@@ -381,6 +383,7 @@ model Project {
   productieOrders     ProductieOrder[]
   paklijsten          Paklijst[]
   facturen            Factuur[]
+  reserveringen       ZaagReservering[]
 
   @@map("projects")
 }
@@ -585,7 +588,13 @@ model FactuurRegel {
 
 model ZaagReservering {
   id             String    @id
+  // Vrij tekstveld dat een zaagbon groepeert; blijft bestaan naast de koppeling
+  // hieronder, want er wordt ook gezaagd voor werk dat geen project is.
   calculatieNr   String    @map("calculatie_nr")
+  // Waar dit materiaal voor vastligt. Beide optioneel — zie de migratie van
+  // 2026-09-09 en de beslissing in decisions/90-decisions-log.md.
+  projectId      String?   @map("project_id")
+  artikelId      String?   @map("artikel_id")
   barId          String    @map("bar_id")
   barCode        String    @map("bar_code")
   barLocation    String    @map("bar_location")
@@ -607,6 +616,11 @@ model ZaagReservering {
   completedAt    DateTime? @map("completed_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  artikel Article? @relation(fields: [artikelId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([artikelId])
   @@map("zaag_reserveringen")
 }
 

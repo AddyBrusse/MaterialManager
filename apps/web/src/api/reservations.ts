@@ -7,6 +7,10 @@ export type ReservationStatus = 'open' | 'in_progress' | 'done'
 export interface ZaagReservation {
   id: string
   calculatieNr: string
+  // Waar dit materiaal voor vastligt. Beide optioneel: er wordt ook gezaagd voor
+  // werk dat geen project is (voorraad, intern).
+  projectId: string | null
+  artikelId: string | null
   barId: string
   barCode: string
   barLocation: string
@@ -38,6 +42,8 @@ function migrate(r: Partial<ZaagReservation>): ZaagReservation {
     completedAt: null,
     barLocation: '',
     barVorm: 'Rond',
+    projectId: null,
+    artikelId: null,
     steekbreedte: 0,
     vlakToeslag: 0,
     fysiekeLengte: (r as { sawLength?: number }).sawLength ?? 0,

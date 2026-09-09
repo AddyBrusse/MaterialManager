@@ -8,6 +8,10 @@ const router = Router()
 
 const CreateReservationSchema = z.object({
   calculatieNr: z.string(),
+  // Waar dit materiaal voor vastligt. Optioneel: er wordt ook gezaagd voor werk
+  // dat geen project is (voorraad, intern).
+  projectId: z.string().nullable().optional(),
+  artikelId: z.string().nullable().optional(),
   barId: z.string(),
   barCode: z.string(),
   barLocation: z.string(),
@@ -24,10 +28,17 @@ const CreateReservationSchema = z.object({
   machine: z.string(),
 })
 
-function toNum(v: unknown): number { return typeof v === 'string' ? parseFloat(v) : (v as number) }
+// Prisma geeft een DECIMAL-kolom terug als een Decimal-object, niet als string
+// of number. De oude versie keek alleen naar `typeof v === 'string'` en liet dat
+// object dus ongemoeid door, waarna JSON er een string van maakte — en aan de
+// andere kant deed `0 + "870"` netjes "0870". Number() dekt alle drie de vormen.
+export function toNum(v: unknown): number {
+  if (v === null || v === undefined) return 0
+  return Number(v)
+}
 
 function serialize(r: {
-  id: string; calculatieNr: string; barId: string; barCode: string; barLocation: string; barVorm: string
+  id: string; calculatieNr: string; projectId: string | null; artikelId: string | null; barId: string; barCode: string; barLocation: string; barVorm: string
   pieces: number; productLen: unknown; sawLength: unknown; fysiekeLengte: unknown; materiaal: string
   diameter: unknown; werkstukLengte: unknown; steekbreedte: unknown; vlakToeslag: unknown; machine: string
   priority: number | null; rush: boolean; status: string; restLengteMm: unknown; completedAt: Date | null; createdAt: Date
@@ -35,6 +46,8 @@ function serialize(r: {
   return {
     id: r.id,
     calculatieNr: r.calculatieNr,
+    projectId: r.projectId,
+    artikelId: r.artikelId,
     barId: r.barId,
     barCode: r.barCode,
     barLocation: r.barLocation,
@@ -60,8 +73,14 @@ function serialize(r: {
 
 router.get(
   '/',
-  asyncHandler(async (_req, res) => {
-    const rows = await prisma.zaagReservering.findMany({ orderBy: { createdAt: 'desc' } })
+  asyncHandler(async (req, res) => {
+    // ?projectId= geeft alleen wat er voor dat project vastligt — dat is wat de
+    // projectpagina nodig heeft zonder alle reserveringen op te halen.
+    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined
+    const rows = await prisma.zaagReservering.findMany({
+      where: projectId ? { projectId } : undefined,
+      orderBy: { createdAt: 'desc' },
+    })
     res.json({ data: rows.map(serialize) })
   }),
 )
@@ -76,6 +95,8 @@ router.post(
           data: {
             id: `res_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
             ...item,
+            projectId: item.projectId ?? null,
+            artikelId: item.artikelId ?? null,
           },
         }),
       ),

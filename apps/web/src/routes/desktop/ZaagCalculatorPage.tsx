@@ -6,6 +6,8 @@ import { IconPrinter, IconAlertTriangle, IconLock } from '@tabler/icons-react'
 import { rawMaterialsApi, formatLocation } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
 import { reservationsStore } from '../../api/reservations'
+import { projectsApi } from '../../api/projects'
+import { articlesApi } from '../../api/articles'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
 // ── machines ──────────────────────────────────────────────────────────────────
@@ -56,6 +58,10 @@ export function ZaagCalculatorPage() {
   // job inputs
   const [machine,       setMachine]       = useState('DMG')
   const [calculatieNr,  setCalulatieNr]   = useState('')
+  // Waar het materiaal voor vastligt (punt 6 uit features/61-orderproces-backlog.md).
+  // Optioneel, want er wordt ook gezaagd voor voorraad of intern werk.
+  const [projectId,     setProjectId]     = useState<string | null>(null)
+  const [artikelId,     setArtikelId]     = useState<string | null>(null)
   const [aantal,        setAantal]        = useState<number | string>(1)
   const [werkstukL,     setWerkstukL]     = useState<number | string>('')
   const [materiaal,     setMateriaal]     = useState('')
@@ -68,6 +74,26 @@ export function ZaagCalculatorPage() {
 
   // persisted reservations
   const [allReservations, setAllReservations] = useState(() => reservationsStore.list())
+
+  // Keuzelijsten voor de koppeling. Afgeblazen projecten horen er niet in — daar
+  // ga je geen materiaal meer voor vastleggen.
+  const projectOpties = useMemo(() => projectsApi.list()
+    .filter(p => p.status !== 'geannuleerd')
+    .map(p => ({ value: p.id, label: `${p.id} — ${p.naam || 'Naamloos'}` })), [])
+
+  const artikelOpties = useMemo(() => {
+    const alle = articlesApi.list()
+    const project = projectId ? projectsApi.list().find(p => p.id === projectId) : null
+    // Met een project erbij: alleen de artikelen die in dit project zitten, want
+    // dat is bijna altijd wat je bedoelt. Zonder project: alles.
+    const uitProject = project
+      ? [...new Set(project.offertes.flatMap(o => o.regels.map(r => r.artikelId)).filter(Boolean) as string[])]
+      : null
+    const lijst = uitProject && uitProject.length > 0
+      ? alle.filter(a => uitProject.includes(a.id))
+      : alle
+    return lijst.map(a => ({ value: a.id, label: `${a.id} — ${a.naam}` }))
+  }, [projectId])
 
   // remote data
   const { data: rawData    } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
@@ -166,6 +192,8 @@ export function ZaagCalculatorPage() {
         const sawLen = res * productLen + params.grijplengte  // total consumed: cuts + grip stub
         return {
           calculatieNr:   calculatieNr.trim(),
+          projectId,
+          artikelId,
           barId:          bar.id,
           barCode:        bar.code,
           barLocation:    formatLocation(bar.locationSlot),
@@ -233,6 +261,25 @@ export function ZaagCalculatorPage() {
                 data={MACHINES.map(m => ({ value: m.value, label: `${m.label} — max ${m.maxLength} mm` }))}
                 value={machine}
                 onChange={v => setMachine(v ?? 'DMG')}
+              />
+
+              {/* Waarvoor gezaagd wordt. Leeg laten mag: voorraadwerk en intern
+                  werk hebben geen project. Kiest iemand wél een project, dan
+                  beperkt de artikellijst zich tot de artikelen uit dat project. */}
+              <Select
+                label="Project (optioneel)" size="sm" clearable searchable
+                placeholder="Geen project"
+                data={projectOpties}
+                value={projectId}
+                onChange={v => { setProjectId(v); setArtikelId(null) }}
+              />
+
+              <Select
+                label="Artikel (optioneel)" size="sm" clearable searchable
+                placeholder={projectId ? 'Kies uit dit project' : 'Geen artikel'}
+                data={artikelOpties}
+                value={artikelId}
+                onChange={setArtikelId}
               />
 
               <div>

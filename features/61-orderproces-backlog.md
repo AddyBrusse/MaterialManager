@@ -141,11 +141,24 @@ vermeld.
 Het grootste blok. Projecten raken op dit moment nergens de voorraad: geen
 mutatie, geen reservering, in de hele keten niet.
 
-- [ ] **6. Reserveringen aan projecten koppelen**
-  `ZaagReservering` hangt in het Prisma-schema aan `calculatieNr`, zonder
-  `projectId` of `artikelId`. Reserveringen en projecten zijn nu twee losse
-  werelden. Model uitbreiden + migratie, zodat een reservering bij een
-  projectregel hoort.
+- [x] **6. Reserveringen aan projecten koppelen** — *gedaan 2026-09-09*
+  `ZaagReservering` draagt nu een optionele `projectId` en `artikelId` naast het
+  bestaande `calculatieNr`. Beide optioneel, want er wordt ook gezaagd voor
+  voorraad en intern werk, en `calculatieNr` blijft de groepering van een
+  zaagbon. In de zaagcalculator kies je project en artikel bij het reserveren
+  (kies je een project, dan beperkt de artikellijst zich tot dat project); op de
+  projectpagina staat onder Productie wat er vastligt; op de
+  reserveringenpagina staat een kolom met een link naar het project.
+
+  Bij het verwijderen van een project of artikel blijft de reservering bestaan
+  met een losse verwijzing (`ON DELETE SET NULL`) — het materiaal ligt immers
+  nog steeds vast, dus die keuze hoort iemand te zien.
+
+  Onderweg gevonden en meegenomen: `toNum` in de reserveringsroute zette een
+  Prisma `Decimal` niet om, waardoor alle maten als **string** de API uit gingen
+  en elke optelling stringplakwerk deed (`0 + "870"` → `"0870"`). Dat raakte de
+  beschikbare lengte per staaf op de voorraadpagina en de totalen op de
+  reserveringenpagina.
 
 - [ ] **7. Reserveren bij accepteren van de offerte**
   `accepteerOfferte` bepaalt wat er aan materiaal nodig is en zet dat vast.
