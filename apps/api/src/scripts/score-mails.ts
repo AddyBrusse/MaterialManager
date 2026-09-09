@@ -53,7 +53,14 @@ async function scoreMail(map: string): Promise<Telling> {
 
 async function main(): Promise<void> {
   if (!config.ai.apiKey) {
-    console.error('Geen ANTHROPIC_API_KEY — de scoreset roept het echte model aan.')
+    console.error(
+      'Geen ANTHROPIC_API_KEY gevonden — de scoreset roept het echte model aan.\n' +
+        'Zet hem in .env.development in de hoofdmap van het project.'
+    )
+    process.exit(1)
+  }
+  if (!config.ai.mailEnabled) {
+    console.error('MAIL_AI staat op "uit"; dan levert elke mail nul regels op en zegt de score niets.')
     process.exit(1)
   }
   const filter = process.argv[2] ?? ''
