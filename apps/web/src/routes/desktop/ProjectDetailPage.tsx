@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconChevronRight, IconCheck,
@@ -93,7 +93,19 @@ function SaveIndicator({ state }: { state: 'idle' | 'saving' | 'saved' | 'error'
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-type Tab = 'offertes' | 'opdrachtbevestiging' | 'productie' | 'paklijst' | 'factuur'
+const TABS = ['offertes', 'opdrachtbevestiging', 'productie', 'paklijst', 'factuur'] as const
+type Tab = typeof TABS[number]
+
+// De open tab staat in de URL (?tab=factuur) zodat een document deelbaar en te
+// bookmarken is: /projecten/PRJ-2026-003?tab=factuur opent meteen de factuur.
+// De documentenpagina (punt 2 uit features/61-orderproces-backlog.md) linkt
+// hierop. Zonder parameter, of bij een onbekende waarde, staat de offertetab
+// open — dat is waar een project begint.
+const STANDAARD_TAB: Tab = 'offertes'
+
+function leesTab(waarde: string | null): Tab {
+  return (TABS as readonly string[]).includes(waarde ?? '') ? (waarde as Tab) : STANDAARD_TAB
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -125,7 +137,18 @@ export function ProjectDetailPage() {
     retryDelay: 300,
   })
 
-  const [tab, setTab]           = useState<Tab>('offertes')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = leesTab(searchParams.get('tab'))
+  // `replace` zodat vijf keer klikken geen vijf stappen in de geschiedenis
+  // oplevert waar je doorheen moet om de pagina te verlaten.
+  const setTab = useCallback((t: Tab) => {
+    setSearchParams(vorige => {
+      const volgende = new URLSearchParams(vorige)
+      if (t === STANDAARD_TAB) volgende.delete('tab')
+      else volgende.set('tab', t)
+      return volgende
+    }, { replace: true })
+  }, [setSearchParams])
   const [confirmRevert, setConfirmRevert] = useState(false)
   // Mail-import (features/60-mail-import.md §2.2/§3.7): een gesleepte mail komt
   // eerst in `reviewImport` en raakt het project pas als iemand hem koppelt.

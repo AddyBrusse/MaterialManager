@@ -89,9 +89,13 @@ Rijksoverheid, art. 52 AWR); **nog niet door een boekhouder bevestigd**.
 Snelle winst, weinig risico, geen onderlinge afhankelijkheden behalve waar
 vermeld.
 
-- [ ] **1. Tab-deeplinks op de projectpagina**
-  `/projecten/PRJ-2026-003?tab=factuur`. De tab is nu alleen component-state,
-  dus niets is te bookmarken of in een mail te plakken. Punt 2 leunt hierop.
+- [x] **1. Tab-deeplinks op de projectpagina** — *gedaan 2026-09-09*
+  `/projecten/PRJ-2026-003?tab=factuur` opent meteen de factuur. De open tab
+  staat in de URL in plaats van in component-state, dus een document is te
+  bookmarken en in een mail te plakken. Een onbekende waarde valt terug op de
+  offertetab, en de offertetab zelf laat de parameter weg zodat de URL schoon
+  blijft. Tabwisselingen gebruiken `replace`, dus vijf keer klikken kost geen
+  vijf stappen terug om de pagina te verlaten.
 
 - [ ] **2. Documentenpagina `/documenten`**
   Platte lijst van alle offertes, OB's, paklijsten en facturen door elkaar:
