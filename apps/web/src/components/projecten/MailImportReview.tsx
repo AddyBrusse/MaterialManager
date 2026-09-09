@@ -87,12 +87,24 @@ export function MailImportReview({
         onOfferteChanged()
 
         const nieuw = r.nieuweArtikelen.length
+        // Alleen zéggen dat de tekeningen mee zijn als dat ook zo is. De melding
+        // beweerde dat onvoorwaardelijk, ook bij nul bestanden — dan denk je dat
+        // het goed ging terwijl het artikel leeg is.
+        const zonderTekening = nieuw > 0 && r.gekoppeldeBestanden === 0
         notifications.show({
-          color: r.zonderPrijs > 0 ? 'orange' : 'green',
+          color: r.misluktebestanden.length > 0 || zonderTekening
+            ? 'red'
+            : r.zonderPrijs > 0 ? 'orange' : 'green',
           title: `${r.aantalRegels} regel${r.aantalRegels === 1 ? '' : 's'} op offerte ${r.offerteId}`,
           message: [
             nieuw > 0
-              ? `${nieuw} nieuw artikel${nieuw === 1 ? '' : 'en'} aangemaakt (${r.nieuweArtikelen.join(', ')}) met de meegestuurde tekeningen.`
+              ? `${nieuw} nieuw artikel${nieuw === 1 ? '' : 'en'} aangemaakt (${r.nieuweArtikelen.join(', ')})` +
+                (r.gekoppeldeBestanden > 0
+                  ? `, met ${r.gekoppeldeBestanden} meegestuurde tekening${r.gekoppeldeBestanden === 1 ? '' : 'en'}.`
+                  : ' — zónder tekening: er hing geen bestand aan deze regels.')
+              : null,
+            r.misluktebestanden.length > 0
+              ? `Niet gekopieerd: ${r.misluktebestanden.join(', ')}.`
               : null,
             r.zonderPrijs > 0
               ? `${r.zonderPrijs} regel(s) staan op € 0 — daar moet nog een calculatie onder.`

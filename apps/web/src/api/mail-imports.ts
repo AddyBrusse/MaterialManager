@@ -24,6 +24,16 @@ export interface UpdateMailImport {
   projectId?: string | null
 }
 
+/**
+ * Wat er gekopieerd is, en wat niet. `overgeslagen` is meestal leeg; is hij dat
+ * niet, dan mist het artikel een tekening en moet dat gezegd worden in plaats
+ * van stilzwijgend een leeg artikel op te leveren.
+ */
+export interface CopyFilesResultaat {
+  bestanden: { name: string; path: string; sizeBytes: number; kind: string }[]
+  overgeslagen: { naam: string; reden: string }[]
+}
+
 export const mailImportsApi = {
   /** Een uit Outlook gesleept .msg naar binnen halen. Gebruikt apiUpload: geen
    *  Content-Type header en een ruimere timeout dan de JSON-calls. */
@@ -70,7 +80,7 @@ export const mailImportsApi = {
    * is zonde van de tijd. Geeft de bijlage-metadata terug voor het artikel.
    */
   copyFilesToArticle: (id: string, artikelId: string, bestanden: string[]) =>
-    apiFetch<{ name: string; path: string; sizeBytes: number; kind: string }[]>(
+    apiFetch<CopyFilesResultaat>(
       `/mail-imports/${id}/bestanden-naar-artikel`,
       { method: 'POST', body: JSON.stringify({ artikelId, bestanden }) }
     ).then((r) => r.data),

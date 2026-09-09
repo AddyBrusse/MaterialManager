@@ -342,6 +342,48 @@ export function mailUitRij(row: MailImportRow): NormalizedMail {
 }
 
 /** De opgeslagen bijlagen van schijf, zodat scans weer als afbeelding meekunnen. */
+/**
+ * Zips die al op schijf staan alsnog uitpakken.
+ *
+ * Nodig voor mail die is ingelezen vóórdat het uitpakken bestond: die draagt een
+ * bijlagenlijst met alleen de zip erin. "Opnieuw uitlezen" werkt op die
+ * opgeslagen lijst, dus zonder dit zou zo'n mail zijn tekeningen nooit krijgen —
+ * de enige uitweg was de import weggooien en de mail opnieuw slepen, en dat is
+ * geen antwoord dat je aan iemand wilt geven.
+ *
+ * Geeft de aangevulde lijst terug, of dezelfde lijst als er niets te halen viel.
+ */
+export async function vulZipsAan(id: string, bijlagen: MailAttachment[]): Promise<MailAttachment[]> {
+  const zips = bijlagen.filter((b) => !b.isEmbeddedMessage && isZip(b.filename) && b.path)
+  if (zips.length === 0) return bijlagen
+
+  const dir = mailImportDir(id)
+  const namen = new Set(bijlagen.map((b) => b.filename.toLowerCase()))
+  const nieuw: MailAttachment[] = []
+
+  for (const zip of zips) {
+    const bron = path.join(dir, path.basename(zip.path!))
+    if (!fs.existsSync(bron)) continue
+    for (const f of pakZipUit(fs.readFileSync(bron))) {
+      if (namen.has(f.filename.toLowerCase())) continue
+      namen.add(f.filename.toLowerCase())
+      const naam = uniqueName(dir, f.filename)
+      fs.writeFileSync(path.join(dir, naam), f.content)
+      const tekst = await pdfText(f.content)
+      nieuw.push({
+        filename: f.filename,
+        sizeBytes: f.content.length,
+        path: `/uploads/mail-imports/${id}/${naam}`,
+        isEmbeddedMessage: false,
+        tekst: tekst ? tekst.slice(0, MAX_TEXT_CHARS) : null,
+        tekstPath: null,
+      })
+    }
+  }
+
+  return nieuw.length > 0 ? [...bijlagen, ...nieuw] : bijlagen
+}
+
 export function buffersUitMap(id: string, bijlagen: MailAttachment[]): AttachmentBuffers {
   const dir = mailImportDir(id)
   return {
@@ -399,7 +441,7 @@ export function mailImportDir(id: string): string {
 }
 
 /** Uniek maken binnen één map, zodat twee gelijke bijlagenamen elkaar niet overschrijven. */
-function uniqueName(dir: string, filename: string): string {
+export function uniqueName(dir: string, filename: string): string {
   const safe = sanitizeFilename(filename)
   if (!fs.existsSync(path.join(dir, safe))) return safe
   const ext = path.extname(safe)

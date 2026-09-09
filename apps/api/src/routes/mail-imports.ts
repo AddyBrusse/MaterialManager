@@ -12,7 +12,7 @@ import { MAIL_IMPORT_STATUSES, MAIL_INTENTS } from '@stockmanager/shared'
 import { looksLikeMsg } from '../services/msg-parse'
 import {
   buffersUitMap, buildCandidates, ingestMsgBuffer, legMetingVast, mailImportDir, mailUitRij,
-  rematchCandidates, serializeMailImport,
+  rematchCandidates, serializeMailImport, vulZipsAan,
 } from '../services/mail-import'
 import { buildRapport, scoreLine } from '../services/certainty'
 import { schatDuur } from '../services/ingest-duur'
@@ -245,7 +245,11 @@ router.post(
     }
 
     const begonnenOp = Date.now()
-    const bijlagen = (existing.bijlagen ?? []) as MailAttachment[]
+    // Zips die bij de eerste import nog niet werden uitgepakt alsnog uitpakken.
+    // Zonder dit zou een mail die vóór het uitpakken binnenkwam zijn tekeningen
+    // nooit krijgen: opnieuw uitlezen werkt op de opgeslagen bijlagenlijst, en
+    // daar zat alleen de zip in.
+    const bijlagen = await vulZipsAan(existing.id, (existing.bijlagen ?? []) as MailAttachment[])
     const { kandidaten, rapport, klantRef, leverdatum } = await buildCandidates(
       prisma,
       mailUitRij(existing),
@@ -256,6 +260,7 @@ router.post(
     const row = await prisma.mailImport.update({
       where: { id: req.params.id },
       data: {
+        bijlagen: bijlagen as unknown as object,
         kandidaten: kandidaten as unknown as object,
         extractie: rapport as unknown as object,
         klantRef,
@@ -311,11 +316,16 @@ router.post(
     fs.mkdirSync(doelMap, { recursive: true })
 
     const gekopieerd: { name: string; path: string; sizeBytes: number; kind: string }[] = []
+    // Wat er níet mee kon, en waarom. Stilzwijgend overslaan levert een artikel
+    // op dat er compleet uitziet maar geen tekening heeft — en dat merk je pas
+    // weken later, als iemand hem nodig heeft.
+    const overgeslagen: { naam: string; reden: string }[] = []
     for (const naam of body.bestanden) {
       const bijlage = bijlagen.find((b) => b.filename === naam)
-      if (!bijlage?.path) continue
+      if (!bijlage) { overgeslagen.push({ naam, reden: 'zit niet bij deze mail' }); continue }
+      if (!bijlage.path) { overgeslagen.push({ naam, reden: 'niet opgeslagen' }); continue }
       const bron = path.join(bronMap, path.basename(bijlage.path))
-      if (!fs.existsSync(bron)) continue
+      if (!fs.existsSync(bron)) { overgeslagen.push({ naam, reden: 'bestand ontbreekt op schijf' }); continue }
 
       const doelNaam = `${Date.now()}-${sanitizeFilename(naam)}`
       fs.copyFileSync(bron, path.join(doelMap, doelNaam))
@@ -329,7 +339,7 @@ router.post(
       })
     }
 
-    res.json({ data: gekopieerd })
+    res.json({ data: { bestanden: gekopieerd, overgeslagen } })
   })
 )
 
