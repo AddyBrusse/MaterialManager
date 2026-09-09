@@ -141,6 +141,26 @@ export const CandidateLineSchema = z.object({
   klantPrijs: z.number().nullable().default(null),
   /** Omschrijving zoals de klant hem noemt. */
   omschrijving: z.string().nullable().default(null),
+  /**
+   * Het materiaal zoals de klant het opgeeft ("RVS-316L rondstaf 30").
+   * Staat los van de omschrijving: dit is wát er verspaand wordt, niet wat het
+   * onderdeel is.
+   */
+  materiaal: z.string().nullable().default(null),
+  /**
+   * Wie het materiaal levert. true = de klant levert aan ("toegeleverd
+   * materiaal"), false = wij kopen het in ("uit uw materiaal"), null = de klant
+   * zegt er niets over.
+   *
+   * Dit verandert de kostprijs volledig, dus het mag niet in een tekstveld
+   * verdwijnen waar niemand op rekent.
+   */
+  materiaalDoorKlant: z.boolean().nullable().default(null),
+  /**
+   * Gevraagd materiaalcertificaat, bijvoorbeeld "3.1". Kost geld en moet bij de
+   * levering mee, dus het hoort niet ergens in een omschrijving te staan.
+   */
+  certificaat: z.string().nullable().default(null),
   /** Bijlage waar deze regel vandaan komt, als die er is. */
   attachmentFilename: z.string().nullable(),
   /**

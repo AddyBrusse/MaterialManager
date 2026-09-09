@@ -2433,6 +2433,11 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
 }
 .mi-alarm svg { flex-shrink: 0; }
 
+/* Materiaalkolom in het controlescherm: het materiaal zelf op leesgrootte, de
+   herkomst en het certificaat eronder als bijschrift. */
+.mi-materiaal-bron { font-size: 11px; color: var(--text-3); margin-top: 1px; }
+.mi-certificaat { font-size: 11px; color: var(--accent); margin-top: 1px; }
+
 .mi-acties { display: flex; gap: 8px; justify-content: flex-end; }
 
 /* Technische details — standaard dicht. Alles wat je alleen nodig hebt als er

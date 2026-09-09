@@ -10,6 +10,7 @@ function line(klantPrijs: number | null, qty = 1): CandidateLine {
     artikelId: 'ART-1', handmatig: false, extractor: 'ai', bronTekst: '', gegrond: true,
     tekeningGegrond: true, bevestigd: true, bronBestand: null,
     klantArtikel: null, klantPrijs, omschrijving: null, zekerheid: 0.9, zekerheidRedenen: [],
+    materiaal: null, materiaalDoorKlant: null, certificaat: null,
   }
 }
 

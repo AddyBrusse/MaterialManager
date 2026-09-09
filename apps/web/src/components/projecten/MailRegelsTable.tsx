@@ -65,6 +65,17 @@ function Regel({
       <td style={{ overflow: 'hidden', textOverflow: 'ellipsis' }} title={line.omschrijving ?? ''}>
         {line.omschrijving ?? <span className="cell-muted">—</span>}
       </td>
+      {/* Materiaal apart van de omschrijving: wie het levert verandert de
+          kostprijs volledig, dus dat moet je zien vóór je calculeert. */}
+      <td style={{ overflow: 'hidden' }} title={line.materiaal ?? ''}>
+        {line.materiaal ?? <span className="cell-muted">—</span>}
+        {line.materiaalDoorKlant !== null && (
+          <div className="mi-materiaal-bron">
+            {line.materiaalDoorKlant ? 'klant levert aan' : 'wij kopen in'}
+          </div>
+        )}
+        {line.certificaat && <div className="mi-certificaat">cert. {line.certificaat}</div>}
+      </td>
       <td className="cell-num cell-mono">
         {line.klantPrijs === null ? (
           <span className="cell-muted">—</span>
@@ -180,6 +191,7 @@ export function MailRegelsTable({ mailImport, articleOptions, bronnen, onChanged
             <th style={{ width: 110, paddingLeft: 14 }}>Art.nr klant</th>
             <th style={{ width: 150 }}>Tekening</th>
             <th>Omschrijving</th>
+            <th style={{ width: 160 }}>Materiaal</th>
             <th style={{ width: 92 }}>Prijs klant</th>
             <th style={{ width: '26%' }}>Ons artikel</th>
             <th style={{ width: 104 }}>Status</th>

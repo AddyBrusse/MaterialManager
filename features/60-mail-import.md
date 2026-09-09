@@ -340,6 +340,18 @@ Een klantmail draagt twee soorten bijlagen, en die zijn niet gelijkwaardig:
 | **tekening** | dwg, step, pdf met een tekeningnummer | hangt *aan* een regel; wordt zelf nooit een regel zolang er een document is |
 | overig | handtekeningplaatjes, voorwaarden, losse rommel | genegeerd |
 
+**Zips worden eerst uitgepakt.** Klanten sturen hun tekeningen regelmatig
+gebundeld: één `Tekeningen.zip` met per onderdeel een pdf en een step. De inhoud
+komt bij het inlezen als losse bijlagen naast de zip te staan
+(`zip-uitpakken.ts`), waarna de gewone indeling en koppeling hun werk doen — de
+namen in zo'n zip dragen hetzelfde nummer als de regels in de mail. De zip zelf
+blijft in de lijst staan als bewijsstuk en telt als 'overig'.
+
+Grenzen, want een zip is invoer van buiten: maximaal honderd bestanden, 25 MB per
+bestand en 100 MB in totaal, alleen de bestandsnaam (dus geen `../`), en geen
+zips binnen zips. Een kapotte zip levert een lege lijst op in plaats van een
+mislukte import.
+
 `attachment-kind.ts` doet die indeling; `leidendDocument()` kiest het eerste
 leesbare document. Is er zo'n document, dan maakt alleen zijn regeltabel regels
 en worden de tekeningen aan de juiste regel gehangen. Is er géén leesbaar

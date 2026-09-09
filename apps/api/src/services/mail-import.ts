@@ -12,7 +12,8 @@ import type {
 } from '@stockmanager/shared'
 import { config } from '../config'
 import { sanitizeFilename } from '../lib/filenames'
-import { parseMsg, readAttachments } from './msg-parse'
+import { parseMsg, readAttachments, type ExtractedAttachment } from './msg-parse'
+import { isZip, pakZipUit } from './zip-uitpakken'
 import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
@@ -451,6 +452,31 @@ export async function legMetingVast(
   }
 }
 
+/**
+ * De bijlagenlijst met de inhoud van meegestuurde zips erbij.
+ *
+ * De uitgepakte bestanden komen direct achter hun zip te staan, zodat de
+ * volgorde begrijpelijk blijft als je de mail later terugkijkt. Een naam die al
+ * voorkomt wordt overgeslagen: twee bijlagen met dezelfde naam zouden elkaar op
+ * schijf en in de inhoudsmap overschrijven.
+ */
+function metZipInhoud(bijlagen: ExtractedAttachment[]): ExtractedAttachment[] {
+  if (!bijlagen.some((a) => !a.isEmbeddedMessage && isZip(a.filename))) return bijlagen
+
+  const uit: ExtractedAttachment[] = []
+  const namen = new Set(bijlagen.map((a) => a.filename.toLowerCase()))
+  for (const a of bijlagen) {
+    uit.push(a)
+    if (a.isEmbeddedMessage || !isZip(a.filename)) continue
+    for (const f of pakZipUit(a.content)) {
+      if (namen.has(f.filename.toLowerCase())) continue
+      namen.add(f.filename.toLowerCase())
+      uit.push({ filename: f.filename, content: f.content, isEmbeddedMessage: false })
+    }
+  }
+  return uit
+}
+
 export async function ingestMsgBuffer(
   prisma: PrismaClient,
   buf: Buffer,
@@ -461,15 +487,33 @@ export async function ingestMsgBuffer(
 
   // Bijlagen meteen uitpakken: de tekst uit de meegestuurde PDF's (de
   // inkooporder) is nodig vóór de extractie, want daar staan de aantallen.
-  const extracted = readAttachments(buf)
+  //
+  // Zit er een zip bij, dan komt de inhoud er hier als losse bijlagen naast te
+  // staan. Dit is de enige plek waar dat hoeft: alles verderop — het uitlezen
+  // van pdf-tekst, `mail.attachments`, het wegschrijven naar schijf en de
+  // inhoudsmap voor het model — leest uit deze lijst. De zip zelf blijft in de
+  // lijst staan als bewijsstuk; hij wordt als 'overig' geclassificeerd en maakt
+  // dus geen regel.
+  const extracted = metZipInhoud(readAttachments(buf))
   const teksten = await Promise.all(
     extracted.map((a) => (a.isEmbeddedMessage ? Promise.resolve(null) : pdfText(a.content)))
   )
-  mail.attachments = mail.attachments.map((a, i) => ({
-    ...a,
-    tekst: teksten[i] ? teksten[i]!.slice(0, MAX_TEXT_CHARS) : null,
-    tekstPath: null,
-  }))
+  // Opnieuw opbouwen uit `extracted` en niet uit `mail.attachments`: de parser
+  // kent alleen de bijlagen van de mail zelf, terwijl `extracted` er de inhoud
+  // van een zip bij heeft. Zonder dit zou het model de uitgepakte tekeningen
+  // niet te zien krijgen en zou `leidendDocument` erlangs kijken.
+  const origineel = new Map(mail.attachments.map((a) => [a.filename, a]))
+  mail.attachments = extracted.map((a, i) => {
+    const bestaand = origineel.get(a.filename)
+    return {
+      filename: a.filename,
+      sizeBytes: a.content.length,
+      path: bestaand?.path ?? null,
+      isEmbeddedMessage: a.isEmbeddedMessage,
+      tekst: teksten[i] ? teksten[i]!.slice(0, MAX_TEXT_CHARS) : null,
+      tekstPath: null,
+    }
+  })
 
   // De inhoud bij de hand houden: een gescande inkooporder heeft geen tekstlaag
   // en moet als afbeelding aan het model gegeven worden (§6.2).

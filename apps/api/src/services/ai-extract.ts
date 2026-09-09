@@ -49,6 +49,28 @@ const AiLineSchema = z.object({
     .string()
     .nullable()
     .describe('Het artikelnummer van de klant zelf, als hij dat apart vermeldt (bijvoorbeeld bij "Uw artikelnummer"). Null als het er niet staat.'),
+  materiaal: z
+    .string()
+    .nullable()
+    .describe(
+      'Het materiaal zoals de klant het opgeeft, met vorm en maat als die erbij staan: ' +
+        '"RVS-316L rondstaf 30", "S355 vierkant staf 40". Null als de klant geen materiaal noemt.',
+    ),
+  materiaalDoorKlant: z
+    .boolean()
+    .nullable()
+    .describe(
+      'Wie levert het materiaal? true bij "toegeleverd materiaal" of "materiaal wordt aangeleverd" ' +
+        '(de klant brengt het), false bij "uit uw materiaal" of "materiaal door u" (wij kopen het in). ' +
+        'Null als de klant er niets over zegt — raad dit niet.',
+    ),
+  certificaat: z
+    .string()
+    .nullable()
+    .describe(
+      'Gevraagd materiaalcertificaat, bijvoorbeeld "3.1" bij "Inclusief 3.1". Null als er geen ' +
+        'certificaat gevraagd wordt.',
+    ),
   prijs: z
     .number()
     .nullable()
@@ -123,7 +145,18 @@ Houd de velden strikt uit elkaar. Dit is waar het het vaakst misgaat:
 Een ordertabel met "Pos. 10 | 2615-0090-0530 rev B | Steunbeugel RVS 304 | 25 st | € 12,50" wordt:
   positie 10, tekening "2615-0090-0530", rev "B", omschrijving "Steunbeugel RVS 304", qty 25, prijs 12.50
 En dus NIET: omschrijving "Pos. 10 2615-0090-0530 rev B Steunbeugel RVS 304 25 st".
-Staat er geen aparte benaming naast het nummer, dan is omschrijving null — niet het nummer nog een keer.`
+Staat er geen aparte benaming naast het nummer, dan is omschrijving null — niet het nummer nog een keer.
+
+Materiaal en certificaat horen ook in hun eigen veld, niet in de omschrijving:
+- materiaal = het materiaal met vorm en maat: "RVS-316L rondstaf 30".
+- materiaalDoorKlant = wie het levert. "Toegeleverd materiaal" betekent dat de klant het aanlevert (true).
+  "Uit uw materiaal" betekent dat wij het inkopen (false). Zegt de klant er niets over, dan null.
+- certificaat = bijvoorbeeld "3.1" als er om een materiaalcertificaat gevraagd wordt.
+
+"2x  Toegeleverd materiaal RVS-316L rondstaf 30" wordt dus:
+  qty 2, materiaal "RVS-316L rondstaf 30", materiaalDoorKlant true, omschrijving null.
+En "1x  Uit uw materiaal RVS-316L Inclusief 3.1" wordt:
+  qty 1, materiaal "RVS-316L", materiaalDoorKlant false, certificaat "3.1", omschrijving null.`
 
 // ── De invoer voor het model ──────────────────────────────────────────────────
 
@@ -460,6 +493,9 @@ export function buildLines(
       klantArtikel: r.klantArtikel,
       klantPrijs: r.prijs,
       omschrijving: schoonOmschrijving(r.omschrijving, r.tekening, r.rev),
+      materiaal: r.materiaal,
+      materiaalDoorKlant: r.materiaalDoorKlant,
+      certificaat: r.certificaat,
       attachmentFilename: r.bronBestand,
       bestanden: [],
       matches: [],
