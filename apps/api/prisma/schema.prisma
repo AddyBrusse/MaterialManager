@@ -355,6 +355,11 @@ model DocSequence {
   @@map("doc_sequences")
 }
 
+// Het project is de kop: klant, referentie, status. De documenten die eraan
+// hangen (offerte, opdrachtbevestiging, productieorders, paklijst, factuur)
+// staan in eigen tabellen — zie de beslissing van 2026-09-09 in
+// decisions/90-decisions-log.md. De API levert ze nog steeds als één genest
+// Project op; alleen de opslag is genormaliseerd.
 model Project {
   id                  String   @id
   naam                String
@@ -364,15 +369,214 @@ model Project {
   status              String   @default("concept")
   levertijdDatum      String?  @map("levertijd_datum")
   notities            String   @default("")
-  offertes            Json     @default("[]")
-  opdrachtbevestiging Json?    @map("opdrachtbevestiging")
-  productieOrders     Json     @default("[]") @map("productie_orders")
-  paklijst            Json?
-  factuur             Json?
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
+  offertes            Offerte[]
+  opdrachtbevestiging Opdrachtbevestiging?
+  productieOrders     ProductieOrder[]
+  paklijsten          Paklijst[]
+  facturen            Factuur[]
+
   @@map("projects")
+}
+
+// ── Offerte ───────────────────────────────────────────────────────────────────
+
+model Offerte {
+  id             String   @id                      // OFF-YYYY-NNN
+  projectId      String   @map("project_id")
+  versie         Int
+  status         String   @default("concept")
+  notities       String   @default("")
+  geldigTot      String?  @map("geldig_tot")
+  verzondenOp    String?  @map("verzonden_op")
+  geaccepteerdOp String?  @map("geaccepteerd_op")
+  createdAt      DateTime @map("created_at")
+  updatedAt      DateTime @map("updated_at")
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  regels  OfferteRegel[]
+
+  @@index([projectId])
+  @@index([status])
+  @@map("offertes")
+}
+
+// Bevroren momentopname: de regel houdt naam, prijs en bewerkingen vast zoals
+// ze golden toen de offerte gemaakt werd, ook als het artikel daarna verandert.
+model OfferteRegel {
+  id           String   @id
+  offerteId    String   @map("offerte_id")
+  sortOrder    Int      @map("sort_order")
+  artikelId    String?  @map("artikel_id")
+  naam         String
+  omschrijving String   @default("")
+  qty          Float
+  eenheid      String
+  verkoopprijs Float
+  totaal       Float
+  bewerkingen  String[] @default([])
+
+  offerte Offerte @relation(fields: [offerteId], references: [id], onDelete: Cascade)
+
+  @@index([offerteId])
+  @@map("offerte_regels")
+}
+
+// ── Opdrachtbevestiging ───────────────────────────────────────────────────────
+
+model Opdrachtbevestiging {
+  id             String   @id                      // OB-YYYY-NNN
+  projectId      String   @unique @map("project_id")
+  offerteId      String   @map("offerte_id")
+  levertijdDatum String?  @map("levertijd_datum")
+  notities       String   @default("")
+  status         String   @default("concept")
+  verzondenOp    String?  @map("verzonden_op")
+  createdAt      DateTime @map("created_at")
+  updatedAt      DateTime @map("updated_at")
+
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  regels  ObRegel[]
+
+  @@map("opdrachtbevestigingen")
+}
+
+model ObRegel {
+  id           String   @id
+  obId         String   @map("ob_id")
+  sortOrder    Int      @map("sort_order")
+  artikelId    String?  @map("artikel_id")
+  naam         String
+  omschrijving String   @default("")
+  qty          Float
+  eenheid      String
+  verkoopprijs Float
+  totaal       Float
+  bewerkingen  String[] @default([])
+
+  ob Opdrachtbevestiging @relation(fields: [obId], references: [id], onDelete: Cascade)
+
+  @@index([obId])
+  @@map("ob_regels")
+}
+
+// ── Productie ─────────────────────────────────────────────────────────────────
+
+model ProductieOrder {
+  id             String   @id                      // PROD-YYYY-NNN
+  projectId      String   @map("project_id")
+  offerteRegelId String   @map("offerte_regel_id")
+  artikelId      String?  @map("artikel_id")
+  artikelNaam    String   @map("artikel_naam")
+  qty            Float
+  eenheid        String
+  status         String   @default("gepland")
+  createdAt      DateTime @map("created_at")
+  updatedAt      DateTime @map("updated_at")
+
+  project Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  stappen ProductieStap[]
+
+  @@index([projectId])
+  @@index([status])
+  @@map("productie_orders")
+}
+
+// De wachtrij van een machine loopt dwars door projecten heen, dus staat de
+// planning (geplandDatum, geplandMachine, queuePosition) hier en niet bij het
+// project. queuePosition is een breukgetal zodat invoegen tussen twee buren
+// alleen deze stap raakt.
+model ProductieStap {
+  id             String  @id
+  orderId        String  @map("order_id")
+  volgorde       Int
+  naam           String
+  machine        String?
+  gereedOp       String? @map("gereed_op")
+  gereedDoor     String? @map("gereed_door")
+  geplandDatum   String? @map("gepland_datum")
+  geplandMachine String? @map("gepland_machine")
+  queuePosition  Float?  @map("queue_position")
+  notBefore      String? @map("not_before")
+
+  order ProductieOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([geplandMachine, queuePosition])
+  @@map("productie_stappen")
+}
+
+// ── Paklijst ──────────────────────────────────────────────────────────────────
+
+model Paklijst {
+  id          String   @id                         // PL-YYYY-NNN
+  projectId   String   @map("project_id")
+  notities    String   @default("")
+  verzondenOp String?  @map("verzonden_op")
+  createdAt   DateTime @map("created_at")
+
+  project Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  regels  PaklijstRegel[]
+
+  @@index([projectId])
+  @@map("paklijsten")
+}
+
+model PaklijstRegel {
+  id               String @id
+  paklijstId       String @map("paklijst_id")
+  sortOrder        Int    @map("sort_order")
+  productieOrderId String @map("productie_order_id")
+  artikelNaam      String @map("artikel_naam")
+  qty              Float
+  eenheid          String
+
+  paklijst Paklijst @relation(fields: [paklijstId], references: [id], onDelete: Cascade)
+
+  @@index([paklijstId])
+  @@map("paklijst_regels")
+}
+
+// ── Factuur ───────────────────────────────────────────────────────────────────
+
+model Factuur {
+  id             String   @id                      // FACT-YYYY-NNN
+  projectId      String   @map("project_id")
+  offerteId      String   @map("offerte_id")
+  btwPct         Float    @map("btw_pct")
+  subtotaal      Float
+  btwBedrag      Float    @map("btw_bedrag")
+  totaalInclBtw  Float    @map("totaal_incl_btw")
+  notities       String   @default("")
+  vervaldatum    String?
+  verzondenOp    String?  @map("verzonden_op")
+  createdAt      DateTime @map("created_at")
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  regels  FactuurRegel[]
+
+  @@index([projectId])
+  @@index([verzondenOp])
+  @@map("facturen")
+}
+
+model FactuurRegel {
+  id             String @id
+  factuurId      String @map("factuur_id")
+  sortOrder      Int    @map("sort_order")
+  offerteRegelId String @map("offerte_regel_id")
+  naam           String
+  qty            Float
+  eenheid        String
+  verkoopprijs   Float
+  totaal         Float
+
+  factuur Factuur @relation(fields: [factuurId], references: [id], onDelete: Cascade)
+
+  @@index([factuurId])
+  @@map("factuur_regels")
 }
 
 model ZaagReservering {

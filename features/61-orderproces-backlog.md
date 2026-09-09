@@ -43,14 +43,24 @@ als een order gereed is of de paklijst verzonden is.
 
   Uitvoering is punt 0a hieronder; de rest van de lijst gaat daarvan uit.
 
-- [ ] **0a. Migratie: documenten uit JSONB naar de vier tabellen**
+- [x] **0a. Migratie: documenten uit JSONB naar eigen tabellen** — *gedaan 2026-09-09*
   Prisma-modellen + migratie, bestaande projectrijen omzetten, en de
   serverkant meeverhuizen: `withProject` (row lock + read-modify-write op
   één rij), `serialize`, en `deriveProjectStatus` dat zijn gegevens nu uit
   meerdere tabellen moet halen. Frontend: de vier tabs veranderen van
   databron.
-  Dit is de zwaarste losse stap in de lijst — apart bouwen en verifiëren
-  vóór er functionaliteit bovenop komt.
+  Uitgevoerd: tien tabellen (de vier documenten plus productieorders, met hun
+  regels en stappen), migratie met backfill uit de JSONB, en
+  `services/project-store.ts` als enige plek die de tabellen kent. Het
+  API-contract is niet veranderd — routes leveren nog steeds één genest
+  `Project`, zodat de planningwachtrij, `ProductieTab`, `projectColumns` en
+  `todoAlerts` ongewijzigd bleven.
+
+  Twee dingen kwamen bij het verifiëren boven water en zijn meegenomen: een
+  document-id is nu een globale primary key, dus een botsend nummer overschreef
+  stilletjes het document van een ánder project (`persist` controleert nu het
+  eigendom) en `nextDocId` gaf nummers uit zonder te kijken of ze vrij waren
+  (telt nu door tot er een vrij nummer ligt).
 
 ### Bewaarplicht — uitgangspunten
 
@@ -191,4 +201,4 @@ mutatie, geen reservering, in de hele keten niet.
 
 ## Voorgestelde volgorde
 
-0 (gedaan) → 0a → 1 → 2 → 4 → 5 → fase 2 in één stuk → 10 → 11 → 12 → 14 → 15 → 16 → rest.
+0 en 0a (gedaan) → 1 → 2 → 4 → 5 → fase 2 in één stuk → 10 → 11 → 12 → 14 → 15 → 16 → rest.
