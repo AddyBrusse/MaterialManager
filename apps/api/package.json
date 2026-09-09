@@ -13,7 +13,8 @@
     "db:seed": "dotenv -e ../../.env.development -- ts-node src/db/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "probe:msg": "ts-node src/scripts/probe-msg.ts"
+    "probe:msg": "ts-node src/scripts/probe-msg.ts",
+    "score:mails": "ts-node src/scripts/score-mails.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",

@@ -118,6 +118,7 @@ Haal alleen de onderdelen eruit die de klant besteld of geoffreerd wil hebben.
 
 RANGORDE — dit is het belangrijkste:
 - Is er een handelsdocument (inkooporder, aanvraag, opdrachtbevestiging), dan bepaalt DAT de regels. Neem de regeltabel daaruit over, met de aantallen en posities die erin staan.
+- Gaat een pdf als volledig document mee, lees hem dan DAAR en kijk naar de tabel zoals hij op de pagina staat: welk getal onder welke kolomkop hoort. De uitgeklopte tekst van diezelfde pdf is niet te vertrouwen — daarin plakken kolommen aan elkaar ("EUR 34,4925-06-2026 15" is prijs 34,49, leverdatum 25-06-2026 en aantal 15) en kan de kolomkop onder de regels staan.
 - Meegestuurde tekeningen en 3D-modellen zijn bijlagen BIJ die regels. Maak er nooit een aparte regel van, ook niet als de bestandsnaam een tekeningnummer bevat dat al in het document staat.
 - Is er GEEN leesbaar handelsdocument, dan pas haal je de onderdelen uit de mailtekst en de bestandsnamen.
 
@@ -171,38 +172,102 @@ export interface AttachmentBuffers {
 }
 
 /**
- * Welke bijlagen moet het model als afbeelding zien?
+ * Eén bijlage zoals het model hem krijgt.
  *
- * Een gescande inkooporder heeft geen tekstlaag, dus `pdfText` levert niets op.
- * Precies het document dat de regels zou moeten bepalen is dan onzichtbaar —
- * waargenomen op echte mail van een klant (2026-09-08). Het model kan zo'n pdf
- * gewoon bekíjken, dus die sturen we mee als document-blok.
- *
- * Documenten eerst: als er maar plek is voor een paar, moet de inkooporder erbij
- * zitten en niet drie tekeningen.
+ * `zonderTekst` en "gaat native mee" zijn sinds 2026-09-09 níet meer hetzelfde.
+ * Het eerste bepaalt of de gronding iets terug kan zoeken, het tweede of de pdf
+ * als document-blok meegaat. Een inkooporder mét tekstlaag gaat wél native mee
+ * en is wél terugzoekbaar.
  */
-export function scansVoorModel(mail: NormalizedMail, buffers: AttachmentBuffers): MailAttachment[] {
-  const zonderTekst = mail.attachments.filter(
-    (a) => !a.isEmbeddedMessage && !a.tekst && a.sizeBytes <= MAX_SCAN_BYTES && looksLikePdf(buffers.get(a.filename) ?? Buffer.alloc(0))
-  )
-  const rang = (a: MailAttachment) => (classifyAttachment(a.filename) === 'document' ? 0 : 1)
-  return zonderTekst.sort((a, b) => rang(a) - rang(b)).slice(0, MAX_SCANS)
+export interface ModelBijlage {
+  bijlage: MailAttachment
+  /** Geen tekstlaag: er valt niets in terug te zoeken, dus de gronding weet het niet. */
+  zonderTekst: boolean
 }
 
-function attachmentsBlock(mail: NormalizedMail, scans: Set<string>): string {
+function isPdf(a: MailAttachment, buffers: AttachmentBuffers): boolean {
+  return (
+    !a.isEmbeddedMessage &&
+    a.sizeBytes <= MAX_SCAN_BYTES &&
+    looksLikePdf(buffers.get(a.filename) ?? Buffer.alloc(0))
+  )
+}
+
+/**
+ * Welke pdf's stuurt het model als document-blok mee?
+ *
+ * Twee redenen, en die zijn los van elkaar ontstaan:
+ *
+ * 1. **Geen tekstlaag.** Een gescande inkooporder levert niets op via `pdfText`;
+ *    precies het document dat de regels bepaalt is dan onzichtbaar. Waargenomen
+ *    op echte klantmail (2026-09-08).
+ *
+ * 2. **Het is het handelsdocument.** Ook mét tekstlaag. `pdfText` levert de
+ *    woorden op maar gooit de tabel weg, en juist de tabel is de betekenis. Op
+ *    de bestelling van Veratio (2690655) komt er letterlijk `€34,4925-06-2026 15`
+ *    uit — prijs, leverdatum en aantal aan elkaar geplakt, en de kolomkoppen
+ *    staan ónder de regels. Zo ontstond destijds ook de `4-9-2026pcs`-bug. Het
+ *    model kan de pdf gewoon bekijken; dan blijft de tabel een tabel.
+ *
+ * Tekeningen gaan hier NIET in mee zolang er een handelsdocument is (§3.1b
+ * trap 1 en 2). Dat document bepaalt de regels, dus een tekening voegt niets toe
+ * aan het lezen — en er passen er maar een paar in. Op de Veratio-bestelling zou
+ * het model twee van de acht tekeningen te zien krijgen, wat erger is dan geen:
+ * die twee lijken dan bijzonder. Het koppelen van tekeningen aan regels gaat op
+ * naam (attachment-kind.ts); pas als een regel daarmee géén bestand krijgt, is
+ * er reden om een tekening alsnog mee te sturen — dat is trap 3, nog niet
+ * gebouwd.
+ *
+ * Zonder handelsdocument geldt de oude regel: dan is een pdf zonder tekstlaag
+ * het enige wat er nog te lezen valt.
+ */
+export function documentenVoorModel(
+  mail: NormalizedMail,
+  buffers: AttachmentBuffers
+): ModelBijlage[] {
+  const document = leidendDocument(mail.attachments)?.filename ?? null
+
+  const kandidaten = mail.attachments
+    .filter((a) => isPdf(a, buffers))
+    // Mét document: alleen het document en wat er verder als document telt (een
+    // order van twee losse pdf's). Zonder document: alles zonder tekstlaag.
+    .filter((a) =>
+      document
+        ? a.filename === document || classifyAttachment(a.filename) === 'document'
+        : !a.tekst
+    )
+    // Een leesbare tweede documentpagina gaat al als tekst mee; die hoeft niet
+    // ook nog eens native.
+    .filter((a) => !a.tekst || a.filename === document)
+
+  const rang = (a: MailAttachment) => (a.filename === document ? 0 : 1)
+  return kandidaten
+    .sort((a, b) => rang(a) - rang(b))
+    .slice(0, MAX_SCANS)
+    .map((bijlage) => ({ bijlage, zonderTekst: !bijlage.tekst }))
+}
+
+function attachmentsBlock(mail: NormalizedMail, native: Set<string>): string {
   const parts: string[] = []
   for (const a of mail.attachments) {
     if (a.isEmbeddedMessage) continue
     const soort = classifyAttachment(a.filename)
     parts.push(`--- BIJLAGE: ${a.filename} (${soort}, ${a.sizeBytes} bytes) ---`)
-    if (a.tekst) parts.push(a.tekst)
-    else if (scans.has(a.filename)) parts.push('(geen tekstlaag — deze pdf is hieronder als afbeelding meegestuurd)')
-    else parts.push('(geen tekstlaag — een 3D-model of een bijlage die niet te lezen is)')
+    if (native.has(a.filename)) {
+      // De uitgeklopte tekst hier óók nog neerzetten is schadelijk: dan ziet het
+      // model naast de pdf ook de versie waar de kolommen uit gevallen zijn, en
+      // die is korter en makkelijker te lezen. Precies de verkeerde bron.
+      parts.push('(deze pdf is hieronder volledig meegestuurd — lees hem daar, niet hier)')
+    } else if (a.tekst) {
+      parts.push(a.tekst)
+    } else {
+      parts.push('(geen tekstlaag — een 3D-model of een bijlage die niet te lezen is)')
+    }
   }
   return parts.join('\n')
 }
 
-export function buildPrompt(mail: NormalizedMail, scans: Set<string> = new Set()): string {
+export function buildPrompt(mail: NormalizedMail, native: Set<string> = new Set()): string {
   return [
     `ONDERWERP: ${mail.subject}`,
     `VAN: ${mail.from?.naam ?? ''} <${mail.from?.email ?? ''}>`,
@@ -211,7 +276,7 @@ export function buildPrompt(mail: NormalizedMail, scans: Set<string> = new Set()
     '--- BERICHT ---',
     mail.bodyText,
     '',
-    attachmentsBlock(mail, scans),
+    attachmentsBlock(mail, native),
   ].join('\n')
 }
 
@@ -303,25 +368,29 @@ export interface AiExtractOutcome {
   document: string | null
   opmerking: string | null
   model: string
-  /** De bijlagen die als afbeelding zijn meegestuurd omdat er geen tekstlaag in zat. */
+  /**
+   * Bijlagen zonder tekstlaag. Hier valt niets in terug te zoeken, dus een regel
+   * die hieruit komt krijgt "gronding onbekend" in plaats van "niet gegrond".
+   */
   scans: string[]
+  /** Bijlagen die als volledige pdf zijn meegestuurd, met of zonder tekstlaag. */
+  nativeBlokken: string[]
 }
 
 /** Eén lezing van de mail. Gooit door bij een fout — de aanroeper vertelt het de gebruiker. */
 async function leesEenmaal(
   mail: NormalizedMail,
-  scans: { filename: string; inhoud: Buffer }[],
-  scanNamen: Set<string>
+  native: { filename: string; inhoud: Buffer }[],
+  nativeNamen: Set<string>
 ): Promise<AiResult> {
   const content: Anthropic.ContentBlockParam[] = [
-    { type: 'text', text: buildPrompt(mail, scanNamen) },
+    { type: 'text', text: buildPrompt(mail, nativeNamen) },
   ]
-  for (const scan of scans) {
-    const buf = scan.inhoud
-    content.push({ type: 'text', text: `--- AFBEELDING VAN BIJLAGE: ${scan.filename} ---` })
+  for (const doc of native) {
+    content.push({ type: 'text', text: `--- VOLLEDIGE PDF VAN BIJLAGE: ${doc.filename} ---` })
     content.push({
       type: 'document',
-      source: { type: 'base64', media_type: 'application/pdf', data: buf.toString('base64') },
+      source: { type: 'base64', media_type: 'application/pdf', data: doc.inhoud.toString('base64') },
     })
   }
 
@@ -352,16 +421,20 @@ export async function aiExtract(
   mail: NormalizedMail,
   buffers: AttachmentBuffers
 ): Promise<AiExtractOutcome> {
-  const scans = scansVoorModel(mail, buffers)
-  const scanNamen = new Set(scans.map((s) => s.filename))
-  const metInhoud = scans.map((a) => ({ ...a, inhoud: buffers.get(a.filename)! }))
+  const native = documentenVoorModel(mail, buffers)
+  const nativeNamen = new Set(native.map((d) => d.bijlage.filename))
+  const zonderTekst = native.filter((d) => d.zonderTekst).map((d) => d.bijlage.filename)
+  const metInhoud = native.map((d) => ({
+    filename: d.bijlage.filename,
+    inhoud: buffers.get(d.bijlage.filename)!,
+  }))
 
-  const eerste = await leesEenmaal(mail, metInhoud, scanNamen)
+  const eerste = await leesEenmaal(mail, metInhoud, nativeNamen)
   let bevestiging: AiResult | null = null
   if (config.ai.controle) {
     // Faalt de controlelezing, dan telt dat als "niet gecontroleerd" en niet als
     // een mislukte import: de eerste lezing is er nog.
-    bevestiging = await leesEenmaal(mail, metInhoud, scanNamen).catch(() => null)
+    bevestiging = await leesEenmaal(mail, metInhoud, nativeNamen).catch(() => null)
   }
 
   return {
@@ -373,7 +446,8 @@ export async function aiExtract(
     leverdatum: eerste.leverdatum,
     opmerking: eerste.opmerking,
     model: config.ai.model,
-    scans: [...scanNamen],
+    scans: zonderTekst,
+    nativeBlokken: [...nativeNamen],
   }
 }
 

@@ -72,9 +72,14 @@ export function ExtractieSamenvatting({ rapport }: { rapport: ExtractieRapport |
       ) : (
         <div>Geen leesbaar order- of aanvraagdocument gevonden — regels uit de mail en de bestandsnamen.</div>
       )}
+      {rapport.volledigMeegestuurd.length > 0 && (
+        <div>
+          Als volledige pdf gelezen: {rapport.volledigMeegestuurd.join(', ')}
+        </div>
+      )}
       {rapport.gescandeBijlagen.length > 0 && (
         <div>
-          Als afbeelding gelezen (geen tekstlaag): {rapport.gescandeBijlagen.join(', ')}
+          Zonder tekstlaag, dus niet na te zoeken: {rapport.gescandeBijlagen.join(', ')}
         </div>
       )}
       {rapport.ongegrondeRegels > 0 && (

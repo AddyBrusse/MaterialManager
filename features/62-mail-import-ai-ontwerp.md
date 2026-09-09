@@ -226,11 +226,11 @@ maakt kan klant B stilletjes slopen, en dat merk je pas als er verkeerd
 geoffreerd is.
 
 Daarom eerst een **testset van echte mails met het goede antwoord erbij**. Er
-liggen er al drie:
+liggen er drie klaar; twee staan er sinds 2026-09-09 in:
 
 | Mail | Waarom hij erin hoort |
 |---|---|
-| Stinis, offerteaanvraag RFQ2600241 | inkooporder als scan, tekeningnummer in de bestandsnaam |
+| Stinis, offerteaanvraag RFQ2600241 | inkooporder als scan, tekeningnummer in de bestandsnaam — **nog toe te voegen** |
 | Veratio, offerteaanvraag 2663270 | geen handelsdocument, regels in de mailtekst, zeven tekeningen in een zip |
 | Veratio, bestelling 2690655 | inkooporder mét zip, tekeningen genoemd bij naam in plaats van nummer |
 
@@ -255,6 +255,16 @@ apps/api/src/services/__tests__/mails/
     mail.msg
     verwacht.json
 ```
+
+Draaien met `npm run score:mails -w apps/api` (of met een stuk van een mapnaam
+erachter voor één mail). Het roept het echte model aan, dus er moet een
+`ANTHROPIC_API_KEY` staan en het kost geld — daarom is het een script en geen
+vitest-test.
+
+De twee Veratio-mails zijn van **verschillende mensen** bij dezelfde klant:
+Damiano Blonk schrijft zijn regels in de mailtekst, Jeroen van der Hoorn stuurt
+een inkooporder als pdf. Dat is geen toeval maar precies waarom de set zo moet:
+klantkennis die aan één opmaak vastzit breekt op de collega.
 
 `verwacht.json` bevat **alleen de velden waar je iets van vindt**:
 
@@ -340,11 +350,17 @@ koppeling betrouwbaar maakt.
 
 Elke stap is los te bouwen en levert op zichzelf iets op.
 
-- [ ] **A. Testset.** De drie mails met hun goede antwoord (§5.1), plus een
-      script dat scoort. Dit eerst, anders is de rest niet te beoordelen.
-- [ ] **B. Handelsdocument native meesturen** (§3.1). Kleinste wijziging,
-      grootste directe winst. Meet met A wat het doet — zowel de score als de
-      duur, want die laatste gaat omhoog (§6).
+- [x] **A. Testset.** (2026-09-09) `apps/api/src/services/__tests__/mails/` met
+      de twee Veratio-mails en hun `verwacht.json`, `npm run score:mails -w apps/api`
+      als scorer, en `mail-score.ts` met eigen unittests — een scorer die zelf
+      niet klopt zou een verslechtering als winst kunnen melden. De Stinis-mail
+      moet nog opnieuw aangeleverd worden; die map ontbreekt.
+- [x] **B. Handelsdocument native meesturen** (§3.1, plus trap 1 en 2 van §3.1b).
+      (2026-09-09) `scansVoorModel` heet nu `documentenVoorModel` en stuurt het
+      leidende document altijd als volledige pdf mee, ook mét tekstlaag; de
+      uitgeklopte tekst van diezelfde pdf gaat er dan juist uit, zodat het model
+      niet de kapotte versie leest. Tekeningen gaan niet meer mee zolang er een
+      document is. Nog niet gemeten met A — daar is een API-sleutel voor nodig.
 - [ ] **C. Titelblok lezen** (§3.2) en het nummer opzoeken in onze artikelen
       (§4.1). Dit haalt de klasse bugs van vandaag structureel weg.
 - [ ] **D. Opruimen.** `classifyAttachment`, `hoortBij` in drie trappen,

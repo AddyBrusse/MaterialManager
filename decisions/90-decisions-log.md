@@ -483,3 +483,40 @@ exists in the Zod schema but not yet in `schema.prisma`).
 **Decision:** `classifyAttachment` eist niet langer drie cijfers in de bestandsnaam. Een tekenpakket-formaat (step, stp, dwg, dxf, iges, sldprt, …) is altijd een tekening, ongeacht de naam. Een pdf is een tekening tenzij zijn naam alleen zegt wát het bestand is in plaats van wélk onderdeel (`scan`, `tekeningen`, `bijlage`, `document`, …). Daarnaast hangt `hangBestandenAan` het leidende document nooit aan een regel, ook niet als de classificatie hem als tekening zou lezen.
 **Why:** Op een bestelling van Veratio (21-05-2026) kwamen zeven tekeningen mee die `Motor Housing_v2.pdf`, `Guide base 5_8.dwg` en `Lower foam pin.stp` heetten. Geen ervan draagt een getal van drie cijfers, dus alle zeven werden 'overig' en werden nergens aan gehangen — de artikelen kregen hun tekening niet. De oude regel kwam voort uit een echte les (`scan.pdf` en `tekeningen.pdf` zijn geen tekening), maar de aanname eronder — een onderdeel wordt altijd met een nummer aangeduid — is die van één klant, niet van alle. Het bestandstype is een betrouwbaarder signaal: een step of dwg is nooit een folder of een handtekeningplaatje. Gemeten na de wijziging: negen tekeningen goed geclassificeerd, de inkooporder blijft document, en alle vier de orderregels krijgen hun bestanden — inclusief `Guide Base 5/8` dat op `Guide base 5_8` matcht en `Motor Housing.step` dat aan `Motor housing_v2` hangt.
 **Trade-off:** Een pdf die geen tekening is en geen generieke naam draagt (een productblad, een certificaat met een eigennaam) telt nu als tekening. Dat kost weinig: koppelen aan een regel vraagt nog steeds zes tekens overlap met het tekeningnummer, dus zo'n bestand blijft meestal gewoon los in de bijlagenlijst staan. Het risico zit in een mail zónder leidend document, waar bestandsnamen wél regels mogen maken — daar kan zo'n pdf een valse regel opleveren. De uitsluiting van het leidende document dekt het geval dat het ergste was: een inkooporder zonder tekstlaag en met een cryptische naam werd anders aan zijn eigen regels gehangen. De generieke-namenlijst is Nederlands en Engels; een klant die zijn bijlagen in het Duits of Frans zo noemt, valt erbuiten.
+
+## 2026-09-09 — Testset van echte mails in de repo, en het handelsdocument native naar het model
+
+**Testset in git.** `apps/api/src/services/__tests__/mails/` bevat echte
+klantmail met het goede antwoord ernaast (`verwacht.json`), gescoord met
+`npm run score:mails -w apps/api`. Zonder zo'n set is een promptwijziging niet
+te beoordelen: een unittest vangt alleen kennis die in code staat, en die kennis
+verhuist naar prompts en klantprofielen. De prijs is bewust aanvaard — er staan
+klantprijzen, contactgegevens en tekeningen van Veratio voorgoed in de
+git-geschiedenis. De repo is privé en het team is vier man; het alternatief (op
+de NAS, buiten git) is een set die niemand draait.
+
+De scorer vergelijkt **alleen velden die in `verwacht.json` staan**. Daardoor
+blijven bestaande fixtures geldig als er een veld bij komt. De vergelijking zelf
+zit in `mail-score.ts` met eigen unittests, apart van het script: een scorer die
+zelf niet klopt zou een verslechtering als winst kunnen melden.
+
+**Het handelsdocument gaat als volledige pdf mee, ook mét tekstlaag.** Tot nu
+ging alleen een pdf zónder tekstlaag als document-blok mee. Op de bestelling van
+Veratio (2690655) bleek waarom dat te weinig is: die pdf *heeft* een tekstlaag,
+maar `pdfText` levert `€34,4925-06-2026 15` op — prijs, leverdatum en aantal aan
+elkaar geplakt, met de kolomkoppen ónder de regels. `pdfText` geeft de woorden en
+gooit de tabel weg, en juist de tabel is de betekenis. Dezelfde vorm als de
+`4-9-2026pcs`-bug.
+
+Bij een pdf die native meegaat wordt de uitgeklopte tekst uit de prompt gelaten:
+anders ziet het model naast de pdf ook de kortere, kapotte versie. De tekst
+blijft wel in `haystack()`, zodat de gronding er nog in kan nazoeken. Daarom zijn
+"zonder tekstlaag" (gronding kan niets nazoeken) en "gaat native mee" nu twee
+losse begrippen — `scans` en `nativeBlokken` in `AiExtractOutcome`,
+`gescandeBijlagen` en `volledigMeegestuurd` in het rapport.
+
+Tekeningen gaan niet meer native mee zolang er een handelsdocument is (§3.1b
+trap 1 en 2). Er passen er maar drie; op de Veratio-bestelling zou het model twee
+van de acht tekeningen zien, en die twee lijken dan bijzonder. Koppelen gaat op
+naam. Trap 3 — een tekening alsnog meesturen als een regel er géén krijgt — is
+nog niet gebouwd.
