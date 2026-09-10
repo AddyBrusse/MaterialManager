@@ -35,6 +35,7 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - **Zod** shared between frontend and backend via `@stockmanager/shared`
 - **ORM**: Prisma (decided 2026-05-29, see `decisions/90-decisions-log.md`)
 - **Response shape**: `{ data }` on success, `{ error: { code, message, details? } }` on failure
+- **Calculatiekern in `packages/shared`** (`calc/estimate.ts`, `calc/artikel-prijs.ts`) — web én API rekenen ermee; de API heeft hem nodig voor de prijssnapshot bij het accepteren van een offerte
 - **Weight** is computed on read (never stored) from profile formula + dimensions + grade density
 - **Mock phase ended (2026-06-22)** — the localStorage→PostgreSQL backend
   migration is fully applied. New features go straight to the real stack
@@ -70,7 +71,7 @@ shouldn't need revisiting.
 | Workflows | `workflows/40-user-flows.md` · `41-receive-material.md` · `42-adjust-stock.md` · `43-edit-locking-flow.md` · `44-mobile-scan-flow.md` |
 | Decisions | `decisions/90-decisions-log.md` |
 | Parked | `03-parked.md` — things not decided yet, do not implement |
-| Newer areas (no doc yet) | Relaties: `api/relaties.ts`, `components/relaties/`, `routes/desktop/Relaties*Page.tsx` · Machines/Bedrijfskosten: `components/settings/{OverheadPage,OverheadTab,BedrijfskostenTab}.tsx` · Zaag calculator/Reserveringen/Zaagflow: `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` · Binnen boeken: `routes/desktop/BinnenBoekenPage.tsx` (see `workflows/41-receive-material.md` status note) · **Projecten**: `api/projects.ts`, `components/projecten/`, `routes/desktop/Projecten*Page.tsx` · **Todos**: `api/todos.ts`, `components/todos/`, `routes/desktop/TodosPage.tsx` |
+| Newer areas (no doc yet) | Relaties: `api/relaties.ts`, `components/relaties/`, `routes/desktop/Relaties*Page.tsx` · Machines/Bedrijfskosten: `components/settings/{OverheadPage,OverheadTab,BedrijfskostenTab}.tsx` · Zaag calculator/Reserveringen/Zaagflow: `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` · Binnen boeken: `routes/desktop/BinnenBoekenPage.tsx` (see `workflows/41-receive-material.md` status note) · **Projecten**: `api/projects.ts`, `components/projecten/`, `routes/desktop/Projecten*Page.tsx` · **Todos**: `api/todos.ts`, `components/todos/`, `routes/desktop/TodosPage.tsx` · **Prijshistorie**: `api/prijshistorie.ts`, `components/articles/{ArticlePrijshistorieTab,PrijshistorieGrafiek,prijshistorie-lijn}.tsx`, `apps/api/src/services/prijs-snapshot.ts` |
 
 ## Projecten UI conventions
 

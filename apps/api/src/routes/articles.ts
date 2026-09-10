@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
+import { snapshotBijCalculatie } from '../services/prijs-snapshot'
 
 const router = Router()
 
@@ -99,6 +100,10 @@ router.post(
         maxStock: body.maxStock ?? null,
       },
     })
+    // Een artikel dat meteen mét calculatie wordt aangemaakt heeft ook een
+    // beginpunt in de prijshistorie nodig; anders begint de lijn pas bij de
+    // eerste wijziging.
+    if (article.estimate) await snapshotBijCalculatie(prisma, article.id, article, req.user.id)
     res.status(201).json({ data: serializeArticle(article) })
   }),
 )
@@ -109,18 +114,54 @@ router.patch(
     const body = UpdateArticleSchema.parse(req.body)
     const existing = await prisma.article.findUnique({ where: { id: req.params.id } })
     if (!existing) throw new AppError(404, 'NOT_FOUND', 'Artikel niet gevonden')
-    const article = await prisma.article.update({
-      where: { id: req.params.id },
-      data: {
-        ...body,
-        recipe: body.recipe !== undefined ? (body.recipe as object ?? null) : undefined,
-        operations: body.operations !== undefined ? (body.operations as object[]) : undefined,
-        notes: body.notes !== undefined ? (body.notes as object) : undefined,
-        attachments: body.attachments !== undefined ? (body.attachments as object[]) : undefined,
-        estimate: body.estimate !== undefined ? (body.estimate as object ?? null) : undefined,
-      },
+    // Recept of calculatie gewijzigd? Dan hoort er een punt in de prijshistorie
+    // bij — anders is de vorige kostprijs weg zodra deze update landt
+    // (`estimate` is één JSON-kolom die overschreven wordt). De snapshot slaat
+    // zichzelf over als de prijs niet veranderd is, dus opslaan zonder
+    // prijsgevolg (een notitie, een naam) levert geen punt op.
+    const raaktPrijs = body.estimate !== undefined || body.recipe !== undefined
+    const article = await prisma.$transaction(async (tx) => {
+      const bijgewerkt = await tx.article.update({
+        where: { id: req.params.id },
+        data: {
+          ...body,
+          recipe: body.recipe !== undefined ? (body.recipe as object ?? null) : undefined,
+          operations: body.operations !== undefined ? (body.operations as object[]) : undefined,
+          notes: body.notes !== undefined ? (body.notes as object) : undefined,
+          attachments: body.attachments !== undefined ? (body.attachments as object[]) : undefined,
+          estimate: body.estimate !== undefined ? (body.estimate as object ?? null) : undefined,
+        },
+      })
+      if (raaktPrijs) await snapshotBijCalculatie(tx, bijgewerkt.id, bijgewerkt, req.user.id)
+      return bijgewerkt
     })
     res.json({ data: serializeArticle(article) })
+  }),
+)
+
+/**
+ * Prijshistorie van één artikel, oudste eerst — de grafiek en de tabel op de
+ * artikelpagina lezen hier allebei uit.
+ */
+router.get(
+  '/:id/prijshistorie',
+  asyncHandler(async (req, res) => {
+    const bestaat = await prisma.article.findUnique({
+      where: { id: req.params.id }, select: { id: true },
+    })
+    if (!bestaat) throw new AppError(404, 'NOT_FOUND', 'Artikel niet gevonden')
+
+    const rijen = await prisma.artikelPrijsSnapshot.findMany({
+      where: { artikelId: req.params.id },
+      orderBy: { gemetenOp: 'asc' },
+    })
+    res.json({
+      data: rijen.map((r) => ({
+        ...r,
+        gemetenOp: r.gemetenOp.toISOString(),
+        createdAt: r.createdAt.toISOString(),
+      })),
+    })
   }),
 )
 
