@@ -451,6 +451,30 @@ Alle zes de fixtures zijn op 2026-09-10 nagekeken. `mails:antwoorden` drukt de
 status bovenaan af, zodat een niet-nagekeken antwoord opvalt voordat er conclusies
 aan verbonden worden.
 
+### 3.2c Wat C op de eerste echte mail deed
+
+Post Metaalbewerking, inkooporder 6191. Twee regels verwijzen naar `MD13504758`
+en `MD13504763`; er zitten vier tekeningen bij die op hun naam nergens bij passen.
+Dus escaleerde C, las de vier titelblokken en kreeg terug:
+
+    343754 B uitbesteding.pdf    -> 343754
+    343755 B uitbesteding.pdf    -> 343755
+    md10504758 B uitbesteding.pdf -> MD10504758
+    md10504763 B uitbesteding.pdf -> MD10504763
+
+**Het titelblok zegt MD10504758, niet MD13504758.** Het bestand is dus werkelijk
+een ander nummer en geen verschrijving. Dat bevestigt wat de werkvloer zei: het
+zijn samenstellingen ter informatie, en de tekening waar de order naar verwijst
+zit niet in de mail.
+
+C hing er dus niets aan — en dat is de winst. Zonder de exacte vergelijking en
+zonder de uitzondering op het vangnet was `md10504758` aan `MD13504758` gehangen:
+één cijfer fout, een ander onderdeel, en niemand die het merkt. Dit is de eerste
+keer dat we een dure fout hebben zien vóórkomen in plaats van repareren.
+
+Kosten: die mail ging van 23 naar 26 seconden. De andere vijf escaleerden niet en
+kostten niets extra.
+
 ### 5.2f De metingen tot nu toe
 
 | Datum | Set | Score | Wat er veranderde |
@@ -459,6 +483,7 @@ aan verbonden worden.
 | 09-09 | 2 mails | 77/77 | na de scorerfix |
 | 10-09 | 6 mails, 5 klanten | 147/148 | vier fixtures erbij (Stinis, Global Factories, Post, Lindhout) |
 | 10-09 | 6 mails, 5 klanten | **148/148** | leesregel voor `materiaal` aangescherpt (§5.2e) |
+| 10-09 | 6 mails, alle antwoorden nagekeken | **148/148** | C erbij: titelblok gelezen, terecht niet gekoppeld (§3.2c) |
 
 Die laatste stap is de eerste keer dat een promptwijziging gemeten is in plaats
 van beredeneerd: hij repareerde de enige misser en liet de andere 147 staan. Zonder

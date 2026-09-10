@@ -605,3 +605,19 @@ had zijn eigen kopie van lezen-plus-regels-opbouwen. Een scoreset die een ander
 pad meet dan de app loopt, meet niets.
 
 Uit met `MAIL_AI_TITELBLOK=uit`.
+
+## 2026-09-10 — C gemeten: een fout vóórkomen in plaats van repareren
+
+Op de inkooporder van Post Metaalbewerking (6191) las het titelblok van
+`md10504758 B uitbesteding.pdf` het nummer **MD10504758** — niet het MD13504758
+waar de order naar verwijst. Het bestand is dus werkelijk een ander onderdeel en
+geen verschrijving in de bestandsnaam.
+
+C hing er niets aan. Zonder de exacte vergelijking (`nummerGelijk`) en zonder de
+uitzondering op het vangnet in `hangBestandenAan` was die tekening wél aan die
+regel gehangen: één cijfer fout, een ander onderdeel, en niemand die het merkt tot
+er verkeerd verspaand is.
+
+De scoreset blijft daarmee op 148/148, nu met alle zes de antwoorden nagekeken
+door de werkvloer. Kosten van de escalatie: die ene mail ging van 23 naar 26
+seconden; de andere vijf escaleerden niet.
