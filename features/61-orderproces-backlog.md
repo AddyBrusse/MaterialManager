@@ -309,3 +309,39 @@ Wat er in elk geval uitgezocht moet worden voor hier iets van gebouwd wordt:
 Raakt: `buildEstimateCtx` / `computeEstimateTotals`, de machines- en
 bedrijfskosteninstellingen, en de planning.
 
+
+---
+
+## Gebouwd 2026-09-10 — prijzen bijwerken uit de calculaties
+
+Het gat dat dit dicht: bij een mail van een nieuwe klant bestaan de artikelen nog
+niet, dus alle offerteregels ontstaan op € 0. Maak je daarna de recepten, dan is
+er niets dat die regels bijwerkt — de prijs op een regel is een momentopname en
+blijft staan. Je moest de calculatie met de hand overtypen, precies wat de
+calculatie moest voorkomen.
+
+Knop **Prijzen bijwerken** op de offertetab, met een overzicht vooraf.
+
+Drie keuzes en waarom:
+
+**Eén knop op de offerte, niet per artikel.** Een mail levert vaak zeven nieuwe
+artikelen op; zeven keer heen en weer is geen oplossing.
+
+**Een vinkje per regel, standaard aan.** Een offerteregel weet niet of zijn prijs
+berekend is of met de hand ingetypt — er is één veld `verkoopprijs`. Zonder
+overzicht overschrijf je stilzwijgend een prijs die iemand bewust had aangepast,
+bijvoorbeeld vanwege een prijsafspraak. Regels die op nul stonden heten "stond nog
+op nul" (niets te verliezen), regels met een prijs "prijs verandert" — die laatste
+krijgen een waarschuwing boven de lijst.
+
+**Alleen bij status `concept`.** Een verzonden offerte van prijs laten veranderen
+betekent dat er iets anders in het systeem staat dan bij de klant ligt. En
+`bewerkingen` op de regel bepaalt de productiestappen; die horen niet te
+verschuiven onder een order die al loopt.
+
+`bewerkingen` gaat mee met de prijs en niet los: ze komen uit dezelfde calculatie.
+Alleen de prijs verversen zou een regel opleveren met het bedrag van het nieuwe
+recept en de stappen van het oude.
+
+De rekenkern staat in `prijs-bijwerken.ts` en beslist niets — hij bepaalt alleen
+wat er zou veranderen. Het scherm toont het, de gebruiker kiest.
