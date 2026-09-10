@@ -329,9 +329,18 @@ minuut per mail; een misser napluizen hoort daarna geen tweede draai te vragen.
 
 ### 5.1b Een mail toevoegen
 
-Map maken onder `__tests__/mails/`, de mail erin als `mail.msg`, script draaien.
-Zonder `verwacht.json` scoort die mail niet maar schrijft het script een
-**voorstel** weg in `.score/<map>.verwacht-voorstel.json`.
+Map maken onder `__tests__/mails/`, de mail erin (de naam doet er niet toe, als
+het er maar precies één is), en dan:
+
+    npm run score:mails -w apps/api -- --voorstellen
+
+Voor elke mail zonder `verwacht.json` schrijft het script een **voorstel** weg in
+`.score/<map>.verwacht-voorstel.json`.
+
+Zonder `--voorstellen` draaien alléén de mails die al een nagekeken antwoord
+hebben. Dat is met opzet: er staat veel meer mail in de repo dan in de scoreset,
+en een gewone draai hoort de goedkope te zijn. Een mapnaam als argument
+(`-- lindhout`) draait die ene mail, met of zonder antwoord.
 
 Dat voorstel is wat het model ervan máákte, niet wat er staat. Klakkeloos
 overnemen bakt de fout van vandaag in als het goede antwoord van morgen, en dan

@@ -1,8 +1,14 @@
 /**
  * De scoreset — features/62-mail-import-ai-ontwerp.md §5.
  *
- *   npm run score:mails -w apps/api            (alle mails)
- *   npm run score:mails -w apps/api -- veratio (alleen mappen die dit bevatten)
+ *   npm run score:mails -w apps/api                 (de mails met een verwacht.json)
+ *   npm run score:mails -w apps/api -- lindhout     (alleen mappen die dit bevatten)
+ *   npm run score:mails -w apps/api -- --voorstellen (ook de mails zonder antwoord)
+ *
+ * Zonder argumenten draaien alléén de mails die een `verwacht.json` hebben. De
+ * voorraad eromheen — mails die er wel staan maar nog geen nagekeken antwoord
+ * hebben — blijft buiten schot, want elke mail kost geld en ongeveer 40 seconden.
+ * Wie er een fixture van wil maken vraagt daar expliciet om.
  *
  * Een nieuwe mail toevoegen: maak een map onder `__tests__/mails/` en zet de
  * mail erin. De naam van het .msg-bestand doet er niet toe — er moet er precies
@@ -150,15 +156,31 @@ async function main(): Promise<void> {
     console.error('MAIL_AI staat op "uit"; dan levert elke mail nul regels op en zegt de score niets.')
     process.exit(1)
   }
-  const filter = process.argv[2] ?? ''
-  const mappen = fs
+  const args = process.argv.slice(2)
+  const metVoorstellen = args.includes('--voorstellen')
+  const filter = args.find((a) => !a.startsWith('--')) ?? ''
+
+  const alle = fs
     .readdirSync(MAILS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && d.name.includes(filter))
+    .filter((d) => d.isDirectory() && d.name.toLowerCase().includes(filter.toLowerCase()))
     .map((d) => d.name)
     .sort()
 
+  const heeftAntwoord = (map: string) => fs.existsSync(path.join(MAILS_DIR, map, 'verwacht.json'))
+
+  // Zonder filter en zonder --voorstellen: alleen wat een nagekeken antwoord
+  // heeft. Een gewone draai hoort de goedkope te zijn; noemt iemand een mail bij
+  // naam, dan wil hij die mail, met of zonder antwoord.
+  const mappen = filter || metVoorstellen ? alle : alle.filter(heeftAntwoord)
+  const overgeslagen = alle.length - mappen.length
+
   if (!mappen.length) {
-    console.error(`Geen mails gevonden in ${MAILS_DIR}${filter ? ` die "${filter}" bevatten` : ''}.`)
+    console.error(
+      filter
+        ? `Geen mails in ${MAILS_DIR} die "${filter}" bevatten.`
+        : `Geen enkele mail in ${MAILS_DIR} heeft een verwacht.json.\n` +
+            'Draai met --voorstellen om er voorstellen voor te laten maken.'
+    )
     process.exit(1)
   }
 
@@ -185,6 +207,9 @@ async function main(): Promise<void> {
   if (!gescoord) return
   const pct = totaal ? Math.round((goed / totaal) * 100) : 0
   console.log(`\n──────────\nTotaal ${goed}/${totaal} (${pct}%) over ${gescoord} mail(s)`)
+  if (overgeslagen > 0) {
+    console.log(`${overgeslagen} mail(s) overgeslagen: nog geen verwacht.json. Draai met --voorstellen.`)
+  }
   console.log(`Wat het model teruggaf staat in ${UITVOER_DIR}\n`)
 }
 
