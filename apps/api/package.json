@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "probe:msg": "ts-node src/scripts/probe-msg.ts",
-    "score:mails": "dotenv -e ../../.env.development -- ts-node src/scripts/score-mails.ts"
+    "score:mails": "dotenv -e ../../.env.development -- ts-node src/scripts/score-mails.ts",
+    "mails:inventaris": "ts-node src/scripts/mails-inventaris.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.124.0",
