@@ -32,6 +32,12 @@ interface Props {
   project: Project
   onClose: () => void
   onLinked: (mailImport: MailImport, relatieId: string | null) => void
+  /**
+   * De koppeling met het project is verbroken. Apart van `onLinked`, want die
+   * schrijft ook de relatie en de ordergegevens naar het project — bij
+   * loskoppelen hoort er juist niets aan het project te veranderen.
+   */
+  onUnlinked: (mailImport: MailImport) => void
   onOfferteChanged: () => void
 }
 
@@ -42,7 +48,8 @@ const INTENT_LABELS: Record<MailIntent, string> = {
 }
 
 export function MailImportReview({
-  opened, mailImport, projectId, relaties, articleOptions, project, onClose, onLinked, onOfferteChanged,
+  opened, mailImport, projectId, relaties, articleOptions, project, onClose, onLinked, onUnlinked,
+  onOfferteChanged,
 }: Props) {
   const [relatieId, setRelatieId] = useState<string | null>(mailImport.relatieId)
   const [contactId, setContactId] = useState<string | null>(mailImport.contactId)
@@ -179,6 +186,48 @@ export function MailImportReview({
       })
     } catch (err) {
       notifications.show({ color: 'red', title: 'Koppelen mislukt', message: (err as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * De mail losmaken van het project.
+   *
+   * Bestond niet, terwijl twee foutmeldingen er wél naar verwezen ("maak die
+   * koppeling eerst ongedaan") — een doodlopende weg: opnieuw uitlezen werd
+   * geweigerd, verwijderen ook, en de knop om het op te lossen was er niet.
+   *
+   * Wat dit NIET doet: het project, de offerte en de artikelen blijven staan,
+   * inclusief regels die al zijn overgenomen. Alleen de mail hoort er niet meer
+   * bij. Dat staat ook in de bevestiging, want "loskoppelen" klinkt gevaarlijker
+   * dan het is en het omgekeerde misverstand is nog erger.
+   */
+  async function ontkoppel() {
+    if (
+      !window.confirm(
+        'De mail losmaken van dit project?\n\n' +
+          'Het project, de offerte en de artikelen blijven staan — ook regels die al zijn ' +
+          'overgenomen. Alleen de koppeling met deze mail gaat weg, zodat je hem opnieuw kunt ' +
+          'laten uitlezen of aan een ander project kunt hangen.'
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    try {
+      // Terug naar 'nieuw': koppelen zette hem op 'verwerkt', en een mail die
+      // nergens meer bij hoort is niet verwerkt.
+      const saved = await mailImportsApi.update(current.id, { projectId: null, status: 'nieuw' })
+      setCurrent(saved)
+      onUnlinked(saved)
+      notifications.show({
+        color: 'green',
+        title: 'Losgekoppeld',
+        message: 'De mail hoort niet meer bij dit project. Het project zelf is niet veranderd.',
+      })
+    } catch (err) {
+      notifications.show({ color: 'red', title: 'Loskoppelen mislukt', message: (err as Error).message })
     } finally {
       setBusy(false)
     }
@@ -330,6 +379,12 @@ export function MailImportReview({
           title="Hangt de tekeningen uit deze mail alsnog aan de artikelen die er al zijn. Raakt het project en de offerte niet aan.">
           Tekeningen alsnog koppelen
         </button>
+        {current.projectId && (
+          <button className="st-btn sm ghost" onClick={ontkoppel} disabled={busy}
+            title="Maakt de mail los van dit project. Het project, de offerte en de artikelen blijven staan.">
+            Loskoppelen van project
+          </button>
+        )}
         <button className="st-btn sm ghost" onClick={ignore} disabled={busy}>Negeren</button>
         <button className="st-btn primary sm" onClick={link} disabled={busy || !relatieId}>
           {busy

@@ -244,7 +244,8 @@ router.post(
         'IN_USE',
         'Deze mail is al aan een project gekoppeld; opnieuw uitlezen zou de regels ' +
           'weggooien die de offerte al heeft overgenomen. Ontbreken alleen de tekeningen ' +
-          'bij de artikelen, gebruik dan "Tekeningen alsnog koppelen".'
+          'bij de artikelen, gebruik dan "Tekeningen alsnog koppelen". Wil je toch opnieuw ' +
+          'beginnen, gebruik dan eerst "Loskoppelen van project".'
       )
     }
 
@@ -439,7 +440,8 @@ router.delete(
       throw new AppError(
         409,
         'IN_USE',
-        'Deze mail hoort bij een project. Verwijder eerst het project of zet de import op genegeerd.'
+        'Deze mail hoort bij een project. Gebruik "Loskoppelen van project" als je hem los wilt ' +
+          'maken, of zet de import op genegeerd als hij mag blijven staan.'
       )
     }
 
