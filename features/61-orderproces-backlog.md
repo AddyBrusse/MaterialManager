@@ -282,3 +282,30 @@ Twee dingen om over te beslissen, in deze volgorde:
 Zolang 1 niet gebouwd is, is het eerlijker om te zeggen dat het systeem leert van
 artikelkoppelingen, en verder niet.
 
+---
+
+## Idee 2026-09-10 — meerdere calculaties per artikel (routes)
+
+Van Addy, om later op te pakken; nog geen ontwerp, alleen de vraag vastgelegd
+zodat hij niet verdwijnt.
+
+Een artikel heeft nu één calculatie. In de praktijk kan hetzelfde onderdeel op
+meer dan één manier gemaakt worden — een andere aanpak, of dezelfde aanpak op een
+andere machine omdat de eerste bezet is. Dat verandert de kostprijs en de
+doorlooptijd, en dus ook wat er op de offerte en in de planning hoort te staan.
+
+Wat er in elk geval uitgezocht moet worden voor hier iets van gebouwd wordt:
+
+- Is een route een **variant van de calculatie** (zelfde artikel, andere
+  bewerkingsvolgorde) of een **keuze op het moment van plannen** (zelfde
+  calculatie, andere machine)? Dat zijn twee verschillende dingen en ze raken
+  verschillende schermen.
+- Welke route bepaalt de **verkoopprijs** op de offerte — de goedkoopste, de
+  standaard, of degene die bij het plannen gekozen is? En wat gebeurt er als er
+  achteraf een andere gedraaid wordt dan geoffreerd?
+- Wat betekent het voor de planning (`teltMeeInPlanning`, de ghost-belasting) als
+  een artikel meer dan één mogelijke machinebezetting heeft?
+
+Raakt: `buildEstimateCtx` / `computeEstimateTotals`, de machines- en
+bedrijfskosteninstellingen, en de planning.
+

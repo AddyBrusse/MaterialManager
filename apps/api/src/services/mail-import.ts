@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import type { Prisma, PrismaClient } from '@prisma/client'
+import { CandidateLineSchema, ExtractieRapportSchema } from '@stockmanager/shared'
 import type {
   CandidateLine,
   ExtractieRapport,
@@ -681,14 +682,52 @@ type MailImportRow = {
   updatedAt: Date
 }
 
+/**
+ * JSON uit de database door het schema halen in plaats van er een type op te
+ * plakken.
+ *
+ * Een cast is een belofte aan de compiler, geen controle. `kandidaten` en
+ * `extractie` staan als JSON opgeslagen, dus een rij die door een oudere versie
+ * is weggeschreven mist de velden die er later bij kwamen — en die zijn dan
+ * `undefined`, niet hun default. Het reviewscherm deed `line.bestanden.map(...)`
+ * en werd wit (waargenomen 2026-09-10 op een mail die vóór het `bestanden`-veld
+ * was ingelezen).
+ *
+ * Parsen laat de defaults uit het schema alsnog hun werk doen. Dat repareert niet
+ * alleen de velden van vandaag maar elke die er nog bij komt: een oud record
+ * groeit vanzelf mee in plaats van het scherm om te leggen.
+ *
+ * Lukt het parsen niet, dan is er meer aan de hand dan een ontbrekend veld. Zo'n
+ * regel gaat er niet in — met een melding in de log, want stilzwijgend weglaten
+ * is precies hoe je er nooit achter komt.
+ */
+function veiligeKandidaten(raw: unknown, id: string): CandidateLine[] {
+  if (!Array.isArray(raw)) return []
+  const uit: CandidateLine[] = []
+  for (const k of raw) {
+    const r = CandidateLineSchema.safeParse(k)
+    if (r.success) uit.push(r.data)
+    else console.warn(`mail-import ${id}: regel niet te lezen, overgeslagen`, r.error.issues)
+  }
+  return uit
+}
+
+function veiligRapport(raw: unknown, id: string): ExtractieRapport | null {
+  if (raw === null || raw === undefined) return null
+  const r = ExtractieRapportSchema.safeParse(raw)
+  if (r.success) return r.data
+  console.warn(`mail-import ${id}: extractierapport niet te lezen`, r.error.issues)
+  return null
+}
+
 export function serializeMailImport(row: MailImportRow): MailImport {
   return {
     ...row,
     ontvangenOp: row.ontvangenOp?.toISOString() ?? null,
     bijlagen: (row.bijlagen ?? []) as MailAttachment[],
     resolutie: (row.resolutie ?? null) as SenderResolution | null,
-    kandidaten: (row.kandidaten ?? []) as MailImport['kandidaten'],
-    extractie: (row.extractie ?? null) as MailImport['extractie'],
+    kandidaten: veiligeKandidaten(row.kandidaten, row.id),
+    extractie: veiligRapport(row.extractie, row.id),
     leverdatum: row.leverdatum?.toISOString() ?? null,
     source: row.source as MailImport['source'],
     intent: row.intent as MailImport['intent'],
