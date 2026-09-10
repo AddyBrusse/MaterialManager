@@ -44,6 +44,15 @@ describe('classifyAttachment', () => {
     // Wel een nummer, maar een bestandstype dat hier geen onderdeel aanduidt.
     expect(classifyAttachment('order 12345.xlsx')).toBe('overig')
   })
+
+  it('ziet een meegestuurde mail nooit als handelsdocument', () => {
+    // Waargenomen bij Global Factories: naast de inkooporder zat "Offerte
+    // 2634-00014.msg", die op zijn naam als document werd geclassificeerd. Zou
+    // die als leidend document gekozen worden, dan komen de regels uit de
+    // verkeerde bron en staat de echte inkooporder buitenspel.
+    expect(classifyAttachment('Offerte 2634-00014.msg')).toBe('overig')
+    expect(classifyAttachment('Inkooporder 123.eml')).toBe('overig')
+  })
 })
 
 describe('hoortBij', () => {

@@ -387,8 +387,15 @@ precies de reden dat de pdf zelf mee moet.
 ### 5.1c Het antwoord nakijken
 
     npm run mails:antwoorden -w apps/api
+    npm run mails:antwoorden -w apps/api -- lindhout --bron
 
 Drukt elke `verwacht.json` af als leesbare regels. Geen API-aanroep.
+
+Met `--bron` komt de mail er zelf onder te staan: onderwerp, afzender, de tekst
+van het bericht, de bijlagen met hun classificatie, en de uitgeklopte tekst van
+het handelsdocument. Zonder dat valt het antwoord niet te beoordelen — `qty=2`
+zegt niets als je niet ziet waar die 2 vandaan zou moeten komen. Bedoeld om per
+mail te gebruiken; over zes mails tegelijk is het te veel.
 
 Dit is er omdat een fixture de meetlat *is*: staat daar iets fout in, dan meet de
 set de verkeerde kant op en merkt niemand het — een groene set is dan juist het

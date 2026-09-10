@@ -17,6 +17,15 @@ import type { CandidateLine, MailAttachment } from '@stockmanager/shared'
 
 /** Bijlagen die nooit een onderdeel zijn — handtekeningplaatjes en dergelijke. */
 const IGNORED_EXTENSIONS = new Set(['.p7s', '.p7m', '.asc', '.vcf', '.ics', '.gif'])
+/**
+ * Een meegestuurde mail is nooit zelf het handelsdocument, hoe hij ook heet.
+ * Waargenomen bij Global Factories: een inkooporder met "Offerte 2634-00014.msg"
+ * ernaast, en die .msg werd op zijn naam als document geclassificeerd. Zou hij
+ * ooit als leidend document gekozen worden, dan komt de échte inkooporder
+ * buitenspel te staan en zijn de regels van de verkeerde bron. Wat er in zo'n
+ * bijlage zit hoort via de parser binnen te komen, niet via de naam.
+ */
+const BERICHT_EXTENSIONS = new Set(['.msg', '.eml'])
 const IGNORED_NAMES = /^(image\d*|oledata|winmail|logo|signature|banner)/i
 
 /**
@@ -84,6 +93,7 @@ export function classifyAttachment(filename: string, tekst?: string | null): Att
   const ext = extensionOf(filename)
   const base = baseNameOf(filename)
   if (!base || IGNORED_EXTENSIONS.has(ext) || IGNORED_NAMES.test(base)) return 'overig'
+  if (BERICHT_EXTENSIONS.has(ext)) return 'overig'
   // Inhoud gaat vóór naam: wat er in het document staat liegt niet, een
   // bestandsnaam uit een vreemd systeem wel.
   if (tekst && DOCUMENT_TEKST.test(tekst.slice(0, 4000))) return 'document'
@@ -134,13 +144,6 @@ export function leidendDocument(attachments: MailAttachment[]): MailAttachment |
 }
 
 /**
- * Tekeningen bij hun regel zetten.
- *
- * Een bestand dat bij geen enkele regel hoort blijft gewoon in de bijlagenlijst
- * staan; het wordt niet stilzwijgend weggegooid en ook niet alsnog een regel —
- * als het document de regels bepaalde, is dat document leidend.
- */
-/**
  * Twee tekeningnummers die hetzelfde onderdeel aanduiden.
  *
  * Streng waar `hoortBij` soepel is, en dat verschil is de kern. `hoortBij` mag
@@ -156,6 +159,13 @@ export function nummerGelijk(a: string | null, b: string | null): boolean {
   return k(a).length >= MIN_OVERLAP && k(a) === k(b)
 }
 
+/**
+ * Tekeningen bij hun regel zetten.
+ *
+ * Een bestand dat bij geen enkele regel hoort blijft gewoon in de bijlagenlijst
+ * staan; het wordt niet stilzwijgend weggegooid en ook niet alsnog een regel —
+ * als het document de regels bepaalde, is dat document leidend.
+ */
 export function hangBestandenAan(
   lines: CandidateLine[],
   attachments: MailAttachment[],
