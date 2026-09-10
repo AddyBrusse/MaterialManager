@@ -346,7 +346,7 @@ export function aiEnabled(): boolean {
 }
 
 let client: Anthropic | null = null
-function getClient(): Anthropic {
+export function getClient(): Anthropic {
   if (!client) client = new Anthropic({ apiKey: config.ai.apiKey ?? undefined })
   return client
 }
@@ -549,7 +549,13 @@ export function schoonOmschrijving(
 export function buildLines(
   ai: AiLine[],
   mail: NormalizedMail,
-  opts: { scans?: Set<string>; document?: string | null; bevestiging?: AiLine[] | null } = {}
+  opts: {
+    scans?: Set<string>
+    document?: string | null
+    bevestiging?: AiLine[] | null
+    /** Bestandsnaam → nummer uit het titelblok, als dat gelezen is (§3.2). */
+    titelblokken?: ReadonlyMap<string, string>
+  } = {}
 ): BuildResult {
   const scans = opts.scans ?? new Set<string>()
   const hay = haystack(mail)
@@ -600,7 +606,7 @@ export function buildLines(
   }
 
   const lines = [...byKey.values()]
-  hangBestandenAan(lines, mail.attachments, document)
+  hangBestandenAan(lines, mail.attachments, document, opts.titelblokken)
   lines.sort((a, b) => (a.positie ?? 9999) - (b.positie ?? 9999))
   return { lines, modelZekerheid }
 }

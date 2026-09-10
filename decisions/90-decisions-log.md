@@ -571,3 +571,37 @@ Wat dit **niet** zegt: de set is nog steeds klein en het goede antwoord komt uit
 diezelfde mails. 100% betekent "niets kapot", niet "goed genoeg". De volgende stap
 is daarom geen code maar gebruik: elke mail die in het echt misgaat gaat als
 fixture in de set, vóór hij gerepareerd wordt.
+
+## 2026-09-10 — Het titelblok lezen als de bestandsnaam nergens bij past (stap C)
+
+`titelblok.ts`. Aanleiding is de inkooporder van Post Metaalbewerking (6191): die
+bestelt volgens `MD13504758` en stuurt een bestand `md10504758 B uitbesteding.pdf`
+mee. Eén cijfer anders. Uit de bestandsnaam alleen is niet te zeggen of dat
+dezelfde tekening is met een typefout of een ander onderdeel — en die tekeningen
+hebben geen tekstlaag, dus `pdfText` levert niets op. Het model kan de pagina wel
+bekijken.
+
+Twee keuzes die de rest bepalen:
+
+**Het is een escalatie, geen extra stap.** Er wordt pas gelezen als er een regel
+zónder bestand is náást een tekening zónder regel (§3.1b trap 3). Bij mail waar de
+bestandsnaam gewoon matcht gebeurt er niets en kost het niets. Maximaal vier
+tekeningen per mail.
+
+**Het gelezen nummer koppelt alleen bij een exacte overeenkomst.** `hoortBij` mag
+soepel zijn op een bestandsnaam, want daar is verder niets. Een titelbloknummer is
+een uitspraak over wat er op de tekening staat; wijkt het af, dan is het een
+andere tekening. Vandaar `nummerGelijk`, dat op letters en cijfers vergelijkt en
+geen enkel teken laat schelen.
+
+Daaruit volgt een uitzondering op het vangnet in `hangBestandenAan`: één regel met
+één losse tekening werd altijd gekoppeld, maar als het titelblok een ander nummer
+geeft weten we dat het fout is. Zonder die uitzondering zou C de zaak
+verslechteren in plaats van verbeteren.
+
+Productie en de scoreset lopen sinds deze wijziging door hetzelfde leespad
+(`mail-lezen.leesMail`). Dat was al de bedoeling maar was nog niet zo: `buildCandidates`
+had zijn eigen kopie van lezen-plus-regels-opbouwen. Een scoreset die een ander
+pad meet dan de app loopt, meet niets.
+
+Uit met `MAIL_AI_TITELBLOK=uit`.

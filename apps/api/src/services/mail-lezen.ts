@@ -5,6 +5,7 @@ import type { ExtractedAttachment } from './msg-parse'
 import { parseMsg, readAttachments } from './msg-parse'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import type { CandidateLine, NormalizedMail } from '@stockmanager/shared'
+import { leesTitelblokken, loontEscalatie, tekeningenZonderRegel, titelblokEnabled } from './titelblok'
 import type { AiExtractOutcome } from './ai-extract'
 
 /**
@@ -95,6 +96,10 @@ export interface Gelezen {
   mail: NormalizedMail
   uitkomst: AiExtractOutcome
   lines: CandidateLine[]
+  /** Zelfgerapporteerde zekerheid per regel-id, voor certainty.ts. */
+  modelZekerheid: Map<string, number>
+  /** Tekeningen waarvan het titelblok gelezen is: bestandsnaam → nummer. */
+  titelblokken: Map<string, string>
 }
 
 /**
@@ -105,11 +110,31 @@ export interface Gelezen {
  * precies dit: hoe goed we de mail *lezen*.
  */
 export async function leesMail(voorbereid: Voorbereid): Promise<Gelezen> {
-  const uitkomst = await aiExtract(voorbereid.mail, voorbereid.buffers)
-  const { lines } = buildLines(uitkomst.regels, voorbereid.mail, {
+  const { mail, buffers } = voorbereid
+  const uitkomst = await aiExtract(mail, buffers)
+  const opts = {
     scans: new Set(uitkomst.scans),
     document: uitkomst.document,
     bevestiging: uitkomst.bevestiging,
-  })
-  return { mail: voorbereid.mail, uitkomst, lines }
+  }
+  const eerste = buildLines(uitkomst.regels, mail, opts)
+
+  // Escaleren (§3.1b trap 3): pas als er een regel zónder bestand is én een
+  // tekening die nergens bij hoort, is er iets te winnen met het titelblok. Bij
+  // de meeste mail matcht de bestandsnaam gewoon en gebeurt hier niets.
+  let titelblokken = new Map<string, string>()
+  if (titelblokEnabled()) {
+    const kandidaten = tekeningenZonderRegel(eerste.lines, mail.attachments, buffers, uitkomst.document)
+    if (loontEscalatie(eerste.lines, kandidaten)) {
+      titelblokken = await leesTitelblokken(kandidaten, buffers)
+    }
+  }
+
+  // Zonder titelblokken is dit exact dezelfde uitkomst; opnieuw opbouwen is
+  // goedkoper dan een tweede pad met eigen gedrag.
+  const { lines, modelZekerheid } = titelblokken.size
+    ? buildLines(uitkomst.regels, mail, { ...opts, titelblokken })
+    : eerste
+
+  return { mail, uitkomst, lines, modelZekerheid, titelblokken }
 }

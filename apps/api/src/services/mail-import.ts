@@ -15,7 +15,7 @@ import { sanitizeFilename } from '../lib/filenames'
 import { parseMsg, readAttachments, type ExtractedAttachment } from './msg-parse'
 import { isZip, pakZipUit } from './zip-uitpakken'
 import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
-import { bereidVoor, metZipInhoud } from './mail-lezen'
+import { bereidVoor, leesMail, metZipInhoud } from './mail-lezen'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
 import { aiEnabled, aiExtract, aiFoutTekst, buildLines, type AttachmentBuffers } from './ai-extract'
@@ -279,11 +279,15 @@ export async function buildCandidates(
   ])
 
   try {
-    const ai = await aiExtract(mail, buffers)
-    const { lines, modelZekerheid } = buildLines(ai.regels, mail, {
-      scans: new Set(ai.scans),
-      document: ai.document ?? document,
-      bevestiging: ai.bevestiging,
+    // Eén leespad, gedeeld met de scoreset (mail-lezen.ts): lezen, regels
+    // opbouwen en zo nodig het titelblok erbij halen. Als de scoreset een ander
+    // pad zou meten, meet hij niets.
+    const { uitkomst: ai, lines, modelZekerheid, titelblokken } = await leesMail({
+      mail,
+      embedded: [],
+      buffers,
+      extracted: [],
+      teksten: [],
     })
     const kandidaten = scoreLines(
       matchLines(lines, articles, aliases, relatieId, relatieNamen),
@@ -300,6 +304,7 @@ export async function buildCandidates(
         documentGebruikt: ai.document ?? document,
         gescandeBijlagen: ai.scans,
         volledigMeegestuurd: ai.nativeBlokken,
+        titelblokGelezen: [...titelblokken.keys()],
         controleGedaan: ai.bevestiging !== null,
       }),
     }

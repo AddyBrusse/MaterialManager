@@ -256,6 +256,11 @@ export const ExtractieRapportSchema = z.object({
    * ook als het wél een tekstlaag heeft — die tekst gooit de tabelindeling weg.
    */
   volledigMeegestuurd: z.array(z.string()).default([]),
+  /**
+   * Tekeningen waarvan het titelblok is gelezen omdat ze op de bestandsnaam
+   * nergens bij pasten (§3.2). Staat er iets in, dan is er geëscaleerd.
+   */
+  titelblokGelezen: z.array(z.string()).default([]),
   /** Gevuld als de AI-stap faalde; de regelmotor draaide dan alleen. */
   foutmelding: z.string().nullable(),
 })

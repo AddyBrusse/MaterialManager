@@ -402,6 +402,22 @@ Ook D (opruimen) is nog niet gratis: `hoortBij`, `komtVanTekening` en
 `schoonOmschrijving` dóen hier het werk dat de score op 100% houdt. Ze zijn pas
 weg te halen als C hun taak overneemt, niet ervoor.
 
+### 3.2b Waarom het titelbloknummer streng vergeleken wordt
+
+`hoortBij` mag soepel zijn op een bestandsnaam: daar is verder niets, dus een
+gedeeltelijke overlap is het beste signaal dat er is. Een titelbloknummer is iets
+anders — dat is geen gok maar een uitspraak over wat er op de tekening staat.
+Wijkt het af van wat de klant bestelde, dan is het een andere tekening.
+
+Daarom `nummerGelijk`: gelijk op letters en cijfers, verder niets. `MD13504758`
+en `MD10504758` zijn niet hetzelfde.
+
+Dat maakt ook een uitzondering nodig op het vangnet in `hangBestandenAan` (één
+regel plus losse tekeningen). Zonder die uitzondering zou het lezen van het
+titelblok de zaak *verslechteren*: normaal is één regel met één losse tekening
+reden genoeg om te koppelen, maar als het titelblok zegt dat het een ander nummer
+is, weten we beter. Er is een test die daarop staat.
+
 ### 5.2f De metingen tot nu toe
 
 | Datum | Set | Score | Wat er veranderde |
@@ -490,8 +506,13 @@ Elke stap is los te bouwen en levert op zichzelf iets op.
       uitgeklopte tekst van diezelfde pdf gaat er dan juist uit, zodat het model
       niet de kapotte versie leest. Tekeningen gaan niet meer mee zolang er een
       document is. Nog niet gemeten met A — daar is een API-sleutel voor nodig.
-- [ ] **C. Titelblok lezen** (§3.2) en het nummer opzoeken in onze artikelen
-      (§4.1). Dit haalt de klasse bugs van vandaag structureel weg.
+- [x] **C. Titelblok lezen** (§3.2) — gebouwd 2026-09-10. `titelblok.ts` leest het
+      nummer van een tekening die op zijn bestandsnaam nergens bij past, en dat
+      nummer koppelt alleen bij een EXACTE overeenkomst. Het escaleert pas als er
+      een regel zónder bestand is naast een tekening zónder regel (§3.1b trap 3),
+      dus bij de meeste mail gebeurt er niets. Uit met `MAIL_AI_TITELBLOK=uit`.
+      Het opzoeken van het nummer in onze eigen artikelen (§4.1) hoort hier nog
+      niet bij; dat is match-articles en raakt de database.
 - [ ] **D. Opruimen.** `classifyAttachment`, `hoortBij` in drie trappen,
       `komtVanTekening`, `schoonOmschrijving` — weg, zodra C ze overbodig maakt.
       Meten met A dat er niets stukgaat.

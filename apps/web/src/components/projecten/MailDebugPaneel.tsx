@@ -57,6 +57,12 @@ export function MailDebugPaneel({ mailImport }: { mailImport: MailImport }) {
                   <dd>{ex.volledigMeegestuurd.join(', ')}</dd>
                 </>
               )}
+              {ex.titelblokGelezen.length > 0 && (
+                <>
+                  <dt>Titelblok gelezen</dt>
+                  <dd>{ex.titelblokGelezen.join(', ')}</dd>
+                </>
+              )}
               {ex.gescandeBijlagen.length > 0 && (
                 <>
                   <dt>Zonder tekstlaag</dt>

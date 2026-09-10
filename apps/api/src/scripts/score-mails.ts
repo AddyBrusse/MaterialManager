@@ -72,10 +72,14 @@ async function scoreMail(map: string): Promise<Telling> {
 
   const begin = Date.now()
   const voorbereid = await bereidVoor(fs.readFileSync(msgIn(map)))
-  const { uitkomst, lines } = await leesMail(voorbereid)
+  const { uitkomst, lines, titelblokken } = await leesMail(voorbereid)
   const duur = ((Date.now() - begin) / 1000).toFixed(0)
 
   console.log(`\n${map}  (${duur}s, volledig meegestuurd: ${uitkomst.nativeBlokken.join(', ') || 'niets'})`)
+  if (titelblokken.size) {
+    const gelezen = [...titelblokken].map(([bestand, nummer]) => `${bestand} -> ${nummer}`)
+    console.log(`  titelblok gelezen: ${gelezen.join(', ')}`)
+  }
 
   if ('intent' in verwacht) t.check('intent', verwacht.intent, uitkomst.intent)
   if ('document' in verwacht) t.check('document', verwacht.document, uitkomst.document)
@@ -88,7 +92,7 @@ async function scoreMail(map: string): Promise<Telling> {
   fs.mkdirSync(UITVOER_DIR, { recursive: true })
   fs.writeFileSync(
     path.join(UITVOER_DIR, `${bestandsnaam(map)}.json`),
-    JSON.stringify({ uitkomst, regels: lines }, null, 2),
+    JSON.stringify({ uitkomst, titelblokken: [...titelblokken], regels: lines }, null, 2),
     'utf8'
   )
 

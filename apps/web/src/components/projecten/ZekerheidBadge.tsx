@@ -77,6 +77,12 @@ export function ExtractieSamenvatting({ rapport }: { rapport: ExtractieRapport |
           Als volledige pdf gelezen: {rapport.volledigMeegestuurd.join(', ')}
         </div>
       )}
+      {rapport.titelblokGelezen.length > 0 && (
+        <div>
+          Titelblok gelezen omdat de bestandsnaam nergens bij paste:{' '}
+          {rapport.titelblokGelezen.join(', ')}
+        </div>
+      )}
       {rapport.gescandeBijlagen.length > 0 && (
         <div>
           Zonder tekstlaag, dus niet na te zoeken: {rapport.gescandeBijlagen.join(', ')}
