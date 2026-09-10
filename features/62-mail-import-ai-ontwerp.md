@@ -384,6 +384,17 @@ De vorm van de kolomsoep verschilt per leverancier en is telkens anders kapot:
 Dat is geen patroon om een regel op te schrijven — het is per systeem anders — en
 precies de reden dat de pdf zelf mee moet.
 
+### 5.1c Het antwoord nakijken
+
+    npm run mails:antwoorden -w apps/api
+
+Drukt elke `verwacht.json` af als leesbare regels. Geen API-aanroep.
+
+Dit is er omdat een fixture de meetlat *is*: staat daar iets fout in, dan meet de
+set de verkeerde kant op en merkt niemand het — een groene set is dan juist het
+probleem. Nakijken moet daarom makkelijker zijn dan zes JSON-bestanden opengaan,
+anders gebeurt het niet.
+
 ### 5.2c Wat 100% wel en niet zegt
 
 De set staat op 77/77. Dat is een **regressienet**, geen bewijs van kwaliteit:
