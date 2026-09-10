@@ -648,3 +648,39 @@ een `vi.fn()` die een afgewezen promise teruggeeft laat een onopgevangen afgelei
 promise achter, doordat vitest er zijn eigen `.then()` aan hangt om het resultaat
 te registreren. Dat meldt zich als een mislukte test terwijl de code klopt. In
 zo'n geval is een gewone functie als testdubbel beter dan een spy.
+
+## 2026-09-10 — JSON uit de database parsen in plaats van casten
+
+Het reviewscherm werd wit bij het openen van een mail die vóór vandaag was
+ingelezen: `Cannot read properties of undefined (reading 'map')`, want de
+opgeslagen regel had geen `bestanden`.
+
+`serializeMailImport` plakte een type op de JSON uit de database (`as`) in plaats
+van hem te parsen. Een cast is een belofte aan de compiler, geen controle: een rij
+die door een oudere versie is weggeschreven mist de velden die er later bij kwamen,
+en die zijn dan `undefined` — niet hun default uit het Zod-schema.
+
+`kandidaten` en `extractie` gaan nu door `CandidateLineSchema` en
+`ExtractieRapportSchema`. Daarmee doen de defaults alsnog hun werk, en dat
+repareert niet alleen de velden van vandaag maar elke die er nog bij komt: een oud
+record groeit vanzelf mee in plaats van het scherm om te leggen. Een regel die
+werkelijk niet te lezen is gaat eruit, met een melding in de log — stilzwijgend
+weglaten is precies hoe je er nooit achter komt.
+
+Dit is een klasse fout die overal kan zitten waar JSON-kolommen met `as` worden
+gelezen. Hier speelde het bij mail-imports; elders is het nog niet nagekeken.
+
+## 2026-09-10 — Een slot aanvragen liep stuk op zichzelf
+
+`P2002` op `(item_type, item_id)` bij het openen van een project: de route keek
+eerst of er een slot was en maakte er daarna een. Tussen die twee stappen kan een
+ander verzoek er al een hebben gezet — en dat is geen zeldzaam geval, want het
+scherm vraagt het slot bij openen aan en React doet in ontwikkelmodus elk effect
+twee keer.
+
+Het aanmaken vangt `P2002` nu op, kijkt wie het slot heeft en geeft 200 als dat de
+aanvrager zelf is. Wie de race won doet er niet toe; alleen wie het slot nú heeft.
+
+Nagemeten: zes gelijktijdige aanvragen van dezelfde gebruiker geven één 201 en vijf
+200, met één slot in de database en nul fouten. Twee gebruikers tegelijk op een
+leeg slot geven één winnaar en 409 voor de ander.

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../db/client'
 import { AcquireLockSchema, LockItemTypeSchema } from '@stockmanager/shared'
 import { requireAdmin } from '../middleware/require-admin'
@@ -62,15 +63,36 @@ router.post(
       )
     }
 
-    await prisma.lock.create({
-      data: {
-        itemType,
-        itemId: req.params.itemId,
-        userId: req.user.id,
-        acquiredAt: new Date(),
-        lastHeartbeat: new Date(),
-      },
-    })
+    try {
+      await prisma.lock.create({
+        data: {
+          itemType,
+          itemId: req.params.itemId,
+          userId: req.user.id,
+          acquiredAt: new Date(),
+          lastHeartbeat: new Date(),
+        },
+      })
+    } catch (err) {
+      // Tussen het kijken en het aanmaken kan een ander verzoek er al een hebben
+      // gezet. Dat is geen uitzonderlijk geval: het scherm vraagt het slot bij
+      // het openen aan, en in ontwikkelmodus doet React elk effect twee keer —
+      // twee aanvragen tegelijk dus, en de tweede liep stuk op de unieke sleutel
+      // (waargenomen 2026-09-10, P2002 op item_type/item_id).
+      //
+      // Wie er won maakt niet uit; alleen wie het slot nú heeft. Is dat deze
+      // gebruiker, dan is het verzoek geslaagd — dat is precies wat hij vroeg.
+      if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') throw err
+
+      const gewonnen = await prisma.lock.findUnique({
+        where: { itemType_itemId: { itemType, itemId: req.params.itemId } },
+        include: { user: { select: { id: true, name: true } } },
+      })
+      if (gewonnen && gewonnen.userId !== req.user.id) {
+        throw new AppError(409, 'LOCK_HELD', `Item wordt bewerkt door ${gewonnen.user.name}`)
+      }
+      return res.json({ data: { acquired: true } })
+    }
     res.status(201).json({ data: { acquired: true } })
   })
 )
