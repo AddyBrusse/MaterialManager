@@ -77,8 +77,12 @@ function toon(map: string): void {
     console.log('   (nog geen verwacht.json — deze mail doet niet mee aan de score)')
     return
   }
-  const v = JSON.parse(fs.readFileSync(bestand, 'utf8')) as Verwacht & { _toelichting?: string }
+  const v = JSON.parse(fs.readFileSync(bestand, 'utf8')) as Verwacht & {
+    _toelichting?: string
+    _nagekeken?: string
+  }
 
+  console.log(v._nagekeken ? `   NAGEKEKEN: ${v._nagekeken}` : '   NIET NAGEKEKEN — dit antwoord is alleen afgeleid, niet bevestigd.')
   if (v._toelichting) {
     for (const zin of v._toelichting.split('\n')) console.log(`   ${zin}`)
   }

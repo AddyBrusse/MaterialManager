@@ -436,6 +436,21 @@ titelblok de zaak *verslechteren*: normaal is één regel met één losse tekeni
 reden genoeg om te koppelen, maar als het titelblok zegt dat het een ander nummer
 is, weten we beter. Er is een test die daarop staat.
 
+### 5.1d Nagekeken of alleen afgeleid
+
+Elke `verwacht.json` draagt een veld `_nagekeken`. Dat onderscheid is wezenlijk:
+
+- **Alleen afgeleid** — ik heb de mail gelezen en opgeschreven wat eruit lijkt te
+  volgen. Maar ik lees dezelfde bijlagen als het model, dus waar het model iets
+  verkeerd begrijpt, begrijp ik het waarschijnlijk net zo verkeerd. Zo'n antwoord
+  is een aanname met een strik erom.
+- **Nagekeken** — iemand die de klant kent heeft het regel voor regel naast de
+  mail gelegd. Pas dan meet de set iets buiten zichzelf.
+
+Alle zes de fixtures zijn op 2026-09-10 nagekeken. `mails:antwoorden` drukt de
+status bovenaan af, zodat een niet-nagekeken antwoord opvalt voordat er conclusies
+aan verbonden worden.
+
 ### 5.2f De metingen tot nu toe
 
 | Datum | Set | Score | Wat er veranderde |

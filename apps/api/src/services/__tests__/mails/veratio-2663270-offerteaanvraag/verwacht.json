@@ -1,5 +1,6 @@
 {
   "_toelichting": "Offerteaanvraag van Damiano Blonk, 16-07-2026. Geen handelsdocument: de regels staan als opsomming in de mailtekst. Zeven tekeningen in een zip, met nummer in de bestandsnaam. Twee regels vragen om een 3.1-certificaat.",
+  "_nagekeken": "Bart Boers, 2026-09-10 — regel voor regel naast de mail gelegd en akkoord.",
   "intent": "offerteaanvraag",
   "document": null,
   "regels": [
@@ -8,49 +9,70 @@
       "qty": 2,
       "materiaal": "RVS-316L vierkant staf 40",
       "materiaalDoorKlant": true,
-      "bestanden": ["206413050_507957355_A_Bewerken.pdf", "206413050_507957355_A_.stp"]
+      "bestanden": [
+        "206413050_507957355_A_Bewerken.pdf",
+        "206413050_507957355_A_.stp"
+      ]
     },
     {
       "tekening": "208116035_703078236_-_",
       "qty": 2,
       "materiaal": "RVS-316L rondstaf 30",
       "materiaalDoorKlant": true,
-      "bestanden": ["208116035_703078236_-_Bewerken.pdf", "208116035_703078236_-_Bewerken.stp"]
+      "bestanden": [
+        "208116035_703078236_-_Bewerken.pdf",
+        "208116035_703078236_-_Bewerken.stp"
+      ]
     },
     {
       "tekening": "300651754_703804492_-_",
       "qty": 1,
       "materiaal": "RVS-316L rondstaf 30",
       "materiaalDoorKlant": true,
-      "bestanden": ["300651754_703804492_-_Bewerken.pdf", "300651754_703804492_-_Bewerken.stp"]
+      "bestanden": [
+        "300651754_703804492_-_Bewerken.pdf",
+        "300651754_703804492_-_Bewerken.stp"
+      ]
     },
     {
       "tekening": "210391840_703806257_-_",
       "qty": 1,
       "materiaalDoorKlant": false,
       "certificaat": "3.1",
-      "bestanden": ["210391840_703806257_-_Bewerken.pdf", "210391840_703806257_-_Bewerken.stp"]
+      "bestanden": [
+        "210391840_703806257_-_Bewerken.pdf",
+        "210391840_703806257_-_Bewerken.stp"
+      ]
     },
     {
       "tekening": "210392059_703806273_-_",
       "qty": 1,
       "materiaal": "RVS-316L rondstaf 200",
       "materiaalDoorKlant": true,
-      "bestanden": ["210392059_703806273_-_Bewerken.pdf", "210392059_703806273_-_Bewerken.stp"]
+      "bestanden": [
+        "210392059_703806273_-_Bewerken.pdf",
+        "210392059_703806273_-_Bewerken.stp"
+      ]
     },
     {
       "tekening": "210393943_703807741_-_",
       "qty": 1,
       "materiaalDoorKlant": false,
       "certificaat": "3.1",
-      "bestanden": ["210393943_703807741_-_Bewerken.pdf", "210393943_703807741_-_Bewerken.stp"]
+      "bestanden": [
+        "210393943_703807741_-_Bewerken.pdf",
+        "210393943_703807741_-_Bewerken.stp"
+      ]
     },
     {
       "tekening": "210394004_703807771_-_",
       "qty": 1,
       "materiaal": "RVS-316L rondstaf 200",
       "materiaalDoorKlant": true,
-      "bestanden": ["210394004_703807771_-_Bewerken.pdf", "210394004_703807771_-_Bewerken.stp"]
+      "bestanden": [
+        "210394004_703807771_-_Bewerken.pdf",
+        "210394004_703807771_-_Bewerken.stp"
+      ]
     }
   ]
 }
