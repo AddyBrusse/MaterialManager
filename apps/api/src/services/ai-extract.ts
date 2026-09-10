@@ -53,8 +53,10 @@ const AiLineSchema = z.object({
     .string()
     .nullable()
     .describe(
-      'Het materiaal zoals de klant het opgeeft, met vorm en maat als die erbij staan: ' +
-        '"RVS-316L rondstaf 30", "S355 vierkant staf 40". Null als de klant geen materiaal noemt.',
+      'Het ruwe materiaal waar wij mee moeten werken, met vorm en maat als die erbij staan: ' +
+        '"RVS-316L rondstaf 30", "S355 vierkant staf 40". Noemt de klant expliciet wat hij aanlevert ' +
+        '("Materiaal wordt toegeleverd: Plaat 130x12"), neem dan dat over en niet de omschrijving van het ' +
+        'eindproduct. Null als de klant geen materiaal noemt.',
     ),
   materiaalDoorKlant: z
     .boolean()
@@ -149,7 +151,11 @@ En dus NIET: omschrijving "Pos. 10 2615-0090-0530 rev B Steunbeugel RVS 304 25 s
 Staat er geen aparte benaming naast het nummer, dan is omschrijving null — niet het nummer nog een keer.
 
 Materiaal en certificaat horen ook in hun eigen veld, niet in de omschrijving:
-- materiaal = het materiaal met vorm en maat: "RVS-316L rondstaf 30".
+- materiaal = het RUWE MATERIAAL waar wij mee moeten werken, met vorm en maat: "RVS-316L rondstaf 30".
+  Zegt de klant expliciet wát hij aanlevert ("Materiaal wordt toegeleverd: ...", "uit RVS-316L"),
+  dan is DAT het materiaal — ook als er elders in dezelfde regel staat waar het eindproduct van gemaakt is.
+  "Stalen flens 120x120x12, volgens tekening ... Materiaal wordt toegeleverd: Plaat 130x12"
+  wordt dus materiaal "Plaat 130x12", niet "Stalen flens 120x120x12": dat laatste beschrijft het onderdeel.
 - materiaalDoorKlant = wie het levert. "Toegeleverd materiaal" betekent dat de klant het aanlevert (true).
   "Uit uw materiaal" betekent dat wij het inkopen (false). Zegt de klant er niets over, dan null.
 - certificaat = bijvoorbeeld "3.1" als er om een materiaalcertificaat gevraagd wordt.

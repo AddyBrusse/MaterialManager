@@ -402,7 +402,19 @@ Ook D (opruimen) is nog niet gratis: `hoortBij`, `komtVanTekening` en
 `schoonOmschrijving` dóen hier het werk dat de score op 100% houdt. Ze zijn pas
 weg te halen als C hun taak overneemt, niet ervoor.
 
-### 5.3 Aanpassen, later
+### 5.2e Nooit een voorbeeld uit de testset in de prompt
+
+Bij het aanscherpen van de leesregel voor `materiaal` (2026-09-10) zette ik eerst
+het geval uit de Veratio-fixture letterlijk in de systeemprompt: "Aluminium plaat
+75x68x8 ... Materiaal wordt toegeleverd: Strip 70x8". Die mail zou daarna slagen
+omdat het antwoord in de prompt staat, niet omdat het model hem leest.
+
+Dat is dezelfde fout als een voorstel ongezien overnemen, maar dan andersom: in
+plaats van de modelfout in te bakken als het goede antwoord, bak je het goede
+antwoord in als kennis. In beide gevallen meet de set daarna niets meer.
+
+**Regel: een voorbeeld in de prompt is verzonnen, of komt uit een mail die niet
+in de scoreset zit.** De regel zelf mag algemeen zijn — daar gaat het om.
 
 | Wat verandert | Hoe | Release nodig? |
 |---|---|---|
