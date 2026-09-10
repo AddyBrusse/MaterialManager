@@ -621,3 +621,30 @@ er verkeerd verspaand is.
 De scoreset blijft daarmee op 148/148, nu met alle zes de antwoorden nagekeken
 door de werkvloer. Kosten van de escalatie: die ene mail ging van 23 naar 26
 seconden; de andere vijf escaleerden niet.
+
+## 2026-09-10 — Eén databasefout nam de hele API mee
+
+Waargenomen tijdens het opstarten voor een test: Postgres draaide niet, en het
+eerste binnenkomende verzoek beëindigde het API-proces. Daarna gaf elk verzoek
+ECONNREFUSED — wat eruitziet alsof de applicatie stuk is terwijl alleen de
+database weg was.
+
+Oorzaak: `userContext` was een `async` functie die rechtstreeks als Express
+middleware werd gebruikt. Express 4 vangt een afgewezen promise uit async
+middleware niet op; die wordt een unhandled rejection, en Node beëindigt daarop
+het proces. Deze middleware zit vóór álle `/api`-routes en doet een
+databasevraag, dus elk verzoek was een kans om de API om te leggen.
+
+Nagemeten met een onbereikbare database, op de gebouwde app:
+
+- vóór: één verzoek, proces weg (exit 1), daarna ECONNREFUSED
+- na: drie verzoeken, drie keer HTTP 500 met een reden, proces blijft staan
+
+De fix is `asyncHandler` eromheen — dezelfde wrapper die alle routes al gebruiken.
+Het was de enige async middleware zonder.
+
+Bij het schrijven van de test kwam nog iets naar boven dat het onthouden waard is:
+een `vi.fn()` die een afgewezen promise teruggeeft laat een onopgevangen afgeleide
+promise achter, doordat vitest er zijn eigen `.then()` aan hangt om het resultaat
+te registreren. Dat meldt zich als een mislukte test terwijl de code klopt. In
+zo'n geval is een gewone functie als testdubbel beter dan een spy.
