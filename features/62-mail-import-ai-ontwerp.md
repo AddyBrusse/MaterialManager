@@ -230,7 +230,7 @@ liggen er drie klaar; twee staan er sinds 2026-09-09 in:
 
 | Mail | Waarom hij erin hoort |
 |---|---|
-| Stinis, offerteaanvraag RFQ2600241 | inkooporder als scan, tekeningnummer in de bestandsnaam — **nog toe te voegen** |
+| Stinis, offerteaanvraag RFQ2600241 | pdf mét tekstlaag waar letterlijk `4 4-9-2026pcs` uit komt |
 | Veratio, offerteaanvraag 2663270 | geen handelsdocument, regels in de mailtekst, zeven tekeningen in een zip |
 | Veratio, bestelling 2690655 | inkooporder mét zip, tekeningen genoemd bij naam in plaats van nummer |
 
@@ -350,6 +350,30 @@ Wat een mail de moeite waard maakt, ongeveer in die volgorde:
    opdrachtbevestiging in plaats van aanvraag, order zonder bijlagen.
 
 Volume helpt minder dan variatie: acht mails die op elkaar lijken meten één ding.
+
+### 5.2d Wat 36 echte mails lieten zien
+
+Met `npm run mails:inventaris -w apps/api` (gratis, geen API-aanroep) over de 36
+mails in de voorraad:
+
+- **Geen enkele gescande inkooporder.** Alle 19 mails met een handelsdocument
+  hebben een pdf mét tekstlaag. De aanname dat "scan" het lastige geval is,
+  klopte niet — en daarmee is B veel belangrijker dan gedacht: de oude regel
+  stuurde van die 19 er **nul** native mee, de nieuwe alle 19.
+- **19 mails zonder handelsdocument.** Precies de helft. De regels moeten dan uit
+  de mailtekst komen, met soms tientallen tekeningen erbij (34 bij BK Automation,
+  38 bij RLC).
+- **11 afzenderdomeinen.** Veratio is met 10 van de 36 de grootste, maar niet
+  meer de enige.
+
+De vorm van de kolomsoep verschilt per leverancier en is telkens anders kapot:
+
+    Stinis            `2611-1456-0234 As ø50x178 4 4-9-2026pcs`
+    Global Factories  `11-09-26103716.D VM Drag Nozzle 114 1 Pieces 147,85 147,851`
+    Veratio           `€34,4925-06-2026 15`
+
+Dat is geen patroon om een regel op te schrijven — het is per systeem anders — en
+precies de reden dat de pdf zelf mee moet.
 
 ### 5.2c Wat 100% wel en niet zegt
 

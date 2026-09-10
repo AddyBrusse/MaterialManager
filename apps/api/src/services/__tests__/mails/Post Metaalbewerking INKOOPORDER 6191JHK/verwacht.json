@@ -1,0 +1,10 @@
+{
+  "_toelichting": "Post Metaalbewerking, 04-09-2026. Inkooporder waarvan de tabel wél leesbaar uit pdfText komt. Let op: de order noemt tek. MD13504758 en MD13504763, maar de meegestuurde bestanden heten md10504758 en md10504763 — één cijfer verschil. Welke goed is, is niet uit de mail te halen; daarom staan tekening en bestanden hier niet in.",
+  "intent": "opdrachtbevestiging",
+  "document": "Inkooporder_6191_JHK.pdf",
+  "leverdatum": "2026-09-16",
+  "regels": [
+    { "qty": 12, "prijs": 37.5 },
+    { "qty": 12, "prijs": 37.5 }
+  ]
+}

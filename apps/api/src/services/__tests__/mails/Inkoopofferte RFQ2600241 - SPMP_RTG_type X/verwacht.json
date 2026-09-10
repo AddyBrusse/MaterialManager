@@ -1,0 +1,20 @@
+{
+  "_toelichting": "Stinis, 02-09-2026. Offerteaanvraag als pdf MET tekstlaag, en daar komt letterlijk '4 4-9-2026pcs' uit: aantal, leverdatum en eenheid aan elkaar. Precies de bug waar §3.1 van het ontwerp over gaat. Vier tekeningbestanden bij één regel.",
+  "intent": "offerteaanvraag",
+  "document": "Purchase offer_RFQ2600241_20260902_07-17.pdf",
+  "klantRef": "RFQ2600241",
+  "leverdatum": "2026-09-04",
+  "regels": [
+    {
+      "tekening": "2611-1456-0234",
+      "omschrijving": "As ø50x178",
+      "qty": 4,
+      "bestanden": [
+        "RFQ2600241-1-2611-1456-0234-1_20260902-0717.pdf",
+        "RFQ2600241-1-2611-1456-0234-1_20260902-0717.dwg",
+        "RFQ2600241-1-2611-1456-0234-1_20260902-0717.stp",
+        "RFQ2600241-1-2611-1456-0234-2_20260902-0717.pdf"
+      ]
+    }
+  ]
+}
