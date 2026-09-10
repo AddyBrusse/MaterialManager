@@ -288,7 +288,7 @@ export const projectsApi = {
     projectId: string,
     offerteId: string,
     regelId: string,
-    patch: Partial<Pick<OfferteRegel, 'naam' | 'omschrijving' | 'qty' | 'eenheid' | 'verkoopprijs'>>,
+    patch: Partial<Pick<OfferteRegel, 'naam' | 'omschrijving' | 'qty' | 'eenheid' | 'verkoopprijs' | 'bewerkingen'>>,
   ): Project {
     const updated = updateCache(projectId, p => ({
       ...p,

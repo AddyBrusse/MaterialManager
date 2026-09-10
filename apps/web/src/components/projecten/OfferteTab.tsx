@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconPlus, IconSend, IconCheck, IconChevronDown, IconChevronUp, IconMail } from '@tabler/icons-react'
+import { IconPlus, IconSend, IconCheck, IconChevronDown, IconChevronUp, IconMail, IconRefresh } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { projectsApi, formatBedrag, formatDate } from '../../api/projects'
 import { articlesApi, KNOWN_OPERATIONS } from '../../api/articles'
@@ -13,6 +13,8 @@ import { companyApi } from '../../api/company'
 import { useUserStore } from '../../stores/user'
 import { ArtikelPickerModal } from './ArtikelPickerModal'
 import { RegelsTable } from './RegelsTable'
+import { PrijzenBijwerkenModal } from './PrijzenBijwerkenModal'
+import type { Bijwerking } from './prijs-bijwerken'
 import type { Project, Offerte, OfferteRegel } from '@stockmanager/shared'
 
 // ── Offerte status config ─────────────────────────────────────────────────────
@@ -227,6 +229,7 @@ interface OfferteCardProps {
 function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
   const user = useUserStore(s => s.user)
   const [expanded, setExpanded]   = useState(offerte.status !== 'vervallen')
+  const [prijzenOpen, setPrijzenOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [editRegel, setEditRegel]   = useState<OfferteRegel | null>(null)
   const cfg = OFF_STATUS[offerte.status]
@@ -249,6 +252,30 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
       klantRef:       project.klantRef,
       levertijdDatum: project.levertijdDatum,
     }, offerte)
+  }
+
+  /**
+   * De gekozen regels bijwerken.
+   *
+   * `bewerkingen` gaat mee met de prijs en niet los: ze komen uit dezelfde
+   * calculatie, en de productiestappen worden er straks uit gemaakt. Alleen de
+   * prijs verversen zou een regel opleveren met het bedrag van het nieuwe recept
+   * en de stappen van het oude.
+   */
+  function handlePrijzenBijwerken(gekozen: Bijwerking[]) {
+    for (const b of gekozen) {
+      projectsApi.updateOfferteRegel(project.id, offerte.id, b.regelId, {
+        verkoopprijs: b.nieuweVerkoopprijs,
+        bewerkingen: b.nieuweBewerkingen,
+      })
+    }
+    setPrijzenOpen(false)
+    notifications.show({
+      color: 'green',
+      title: `${gekozen.length} regel${gekozen.length === 1 ? '' : 's'} bijgewerkt`,
+      message: 'De prijzen komen nu uit de calculaties van de artikelen.',
+    })
+    onChanged()
   }
 
   function handleVerstuur() {
@@ -431,6 +458,20 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
               <button className="st-btn sm ghost" onClick={downloadPdf} title="Download offerte als PDF">
                 ↓ PDF
               </button>
+              {/* Alleen bij een concept. Een verzonden offerte van prijs laten
+                  veranderen betekent dat er iets anders in het systeem staat dan
+                  bij de klant ligt, en de bewerkingen op de regel bepalen de
+                  productiestappen — die horen niet te verschuiven onder een
+                  order die al loopt. */}
+              {offerte.status === 'concept' && offerte.regels.length > 0 && (
+                <button
+                  className="st-btn sm ghost"
+                  onClick={() => setPrijzenOpen(true)}
+                  title="Haalt de prijzen opnieuw uit de calculaties van de gekoppelde artikelen. Je ziet eerst wat er verandert."
+                >
+                  <IconRefresh size={13} />Prijzen bijwerken
+                </button>
+              )}
               {offerte.status === 'concept' && (
                 <>
                   <button
@@ -464,6 +505,13 @@ function OfferteCard({ project, offerte, onChanged }: OfferteCardProps) {
           </div>
         )}
       </div>
+
+      <PrijzenBijwerkenModal
+        opened={prijzenOpen}
+        offerte={offerte}
+        onClose={() => setPrijzenOpen(false)}
+        onBijwerken={handlePrijzenBijwerken}
+      />
 
       <ArtikelPickerModal
         opened={pickerOpen}

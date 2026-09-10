@@ -289,6 +289,14 @@ const UpdateRegelSchema = z.object({
   qty: z.number().optional(),
   eenheid: z.string().optional(),
   verkoopprijs: z.number().optional(),
+  /**
+   * Hoort bij de prijs en gaat er dus mee mee. De bewerkingen zijn bevroren bij
+   * het aanmaken van de regel omdat de productiestappen eruit komen; wordt de
+   * prijs opnieuw uit de calculatie gehaald, dan is die bevriezing van een oude
+   * calculatie en moeten ze samen bijgewerkt worden — anders staat er een prijs
+   * van recept A met de stappen van recept B.
+   */
+  bewerkingen: z.array(z.string()).optional(),
 })
 
 router.patch(
