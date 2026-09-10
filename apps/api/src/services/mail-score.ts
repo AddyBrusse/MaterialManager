@@ -85,6 +85,36 @@ export class Telling {
   }
 }
 
+/**
+ * Welk veld op een `CandidateLine` hoort bij welke sleutel in `verwacht.json`.
+ *
+ * Deze tabel is er omdat de eerste meting (2026-09-10) op twee stille fouten
+ * strandde: het fixtureveld `prijs` heet op de regel `klantPrijs`, en `bestanden`
+ * is `string[]` en geen lijst objecten. In beide gevallen las de scorer
+ * `undefined` en meldde hij dat het model het veld gemist had — terwijl het er
+ * gewoon stond. Een scorer die zo faalt is erger dan geen scorer.
+ *
+ * `veldNaam` gooit daarom bij een onbekende sleutel, zodat een typefout in een
+ * fixture meteen stukloopt in plaats van als "model zat fout" te tellen.
+ */
+const VELDEN: Record<Exclude<keyof VerwachteRegel, 'tekening' | 'bestanden'>, keyof CandidateLine> = {
+  qty: 'qty',
+  prijs: 'klantPrijs',
+  rev: 'rev',
+  positie: 'positie',
+  materiaal: 'materiaal',
+  materiaalDoorKlant: 'materiaalDoorKlant',
+  certificaat: 'certificaat',
+  klantArtikel: 'klantArtikel',
+  omschrijving: 'omschrijving',
+}
+
+export function veldNaam(sleutel: string): keyof CandidateLine {
+  const naam = VELDEN[sleutel as keyof typeof VELDEN]
+  if (!naam) throw new Error(`Onbekend veld "${sleutel}" in verwacht.json — tikfout, of VELDEN aanvullen.`)
+  return naam
+}
+
 export function scoreRegels(t: Telling, verwacht: VerwachteRegel[], gekregen: CandidateLine[]): void {
   t.check('aantal regels', verwacht.length, gekregen.length)
 
@@ -101,16 +131,15 @@ export function scoreRegels(t: Telling, verwacht: VerwachteRegel[], gekregen: Ca
     }
     t.totaal++
     t.goed++
-    const g = nogOver.splice(idx, 1)[0]! as unknown as Record<string, unknown>
+    const g = nogOver.splice(idx, 1)[0]!
 
     for (const [veld, waarde] of Object.entries(v)) {
       if (veld === 'tekening') continue
       if (veld === 'bestanden') {
-        const namen = ((g.bestanden ?? []) as { filename: string }[]).map((b) => b.filename)
-        t.checkBestanden(`${label} bestanden`, waarde as string[], namen)
+        t.checkBestanden(`${label} bestanden`, waarde as string[], g.bestanden)
         continue
       }
-      t.check(`${label} ${veld}`, waarde, g[veld])
+      t.check(`${label} ${veld}`, waarde, g[veldNaam(veld)])
     }
   }
 

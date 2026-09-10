@@ -302,6 +302,31 @@ in de git-geschiedenis en in elke kloon. De repo is privé en het team is vier m
 Het alternatief — de set op de NAS, buiten git — betekent dat CI hem niet kan
 draaien, en een testset die alleen handmatig start is een testset die doodbloedt.
 
+### 5.2b Wat de eerste draai leerde over de scorer zelf
+
+De nulmeting kwam uit op 65% (50/77). Alle 27 missers waren fouten in de
+**scorer**, niet in het model:
+
+- het fixtureveld `prijs` heet op een `CandidateLine` `klantPrijs`
+- `bestanden` is `string[]`, geen lijst objecten met een `filename`
+
+De scorer las in beide gevallen `undefined` en meldde dat het model het veld
+gemist had, terwijl het er gewoon stond. Er waren wél unittests, maar die gaven
+een verzonnen regel door met `as CandidateLine` — en die cast zette precies de
+controle uit die de fout had moeten vangen.
+
+Twee dingen daaruit, allebei toegepast:
+
+1. **Geen `as` in de tests van de scorer.** De testregel moet een echte
+   `CandidateLine` zijn, zodat een veldnaam die niet bestaat niet compileert.
+2. **Een tabel `VELDEN` die fixturenaam op regelveld afbeeldt, en die gooit bij
+   een onbekende sleutel.** Een tikfout in een fixture loopt nu stuk in plaats
+   van als "model zat fout" te tellen.
+
+Verder schrijft het script sinds die draai weg wat het model werkelijk teruggaf
+(`apps/api/.score/<map>.json`, gitignored). Een draai kost geld en ongeveer een
+minuut per mail; een misser napluizen hoort daarna geen tweede draai te vragen.
+
 ### 5.3 Aanpassen, later
 
 | Wat verandert | Hoe | Release nodig? |

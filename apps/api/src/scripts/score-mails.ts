@@ -25,6 +25,8 @@ import { bereidVoor, leesMail } from '../services/mail-lezen'
 import { Telling, scoreRegels, type Verwacht } from '../services/mail-score'
 
 const MAILS_DIR = path.join(__dirname, '..', 'services', '__tests__', 'mails')
+/** Buiten de repo-inhoud (gitignored): wat het model werkelijk terugstuurde. */
+const UITVOER_DIR = path.join(__dirname, '..', '..', '.score')
 
 async function scoreMail(map: string): Promise<Telling> {
   const t = new Telling()
@@ -44,6 +46,15 @@ async function scoreMail(map: string): Promise<Telling> {
   if ('klantRef' in verwacht) t.check('klantRef', verwacht.klantRef, uitkomst.klantRef)
   if ('leverdatum' in verwacht) t.check('leverdatum', verwacht.leverdatum, uitkomst.leverdatum)
   if (verwacht.regels) scoreRegels(t, verwacht.regels, lines)
+
+  // Wegschrijven wat er werkelijk uit kwam. Een draai kost geld en een minuut;
+  // een misser napluizen hoort daarna geen tweede draai te vragen.
+  fs.mkdirSync(UITVOER_DIR, { recursive: true })
+  fs.writeFileSync(
+    path.join(UITVOER_DIR, `${map}.json`),
+    JSON.stringify({ uitkomst, regels: lines }, null, 2),
+    'utf8'
+  )
 
   const pct = t.totaal ? Math.round((t.goed / t.totaal) * 100) : 0
   console.log(`  ${t.goed}/${t.totaal} (${pct}%)`)
@@ -86,7 +97,8 @@ async function main(): Promise<void> {
   }
 
   const pct = totaal ? Math.round((goed / totaal) * 100) : 0
-  console.log(`\n──────────\nTotaal ${goed}/${totaal} (${pct}%) over ${mappen.length} mail(s)\n`)
+  console.log(`\n──────────\nTotaal ${goed}/${totaal} (${pct}%) over ${mappen.length} mail(s)`)
+  console.log(`Wat het model teruggaf staat in ${UITVOER_DIR}\n`)
 }
 
 void main()

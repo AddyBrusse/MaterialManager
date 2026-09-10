@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CandidateLine } from '@stockmanager/shared'
-import { Telling, gelijk, scoreRegels, sleutel } from '../mail-score'
+import { Telling, gelijk, scoreRegels, sleutel, veldNaam } from '../mail-score'
 
 /**
  * Een scorer die zelf niet klopt is erger dan geen scorer: hij zou een
@@ -37,7 +37,7 @@ function regel(over: Partial<CandidateLine> = {}): CandidateLine {
     zekerheid: 0,
     zekerheidRedenen: [],
     ...over,
-  } as CandidateLine
+  }
 }
 
 describe('sleutel', () => {
@@ -74,7 +74,36 @@ describe('gelijk', () => {
   })
 })
 
+describe('veldNaam', () => {
+  it('vertaalt de fixturenaam naar het veld op de regel', () => {
+    // De eerste meting strandde hierop: "prijs" heet op de regel "klantPrijs",
+    // dus las de scorer undefined en meldde hij een fout die er niet was.
+    expect(veldNaam('prijs')).toBe('klantPrijs')
+    expect(veldNaam('qty')).toBe('qty')
+  })
+
+  it('gooit bij een onbekende sleutel in plaats van hem stil te missen', () => {
+    expect(() => veldNaam('prijsje')).toThrow(/Onbekend veld/)
+  })
+})
+
 describe('scoreRegels', () => {
+  it('leest de prijs uit klantPrijs', () => {
+    const t = new Telling()
+    scoreRegels(t, [{ tekening: 'ABC-1', prijs: 34.49 }], [regel({ tekening: 'ABC-1', klantPrijs: 34.49 })])
+    expect(t.missers).toEqual([])
+  })
+
+  it('vergelijkt bestanden als de lijst namen die het werkelijk is', () => {
+    const t = new Telling()
+    scoreRegels(
+      t,
+      [{ tekening: 'ABC-1', bestanden: ['a.pdf', 'a.step'] }],
+      [regel({ tekening: 'ABC-1', bestanden: ['a.pdf', 'a.step'] })]
+    )
+    expect(t.missers).toEqual([])
+  })
+
   it('scoort alleen de velden die in het verwachte antwoord staan', () => {
     const t = new Telling()
     scoreRegels(
@@ -112,7 +141,7 @@ describe('scoreRegels', () => {
     scoreRegels(
       t,
       [{ tekening: 'ABC-1', bestanden: ['a.pdf', 'a.step'] }],
-      [regel({ tekening: 'ABC-1', bestanden: [{ filename: 'a.step' }] as CandidateLine['bestanden'] })]
+      [regel({ tekening: 'ABC-1', bestanden: ['a.step'] })]
     )
     expect(t.missers.some((m) => m.includes('mist a.pdf'))).toBe(true)
   })
@@ -122,7 +151,7 @@ describe('scoreRegels', () => {
     scoreRegels(
       t,
       [{ tekening: 'ABC-1', bestanden: ['a.pdf'] }],
-      [regel({ tekening: 'ABC-1', bestanden: [{ filename: 'a.pdf' }, { filename: 'b.pdf' }] as CandidateLine['bestanden'] })]
+      [regel({ tekening: 'ABC-1', bestanden: ['a.pdf', 'b.pdf'] })]
     )
     expect(t.missers.some((m) => m.includes('te veel b.pdf'))).toBe(true)
   })
