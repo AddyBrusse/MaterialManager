@@ -478,6 +478,31 @@ Elke stap is los te bouwen en levert op zichzelf iets op.
 - **RAG.** Er is geen corpus om uit te zoeken; de mail zelf is de invoer.
 - **Artikelmatching naar het model.** Zie §2.
 
+### 9b. Een geval dat we niet hadden voorzien: de tekening zit er niet bij
+
+Op de inkooporder van Post Metaalbewerking (6191) staan twee regels die verwijzen
+naar tek. `MD13504758` en `MD13504763`. **Die tekeningen zitten niet in de mail.**
+Wat er wél bij zit zijn samenstellingen van de klant, ter informatie — en één
+daarvan heet `md10504758`, één cijfer anders dan het nummer op de order.
+
+Dat is een derde soort mail, naast "regels uit een document" en "regels uit de
+mailtekst": een order die leunt op een tekening die wij al horen te hebben van een
+eerdere opdracht. De klant stuurt hem niet nog een keer mee.
+
+Wat dat betekent:
+
+- **Een regel zonder bestand is niet per se een fout.** Vandaag ziet dat er in het
+  controlescherm uit als "er ontbreekt iets"; in dit geval is het normaal. Het
+  verschil is of wij het tekeningnummer kennen: staat er een artikel met dat
+  nummer in onze database, dan is de tekening er al en klopt het. Zo niet, dan is
+  hij werkelijk niet meegeleverd en moet iemand erachteraan.
+- **Nooit koppelen op bijna-gelijk.** `md10504758` is niet `MD13504758`. Precies
+  de fout waar de hele gronding voor is gebouwd (2615-0090 versus 2615-0091). De
+  fixture legt daarom `bestanden: []` vast in plaats van het veld weg te laten:
+  dat is een actieve eis, geen ontbrekend oordeel.
+- Dit versterkt §4.1: de koppeling hoort te lopen via het tekeningnummer naar ons
+  eigen artikel, niet via een gelijkende bestandsnaam.
+
 ## 10. Open punten
 
 - Kunnen citations samen met een strict tool als uitvoervorm? Zo niet, dan wordt
@@ -491,3 +516,7 @@ Elke stap is los te bouwen en levert op zichzelf iets op.
 - Wat gebeurt er met een mail van een klant zonder profiel? Terugvallen op de
   algemene prompt is het antwoord, maar dat is dan wel het pad dat het minst
   getest wordt.
+- Hoe onderscheidt het controlescherm "tekening ontbreekt want we hebben hem al"
+  van "tekening ontbreekt en dat is een probleem"? Zie §9b. Het antwoord zit
+  waarschijnlijk in de artikelmatch: kennen we het nummer, dan is er niets aan de
+  hand.

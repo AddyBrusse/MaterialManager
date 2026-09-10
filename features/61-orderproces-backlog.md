@@ -234,3 +234,20 @@ mutatie, geen reservering, in de hele keten niet.
 ## Voorgestelde volgorde
 
 0, 0a, 1, 2, 4 en 5 (gedaan) → fase 2 in één stuk → 10 → 11 → 12 → 14 → 15 → 16 → rest.
+
+---
+
+## Opgemerkt 2026-09-10 — een order zonder de tekening erbij
+
+Bij het opbouwen van de scoreset kwam een geval boven dat in geen enkel document
+stond: een klant bestelt volgens tekeningnummer, maar stuurt de tekening niet mee
+omdat wij hem van een eerdere opdracht al hebben (Post Metaalbewerking,
+inkooporder 6191).
+
+Vandaag ziet zo'n regel er in het controlescherm uit alsof er iets ontbreekt. Dat
+is alleen waar als wij dat tekeningnummer níet kennen. Kennen we het wel, dan is
+de order compleet en moet het scherm dat ook zeggen — anders gaat iemand zoeken
+naar een bestand dat niet hoort te bestaan.
+
+Uitgewerkt in `features/62-mail-import-ai-ontwerp.md` §9b.
+

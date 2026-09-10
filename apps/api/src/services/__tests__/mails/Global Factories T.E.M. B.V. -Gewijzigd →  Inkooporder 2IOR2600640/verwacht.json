@@ -1,11 +1,13 @@
 {
-  "_toelichting": "Global Factories, 20-08-2026. GEWIJZIGDE inkooporder (prijs aangepast) van een order die ook ongewijzigd in de voorraadmails zit. Geen tekeningen. Uit de pdf komt '11-09-26103716.D VM Drag Nozzle 114 1 Pieces 147,85 147,851' — datum, artikelnummer en regelnummer aan elkaar geplakt. Tekening/artikelnummer bewust weggelaten: onduidelijk of 103716.D een tekeningnummer is of onderdeel van de omschrijving.",
+  "_toelichting": "Global Factories, 20-08-2026. GEWIJZIGDE inkooporder (prijs aangepast) van een order die ook ongewijzigd in de voorraadmails zit. Geen tekeningen meegestuurd. Uit de pdf komt '11-09-26103716.D VM Drag Nozzle 114 1 Pieces 147,85 147,851' — leverdatum, tekeningnummer en het regelnummer aan elkaar geplakt. Het splitsen daarvan is precies wat er misgaat als het model de uitgeklopte tekst leest in plaats van de pdf.",
   "intent": "opdrachtbevestiging",
   "document": "Inkooporder 2IOR2600640.pdf",
   "klantRef": "2IOR2600640",
   "leverdatum": "2026-09-11",
   "regels": [
     {
+      "tekening": "103716.D",
+      "omschrijving": "VM Drag Nozzle 114",
       "qty": 1,
       "prijs": 147.85,
       "bestanden": []
