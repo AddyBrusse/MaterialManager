@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { CandidateLine, NormalizedMail } from '@stockmanager/shared'
+import { config } from '../../config'
 import {
   bevestigdDoor, buildLines, buildPrompt, grondingVan, haystack, isGrounded,
-  scansVoorModel, tekeningStaatErIn, type AiLine,
+  documentenVoorModel, tekeningStaatErIn, type AiLine,
 } from '../ai-extract'
 
 function mail(partial: Partial<NormalizedMail> = {}): NormalizedMail {
@@ -52,31 +53,108 @@ function buffers(namen: string[]) {
   return { get: (n: string) => (namen.includes(n) ? PDF : undefined) }
 }
 
-describe('scansVoorModel', () => {
-  it('stuurt een pdf zonder tekstlaag mee als afbeelding', () => {
+describe('documentenVoorModel', () => {
+  const namen = (m: Parameters<typeof documentenVoorModel>[0], b: Parameters<typeof documentenVoorModel>[1]) =>
+    documentenVoorModel(m, b).map((d) => d.bijlage.filename)
+
+  it('stuurt een pdf zonder tekstlaag mee', () => {
     const m = mail({ attachments: [attachment('scan.pdf', null)] })
-    expect(scansVoorModel(m, buffers(['scan.pdf'])).map((a) => a.filename)).toEqual(['scan.pdf'])
+    expect(namen(m, buffers(['scan.pdf']))).toEqual(['scan.pdf'])
   })
 
-  it('laat een pdf mét tekstlaag met rust — die tekst gaat al mee', () => {
-    const m = mail({ attachments: [attachment('order.pdf', 'Pos 1')] })
-    expect(scansVoorModel(m, buffers(['order.pdf']))).toEqual([])
+  it('stuurt het handelsdocument óók mee als het wél een tekstlaag heeft', () => {
+    // De aanleiding: uit de inkooporder van Veratio (2690655) komt de tekst als
+    // "€34,4925-06-2026 15" — prijs, datum en aantal aan elkaar. De tabel is
+    // alleen op de pagina zelf nog te lezen.
+    const m = mail({ attachments: [attachment('Bestelling Boers 2690655.pdf', 'Inkooporder ...')] })
+    expect(namen(m, buffers(['Bestelling Boers 2690655.pdf']))).toEqual(['Bestelling Boers 2690655.pdf'])
+  })
+
+  it('meldt of er een tekstlaag in zat — dat bepaalt of de gronding iets kan nazoeken', () => {
+    const m = mail({ attachments: [attachment('Bestelling Boers 2690655.pdf', 'Inkooporder ...')] })
+    expect(documentenVoorModel(m, buffers(['Bestelling Boers 2690655.pdf']))[0].zonderTekst).toBe(false)
+
+    const scan = mail({ attachments: [attachment('scan.pdf', null)] })
+    expect(documentenVoorModel(scan, buffers(['scan.pdf']))[0].zonderTekst).toBe(true)
+  })
+
+  it('laat een tekening mét tekstlaag met rust — die tekst gaat al mee', () => {
+    // Alleen het leidende document is het waard; anders zou elke tekening met
+    // een leesbaar titelblok de aanvraag opblazen.
+    const m = mail({
+      attachments: [
+        attachment('Purchase order_2604307.pdf', 'Pos 1'),
+        attachment('2615-0091-0530-1.pdf', 'A3 titelblok'),
+      ],
+    })
+    expect(namen(m, buffers(['Purchase order_2604307.pdf', '2615-0091-0530-1.pdf']))).toEqual([
+      'Purchase order_2604307.pdf',
+    ])
+  })
+
+  it('stuurt geen tekeningen mee zolang er een handelsdocument is', () => {
+    // Twee van de acht tekeningen meesturen is erger dan geen: die twee lijken
+    // dan bijzonder. Het document bepaalt de regels; koppelen gaat op naam.
+    const m = mail({
+      attachments: [
+        attachment('Bestelling Boers 2690655.pdf', 'Inkooporder ...'),
+        attachment('Foam axle_upper roll.pdf', null),
+        attachment('Guide base 5_8.pdf', null),
+      ],
+    })
+    expect(namen(m, buffers(['Bestelling Boers 2690655.pdf', 'Foam axle_upper roll.pdf', 'Guide base 5_8.pdf']))).toEqual([
+      'Bestelling Boers 2690655.pdf',
+    ])
+  })
+
+  it('valt zonder handelsdocument terug op elke pdf zonder tekstlaag', () => {
+    const m = mail({ attachments: [attachment('Foam axle_upper roll.pdf', null)] })
+    expect(namen(m, buffers(['Foam axle_upper roll.pdf']))).toEqual(['Foam axle_upper roll.pdf'])
+  })
+
+  it('valt met MAIL_AI_DOCUMENT=tekst terug op de oude regel', () => {
+    // De noodrem, en tegelijk de enige manier om na te meten wat het native
+    // meesturen oplevert: draai de scoreset met en zonder.
+    const m = mail({ attachments: [attachment('Bestelling Boers 2690655.pdf', 'Inkooporder ...')] })
+    const b = buffers(['Bestelling Boers 2690655.pdf'])
+    const oud = config.ai.documentNative
+    try {
+      ;(config.ai as { documentNative: boolean }).documentNative = false
+      expect(namen(m, b)).toEqual([])
+    } finally {
+      ;(config.ai as { documentNative: boolean }).documentNative = oud
+    }
   })
 
   it('slaat een 3D-model over: dat is geen pdf', () => {
     const m = mail({ attachments: [attachment('2026077-001.STEP', null)] })
-    expect(scansVoorModel(m, { get: () => Buffer.from('ISO-10303-21;') })).toEqual([])
+    expect(documentenVoorModel(m, { get: () => Buffer.from('ISO-10303-21;') })).toEqual([])
   })
 
-  it('zet het handelsdocument voorop als er meer scans zijn', () => {
+  it('zet het handelsdocument voorop als er meer meegaan', () => {
     const m = mail({
       attachments: [
         attachment('2615-0091-0530-1.pdf', null),
         attachment('Purchase order_2604307.pdf', null),
       ],
     })
-    const namen = ['2615-0091-0530-1.pdf', 'Purchase order_2604307.pdf']
-    expect(scansVoorModel(m, buffers(namen))[0].filename).toBe('Purchase order_2604307.pdf')
+    expect(namen(m, buffers(['2615-0091-0530-1.pdf', 'Purchase order_2604307.pdf']))[0]).toBe(
+      'Purchase order_2604307.pdf'
+    )
+  })
+})
+
+describe('buildPrompt', () => {
+  it('laat de uitgeklopte tekst weg van een pdf die volledig meegaat', () => {
+    const m = mail({ attachments: [attachment('order.pdf', 'EUR 34,4925-06-2026 15')] })
+    const prompt = buildPrompt(m, new Set(['order.pdf']))
+    expect(prompt).not.toContain('34,4925-06-2026')
+    expect(prompt).toContain('lees hem daar')
+  })
+
+  it('zet de tekst er wél in als de pdf niet volledig meegaat', () => {
+    const m = mail({ attachments: [attachment('order.pdf', 'Pos 1 2615-0091-0530')] })
+    expect(buildPrompt(m, new Set())).toContain('2615-0091-0530')
   })
 })
 

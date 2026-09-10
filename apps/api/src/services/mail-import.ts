@@ -15,6 +15,7 @@ import { sanitizeFilename } from '../lib/filenames'
 import { parseMsg, readAttachments, type ExtractedAttachment } from './msg-parse'
 import { isZip, pakZipUit } from './zip-uitpakken'
 import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
+import { bereidVoor, leesMail, metZipInhoud } from './mail-lezen'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
 import { aiEnabled, aiExtract, aiFoutTekst, buildLines, type AttachmentBuffers } from './ai-extract'
@@ -278,11 +279,15 @@ export async function buildCandidates(
   ])
 
   try {
-    const ai = await aiExtract(mail, buffers)
-    const { lines, modelZekerheid } = buildLines(ai.regels, mail, {
-      scans: new Set(ai.scans),
-      document: ai.document ?? document,
-      bevestiging: ai.bevestiging,
+    // Eén leespad, gedeeld met de scoreset (mail-lezen.ts): lezen, regels
+    // opbouwen en zo nodig het titelblok erbij halen. Als de scoreset een ander
+    // pad zou meten, meet hij niets.
+    const { uitkomst: ai, lines, modelZekerheid, titelblokken } = await leesMail({
+      mail,
+      embedded: [],
+      buffers,
+      extracted: [],
+      teksten: [],
     })
     const kandidaten = scoreLines(
       matchLines(lines, articles, aliases, relatieId, relatieNamen),
@@ -298,6 +303,8 @@ export async function buildCandidates(
         foutmelding: null,
         documentGebruikt: ai.document ?? document,
         gescandeBijlagen: ai.scans,
+        volledigMeegestuurd: ai.nativeBlokken,
+        titelblokGelezen: [...titelblokken.keys()],
         controleGedaan: ai.bevestiging !== null,
       }),
     }
@@ -342,6 +349,48 @@ export function mailUitRij(row: MailImportRow): NormalizedMail {
 }
 
 /** De opgeslagen bijlagen van schijf, zodat scans weer als afbeelding meekunnen. */
+/**
+ * Zips die al op schijf staan alsnog uitpakken.
+ *
+ * Nodig voor mail die is ingelezen vóórdat het uitpakken bestond: die draagt een
+ * bijlagenlijst met alleen de zip erin. "Opnieuw uitlezen" werkt op die
+ * opgeslagen lijst, dus zonder dit zou zo'n mail zijn tekeningen nooit krijgen —
+ * de enige uitweg was de import weggooien en de mail opnieuw slepen, en dat is
+ * geen antwoord dat je aan iemand wilt geven.
+ *
+ * Geeft de aangevulde lijst terug, of dezelfde lijst als er niets te halen viel.
+ */
+export async function vulZipsAan(id: string, bijlagen: MailAttachment[]): Promise<MailAttachment[]> {
+  const zips = bijlagen.filter((b) => !b.isEmbeddedMessage && isZip(b.filename) && b.path)
+  if (zips.length === 0) return bijlagen
+
+  const dir = mailImportDir(id)
+  const namen = new Set(bijlagen.map((b) => b.filename.toLowerCase()))
+  const nieuw: MailAttachment[] = []
+
+  for (const zip of zips) {
+    const bron = path.join(dir, path.basename(zip.path!))
+    if (!fs.existsSync(bron)) continue
+    for (const f of pakZipUit(fs.readFileSync(bron))) {
+      if (namen.has(f.filename.toLowerCase())) continue
+      namen.add(f.filename.toLowerCase())
+      const naam = uniqueName(dir, f.filename)
+      fs.writeFileSync(path.join(dir, naam), f.content)
+      const tekst = await pdfText(f.content)
+      nieuw.push({
+        filename: f.filename,
+        sizeBytes: f.content.length,
+        path: `/uploads/mail-imports/${id}/${naam}`,
+        isEmbeddedMessage: false,
+        tekst: tekst ? tekst.slice(0, MAX_TEXT_CHARS) : null,
+        tekstPath: null,
+      })
+    }
+  }
+
+  return nieuw.length > 0 ? [...bijlagen, ...nieuw] : bijlagen
+}
+
 export function buffersUitMap(id: string, bijlagen: MailAttachment[]): AttachmentBuffers {
   const dir = mailImportDir(id)
   return {
@@ -399,7 +448,7 @@ export function mailImportDir(id: string): string {
 }
 
 /** Uniek maken binnen één map, zodat twee gelijke bijlagenamen elkaar niet overschrijven. */
-function uniqueName(dir: string, filename: string): string {
+export function uniqueName(dir: string, filename: string): string {
   const safe = sanitizeFilename(filename)
   if (!fs.existsSync(path.join(dir, safe))) return safe
   const ext = path.extname(safe)
@@ -452,73 +501,17 @@ export async function legMetingVast(
   }
 }
 
-/**
- * De bijlagenlijst met de inhoud van meegestuurde zips erbij.
- *
- * De uitgepakte bestanden komen direct achter hun zip te staan, zodat de
- * volgorde begrijpelijk blijft als je de mail later terugkijkt. Een naam die al
- * voorkomt wordt overgeslagen: twee bijlagen met dezelfde naam zouden elkaar op
- * schijf en in de inhoudsmap overschrijven.
- */
-function metZipInhoud(bijlagen: ExtractedAttachment[]): ExtractedAttachment[] {
-  if (!bijlagen.some((a) => !a.isEmbeddedMessage && isZip(a.filename))) return bijlagen
-
-  const uit: ExtractedAttachment[] = []
-  const namen = new Set(bijlagen.map((a) => a.filename.toLowerCase()))
-  for (const a of bijlagen) {
-    uit.push(a)
-    if (a.isEmbeddedMessage || !isZip(a.filename)) continue
-    for (const f of pakZipUit(a.content)) {
-      if (namen.has(f.filename.toLowerCase())) continue
-      namen.add(f.filename.toLowerCase())
-      uit.push({ filename: f.filename, content: f.content, isEmbeddedMessage: false })
-    }
-  }
-  return uit
-}
-
 export async function ingestMsgBuffer(
   prisma: PrismaClient,
   buf: Buffer,
   source: NormalizedMail['source'] = 'drop'
 ): Promise<IngestResult> {
   const begonnenOp = Date.now()
-  const { mail, embedded } = parseMsg(buf, source)
 
-  // Bijlagen meteen uitpakken: de tekst uit de meegestuurde PDF's (de
-  // inkooporder) is nodig vóór de extractie, want daar staan de aantallen.
-  //
-  // Zit er een zip bij, dan komt de inhoud er hier als losse bijlagen naast te
-  // staan. Dit is de enige plek waar dat hoeft: alles verderop — het uitlezen
-  // van pdf-tekst, `mail.attachments`, het wegschrijven naar schijf en de
-  // inhoudsmap voor het model — leest uit deze lijst. De zip zelf blijft in de
-  // lijst staan als bewijsstuk; hij wordt als 'overig' geclassificeerd en maakt
-  // dus geen regel.
-  const extracted = metZipInhoud(readAttachments(buf))
-  const teksten = await Promise.all(
-    extracted.map((a) => (a.isEmbeddedMessage ? Promise.resolve(null) : pdfText(a.content)))
-  )
-  // Opnieuw opbouwen uit `extracted` en niet uit `mail.attachments`: de parser
-  // kent alleen de bijlagen van de mail zelf, terwijl `extracted` er de inhoud
-  // van een zip bij heeft. Zonder dit zou het model de uitgepakte tekeningen
-  // niet te zien krijgen en zou `leidendDocument` erlangs kijken.
-  const origineel = new Map(mail.attachments.map((a) => [a.filename, a]))
-  mail.attachments = extracted.map((a, i) => {
-    const bestaand = origineel.get(a.filename)
-    return {
-      filename: a.filename,
-      sizeBytes: a.content.length,
-      path: bestaand?.path ?? null,
-      isEmbeddedMessage: a.isEmbeddedMessage,
-      tekst: teksten[i] ? teksten[i]!.slice(0, MAX_TEXT_CHARS) : null,
-      tekstPath: null,
-    }
-  })
-
-  // De inhoud bij de hand houden: een gescande inkooporder heeft geen tekstlaag
-  // en moet als afbeelding aan het model gegeven worden (§6.2).
-  const inhoud = new Map(extracted.map((a) => [a.filename, a.content]))
-  const buffers = { get: (naam: string) => inhoud.get(naam) }
+  // Zips uitpakken, pdf-tekst lezen en de bijlagenlijst opnieuw opbouwen —
+  // gedeeld met de scoreset, zie mail-lezen.ts. Die moet hetzelfde pad meten
+  // als productie loopt, anders meet hij niets.
+  const { mail, embedded, buffers, extracted, teksten } = await bereidVoor(buf, source)
 
   const own = await loadOwnIdentity(prisma)
   const resolutie = resolveSender(mail, embedded, own)

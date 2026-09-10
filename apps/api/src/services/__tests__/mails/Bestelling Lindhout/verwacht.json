@@ -1,0 +1,67 @@
+{
+  "_toelichting": "Lindhout, geen handelsdocument: twaalf regels als opsomming in de mailtekst, met 17 tekeningen erbij. Twee vallen: 'mag je van mij ook alles maal 3 doen' is een aanbod, geen aantal — de aantallen blijven zoals ze er staan. En 'Materiaal: staal' staat als kopregel boven de lijst en geldt voor alle regels, tenzij de bijbehorende tekening iets anders zegt. Bij de twee regels die de klant zelf aanlevert staat geen materiaal: wat daar binnenkomt bepaalt hij, niet de kopregel.",
+  "_nagekeken": "Bart Boers, 2026-09-10 — regel voor regel naast de mail gelegd en akkoord.",
+  "document": null,
+  "regels": [
+    {
+      "tekening": "T6-05-PA-03",
+      "qty": 2,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-05",
+      "qty": 1,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-07",
+      "qty": 1,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-11",
+      "qty": 2,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-15",
+      "qty": 2,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-17",
+      "qty": 4,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-18",
+      "qty": 4,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-19",
+      "qty": 4,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-20",
+      "qty": 6,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "T6-05-PA-21",
+      "qty": 1,
+      "materiaal": "staal"
+    },
+    {
+      "tekening": "Spur Gear12",
+      "qty": 2,
+      "materiaalDoorKlant": true
+    },
+    {
+      "tekening": "24-49-01-AS-05",
+      "qty": 2,
+      "materiaalDoorKlant": true
+    }
+  ]
+}

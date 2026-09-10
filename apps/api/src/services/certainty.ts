@@ -126,6 +126,8 @@ export function buildRapport(
     foutmelding: string | null
     documentGebruikt?: string | null
     gescandeBijlagen?: string[]
+    volledigMeegestuurd?: string[]
+    titelblokGelezen?: string[]
     controleGedaan?: boolean
   }
 ): ExtractieRapport {
@@ -142,6 +144,8 @@ export function buildRapport(
     onbevestigdeRegels: lines.filter((l) => l.bevestigd === false).length,
     documentGebruikt: opts.documentGebruikt ?? null,
     gescandeBijlagen: opts.gescandeBijlagen ?? [],
+    volledigMeegestuurd: opts.volledigMeegestuurd ?? [],
+    titelblokGelezen: opts.titelblokGelezen ?? [],
     foutmelding: opts.foutmelding,
   }
 }

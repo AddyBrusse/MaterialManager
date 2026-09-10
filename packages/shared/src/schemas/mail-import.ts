@@ -248,8 +248,19 @@ export const ExtractieRapportSchema = z.object({
    * bestandsnamen gehaald.
    */
   documentGebruikt: z.string().nullable().default(null),
-  /** Bijlagen zonder tekstlaag die als afbeelding aan het model zijn gegeven. */
+  /** Bijlagen zonder tekstlaag: hier viel niets in terug te zoeken voor de gronding. */
   gescandeBijlagen: z.array(z.string()).default([]),
+  /**
+   * Pdf's die als volledig document aan het model zijn gegeven in plaats van als
+   * uitgeklopte tekst. Sinds 2026-09-09 gaat het handelsdocument hier altijd bij,
+   * ook als het wél een tekstlaag heeft — die tekst gooit de tabelindeling weg.
+   */
+  volledigMeegestuurd: z.array(z.string()).default([]),
+  /**
+   * Tekeningen waarvan het titelblok is gelezen omdat ze op de bestandsnaam
+   * nergens bij pasten (§3.2). Staat er iets in, dan is er geëscaleerd.
+   */
+  titelblokGelezen: z.array(z.string()).default([]),
   /** Gevuld als de AI-stap faalde; de regelmotor draaide dan alleen. */
   foutmelding: z.string().nullable(),
 })

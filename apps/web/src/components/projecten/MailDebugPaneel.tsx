@@ -51,9 +51,21 @@ export function MailDebugPaneel({ mailImport }: { mailImport: MailImport }) {
               <dd>gemiddeld {Math.round(ex.zekerheid * 100)}% · laagste regel {Math.round(ex.laagsteZekerheid * 100)}%</dd>
               <dt>Bron van de regels</dt>
               <dd>{ex.documentGebruikt ?? 'geen document — uit de mailtekst en bestandsnamen'}</dd>
+              {ex.volledigMeegestuurd.length > 0 && (
+                <>
+                  <dt>Volledig meegestuurd</dt>
+                  <dd>{ex.volledigMeegestuurd.join(', ')}</dd>
+                </>
+              )}
+              {ex.titelblokGelezen.length > 0 && (
+                <>
+                  <dt>Titelblok gelezen</dt>
+                  <dd>{ex.titelblokGelezen.join(', ')}</dd>
+                </>
+              )}
               {ex.gescandeBijlagen.length > 0 && (
                 <>
-                  <dt>Als afbeelding gelezen</dt>
+                  <dt>Zonder tekstlaag</dt>
                   <dd>{ex.gescandeBijlagen.join(', ')}</dd>
                 </>
               )}

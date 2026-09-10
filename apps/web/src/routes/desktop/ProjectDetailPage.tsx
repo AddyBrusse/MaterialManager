@@ -534,6 +534,12 @@ export function ProjectDetailPage() {
           project={project}
           onClose={() => setReviewImport(null)}
           onOfferteChanged={rerender}
+          onUnlinked={() => {
+            // Alleen de koppeling verdwijnt; aan het project zelf verandert
+            // niets, dus ook de relatie en de ordergegevens blijven staan.
+            setLinkedImport(null)
+            rerender()
+          }}
           onLinked={(saved, relatieId) => {
             setLinkedImport(saved)
             // De relatie uit het reviewscherm is de bevestigde keuze; die hoort

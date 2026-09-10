@@ -55,9 +55,9 @@ function Regel({
     <tr>
       {/* Geen tekening bij deze regel? Dan ook geen lege plaatjeshouder —
           dat is ruimte die niets zegt. */}
-      <td>{bestanden.length > 0 && <PreviewThumb source={resolvePreviewSourceFromFiles(bestanden)} size={56} />}</td>
+      <td>{bestanden.length > 0 && <PreviewThumb source={resolvePreviewSourceFromFiles(bestanden)} size={48} />}</td>
       <td className="cell-num cell-strong">{line.qty ?? '—'}</td>
-      <td className="cell-mono" style={{ paddingLeft: 14 }}>{line.klantArtikel ?? '—'}</td>
+      <td className="cell-mono">{line.klantArtikel ?? '—'}</td>
       <td className="cell-mono cell-strong" style={{ overflowWrap: 'anywhere' }}>
         {line.tekening ?? '—'}
         {line.rev && <span className="cell-muted"> rev {line.rev}</span>}
@@ -110,7 +110,7 @@ function Regel({
           clearable
         />
         {artikel === null && line.status === 'nieuw' && (
-          <div className="mi-noot">Wordt aangemaakt met de meegestuurde tekening.</div>
+          <div className="mi-noot">Nieuw{bestanden.length > 0 ? ', met tekening' : ''}</div>
         )}
       </td>
       <td className="mi-status" style={{ color: laag ? 'var(--warning)' : meta.color }}>
@@ -183,18 +183,27 @@ export function MailRegelsTable({ mailImport, articleOptions, bronnen, onChanged
         </div>
       )}
 
-      <table className="st-table mi-table">
+      {/* st-tbl, niet st-table: die laatste klasse bestaat niet, waardoor de
+          tabel geen rijscheiding, celopvulling of rijhoogte kreeg. */}
+      <table className="st-tbl mi-table">
         <thead>
           <tr>
-            <th style={{ width: 68 }} />
-            <th style={{ width: 62 }}>Aantal</th>
-            <th style={{ width: 110, paddingLeft: 14 }}>Art.nr klant</th>
-            <th style={{ width: 150 }}>Tekening</th>
-            <th>Omschrijving</th>
-            <th style={{ width: 160 }}>Materiaal</th>
-            <th style={{ width: 92 }}>Prijs klant</th>
-            <th style={{ width: '26%' }}>Ons artikel</th>
-            <th style={{ width: 104 }}>Status</th>
+            <th style={{ width: 64 }} />
+            <th style={{ width: 52 }}>Aantal</th>
+            {/* Breedtes optellen tot 100%: bij table-layout fixed kapt een te
+                smalle kolom zijn eigen kop af, en dat gebeurde bij "Art.nr
+                klant" en "Prijs klant". Het tekeningnummer krijgt het meeste,
+                want dat is het langste veld en het enige dat je echt leest. */}
+            {/* Korte kop met de volledige naam in de tooltip — dezelfde afspraak
+                als in de projectentabel (`longLabel`). Bij table-layout fixed
+                kapt een te smalle kolom anders zijn eigen kop af. */}
+            <th style={{ width: '10%' }} title="Artikelnummer van de klant">Art.nr</th>
+            <th style={{ width: '20%' }}>Tekening</th>
+            <th style={{ width: '11%' }}>Omschr.</th>
+            <th style={{ width: '18%' }}>Materiaal</th>
+            <th style={{ width: '9%' }} title="Prijs die de klant noemt">Prijs</th>
+            <th style={{ width: '22%' }}>Ons artikel</th>
+            <th style={{ width: '10%' }}>Status</th>
           </tr>
         </thead>
         <tbody>

@@ -478,3 +478,146 @@ exists in the Zod schema but not yet in `schema.prisma`).
 **Decision:** Een zip-bijlage wordt bij het inlezen uitgepakt en zijn inhoud komt als losse bijlagen naast de zip te staan (`services/zip-uitpakken.ts`, ingehaakt in `ingestMsgBuffer` direct na `readAttachments`). Grenzen: honderd bestanden, 25 MB per bestand, 100 MB totaal, alleen de bestandsnaam, geen zips binnen zips, en een kapotte zip geeft een lege lijst in plaats van een mislukte import. Verder dragen `CandidateLine` en het AI-schema nu `materiaal`, `materiaalDoorKlant` en `certificaat`, zichtbaar in een eigen kolom in het controlescherm.
 **Why:** Op een offerteaanvraag van Veratio (16-07-2026) zat de hele aanvraag in de mailtekst — zeven regels, geen inkooporder-pdf — en alle veertien tekeningen zaten in één `Tekeningen.zip`. Die zip werd als 'overig' geclassificeerd en dus volledig weggegooid: zeven nieuwe artikelen zonder tekening, terwijl de klant ze gewoon had meegestuurd. Gemeten na het uitpakken: 4 bijlagen worden er 18, veertien daarvan tellen als tekening, en alle zeven regels krijgen hun pdf én step — nul regels zonder bestand. Er was geen nieuwe koppellogica voor nodig; de bestandsnamen in de zip dragen hetzelfde nummer als de regels. De velden voor materiaal komen uit dezelfde mail: vier regels zeggen "Toegeleverd materiaal" (de klant levert aan) en twee "Uit uw materiaal" (wij kopen in), en twee vragen "Inclusief 3.1". Dat verandert de kostprijs volledig en hoort dus niet in een omschrijving te verdwijnen waar niemand op rekent — zeker niet nu de omschrijving juist is aangescherpt tot alleen wat het onderdeel ís. `fflate` is expliciet als afhankelijkheid van de API opgenomen; hij zat er al in, maar alleen transitief via `three` en `jspdf` in de frontend.
 **Trade-off:** Uitpakken kost geheugen: de inhoud staat kort naast de zip in het geheugen voordat alles naar schijf gaat, en de grenzen zijn ruim genoeg voor een set tekeningen maar niet voor een archief. Bestanden met dezelfde naam als een bestaande bijlage worden overgeslagen, anders overschrijven ze elkaar op schijf; dat kan in theorie een tekening kosten. De zip blijft ook zelf bewaard, dus die bytes staan twee keer op de NAS — bewust, want het bewijsstuk hoort ongewijzigd te blijven. `materiaalDoorKlant` komt van het model en wordt nergens deterministisch nagerekend: staat er iets ongebruikelijks als "materiaal in consignatie", dan is het een gok van het model en moet een mens het in het controlescherm zien. Het veld wordt voorlopig alleen getoond; de calculatie doet er nog niets mee.
+
+## 2026-09-09 — Een tekening hoeft geen nummer in zijn naam te dragen
+**Decision:** `classifyAttachment` eist niet langer drie cijfers in de bestandsnaam. Een tekenpakket-formaat (step, stp, dwg, dxf, iges, sldprt, …) is altijd een tekening, ongeacht de naam. Een pdf is een tekening tenzij zijn naam alleen zegt wát het bestand is in plaats van wélk onderdeel (`scan`, `tekeningen`, `bijlage`, `document`, …). Daarnaast hangt `hangBestandenAan` het leidende document nooit aan een regel, ook niet als de classificatie hem als tekening zou lezen.
+**Why:** Op een bestelling van Veratio (21-05-2026) kwamen zeven tekeningen mee die `Motor Housing_v2.pdf`, `Guide base 5_8.dwg` en `Lower foam pin.stp` heetten. Geen ervan draagt een getal van drie cijfers, dus alle zeven werden 'overig' en werden nergens aan gehangen — de artikelen kregen hun tekening niet. De oude regel kwam voort uit een echte les (`scan.pdf` en `tekeningen.pdf` zijn geen tekening), maar de aanname eronder — een onderdeel wordt altijd met een nummer aangeduid — is die van één klant, niet van alle. Het bestandstype is een betrouwbaarder signaal: een step of dwg is nooit een folder of een handtekeningplaatje. Gemeten na de wijziging: negen tekeningen goed geclassificeerd, de inkooporder blijft document, en alle vier de orderregels krijgen hun bestanden — inclusief `Guide Base 5/8` dat op `Guide base 5_8` matcht en `Motor Housing.step` dat aan `Motor housing_v2` hangt.
+**Trade-off:** Een pdf die geen tekening is en geen generieke naam draagt (een productblad, een certificaat met een eigennaam) telt nu als tekening. Dat kost weinig: koppelen aan een regel vraagt nog steeds zes tekens overlap met het tekeningnummer, dus zo'n bestand blijft meestal gewoon los in de bijlagenlijst staan. Het risico zit in een mail zónder leidend document, waar bestandsnamen wél regels mogen maken — daar kan zo'n pdf een valse regel opleveren. De uitsluiting van het leidende document dekt het geval dat het ergste was: een inkooporder zonder tekstlaag en met een cryptische naam werd anders aan zijn eigen regels gehangen. De generieke-namenlijst is Nederlands en Engels; een klant die zijn bijlagen in het Duits of Frans zo noemt, valt erbuiten.
+
+## 2026-09-09 — Testset van echte mails in de repo, en het handelsdocument native naar het model
+
+**Testset in git.** `apps/api/src/services/__tests__/mails/` bevat echte
+klantmail met het goede antwoord ernaast (`verwacht.json`), gescoord met
+`npm run score:mails -w apps/api`. Zonder zo'n set is een promptwijziging niet
+te beoordelen: een unittest vangt alleen kennis die in code staat, en die kennis
+verhuist naar prompts en klantprofielen. De prijs is bewust aanvaard — er staan
+klantprijzen, contactgegevens en tekeningen van Veratio voorgoed in de
+git-geschiedenis. De repo is privé en het team is vier man; het alternatief (op
+de NAS, buiten git) is een set die niemand draait.
+
+De scorer vergelijkt **alleen velden die in `verwacht.json` staan**. Daardoor
+blijven bestaande fixtures geldig als er een veld bij komt. De vergelijking zelf
+zit in `mail-score.ts` met eigen unittests, apart van het script: een scorer die
+zelf niet klopt zou een verslechtering als winst kunnen melden.
+
+**Het handelsdocument gaat als volledige pdf mee, ook mét tekstlaag.** Tot nu
+ging alleen een pdf zónder tekstlaag als document-blok mee. Op de bestelling van
+Veratio (2690655) bleek waarom dat te weinig is: die pdf *heeft* een tekstlaag,
+maar `pdfText` levert `€34,4925-06-2026 15` op — prijs, leverdatum en aantal aan
+elkaar geplakt, met de kolomkoppen ónder de regels. `pdfText` geeft de woorden en
+gooit de tabel weg, en juist de tabel is de betekenis. Dezelfde vorm als de
+`4-9-2026pcs`-bug.
+
+Bij een pdf die native meegaat wordt de uitgeklopte tekst uit de prompt gelaten:
+anders ziet het model naast de pdf ook de kortere, kapotte versie. De tekst
+blijft wel in `haystack()`, zodat de gronding er nog in kan nazoeken. Daarom zijn
+"zonder tekstlaag" (gronding kan niets nazoeken) en "gaat native mee" nu twee
+losse begrippen — `scans` en `nativeBlokken` in `AiExtractOutcome`,
+`gescandeBijlagen` en `volledigMeegestuurd` in het rapport.
+
+Tekeningen gaan niet meer native mee zolang er een handelsdocument is (§3.1b
+trap 1 en 2). Er passen er maar drie; op de Veratio-bestelling zou het model twee
+van de acht tekeningen zien, en die twee lijken dan bijzonder. Koppelen gaat op
+naam. Trap 3 — een tekening alsnog meesturen als een regel er géén krijgt — is
+nog niet gebouwd.
+
+## 2026-09-10 — Nulmeting op 100%, en een schakelaar om de tegenproef te kunnen draaien
+
+De scoreset staat op **77/77 (100%)** over de twee Veratio-mails, inclusief de
+vier stuksprijzen die in de kapotte kolomtekst van de inkooporder zaten
+(`€34,4925-06-2026 15`). De eerste draai kwam op 65% uit, maar alle missers
+daarvan zaten in de scorer zelf — zie de commit van die dag.
+
+Wat die 100% betekent: een regressienet. Het goede antwoord is afgeleid uit
+diezelfde mails, dus de set kan alleen nog naar beneden. Het bewijst niet dat
+mail nummer drie ook goed gaat.
+
+Wat er nog niet uit blijkt: dat het native meesturen van het handelsdocument het
+verschil máákte. Er is geen meting van vóór die wijziging. Daarom
+`MAIL_AI_DOCUMENT=tekst`, dat terugvalt op de oude regel (alleen een pdf zónder
+tekstlaag gaat mee). Twee draaien van de scoreset geven dan de tegenproef. Het is
+tegelijk een noodrem als een klantdocument het model ooit in de war blijkt te
+sturen.
+
+Gevolg voor de bouwvolgorde: **eerst de set verbreden, dan de code.** Een set op
+100% kan geen verbetering aantonen, dus C (titelblok lezen) zou code toevoegen
+voor een probleem dat nergens meer zichtbaar is. En D (opruimen) is nog niet
+gratis: `hoortBij`, `komtVanTekening` en `schoonOmschrijving` doen hier het werk
+dat de score op 100% houdt.
+
+## 2026-09-10 — De eerste gemeten promptwijziging
+
+De scoreset staat op **148/148** over zes mails van vijf klanten (Veratio, Stinis,
+Global Factories, Post Metaalbewerking, Lindhout).
+
+Het aanscherpen van de leesregel voor `materiaal` — "zegt de klant expliciet wat
+hij aanlevert, dan is dát het materiaal" — repareerde de enige misser en liet de
+andere 147 controles staan. Dat is de eerste keer dat over een promptwijziging
+iets harders te zeggen viel dan "ik denk dat dit beter is". Precies waarvoor de
+set gebouwd is.
+
+Daarbij één regel vastgelegd die bijna misging: **een voorbeeld in een prompt is
+verzonnen, of komt uit een mail die niet in de scoreset zit.** Eerst stond het
+geval uit de Veratio-fixture letterlijk in de systeemprompt; die mail zou daarna
+slagen omdat het antwoord in de prompt stond in plaats van omdat het model hem
+las. Zie features/62 §5.2e.
+
+Wat B opleverde is hiermee ook concreet: `4 4-9-2026pcs` (Stinis) en
+`11-09-26103716.D VM Drag Nozzle 114 1 Pieces 147,85 147,851` (Global Factories)
+worden goed uit elkaar gehaald. Drie leveranciers, drie ERP-systemen, drie
+manieren waarop de uitgeklopte pdf-tekst kapot is.
+
+Wat dit **niet** zegt: de set is nog steeds klein en het goede antwoord komt uit
+diezelfde mails. 100% betekent "niets kapot", niet "goed genoeg". De volgende stap
+is daarom geen code maar gebruik: elke mail die in het echt misgaat gaat als
+fixture in de set, vóór hij gerepareerd wordt.
+
+## 2026-09-10 — Het titelblok lezen als de bestandsnaam nergens bij past (stap C)
+
+`titelblok.ts`. Aanleiding is de inkooporder van Post Metaalbewerking (6191): die
+bestelt volgens `MD13504758` en stuurt een bestand `md10504758 B uitbesteding.pdf`
+mee. Eén cijfer anders. Uit de bestandsnaam alleen is niet te zeggen of dat
+dezelfde tekening is met een typefout of een ander onderdeel — en die tekeningen
+hebben geen tekstlaag, dus `pdfText` levert niets op. Het model kan de pagina wel
+bekijken.
+
+Twee keuzes die de rest bepalen:
+
+**Het is een escalatie, geen extra stap.** Er wordt pas gelezen als er een regel
+zónder bestand is náást een tekening zónder regel (§3.1b trap 3). Bij mail waar de
+bestandsnaam gewoon matcht gebeurt er niets en kost het niets. Maximaal vier
+tekeningen per mail.
+
+**Het gelezen nummer koppelt alleen bij een exacte overeenkomst.** `hoortBij` mag
+soepel zijn op een bestandsnaam, want daar is verder niets. Een titelbloknummer is
+een uitspraak over wat er op de tekening staat; wijkt het af, dan is het een
+andere tekening. Vandaar `nummerGelijk`, dat op letters en cijfers vergelijkt en
+geen enkel teken laat schelen.
+
+Daaruit volgt een uitzondering op het vangnet in `hangBestandenAan`: één regel met
+één losse tekening werd altijd gekoppeld, maar als het titelblok een ander nummer
+geeft weten we dat het fout is. Zonder die uitzondering zou C de zaak
+verslechteren in plaats van verbeteren.
+
+Productie en de scoreset lopen sinds deze wijziging door hetzelfde leespad
+(`mail-lezen.leesMail`). Dat was al de bedoeling maar was nog niet zo: `buildCandidates`
+had zijn eigen kopie van lezen-plus-regels-opbouwen. Een scoreset die een ander
+pad meet dan de app loopt, meet niets.
+
+Uit met `MAIL_AI_TITELBLOK=uit`.
+
+## 2026-09-10 — C gemeten: een fout vóórkomen in plaats van repareren
+
+Op de inkooporder van Post Metaalbewerking (6191) las het titelblok van
+`md10504758 B uitbesteding.pdf` het nummer **MD10504758** — niet het MD13504758
+waar de order naar verwijst. Het bestand is dus werkelijk een ander onderdeel en
+geen verschrijving in de bestandsnaam.
+
+C hing er niets aan. Zonder de exacte vergelijking (`nummerGelijk`) en zonder de
+uitzondering op het vangnet in `hangBestandenAan` was die tekening wél aan die
+regel gehangen: één cijfer fout, een ander onderdeel, en niemand die het merkt tot
+er verkeerd verspaand is.
+
+De scoreset blijft daarmee op 148/148, nu met alle zes de antwoorden nagekeken
+door de werkvloer. Kosten van de escalatie: die ene mail ging van 23 naar 26
+seconden; de andere vijf escaleerden niet.

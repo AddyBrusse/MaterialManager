@@ -25,6 +25,22 @@ export const config = {
      * de invoer-tokens; uit met MAIL_AI_CONTROLE=uit.
      */
     controle: (process.env.MAIL_AI_CONTROLE ?? 'aan').toLowerCase() !== 'uit',
+    /**
+     * Het handelsdocument als volledige pdf meesturen in plaats van als
+     * uitgeklopte tekst (features/62 §3.1). Uit met MAIL_AI_DOCUMENT=tekst.
+     *
+     * Twee redenen om dit te kunnen uitzetten: het is de enige manier om na te
+     * meten wat het oplevert (draai de scoreset met en zonder), en het is een
+     * noodrem als een klantdocument het model ooit in de war blijkt te sturen.
+     */
+    documentNative: (process.env.MAIL_AI_DOCUMENT ?? 'pdf').toLowerCase() !== 'tekst',
+    /**
+     * Het titelblok van een tekening laten lezen als die nergens bij past
+     * (features/62 §3.2). Kost een tweede aanroep, en gebeurt alleen bij een
+     * regel zónder bestand naast een tekening zónder regel. Uit met
+     * MAIL_AI_TITELBLOK=uit.
+     */
+    titelblok: (process.env.MAIL_AI_TITELBLOK ?? 'aan').toLowerCase() !== 'uit',
     /** Hoe grondig het model mag nadenken: low, medium, high, xhigh of max. */
     effort: (process.env.MAIL_AI_EFFORT ?? 'high') as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
   },

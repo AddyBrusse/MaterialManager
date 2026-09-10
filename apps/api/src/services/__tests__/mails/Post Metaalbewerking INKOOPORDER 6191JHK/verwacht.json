@@ -1,0 +1,23 @@
+{
+  "_toelichting": "Post Metaalbewerking, 04-09-2026. Twee orderregels die verwijzen naar tek. MD13504758 en MD13504763 — en die tekeningen zitten NIET in de mail. Wat er wél bij zit (343754/343755 en md10504758/md10504763) zijn samenstellingen van de klant, ter informatie. Let op het cijferverschil: md10504758 is niet MD13504758.\n\nbestanden is daarom bewust [] en niet weggelaten: het legt vast dat een bestand waarvan het nummer één cijfer afwijkt NOOIT aan een regel gehangen mag worden. Dat is de dure fout waar de hele gronding op gebouwd is (2615-0090 versus 2615-0091).",
+  "_nagekeken": "Bart Boers, 2026-09-10 — regel voor regel naast de mail gelegd en akkoord.",
+  "intent": "opdrachtbevestiging",
+  "document": "Inkooporder_6191_JHK.pdf",
+  "leverdatum": "2026-09-16",
+  "regels": [
+    {
+      "tekening": "MD13504758",
+      "rev": "B",
+      "qty": 12,
+      "prijs": 37.5,
+      "bestanden": []
+    },
+    {
+      "tekening": "MD13504763",
+      "rev": "B",
+      "qty": 12,
+      "prijs": 37.5,
+      "bestanden": []
+    }
+  ]
+}

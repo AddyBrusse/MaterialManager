@@ -10,3 +10,6 @@ docker/certs/
 
 # Local-dev-only DB port publish (never deploy this — see file header)
 docker/docker-compose.override.yml
+
+# Uitvoer van npm run score:mails — een meting, geen broncode
+.score/

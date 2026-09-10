@@ -44,6 +44,15 @@ describe('classifyAttachment', () => {
     // Wel een nummer, maar een bestandstype dat hier geen onderdeel aanduidt.
     expect(classifyAttachment('order 12345.xlsx')).toBe('overig')
   })
+
+  it('ziet een meegestuurde mail nooit als handelsdocument', () => {
+    // Waargenomen bij Global Factories: naast de inkooporder zat "Offerte
+    // 2634-00014.msg", die op zijn naam als document werd geclassificeerd. Zou
+    // die als leidend document gekozen worden, dan komen de regels uit de
+    // verkeerde bron en staat de echte inkooporder buitenspel.
+    expect(classifyAttachment('Offerte 2634-00014.msg')).toBe('overig')
+    expect(classifyAttachment('Inkooporder 123.eml')).toBe('overig')
+  })
 })
 
 describe('hoortBij', () => {
@@ -65,6 +74,35 @@ describe('hoortBij', () => {
 
   it('is onwaar zonder tekeningnummer', () => {
     expect(hoortBij('van-alles.stp', null)).toBe(false)
+  })
+})
+
+describe('een tekening zonder nummer in de naam', () => {
+  // Kwam boven water op een bestelling van Veratio (21-05-2026): die klant noemt
+  // zijn tekeningen bij naam in plaats van bij nummer. De oude regel eiste
+  // minstens drie cijfers in de bestandsnaam, dus alle zeven tekeningen vielen
+  // buiten de boot en werden nergens aan gehangen.
+  it('herkent een tekenpakket-formaat ongeacht de naam', () => {
+    expect(classifyAttachment('Motor Housing.step')).toBe('tekening')
+    expect(classifyAttachment('Guide base 5_8.dwg')).toBe('tekening')
+    expect(classifyAttachment('Lower foam pin.stp')).toBe('tekening')
+  })
+
+  it('herkent een pdf met een onderdeelnaam', () => {
+    expect(classifyAttachment('Motor Housing_v2.pdf')).toBe('tekening')
+    expect(classifyAttachment('Foam axle_upper roll.pdf')).toBe('tekening')
+  })
+
+  it('laat een pdf die alleen zegt wát het is met rust', () => {
+    expect(classifyAttachment('scan.pdf')).toBe('overig')
+    expect(classifyAttachment('tekeningen.pdf')).toBe('overig')
+    expect(classifyAttachment('Bijlage 2.pdf')).toBe('overig')
+  })
+
+  it('koppelt op de naam, ook met andere scheidingstekens', () => {
+    // De order schrijft "Guide Base 5/8", het bestand heet "Guide base 5_8".
+    expect(hoortBij('Guide base 5_8.pdf', 'Guide Base 5/8')).toBe(true)
+    expect(hoortBij('Motor Housing.step', 'Motor housing_v2')).toBe(true)
   })
 })
 
@@ -110,6 +148,14 @@ describe('hangBestandenAan', () => {
     const r = regel({ tekening: '2615-0091-0530' })
     hangBestandenAan([r], [att('2604307-1-2615-0091-0530-1.dwg'), att('iets-anders-123456.stp')])
     expect(r.bestanden).not.toContain('iets-anders-123456.stp')
+  })
+
+  it('hangt het leidende document nooit aan een regel', () => {
+    // Een inkooporder met een cryptische naam en zonder tekstlaag is van buiten
+    // niet van een tekening te onderscheiden; dat hij leidend is, is genoeg.
+    const r = regel({ tekening: 'PO-2615-0091' })
+    hangBestandenAan([r], [att('PO-2615-0091.pdf')], 'PO-2615-0091.pdf')
+    expect(r.bestanden).toEqual([])
   })
 
   it('gokt niet bij meerdere regels', () => {

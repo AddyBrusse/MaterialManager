@@ -1,0 +1,53 @@
+{
+  "_toelichting": "Bestelling van Jeroen van der Hoorn, 21-05-2026. Inkooporder als pdf MET tekstlaag, maar de kolommen komen er door elkaar uit ('€34,4925-06-2026 15'). Tekeningen zitten in een zip en heten bij naam, niet bij nummer.",
+  "_nagekeken": "Bart Boers, 2026-09-10 — regel voor regel naast de mail gelegd en akkoord.",
+  "intent": "opdrachtbevestiging",
+  "document": "Bestelling Boers 2690655.pdf",
+  "klantRef": "2690655",
+  "leverdatum": "2026-06-25",
+  "regels": [
+    {
+      "tekening": "Motor housing_v2",
+      "qty": 15,
+      "prijs": 34.49,
+      "materiaalDoorKlant": true,
+      "materiaal": "Alu as Ø50",
+      "bestanden": [
+        "Motor Housing_v2.pdf",
+        "Motor Housing.step"
+      ]
+    },
+    {
+      "tekening": "Foam axle_upper roll",
+      "qty": 15,
+      "prijs": 20.55,
+      "materiaalDoorKlant": true,
+      "bestanden": [
+        "Foam axle_upper roll.pdf",
+        "Foam axle_upper roll.step"
+      ]
+    },
+    {
+      "tekening": "Guide Base 5/8",
+      "qty": 15,
+      "prijs": 41.17,
+      "materiaalDoorKlant": true,
+      "materiaal": "Strip 70x8",
+      "bestanden": [
+        "Guide base 5_8.pdf",
+        "Guide base 5_8.dwg",
+        "Guide base 5_8.step"
+      ]
+    },
+    {
+      "tekening": "Lower foam pin",
+      "qty": 15,
+      "prijs": 12.05,
+      "materiaalDoorKlant": true,
+      "bestanden": [
+        "Lower foam pin.pdf",
+        "Lower foam pin.stp"
+      ]
+    }
+  ]
+}

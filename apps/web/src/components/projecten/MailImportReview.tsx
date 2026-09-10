@@ -32,6 +32,12 @@ interface Props {
   project: Project
   onClose: () => void
   onLinked: (mailImport: MailImport, relatieId: string | null) => void
+  /**
+   * De koppeling met het project is verbroken. Apart van `onLinked`, want die
+   * schrijft ook de relatie en de ordergegevens naar het project — bij
+   * loskoppelen hoort er juist niets aan het project te veranderen.
+   */
+  onUnlinked: (mailImport: MailImport) => void
   onOfferteChanged: () => void
 }
 
@@ -42,7 +48,8 @@ const INTENT_LABELS: Record<MailIntent, string> = {
 }
 
 export function MailImportReview({
-  opened, mailImport, projectId, relaties, articleOptions, project, onClose, onLinked, onOfferteChanged,
+  opened, mailImport, projectId, relaties, articleOptions, project, onClose, onLinked, onUnlinked,
+  onOfferteChanged,
 }: Props) {
   const [relatieId, setRelatieId] = useState<string | null>(mailImport.relatieId)
   const [contactId, setContactId] = useState<string | null>(mailImport.contactId)
@@ -87,12 +94,24 @@ export function MailImportReview({
         onOfferteChanged()
 
         const nieuw = r.nieuweArtikelen.length
+        // Alleen zéggen dat de tekeningen mee zijn als dat ook zo is. De melding
+        // beweerde dat onvoorwaardelijk, ook bij nul bestanden — dan denk je dat
+        // het goed ging terwijl het artikel leeg is.
+        const zonderTekening = nieuw > 0 && r.gekoppeldeBestanden === 0
         notifications.show({
-          color: r.zonderPrijs > 0 ? 'orange' : 'green',
+          color: r.misluktebestanden.length > 0 || zonderTekening
+            ? 'red'
+            : r.zonderPrijs > 0 ? 'orange' : 'green',
           title: `${r.aantalRegels} regel${r.aantalRegels === 1 ? '' : 's'} op offerte ${r.offerteId}`,
           message: [
             nieuw > 0
-              ? `${nieuw} nieuw artikel${nieuw === 1 ? '' : 'en'} aangemaakt (${r.nieuweArtikelen.join(', ')}) met de meegestuurde tekeningen.`
+              ? `${nieuw} nieuw artikel${nieuw === 1 ? '' : 'en'} aangemaakt (${r.nieuweArtikelen.join(', ')})` +
+                (r.gekoppeldeBestanden > 0
+                  ? `, met ${r.gekoppeldeBestanden} meegestuurde tekening${r.gekoppeldeBestanden === 1 ? '' : 'en'}.`
+                  : ' — zónder tekening: er hing geen bestand aan deze regels.')
+              : null,
+            r.misluktebestanden.length > 0
+              ? `Niet gekopieerd: ${r.misluktebestanden.join(', ')}.`
               : null,
             r.zonderPrijs > 0
               ? `${r.zonderPrijs} regel(s) staan op € 0 — daar moet nog een calculatie onder.`
@@ -133,6 +152,82 @@ export function MailImportReview({
       notifications.show({ color: 'green', title: 'Opnieuw uitgelezen', message: 'De mail is vers bekeken.' })
     } catch (err) {
       notifications.show({ color: 'red', title: 'Opnieuw uitlezen mislukt', message: (err as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * De tekeningen alsnog aan de al bestaande artikelen hangen.
+   *
+   * Voor een mail die al gekoppeld is: opnieuw uitlezen kan dan niet (dat gooit
+   * de regels weg die de offerte al heeft overgenomen) en opnieuw slepen ook
+   * niet. Dit raakt alleen de bijlagen van de artikelen.
+   */
+  async function tekeningenAlsnog() {
+    setBusy(true)
+    try {
+      const r = await mailImportsApi.tekeningenNaarArtikelen(current.id)
+      setCurrent(r.mailImport)
+      const totaal = r.artikelen.reduce((n, a) => n + a.toegevoegd, 0)
+      notifications.show({
+        color: totaal > 0 ? 'green' : r.overgeslagen.length > 0 ? 'red' : 'orange',
+        title: totaal > 0
+          ? `${totaal} tekening${totaal === 1 ? '' : 'en'} gekoppeld`
+          : 'Geen tekening toegevoegd',
+        message: [
+          totaal > 0
+            ? `Verdeeld over ${r.artikelen.length} artikel${r.artikelen.length === 1 ? '' : 'en'}.`
+            : 'De artikelen hadden ze al, of er hing geen bestand aan deze regels.',
+          r.overgeslagen.length > 0
+            ? `Niet gelukt: ${r.overgeslagen.map((o) => `${o.naam} (${o.reden})`).join(', ')}.`
+            : null,
+        ].filter(Boolean).join(' '),
+      })
+    } catch (err) {
+      notifications.show({ color: 'red', title: 'Koppelen mislukt', message: (err as Error).message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /**
+   * De mail losmaken van het project.
+   *
+   * Bestond niet, terwijl twee foutmeldingen er wél naar verwezen ("maak die
+   * koppeling eerst ongedaan") — een doodlopende weg: opnieuw uitlezen werd
+   * geweigerd, verwijderen ook, en de knop om het op te lossen was er niet.
+   *
+   * Wat dit NIET doet: het project, de offerte en de artikelen blijven staan,
+   * inclusief regels die al zijn overgenomen. Alleen de mail hoort er niet meer
+   * bij. Dat staat ook in de bevestiging, want "loskoppelen" klinkt gevaarlijker
+   * dan het is en het omgekeerde misverstand is nog erger.
+   */
+  async function ontkoppel() {
+    if (
+      !window.confirm(
+        'De mail losmaken van dit project?\n\n' +
+          'Het project, de offerte en de artikelen blijven staan — ook regels die al zijn ' +
+          'overgenomen. Alleen de koppeling met deze mail gaat weg, zodat je hem opnieuw kunt ' +
+          'laten uitlezen of aan een ander project kunt hangen.'
+      )
+    ) {
+      return
+    }
+    setBusy(true)
+    try {
+      // Terug naar 'nieuw': koppelen zette hem op 'verwerkt', en een mail die
+      // nergens meer bij hoort is niet verwerkt.
+      const saved = await mailImportsApi.update(current.id, { projectId: null, status: 'nieuw' })
+      setCurrent(saved)
+      onUnlinked(saved)
+      notifications.show({
+        color: 'green',
+        title: 'Losgekoppeld',
+        message: 'De mail hoort niet meer bij dit project. Het project zelf is niet veranderd.',
+      })
+    } catch (err) {
+      notifications.show({ color: 'red', title: 'Loskoppelen mislukt', message: (err as Error).message })
     } finally {
       setBusy(false)
     }
@@ -193,7 +288,9 @@ export function MailImportReview({
     <Modal
       opened={opened}
       onClose={onClose}
-      size="1180px"
+      // Op een smal scherm knijpt 1180px terug tot de vensterbreedte en wordt
+      // de regeltabel onleesbaar krap; zo houdt hij altijd wat lucht.
+      size="min(1180px, 96vw)"
       centered
       title={current.onderwerp || 'Mail controleren'}
     >
@@ -203,7 +300,7 @@ export function MailImportReview({
         <div className="mi-card-body mi-klantgrid">
           <div>
             <Select
-              size="xs"
+              size="sm"
               label="Klant"
               placeholder="Kies een klant"
               data={relatieOptions}
@@ -227,7 +324,7 @@ export function MailImportReview({
             )}
           </div>
           <Select
-            size="xs"
+            size="sm"
             label="Contact"
             placeholder={relatieId ? 'Kies een contact' : 'Kies eerst een klant'}
             data={contactOptions}
@@ -248,7 +345,7 @@ export function MailImportReview({
             </div>
           </div>
           <Select
-            size="xs"
+            size="sm"
             label="Soort bericht"
             data={MAIL_INTENTS.map((i) => ({ value: i, label: INTENT_LABELS[i] }))}
             value={intent}
@@ -278,6 +375,16 @@ export function MailImportReview({
           title="Laat de AI opnieuw naar deze mail kijken. Kost een nieuwe aanroep van het model.">
           Opnieuw uitlezen
         </button>
+        <button className="st-btn sm ghost" onClick={tekeningenAlsnog} disabled={busy}
+          title="Hangt de tekeningen uit deze mail alsnog aan de artikelen die er al zijn. Raakt het project en de offerte niet aan.">
+          Tekeningen alsnog koppelen
+        </button>
+        {current.projectId && (
+          <button className="st-btn sm ghost" onClick={ontkoppel} disabled={busy}
+            title="Maakt de mail los van dit project. Het project, de offerte en de artikelen blijven staan.">
+            Loskoppelen van project
+          </button>
+        )}
         <button className="st-btn sm ghost" onClick={ignore} disabled={busy}>Negeren</button>
         <button className="st-btn primary sm" onClick={link} disabled={busy || !relatieId}>
           {busy

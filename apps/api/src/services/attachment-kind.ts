@@ -17,6 +17,15 @@ import type { CandidateLine, MailAttachment } from '@stockmanager/shared'
 
 /** Bijlagen die nooit een onderdeel zijn — handtekeningplaatjes en dergelijke. */
 const IGNORED_EXTENSIONS = new Set(['.p7s', '.p7m', '.asc', '.vcf', '.ics', '.gif'])
+/**
+ * Een meegestuurde mail is nooit zelf het handelsdocument, hoe hij ook heet.
+ * Waargenomen bij Global Factories: een inkooporder met "Offerte 2634-00014.msg"
+ * ernaast, en die .msg werd op zijn naam als document geclassificeerd. Zou hij
+ * ooit als leidend document gekozen worden, dan komt de échte inkooporder
+ * buitenspel te staan en zijn de regels van de verkeerde bron. Wat er in zo'n
+ * bijlage zit hoort via de parser binnen te komen, niet via de naam.
+ */
+const BERICHT_EXTENSIONS = new Set(['.msg', '.eml'])
 const IGNORED_NAMES = /^(image\d*|oledata|winmail|logo|signature|banner)/i
 
 /**
@@ -45,10 +54,27 @@ const DOCUMENT_NAMES = new RegExp(
 const DOCUMENT_TEKST =
   /(offerteaanvraag|inkoopofferte|inkooporder|purchase[\s_-]*(order|offer)|request for quotation|opdrachtbevestiging|order confirmation|proforma|pakbon|factuur|invoice)/i
 
-/** Bestandstypen die in deze werkplaats een onderdeel aanduiden. */
-const PART_EXTENSIONS = new Set([
-  '.step', '.stp', '.iges', '.igs', '.sldprt', '.ipt', '.x_t', '.stl', '.dxf', '.dwg', '.pdf',
+/**
+ * Tekenpakket-formaten. Deze zijn per definitie een onderdeel: een step of een
+ * dwg is nooit een scan, een folder of een handtekeningplaatje.
+ */
+const CAD_EXTENSIONS = new Set([
+  '.step', '.stp', '.iges', '.igs', '.sldprt', '.ipt', '.x_t', '.stl', '.dxf', '.dwg',
 ])
+
+/**
+ * Namen die zeggen wát het bestand is in plaats van wélk onderdeel: "scan.pdf",
+ * "tekeningen.pdf", "bijlage 2.pdf". Alleen voor pdf's nodig — die zijn zowel de
+ * drager van een tekening als van alles wat er verder wordt meegestuurd.
+ *
+ * Dit verving een regel die eiste dat er minstens drie cijfers in de naam stonden,
+ * op de aanname dat een onderdeel altijd een nummer draagt. Dat klopt voor de ene
+ * klant en niet voor de andere: bij een bestelling van Veratio (21-05-2026) heetten
+ * de tekeningen `Motor Housing_v2.pdf` en `Lower foam pin.pdf`, en die vielen
+ * allemaal buiten de boot — zeven tekeningen die nergens aan gehangen werden.
+ */
+const GENERIEKE_NAMEN =
+  /^(scan|scans|tekening|tekeningen|drawing|drawings|document|documenten|bijlage|bijlagen|attachment|attachments|afbeelding|afbeeldingen|foto|fotos|bestand|bestanden|file|files|pagina|page)\b/i
 
 export const ATTACHMENT_KINDS = ['document', 'tekening', 'overig'] as const
 export type AttachmentKind = typeof ATTACHMENT_KINDS[number]
@@ -67,15 +93,17 @@ export function classifyAttachment(filename: string, tekst?: string | null): Att
   const ext = extensionOf(filename)
   const base = baseNameOf(filename)
   if (!base || IGNORED_EXTENSIONS.has(ext) || IGNORED_NAMES.test(base)) return 'overig'
+  if (BERICHT_EXTENSIONS.has(ext)) return 'overig'
   // Inhoud gaat vóór naam: wat er in het document staat liegt niet, een
   // bestandsnaam uit een vreemd systeem wel.
   if (tekst && DOCUMENT_TEKST.test(tekst.slice(0, 4000))) return 'document'
   if (DOCUMENT_NAMES.test(base)) return 'document'
-  // Een onderdeel wordt hier altijd met een nummer aangeduid. Een bijlage die
-  // alleen uit woorden bestaat ("scan.pdf", "tekeningen.pdf") is geen tekening.
-  if (!/\d{3,}/.test(base)) return 'overig'
-  if (ext && !PART_EXTENSIONS.has(ext)) return 'overig'
-  return 'tekening'
+  // Een tekenpakket-formaat is altijd een onderdeel, hoe het bestand ook heet.
+  if (CAD_EXTENSIONS.has(ext)) return 'tekening'
+  // Een pdf kan alles zijn. Draagt hij een naam die alleen zegt wát het is in
+  // plaats van wélk onderdeel, dan is het geen tekening.
+  if (ext === '.pdf') return GENERIEKE_NAMEN.test(base) ? 'overig' : 'tekening'
+  return 'overig'
 }
 
 /**
@@ -116,19 +144,60 @@ export function leidendDocument(attachments: MailAttachment[]): MailAttachment |
 }
 
 /**
+ * Twee tekeningnummers die hetzelfde onderdeel aanduiden.
+ *
+ * Streng waar `hoortBij` soepel is, en dat verschil is de kern. `hoortBij` mag
+ * gokken op een bestandsnaam, want daar is verder niets. Een titelbloknummer is
+ * geen gok maar een uitspraak over wat er op de tekening staat; als dat níet
+ * gelijk is aan wat de klant bestelde, is het een andere tekening. Precies het
+ * geval waarvoor we zijn gaan kijken (MD13504758 op de order, md10504758 op het
+ * bestand), dus juist hier niet soepel worden.
+ */
+export function nummerGelijk(a: string | null, b: string | null): boolean {
+  if (!a || !b) return false
+  const k = (v: string) => v.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  return k(a).length >= MIN_OVERLAP && k(a) === k(b)
+}
+
+/**
  * Tekeningen bij hun regel zetten.
  *
  * Een bestand dat bij geen enkele regel hoort blijft gewoon in de bijlagenlijst
  * staan; het wordt niet stilzwijgend weggegooid en ook niet alsnog een regel —
  * als het document de regels bepaalde, is dat document leidend.
  */
-export function hangBestandenAan(lines: CandidateLine[], attachments: MailAttachment[]): void {
+export function hangBestandenAan(
+  lines: CandidateLine[],
+  attachments: MailAttachment[],
+  document?: string | null,
+  /** Bestandsnaam → het nummer dat in het titelblok van die tekening staat. */
+  titelblokken?: ReadonlyMap<string, string>,
+): void {
   const tekeningen = attachments.filter(
-    (a) => !a.isEmbeddedMessage && classifyAttachment(a.filename) === 'tekening',
+    (a) =>
+      !a.isEmbeddedMessage &&
+      // Het leidende document is geen tekening bij een regel, ook niet als de
+      // classificatie hem zo zou lezen: een inkooporder met een cryptische naam
+      // en zonder tekstlaag is van buiten niet van een tekening te onderscheiden.
+      a.filename !== document &&
+      classifyAttachment(a.filename) === 'tekening',
   )
 
   function koppel(line: CandidateLine, filename: string): void {
     if (!line.bestanden.includes(filename)) line.bestanden.push(filename)
+  }
+
+  // Stap 0 — het nummer uit het titelblok. Sterker dan alle stappen hieronder:
+  // dit staat op de tekening zelf en niet in een naam die de klant koos. Daarom
+  // eerst, en daarom exact.
+  if (titelblokken?.size) {
+    for (const att of tekeningen) {
+      const nummer = titelblokken.get(att.filename)
+      if (!nummer) continue
+      for (const line of lines) {
+        if (nummerGelijk(nummer, line.tekening)) koppel(line, att.filename)
+      }
+    }
   }
 
   // Stap 1 — het tekeningnummer zit in de bestandsnaam. Het sterkste signaal, en
@@ -159,6 +228,14 @@ export function hangBestandenAan(lines: CandidateLine[], attachments: MailAttach
   // heeft: heeft stap 1 al op het nummer gematcht, dan is een overgebleven
   // tekening juist een aanwijzing dat hij ergens anders bij hoort.
   if (lines.length === 1 && lines[0].bestanden.length === 0) {
-    for (const att of tekeningen) koppel(lines[0], att.filename)
+    for (const att of tekeningen) {
+      // Is het titelblok gelezen en zegt het een ander nummer dan de regel, dan
+      // is dit vangnet juist verkeerd: we wéten dan dat de tekening er niet bij
+      // hoort. Zonder deze uitzondering zou het lezen van het titelblok de zaak
+      // verslechteren in plaats van verbeteren.
+      const nummer = titelblokken?.get(att.filename)
+      if (nummer && lines[0].tekening && !nummerGelijk(nummer, lines[0].tekening)) continue
+      koppel(lines[0], att.filename)
+    }
   }
 }

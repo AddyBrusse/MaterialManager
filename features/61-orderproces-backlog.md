@@ -234,3 +234,51 @@ mutatie, geen reservering, in de hele keten niet.
 ## Voorgestelde volgorde
 
 0, 0a, 1, 2, 4 en 5 (gedaan) → fase 2 in één stuk → 10 → 11 → 12 → 14 → 15 → 16 → rest.
+
+---
+
+## Opgemerkt 2026-09-10 — een order zonder de tekening erbij
+
+Bij het opbouwen van de scoreset kwam een geval boven dat in geen enkel document
+stond: een klant bestelt volgens tekeningnummer, maar stuurt de tekening niet mee
+omdat wij hem van een eerdere opdracht al hebben (Post Metaalbewerking,
+inkooporder 6191).
+
+Vandaag ziet zo'n regel er in het controlescherm uit alsof er iets ontbreekt. Dat
+is alleen waar als wij dat tekeningnummer níet kennen. Kennen we het wel, dan is
+de order compleet en moet het scherm dat ook zeggen — anders gaat iemand zoeken
+naar een bestand dat niet hoort te bestaan.
+
+Uitgewerkt in `features/62-mail-import-ai-ontwerp.md` §9b.
+
+---
+
+## Opgemerkt 2026-09-10 — corrigeren kan maar op één veld, en alleen dát wordt onthouden
+
+In het controlescherm van een mail-import is precies één ding te corrigeren: welk
+artikel van ons bij een regel hoort (de kolom "Ons artikel"). Dat is niet toevallig
+het belangrijkste veld — die correctie schrijft een `ArticleAlias` weg (klant +
+tekeningnummer → artikel), zodat dezelfde klant met hetzelfde nummer de volgende
+keer meteen goed staat. De leerlus uit `features/62` §4 draait dus al.
+
+Wat er **niet** te corrigeren is: aantal, tekeningnummer, prijs, materiaal,
+omschrijving. Die staan alleen-lezen op het scherm.
+
+Leest het model 15 stuks waar er 12 besteld zijn, dan corrigeer je dat pas in de
+offerte — en die correctie **leert het systeem niets**, want hij zit niet op de
+mail-import. Dezelfde klant met dezelfde opmaak gaat de volgende keer weer mis.
+
+Twee dingen om over te beslissen, in deze volgorde:
+
+1. **Wil je die velden kunnen corrigeren in het controlescherm?** Dat is het
+   meeste werk (bewerkbare cellen, opslaan per regel) maar het maakt van het
+   scherm de plek waar de waarheid wordt vastgesteld in plaats van alleen bekeken.
+2. **Zo ja: wat gebeurt er met zo'n correctie?** Een gecorrigeerd aantal is niet
+   generaliseerbaar zoals een artikelkoppeling dat is — 12 stuks bij deze order
+   zegt niets over de volgende. Wat wél generaliseert is een correctie op een
+   *leesfout die aan de opmaak van deze klant ligt*. Zie `features/62` §4.3, waar
+   het onderscheid tussen een koppelfout en een leesfout staat.
+
+Zolang 1 niet gebouwd is, is het eerlijker om te zeggen dat het systeem leert van
+artikelkoppelingen, en verder niet.
+

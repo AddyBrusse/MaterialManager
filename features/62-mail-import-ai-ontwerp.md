@@ -1,0 +1,639 @@
+# 62 — Mail-import: het AI-leespad opnieuw opgezet
+
+Ontwerp, nog niet gebouwd. Opgesteld 2026-09-09 na een dag waarin drie keer een
+regel gerepareerd moest worden omdat een klant zijn spullen anders benoemde.
+
+## 1. Waarom het nu blijft breken
+
+Er zitten twee soorten kennis in het systeem, en ze zitten op de verkeerde plek.
+
+| Kennis | Waar het nu zit | Wie het kan aanpassen |
+|---|---|---|
+| Wat er in de mail staat | het model | niemand hoeft iets |
+| **Hoe déze klant zijn spullen benoemt** | **regex in `attachment-kind.ts`** | **alleen een programmeur, met een release** |
+
+Die tweede rij is het probleem. Drie voorbeelden van vandaag, alle drie dezelfde
+vorm:
+
+- `\d{3,}` in `classifyAttachment` — "een onderdeel draagt altijd een nummer".
+  Klopt voor Stinis, niet voor Veratio, die `Motor Housing_v2.pdf` stuurt.
+- `MIN_OVERLAP = 6` in `hoortBij` — een aanname over hoe lang een tekeningnummer
+  is.
+- De lijst met documentnamen — elk klantsysteem verzint een eigen naam voor zijn
+  inkooporder.
+
+Elke klant die het anders doet, breekt een regel. Dat is geen bug die je
+wegwerkt; het is de architectuur.
+
+## 2. Wat deterministisch blijft, en waarom
+
+Niet alles moet naar het model. Deze dingen horen in code, met tests:
+
+- **Artikelmatching.** `2615-0090-0530` en `2615-0091-0530` schelen één cijfer en
+  zijn verschillende onderdelen. Daar wil je een test, geen oordeel.
+- **Prijsvergelijking.** Rekenen.
+- **Bestanden kopiëren, paden, opslag.** Geen oordeel nodig.
+- **De grondingscontrole.** Of een citaat echt in de bron staat, controleer je;
+  dat vraag je niet.
+
+Wat wél naar het model gaat, is alles waar je een oordeel over vorm nodig hebt:
+is dit een tekening of een folder, hoort dit bestand bij die regel, welke kolom
+is het aantal.
+
+## 3. Het nieuwe leespad
+
+### 3.1 Documenten native meesturen — de grootste winst
+
+**Nu:** `pdfText()` haalt de tekst uit een pdf en die wordt als platte tekst in
+een prompt-string geplakt. Alleen pdf's *zonder* tekstlaag gaan als document-blok
+mee (`scansVoorModel`, maximaal drie).
+
+Daarmee gooien we de tabelstructuur weg voordat het model iets ziet. Kolommen,
+rijen en uitlijning zijn verdwenen; wat overblijft is tekstsoep. Zo ontstond
+`4-9-2026pcs`: de leverdatum plakte tegen de eenheid omdat de tabel was
+platgeslagen.
+
+**Nieuw:** het handelsdocument gaat altijd als `document`-blok mee, ongeacht of
+er een tekstlaag in zit. De API leest de pdf met layout — dat is precies waar een
+ordertabel om vraagt.
+
+Dit is één wijziging die een hele klasse fouten wegneemt, en het maakt de
+scan-uitzondering overbodig: gescand of niet, het gaat dezelfde route.
+
+**Om verduidelijking: er worden geen screenshots gemaakt.** De pdf-bytes gaan als
+`document`-blok mee; het omzetten naar pagina's gebeurt aan de kant van de API.
+Wij renderen niets en slaan niets extra's op. (`renderArtikelPreview` met pdfjs
+is iets anders: dat maakt de duimnagels in het controlescherm en blijft zoals het
+is.)
+
+### 3.1b Niet alles altijd — escaleren in trappen
+
+Alles meesturen is duur en traag. Daarom in trappen, van goedkoop naar duur:
+
+1. **Altijd native:** het handelsdocument. Eén of twee pagina's, en juist dát is
+   het document met de ordertabel waar de fouten in zitten.
+2. **Tekeningen eerst alleen op naam.** De deterministische matcher doet zijn
+   werk. Bij de Stinis-aanvraag en de Veratio-bestelling was dat genoeg — daar
+   hoeft geen enkele tekening naar het model.
+3. **Alleen als een regel géén bestand krijgt:** de eerste pagina van de
+   onbekende tekeningen alsnog meesturen, zodat het model het titelblok kan
+   lezen en de koppeling op het echte tekeningnummer kan leggen.
+
+Zo betaalt de gewone mail de goedkope route en alleen de lastige mail de volle
+prijs. Ruwe inschatting: van ~€0,25 per mail naar ~€0,05 voor het overgrote deel.
+
+### 3.2 Het titelblok lezen, niet de bestandsnaam raden
+
+Het echte tekeningnummer staat in het **titelblok van de tekening**. Bij de
+Veratio-aanvraag stond er letterlijk `Drawing No 507957355` in de pdf, terwijl wij
+zaten te raden uit `206413050_507957355_A_Bewerken.pdf`.
+
+Dit is ook wat de markt doet: [CNCQuote](https://cncquote.io/) leest het titelblok
+voor materiaal en nummers rechtstreeks van de pdf, en er zijn losse API's die
+alléén dit doen ([Werk24](https://docs.werk24.io/features/title_block.html),
+[Apryse](https://apryse.com/blog/automate-cad-title-block-extraction)).
+
+Met het echte nummer in handen wordt de koppeling een opzoeking in onze eigen
+artikeldatabase (§4.1) in plaats van een oordeel over een bestandsnaam. Daarmee
+kunnen weg: `classifyAttachment`, `hoortBij` in drie trappen, `komtVanTekening` en
+`schoonOmschrijving` — ruwweg de helft van de 1674 regels die dit nu kost.
+
+Let op: een **STEP-bestand heeft geen titelblok**; dat is pure geometrie. In de
+praktijk komen ze in paren (`Motor Housing_v2.pdf` naast `Motor Housing.step`),
+dus de pdf levert het nummer en de step hangt eraan op naam.
+
+De bestandsnaam blijft meedoen als extra signaal — [Paperless Parts wijst
+bestanden toe "based on filenames *and* AI suggestions"](https://www.paperlessparts.com/press/paperless-parts-cuts-quote-setup-time-by-90-with-new-ai-supported-workflow/),
+dus niet het één óf het ander. Maar hij is niet langer de bron van waarheid.
+
+### 3.3 Gronding via citations in plaats van zelfgebouwd
+
+**Nu:** elke regel draagt een `bronTekst` die het model zegt letterlijk te hebben
+overgenomen, en `tekeningStaatErIn` / `gegrond` controleren dat achteraf tegen
+een genormaliseerde tekstbrij.
+
+Dat is een goede vondst, maar het leunt op de bewering van het model dát het
+citeert. De API kan het beter: met `citations: {enabled: true}` op een
+document-blok geeft de API zélf terug uit welk document, welke pagina en welke
+tekens een bewering komt.
+
+Dat tilt de zekerheidsscore van "het model zegt dit te hebben gelezen" naar "de
+API zegt dat dit op pagina 2 staat" — en het maakt de preview in het
+controlescherm klikbaar naar de juiste plek in de tekening.
+
+> **Let op — dit moet uitgezocht worden.** Citations zijn volgens de documentatie
+> níet te combineren met `output_config.format`, en dat is precies wat
+> `messages.parse()` gebruikt voor het Zod-schema. Twee mogelijke uitwegen:
+> het schema als *strict tool* uitdrukken in plaats van als output-format, of
+> citations in de tweede lezing zetten (§3.4) en daar de vindplaatsen ophalen.
+> Welke van de twee werkt, weet ik nog niet — dit is het eerste dat je uitprobeert.
+
+### 3.4 De tweede lezing wordt een controle
+
+**Nu:** dezelfde mail wordt twee keer identiek gelezen (`MAIL_AI_CONTROLE`) en de
+uitkomsten worden vergeleken. Verschillen ze, dan zakt de zekerheid.
+
+Dat werkt, maar twee identieke lezingen vinden vooral dezelfde fouten. Een
+tweede lezing met een ándere opdracht vindt andere: geef het model de bron plus
+het uitgelezen resultaat en vraag waar het misgaat.
+
+Welke van de twee hier beter werkt, is een meetbare vraag — zie §5. Ik zou beide
+houden en laten meten in plaats van er nu over te beslissen.
+
+## 4. Wat het systeem per klant onthoudt
+
+Dit deel is herschreven op 2026-09-09 na het bekijken van Basecone, dat precies
+dit probleem oplost voor facturen. Hun aanpak is eenvoudiger dan wat hier eerst
+stond, en wij hebben de kern er al van.
+
+### 4.1 De omkering
+
+Basecone vergelijkt de factuurgegevens met de **stamgegevens uit het
+boekhoudsysteem**: *"zodra er voldoende overeenkomsten zijn (dit zou zelfs één
+uniek element kunnen zijn), maakt Basecone de match en selecteert de
+leverancier"*.
+
+Ze proberen het document dus niet in het abstracte te begrijpen. Ze zoeken welke
+van hun **bekende** entiteiten dit is.
+
+Toegepast op ons: wij vragen bij een tekening *"is dit een tekening en bij welke
+regel hoort hij"* — en daar hebben we regels voor geschreven die blijven breken.
+De betere vraag is *"welk van onze bekende artikelen is dit"*. Staat er
+`507957355` in het titelblok, dan is dat een opzoeking in onze eigen
+artikeldatabase, geen oordeel over een bestandsnaam.
+
+Dat wordt bovendien vanzelf beter naarmate er meer artikelen zijn — het
+tegenovergestelde van regels, die met elke nieuwe klant brozer worden.
+
+### 4.2 Het leren bestaat al
+
+`ArticleAlias` is precies de Basecone-lus, en hij staat er al. Corrigeer je in
+het controlescherm een regel naar een ander artikel, dan wordt
+`(relatie, tekening) → artikel` bewaard; dezelfde klant met hetzelfde nummer
+staat de volgende keer meteen goed. Geen model dat traint, geen gewichten — een
+opzoektabel die jouw correctie onthoudt.
+
+Wat eraan moet gebeuren is klein: de tabel leert nu alleen van `line.tekening`.
+Laat hem ook leren van het tekeningnummer uit het titelblok en van de
+bestandsnaam. Zelfde tabel, meer sleutels die naar hetzelfde artikel wijzen.
+
+### 4.3 Twee soorten fouten, en maar één is zo leerbaar
+
+| Soort | Voorbeeld | Leerbaar als tabel? |
+|---|---|---|
+| **Koppelfout** | dit nummer hoort bij dat artikel | **ja** |
+| **Leesfout** | aantal 2026 in plaats van 2 | nee |
+
+Koppelfouten zijn het grootste deel van het werk én perfect leerbaar. Leesfouten
+los je niet op met geheugen maar met beter lezen — dat is wat §3.1 (native pdf)
+en het titelblok doen.
+
+### 4.4 Zelf regels toevoegen, in volgorde van veiligheid
+
+| | Wat | Risico |
+|---|---|---|
+| 1 | Correcties in het controlescherm (automatisch) | geen — bestaat al |
+| 2 | Een koppeling zelf intypen: klantnummer → artikel | laag |
+| 3 | Een goede mail aanwijzen als voorbeeld voor die klant | laag |
+| 4 | Vrije leesinstructie per klant ("het aantal staat in kolom Hoev.") | hoger |
+
+De eerste drie zijn data. Alleen de vierde verandert hóe het model leest, en dat
+is het enige waar een testset echt voor nodig is voordat je hem aanzet. Een
+voorbeeld aanwijzen (3) werkt in de praktijk beter dan een geschreven regel (4):
+je hoeft niet te formuleren wat je bedoelt, en het is echte data in plaats van een
+bewering over data.
+
+### 4.5 Het deksel dat open moet kunnen
+
+Op de relatiepagina: **wat heeft het systeem van deze klant geleerd?** Een lijst
+met een prullenbak per regel, en zichtbaar of een regel uit een correctie kwam of
+met de hand is ingetypt (`createdBy` en `createdAt` staan er al).
+
+Dit is geen bijzaak. Zonder dat scherm onthoudt het systeem stilletjes dingen die
+je niet kunt zien; leert het per ongeluk een verkeerde koppeling, dan zit die er
+voor altijd in, matcht elke volgende mail fout mét hoge zekerheid, en snap je niet
+waarom. Dát is hoe zo'n systeem ondoorgrondelijk wordt — niet door de techniek,
+maar door het ontbreken van een deksel dat opengaat.
+
+Basecone doet hetzelfde: hun boekingsregels per leverancier zijn zichtbaar en
+aanpasbaar.
+
+## 5. Meten — dit is geen luxe, dit is de voorwaarde
+
+Zolang kennis in code zit, vangt een unittest een regressie. Zodra kennis in
+prompts en klantprofielen zit, is dat weg: een promptwijziging die klant A beter
+maakt kan klant B stilletjes slopen, en dat merk je pas als er verkeerd
+geoffreerd is.
+
+Daarom eerst een **testset van echte mails met het goede antwoord erbij**. Er
+liggen er drie klaar; twee staan er sinds 2026-09-09 in:
+
+| Mail | Waarom hij erin hoort |
+|---|---|
+| Stinis, offerteaanvraag RFQ2600241 | pdf mét tekstlaag waar letterlijk `4 4-9-2026pcs` uit komt |
+| Veratio, offerteaanvraag 2663270 | geen handelsdocument, regels in de mailtekst, zeven tekeningen in een zip |
+| Veratio, bestelling 2690655 | inkooporder mét zip, tekeningen genoemd bij naam in plaats van nummer |
+
+Elke mail die misgaat komt erbij. Gescoord per veld: aantal regels, qty,
+tekeningnummer, welke bestanden aan welke regel. Dan wordt "helpt deze
+wijziging?" een meting in plaats van een gok — en dat is wat prompt-werk
+überhaupt beheersbaar maakt.
+
+### 5.1 Hoe de set eruitziet
+
+Eén map per mail, met de mail zelf en het goede antwoord ernaast:
+
+```
+apps/api/src/services/__tests__/mails/
+  stinis-rfq2600241/
+    mail.msg
+    verwacht.json
+  veratio-2663270-offerteaanvraag/
+    mail.msg
+    verwacht.json
+  veratio-2690655-bestelling/
+    mail.msg
+    verwacht.json
+```
+
+Draaien met `npm run score:mails -w apps/api` (of met een stuk van een mapnaam
+erachter voor één mail). Het roept het echte model aan, dus er moet een
+`ANTHROPIC_API_KEY` staan en het kost geld — daarom is het een script en geen
+vitest-test.
+
+De twee Veratio-mails zijn van **verschillende mensen** bij dezelfde klant:
+Damiano Blonk schrijft zijn regels in de mailtekst, Jeroen van der Hoorn stuurt
+een inkooporder als pdf. Dat is geen toeval maar precies waarom de set zo moet:
+klantkennis die aan één opmaak vastzit breekt op de collega.
+
+`verwacht.json` bevat **alleen de velden waar je iets van vindt**:
+
+```json
+{
+  "regels": [
+    {
+      "tekening": "206413050_507957355_A_",
+      "qty": 2,
+      "materiaalDoorKlant": true,
+      "bestanden": [
+        "206413050_507957355_A_Bewerken.pdf",
+        "206413050_507957355_A_.stp"
+      ]
+    }
+  ]
+}
+```
+
+Dat is geen slordigheid maar de belangrijkste eigenschap van de set: **de scorer
+vergelijkt alleen wat er in het bestand staat.** Komt er later een veld bij —
+zoals `certificaat` vandaag — dan blijven alle bestaande fixtures geldig; je vult
+het nieuwe veld alleen in bij de mails waar het speelt. Zonder die eigenschap
+moet je bij elke schemawijziging alle testdata bijwerken, en dan verrot de set
+binnen een maand.
+
+### 5.2 Waar de mails staan
+
+**In de repo**, naast de tests (besloten 2026-09-09). Daarmee draait de set
+automatisch mee bij elke wijziging en kan hij niet stilletjes achterlopen.
+
+De prijs daarvan is bewust aanvaard: deze mails bevatten klantprijzen,
+contactgegevens en tekeningen van Veratio en Stinis, en die staan daarmee voorgoed
+in de git-geschiedenis en in elke kloon. De repo is privé en het team is vier man.
+Het alternatief — de set op de NAS, buiten git — betekent dat CI hem niet kan
+draaien, en een testset die alleen handmatig start is een testset die doodbloedt.
+
+### 5.2b Wat de eerste draai leerde over de scorer zelf
+
+De nulmeting kwam uit op 65% (50/77). Alle 27 missers waren fouten in de
+**scorer**, niet in het model:
+
+- het fixtureveld `prijs` heet op een `CandidateLine` `klantPrijs`
+- `bestanden` is `string[]`, geen lijst objecten met een `filename`
+
+De scorer las in beide gevallen `undefined` en meldde dat het model het veld
+gemist had, terwijl het er gewoon stond. Er waren wél unittests, maar die gaven
+een verzonnen regel door met `as CandidateLine` — en die cast zette precies de
+controle uit die de fout had moeten vangen.
+
+Twee dingen daaruit, allebei toegepast:
+
+1. **Geen `as` in de tests van de scorer.** De testregel moet een echte
+   `CandidateLine` zijn, zodat een veldnaam die niet bestaat niet compileert.
+2. **Een tabel `VELDEN` die fixturenaam op regelveld afbeeldt, en die gooit bij
+   een onbekende sleutel.** Een tikfout in een fixture loopt nu stuk in plaats
+   van als "model zat fout" te tellen.
+
+Verder schrijft het script sinds die draai weg wat het model werkelijk teruggaf
+(`apps/api/.score/<map>.json`, gitignored). Een draai kost geld en ongeveer een
+minuut per mail; een misser napluizen hoort daarna geen tweede draai te vragen.
+
+### 5.1b Een mail toevoegen
+
+Map maken onder `__tests__/mails/`, de mail erin (de naam doet er niet toe, als
+het er maar precies één is), en dan:
+
+    npm run score:mails -w apps/api -- --voorstellen
+
+Voor elke mail zonder `verwacht.json` schrijft het script een **voorstel** weg in
+`.score/<map>.verwacht-voorstel.json`.
+
+Zonder `--voorstellen` draaien alléén de mails die al een nagekeken antwoord
+hebben. Dat is met opzet: er staat veel meer mail in de repo dan in de scoreset,
+en een gewone draai hoort de goedkope te zijn. Een mapnaam als argument
+(`-- lindhout`) draait die ene mail, met of zonder antwoord.
+
+Dat voorstel is wat het model ervan máákte, niet wat er staat. Klakkeloos
+overnemen bakt de fout van vandaag in als het goede antwoord van morgen, en dan
+meet de set voor altijd niets meer. Daarom komt het in `.score/` terecht en niet
+naast de mail: het moet langs mensenogen voordat het meetelt. Haal er ook uit
+waar je niets van vindt — de scorer kijkt alleen naar wat er staat, dus een veld
+weglaten is beter dan er een slag naar slaan.
+
+Wat een mail de moeite waard maakt, ongeveer in die volgorde:
+
+1. **Hij ging mis.** Een mail die je in het controlescherm moest corrigeren is de
+   waardevolste die er is: daar zit een echt gat.
+2. **Een andere klant dan Veratio.** De set is nu volledig Veratio; dat is op dit
+   moment het grootste blinde vlak.
+3. **Een vorm die er nog niet in zit.** Gescande inkooporder, doorgestuurde mail,
+   opdrachtbevestiging in plaats van aanvraag, order zonder bijlagen.
+
+Volume helpt minder dan variatie: acht mails die op elkaar lijken meten één ding.
+
+### 5.2d Wat 36 echte mails lieten zien
+
+Met `npm run mails:inventaris -w apps/api` (gratis, geen API-aanroep) over de 36
+mails in de voorraad:
+
+- **Geen enkele gescande inkooporder.** Alle 19 mails met een handelsdocument
+  hebben een pdf mét tekstlaag. De aanname dat "scan" het lastige geval is,
+  klopte niet — en daarmee is B veel belangrijker dan gedacht: de oude regel
+  stuurde van die 19 er **nul** native mee, de nieuwe alle 19.
+- **19 mails zonder handelsdocument.** Precies de helft. De regels moeten dan uit
+  de mailtekst komen, met soms tientallen tekeningen erbij (34 bij BK Automation,
+  38 bij RLC).
+- **11 afzenderdomeinen.** Veratio is met 10 van de 36 de grootste, maar niet
+  meer de enige.
+
+De vorm van de kolomsoep verschilt per leverancier en is telkens anders kapot:
+
+    Stinis            `2611-1456-0234 As ø50x178 4 4-9-2026pcs`
+    Global Factories  `11-09-26103716.D VM Drag Nozzle 114 1 Pieces 147,85 147,851`
+    Veratio           `€34,4925-06-2026 15`
+
+Dat is geen patroon om een regel op te schrijven — het is per systeem anders — en
+precies de reden dat de pdf zelf mee moet.
+
+### 5.1c Het antwoord nakijken
+
+    npm run mails:antwoorden -w apps/api
+    npm run mails:antwoorden -w apps/api -- lindhout --bron
+
+Drukt elke `verwacht.json` af als leesbare regels. Geen API-aanroep.
+
+Met `--bron` komt de mail er zelf onder te staan: onderwerp, afzender, de tekst
+van het bericht, de bijlagen met hun classificatie, en de uitgeklopte tekst van
+het handelsdocument. Zonder dat valt het antwoord niet te beoordelen — `qty=2`
+zegt niets als je niet ziet waar die 2 vandaan zou moeten komen. Bedoeld om per
+mail te gebruiken; over zes mails tegelijk is het te veel.
+
+Dit is er omdat een fixture de meetlat *is*: staat daar iets fout in, dan meet de
+set de verkeerde kant op en merkt niemand het — een groene set is dan juist het
+probleem. Nakijken moet daarom makkelijker zijn dan zes JSON-bestanden opengaan,
+anders gebeurt het niet.
+
+### 5.2c Wat 100% wel en niet zegt
+
+De set staat op 77/77. Dat is een **regressienet**, geen bewijs van kwaliteit:
+het goede antwoord is afgeleid uit diezelfde twee mails, dus de set kan alleen
+nog naar beneden. Twee gevolgen die de bouwvolgorde raken:
+
+- **Een set op 100% kan geen verbetering aantonen.** C (titelblok lezen) lost
+  hier niets op wat nog stuk is. Blind bouwen aan C betekent code toevoegen voor
+  een probleem dat de set niet laat zien — precies het soort werk waar dit
+  ontwerp vanaf wilde.
+- **Eerst de set verbreden, dan de code.** Elke mail die in het echt misgaat
+  hoort erin; de Stinis-aanvraag (gescande inkooporder) staat er nog steeds niet
+  in. Pas als de set een fout laat zien, is er iets te repareren én te meten.
+
+Ook D (opruimen) is nog niet gratis: `hoortBij`, `komtVanTekening` en
+`schoonOmschrijving` dóen hier het werk dat de score op 100% houdt. Ze zijn pas
+weg te halen als C hun taak overneemt, niet ervoor.
+
+### 3.2b Waarom het titelbloknummer streng vergeleken wordt
+
+`hoortBij` mag soepel zijn op een bestandsnaam: daar is verder niets, dus een
+gedeeltelijke overlap is het beste signaal dat er is. Een titelbloknummer is iets
+anders — dat is geen gok maar een uitspraak over wat er op de tekening staat.
+Wijkt het af van wat de klant bestelde, dan is het een andere tekening.
+
+Daarom `nummerGelijk`: gelijk op letters en cijfers, verder niets. `MD13504758`
+en `MD10504758` zijn niet hetzelfde.
+
+Dat maakt ook een uitzondering nodig op het vangnet in `hangBestandenAan` (één
+regel plus losse tekeningen). Zonder die uitzondering zou het lezen van het
+titelblok de zaak *verslechteren*: normaal is één regel met één losse tekening
+reden genoeg om te koppelen, maar als het titelblok zegt dat het een ander nummer
+is, weten we beter. Er is een test die daarop staat.
+
+### 5.1d Nagekeken of alleen afgeleid
+
+Elke `verwacht.json` draagt een veld `_nagekeken`. Dat onderscheid is wezenlijk:
+
+- **Alleen afgeleid** — ik heb de mail gelezen en opgeschreven wat eruit lijkt te
+  volgen. Maar ik lees dezelfde bijlagen als het model, dus waar het model iets
+  verkeerd begrijpt, begrijp ik het waarschijnlijk net zo verkeerd. Zo'n antwoord
+  is een aanname met een strik erom.
+- **Nagekeken** — iemand die de klant kent heeft het regel voor regel naast de
+  mail gelegd. Pas dan meet de set iets buiten zichzelf.
+
+Alle zes de fixtures zijn op 2026-09-10 nagekeken. `mails:antwoorden` drukt de
+status bovenaan af, zodat een niet-nagekeken antwoord opvalt voordat er conclusies
+aan verbonden worden.
+
+### 3.2c Wat C op de eerste echte mail deed
+
+Post Metaalbewerking, inkooporder 6191. Twee regels verwijzen naar `MD13504758`
+en `MD13504763`; er zitten vier tekeningen bij die op hun naam nergens bij passen.
+Dus escaleerde C, las de vier titelblokken en kreeg terug:
+
+    343754 B uitbesteding.pdf    -> 343754
+    343755 B uitbesteding.pdf    -> 343755
+    md10504758 B uitbesteding.pdf -> MD10504758
+    md10504763 B uitbesteding.pdf -> MD10504763
+
+**Het titelblok zegt MD10504758, niet MD13504758.** Het bestand is dus werkelijk
+een ander nummer en geen verschrijving. Dat bevestigt wat de werkvloer zei: het
+zijn samenstellingen ter informatie, en de tekening waar de order naar verwijst
+zit niet in de mail.
+
+C hing er dus niets aan — en dat is de winst. Zonder de exacte vergelijking en
+zonder de uitzondering op het vangnet was `md10504758` aan `MD13504758` gehangen:
+één cijfer fout, een ander onderdeel, en niemand die het merkt. Dit is de eerste
+keer dat we een dure fout hebben zien vóórkomen in plaats van repareren.
+
+Kosten: die mail ging van 23 naar 26 seconden. De andere vijf escaleerden niet en
+kostten niets extra.
+
+### 5.2f De metingen tot nu toe
+
+| Datum | Set | Score | Wat er veranderde |
+|---|---|---|---|
+| 09-09 | 2 mails | 65% | *niet geldig* — alle missers zaten in de scorer zelf (§5.2b) |
+| 09-09 | 2 mails | 77/77 | na de scorerfix |
+| 10-09 | 6 mails, 5 klanten | 147/148 | vier fixtures erbij (Stinis, Global Factories, Post, Lindhout) |
+| 10-09 | 6 mails, 5 klanten | **148/148** | leesregel voor `materiaal` aangescherpt (§5.2e) |
+| 10-09 | 6 mails, alle antwoorden nagekeken | **148/148** | C erbij: titelblok gelezen, terecht niet gekoppeld (§3.2c) |
+
+Die laatste stap is de eerste keer dat een promptwijziging gemeten is in plaats
+van beredeneerd: hij repareerde de enige misser en liet de andere 147 staan. Zonder
+de set was "ik denk dat dit beter is" het enige geweest wat erover te zeggen viel.
+
+Wat de tijden laten zien: een mail mét handelsdocument is 11–25 s, een mail zónder
+is 52–56 s. Dat komt doordat bij de tweede alle bijlagetekst in de prompt belandt.
+Daar zit ruimte, maar pas als het knelt.
+
+### 5.2e Nooit een voorbeeld uit de testset in de prompt
+
+Bij het aanscherpen van de leesregel voor `materiaal` (2026-09-10) zette ik eerst
+het geval uit de Veratio-fixture letterlijk in de systeemprompt: "Aluminium plaat
+75x68x8 ... Materiaal wordt toegeleverd: Strip 70x8". Die mail zou daarna slagen
+omdat het antwoord in de prompt staat, niet omdat het model hem leest.
+
+Dat is dezelfde fout als een voorstel ongezien overnemen, maar dan andersom: in
+plaats van de modelfout in te bakken als het goede antwoord, bak je het goede
+antwoord in als kennis. In beide gevallen meet de set daarna niets meer.
+
+**Regel: een voorbeeld in de prompt is verzonnen, of komt uit een mail die niet
+in de scoreset zit.** De regel zelf mag algemeen zijn — daar gaat het om.
+
+| Wat verandert | Hoe | Release nodig? |
+|---|---|---|
+| Deze klant doet iets anders | klantprofiel typen (§4) | nee |
+| Algemene leesregel | prompt in code, gemeten tegen de set | ja |
+| Nieuwe vorm ontdekt | mail toevoegen aan de set | nee |
+| Nieuw veld in het schema | veld invullen bij de mails waar het speelt | ja, voor het veld zelf |
+
+## 6. Wat het kost aan tijd
+
+Dit is gemeten, niet geschat — `ingest_runs` legt elke inleesbeurt vast:
+
+| Situatie | Gemeten duur |
+|---|---|
+| Kleine mail, alles als tekst | ~44 s |
+| Grote gescande order, pagina's als afbeelding naar het model | ~92 s |
+
+Ruwweg een **verdubbeling** dus, en dat is geen aanname: scans gaan nu al als
+afbeelding mee, dus het verschil tussen die twee regels ís wat deze wijziging
+breed zou maken. De escalatie uit §3.1b houdt de gewone mail aan de snelle kant.
+
+De voortgangsbalk corrigeert zichzelf — die voorspelt uit de eigen historie, dus
+na een paar mails klopt de verwachte tijd weer.
+
+## 7. Wat het kost aan geld
+
+Bij dit volume is nauwkeurigheid alles en zijn tokens bijzaak. Ruwe schatting per
+mail, met `claude-opus-5` op hoge denkdiepte:
+
+| Onderdeel | Tokens | Kosten |
+|---|---|---|
+| Handelsdocument als document-blok (2 pagina's) | ~5.000 | ~€0,02 |
+| Mailtekst | ~500 | — |
+| Eerste pagina van 7 tekeningen | ~14.000 | ~€0,06 |
+| Systeemprompt + klantprofiel + voorbeelden (gecached) | ~3.000 | ~€0,00 |
+| Antwoord | ~2.000 | ~€0,05 |
+| **Twee lezingen samen** | | **~€0,20 – €0,30** |
+
+Bij tien mails per dag is dat rond de €60 per maand. Afgezet tegen wat het aan
+overtypen scheelt is dat niets, maar het is wel een bewuste keuze: de tekeningen
+meesturen is het duurste onderdeel, en dat is precies het onderdeel dat de
+koppeling betrouwbaar maakt.
+
+## 8. Bouwvolgorde
+
+Elke stap is los te bouwen en levert op zichzelf iets op.
+
+- [x] **A. Testset.** (2026-09-09) `apps/api/src/services/__tests__/mails/` met
+      de twee Veratio-mails en hun `verwacht.json`, `npm run score:mails -w apps/api`
+      als scorer, en `mail-score.ts` met eigen unittests — een scorer die zelf
+      niet klopt zou een verslechtering als winst kunnen melden. De Stinis-mail
+      moet nog opnieuw aangeleverd worden; die map ontbreekt.
+- [x] **B. Handelsdocument native meesturen** (§3.1, plus trap 1 en 2 van §3.1b).
+      (2026-09-09) `scansVoorModel` heet nu `documentenVoorModel` en stuurt het
+      leidende document altijd als volledige pdf mee, ook mét tekstlaag; de
+      uitgeklopte tekst van diezelfde pdf gaat er dan juist uit, zodat het model
+      niet de kapotte versie leest. Tekeningen gaan niet meer mee zolang er een
+      document is. Nog niet gemeten met A — daar is een API-sleutel voor nodig.
+- [x] **C. Titelblok lezen** (§3.2) — gebouwd 2026-09-10. `titelblok.ts` leest het
+      nummer van een tekening die op zijn bestandsnaam nergens bij past, en dat
+      nummer koppelt alleen bij een EXACTE overeenkomst. Het escaleert pas als er
+      een regel zónder bestand is naast een tekening zónder regel (§3.1b trap 3),
+      dus bij de meeste mail gebeurt er niets. Uit met `MAIL_AI_TITELBLOK=uit`.
+      Het opzoeken van het nummer in onze eigen artikelen (§4.1) hoort hier nog
+      niet bij; dat is match-articles en raakt de database.
+- [ ] **D. Opruimen.** `classifyAttachment`, `hoortBij` in drie trappen,
+      `komtVanTekening`, `schoonOmschrijving` — weg, zodra C ze overbodig maakt.
+      Meten met A dat er niets stukgaat.
+- [ ] **E. Escalatie** (§3.1b): tekeningen alleen volledig meesturen als een
+      regel er anders geen krijgt. Houdt de gewone mail snel en goedkoop.
+- [ ] **F. Het geleerde zichtbaar maken** (§4.5) op de relatiepagina, met een
+      prullenbak per regel. Klein, en het verschil tussen vertrouwen en niet.
+- [ ] **G. Zelf een koppeling kunnen intypen** (§4.4 stap 2).
+- [ ] **H. Een goede mail als voorbeeld aanwijzen** (§4.4 stap 3).
+- [ ] **I. Citations** voor de gronding, zodra §3.3 is uitgezocht.
+- [ ] **J. Vrije leesinstructie per klant** (§4.4 stap 4) — als laatste, en
+      alleen als A t/m H de gaten niet dichten.
+
+## 9. Wat ik niet zou doen
+
+- **Fine-tunen.** In de Claude API zoals die nu is bestaat geen fine-tuning. En
+  zelfs als het kon: het vraagt honderden voorbeelden, levert een bevroren model
+  op, en het probleem is juist dat een klant volgende maand iets nieuws doet.
+- **Er een agent van maken.** Dit is een extractietaak, geen open onderzoek. Een
+  goed opgebouwde aanroep (of twee) doet het beter, goedkoper en voorspelbaarder
+  dan een lus die zelf mag beslissen wat hij doet.
+- **RAG.** Er is geen corpus om uit te zoeken; de mail zelf is de invoer.
+- **Artikelmatching naar het model.** Zie §2.
+
+### 9b. Een geval dat we niet hadden voorzien: de tekening zit er niet bij
+
+Op de inkooporder van Post Metaalbewerking (6191) staan twee regels die verwijzen
+naar tek. `MD13504758` en `MD13504763`. **Die tekeningen zitten niet in de mail.**
+Wat er wél bij zit zijn samenstellingen van de klant, ter informatie — en één
+daarvan heet `md10504758`, één cijfer anders dan het nummer op de order.
+
+Dat is een derde soort mail, naast "regels uit een document" en "regels uit de
+mailtekst": een order die leunt op een tekening die wij al horen te hebben van een
+eerdere opdracht. De klant stuurt hem niet nog een keer mee.
+
+Wat dat betekent:
+
+- **Een regel zonder bestand is niet per se een fout.** Vandaag ziet dat er in het
+  controlescherm uit als "er ontbreekt iets"; in dit geval is het normaal. Het
+  verschil is of wij het tekeningnummer kennen: staat er een artikel met dat
+  nummer in onze database, dan is de tekening er al en klopt het. Zo niet, dan is
+  hij werkelijk niet meegeleverd en moet iemand erachteraan.
+- **Nooit koppelen op bijna-gelijk.** `md10504758` is niet `MD13504758`. Precies
+  de fout waar de hele gronding voor is gebouwd (2615-0090 versus 2615-0091). De
+  fixture legt daarom `bestanden: []` vast in plaats van het veld weg te laten:
+  dat is een actieve eis, geen ontbrekend oordeel.
+- Dit versterkt §4.1: de koppeling hoort te lopen via het tekeningnummer naar ons
+  eigen artikel, niet via een gelijkende bestandsnaam.
+
+## 10. Open punten
+
+- Kunnen citations samen met een strict tool als uitvoervorm? Zo niet, dan wordt
+  het een aparte tweede aanroep. **Dit moet als eerste uitgezocht worden**, want
+  het bepaalt de vorm van §3.3.
+- Hoeveel van een tekening moet het model zien om de koppeling te leggen — alleen
+  de eerste pagina, of het titelblok uitgesneden? Het titelblok zou goedkoper zijn
+  maar vraagt uitsnijden op een vaste plek, en die plek verschilt per klant.
+- Twee identieke lezingen of één lezing plus een controlelezing: meten, niet
+  beredeneren.
+- Wat gebeurt er met een mail van een klant zonder profiel? Terugvallen op de
+  algemene prompt is het antwoord, maar dat is dan wel het pad dat het minst
+  getest wordt.
+- Hoe onderscheidt het controlescherm "tekening ontbreekt want we hebben hem al"
+  van "tekening ontbreekt en dat is een probleem"? Zie §9b. Het antwoord zit
+  waarschijnlijk in de artikelmatch: kennen we het nummer, dan is er niets aan de
+  hand.

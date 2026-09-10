@@ -26,6 +26,14 @@ export interface OvernameResultaat {
   zonderPrijs: number
   /** Artikelen die hier zijn ontstaan omdat de klant iets nieuws vroeg. */
   nieuweArtikelen: string[]
+  /**
+   * Tekeningen die niet aan het nieuwe artikel gehangen konden worden, met de
+   * reden erbij. Hoort leeg te zijn; is hij dat niet, dan mist een artikel zijn
+   * tekening en moet dat gezegd worden.
+   */
+  misluktebestanden: string[]
+  /** Hoeveel tekeningen er daadwerkelijk aan een nieuw artikel zijn gehangen. */
+  gekoppeldeBestanden: number
 }
 
 function omschrijvingVan(line: CandidateLine): string {
@@ -52,7 +60,8 @@ function omschrijvingVan(line: CandidateLine): string {
 async function maakArtikelVoor(
   line: CandidateLine,
   mailImport: MailImport,
-  klantNaam: string | null
+  klantNaam: string | null,
+  misluktebestanden: string[]
 ): Promise<Article> {
   const naam = line.tekening ?? line.ruweTekst.slice(0, 60)
   const artikel = articlesApi.create({
@@ -77,8 +86,13 @@ async function maakArtikelVoor(
 
   if (line.bestanden.length > 0) {
     // Kopiëren gebeurt op de server; de bytes gaan niet door de browser heen.
-    const gekopieerd = await mailImportsApi.copyFilesToArticle(mailImport.id, artikel.id, line.bestanden)
-    const attachments: ArticleAttachment[] = gekopieerd.map((f, i) => ({
+    const resultaat = await mailImportsApi.copyFilesToArticle(mailImport.id, artikel.id, line.bestanden)
+    for (const g of resultaat.overgeslagen) {
+      // Niet stilzwijgend voorbijgaan: een artikel dat er compleet uitziet maar
+      // zijn tekening mist, merk je pas als iemand hem nodig heeft.
+      misluktebestanden.push(`${g.naam} (${g.reden})`)
+    }
+    const attachments: ArticleAttachment[] = resultaat.bestanden.map((f, i) => ({
       id: `att_${artikel.id}_${i}_${Date.now()}`,
       kind: f.kind as ArticleAttachment['kind'],
       name: f.name,
@@ -130,6 +144,8 @@ export async function neemRegelsOver({
 
   let zonderPrijs = 0
   const nieuweArtikelen: string[] = []
+  const misluktebestanden: string[] = []
+  let gekoppeldeBestanden = 0
 
   for (const line of mailImport.kandidaten) {
     const qty = line.qty ?? 1
@@ -137,8 +153,9 @@ export async function neemRegelsOver({
 
     if (!article) {
       // Niets gevonden: aanmaken, mét de tekeningen die de klant meestuurde.
-      article = await maakArtikelVoor(line, mailImport, klantNaam)
+      article = await maakArtikelVoor(line, mailImport, klantNaam, misluktebestanden)
       nieuweArtikelen.push(article.id)
+      gekoppeldeBestanden += article.attachments.length
     }
 
     // Prijs bij het gevraagde aantal, niet bij één: instelkosten gelden per
@@ -163,5 +180,7 @@ export async function neemRegelsOver({
     aantalRegels: mailImport.kandidaten.length,
     zonderPrijs,
     nieuweArtikelen,
+    misluktebestanden,
+    gekoppeldeBestanden,
   }
 }

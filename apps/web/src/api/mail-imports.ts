@@ -24,6 +24,16 @@ export interface UpdateMailImport {
   projectId?: string | null
 }
 
+/**
+ * Wat er gekopieerd is, en wat niet. `overgeslagen` is meestal leeg; is hij dat
+ * niet, dan mist het artikel een tekening en moet dat gezegd worden in plaats
+ * van stilzwijgend een leeg artikel op te leveren.
+ */
+export interface CopyFilesResultaat {
+  bestanden: { name: string; path: string; sizeBytes: number; kind: string }[]
+  overgeslagen: { naam: string; reden: string }[]
+}
+
 export const mailImportsApi = {
   /** Een uit Outlook gesleept .msg naar binnen halen. Gebruikt apiUpload: geen
    *  Content-Type header en een ruimere timeout dan de JSON-calls. */
@@ -70,10 +80,22 @@ export const mailImportsApi = {
    * is zonde van de tijd. Geeft de bijlage-metadata terug voor het artikel.
    */
   copyFilesToArticle: (id: string, artikelId: string, bestanden: string[]) =>
-    apiFetch<{ name: string; path: string; sizeBytes: number; kind: string }[]>(
+    apiFetch<CopyFilesResultaat>(
       `/mail-imports/${id}/bestanden-naar-artikel`,
       { method: 'POST', body: JSON.stringify({ artikelId, bestanden }) }
     ).then((r) => r.data),
+
+  /**
+   * De tekeningen uit deze mail alsnog aan de al bestaande artikelen hangen.
+   * Voor een mail die al aan een project gekoppeld is: opnieuw uitlezen kan dan
+   * niet en opnieuw slepen ook niet, dus zonder dit zit je klem.
+   */
+  tekeningenNaarArtikelen: (id: string) =>
+    apiFetch<{
+      mailImport: MailImport
+      artikelen: { artikelId: string; toegevoegd: number }[]
+      overgeslagen: { naam: string; reden: string }[]
+    }>(`/mail-imports/${id}/tekeningen-naar-artikelen`, { method: 'POST' }).then((r) => r.data),
 
   remove: (id: string) => apiFetch<void>(`/mail-imports/${id}`, { method: 'DELETE' }),
 }
