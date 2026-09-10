@@ -4,6 +4,12 @@
  *   npm run score:mails -w apps/api            (alle mails)
  *   npm run score:mails -w apps/api -- veratio (alleen mappen die dit bevatten)
  *
+ * Een nieuwe mail toevoegen: maak een map onder `__tests__/mails/` en zet de
+ * mail erin. De naam van het .msg-bestand doet er niet toe — er moet er precies
+ * één in de map staan. Draai daarna het script; zonder `verwacht.json` scoort
+ * die mail niet maar schrijft hij een voorstel weg in `.score/` — nakijken, en
+ * dan pas naast de mail zetten.
+ *
  * Waarom dit bestaat: zolang leeskennis in code zit vangt een unittest een
  * regressie. Zodra die kennis in prompts en klantprofielen zit is dat weg — een
  * promptwijziging die klant A beter maakt kan klant B stilletjes slopen, en dat
@@ -25,6 +31,30 @@ import { bereidVoor, leesMail } from '../services/mail-lezen'
 import { Telling, scoreRegels, type Verwacht } from '../services/mail-score'
 
 const MAILS_DIR = path.join(__dirname, '..', 'services', '__tests__', 'mails')
+
+/**
+ * Het .msg-bestand in een fixturemap.
+ *
+ * De naam doet er bewust niet toe: een mail komt uit Outlook met de naam van
+ * zijn onderwerp, en die naam eerst moeten wijzigen is precies de wrijving die
+ * het verbreden van de set tegenhoudt. Wél precies één per map — bij twee is
+ * niet te zeggen welke het goede antwoord hoort te krijgen.
+ */
+function msgIn(map: string): string {
+  const dir = path.join(MAILS_DIR, map)
+  const msgs = fs.readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.msg'))
+  if (msgs.length === 1) return path.join(dir, msgs[0]!)
+  throw new Error(
+    msgs.length === 0
+      ? `Geen .msg-bestand in ${dir}`
+      : `${msgs.length} .msg-bestanden in ${dir} — zet er één per map.`
+  )
+}
+
+/** Mapnaam als bestandsnaam: spaties en rare tekens zijn niet overal veilig. */
+function bestandsnaam(map: string): string {
+  return map.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'mail'
+}
 /** Buiten de repo-inhoud (gitignored): wat het model werkelijk terugstuurde. */
 const UITVOER_DIR = path.join(__dirname, '..', '..', '.score')
 
@@ -35,7 +65,7 @@ async function scoreMail(map: string): Promise<Telling> {
   ) as Verwacht
 
   const begin = Date.now()
-  const voorbereid = await bereidVoor(fs.readFileSync(path.join(MAILS_DIR, map, 'mail.msg')))
+  const voorbereid = await bereidVoor(fs.readFileSync(msgIn(map)))
   const { uitkomst, lines } = await leesMail(voorbereid)
   const duur = ((Date.now() - begin) / 1000).toFixed(0)
 
@@ -51,7 +81,7 @@ async function scoreMail(map: string): Promise<Telling> {
   // een misser napluizen hoort daarna geen tweede draai te vragen.
   fs.mkdirSync(UITVOER_DIR, { recursive: true })
   fs.writeFileSync(
-    path.join(UITVOER_DIR, `${map}.json`),
+    path.join(UITVOER_DIR, `${bestandsnaam(map)}.json`),
     JSON.stringify({ uitkomst, regels: lines }, null, 2),
     'utf8'
   )
@@ -60,6 +90,52 @@ async function scoreMail(map: string): Promise<Telling> {
   console.log(`  ${t.goed}/${t.totaal} (${pct}%)`)
   for (const m of t.missers) console.log(`    ✘ ${m}`)
   return t
+}
+
+/**
+ * Een mail zonder `verwacht.json`: lees hem en schrijf een **voorstel**.
+ *
+ * Het antwoord met de hand uittikken is het enige echte werk aan een nieuwe
+ * fixture, en dat mag niet de rem zijn op het verbreden van de set — daar hangt
+ * alles aan.
+ *
+ * LET OP, en dit is geen formaliteit: dit voorstel is wat het model ervan
+ * máákte, niet wat er staat. Klakkeloos overnemen bakt de fout van vandaag in
+ * als het goede antwoord van morgen, en dan meet de set voor altijd niets meer.
+ * Daarom komt het bestand in `.score/` terecht en niet naast de mail: het moet
+ * langs mensenogen voor het meetelt.
+ */
+async function stelVoor(map: string): Promise<void> {
+  const voorbereid = await bereidVoor(fs.readFileSync(msgIn(map)))
+  const { uitkomst, lines } = await leesMail(voorbereid)
+
+  const voorstel = {
+    _toelichting: 'VOORSTEL — nagekeken? Zet dit bestand dan in de mailmap als verwacht.json.',
+    intent: uitkomst.intent,
+    document: uitkomst.document,
+    klantRef: uitkomst.klantRef,
+    leverdatum: uitkomst.leverdatum,
+    regels: lines.map((l) => ({
+      tekening: l.tekening,
+      qty: l.qty,
+      prijs: l.klantPrijs,
+      materiaal: l.materiaal,
+      materiaalDoorKlant: l.materiaalDoorKlant,
+      certificaat: l.certificaat,
+      bestanden: l.bestanden,
+    })),
+  }
+
+  fs.mkdirSync(UITVOER_DIR, { recursive: true })
+  const uit = path.join(UITVOER_DIR, `${bestandsnaam(map)}.verwacht-voorstel.json`)
+  fs.writeFileSync(uit, JSON.stringify(voorstel, null, 2), 'utf8')
+
+  console.log(`\n${map}  — nog geen verwacht.json`)
+  console.log(`  ${lines.length} regel(s) gelezen; voorstel weggeschreven naar`)
+  console.log(`  ${uit}`)
+  console.log('  Kijk het na, haal weg waar je niets van vindt, en zet het dan')
+  console.log('  in de mailmap als verwacht.json. Niet ongezien overnemen: dan')
+  console.log('  wordt de fout van vandaag het goede antwoord van morgen.')
 }
 
 async function main(): Promise<void> {
@@ -94,14 +170,21 @@ async function main(): Promise<void> {
 
   let goed = 0
   let totaal = 0
+  let gescoord = 0
   for (const map of mappen) {
+    if (!fs.existsSync(path.join(MAILS_DIR, map, 'verwacht.json'))) {
+      await stelVoor(map)
+      continue
+    }
     const t = await scoreMail(map)
     goed += t.goed
     totaal += t.totaal
+    gescoord++
   }
 
+  if (!gescoord) return
   const pct = totaal ? Math.round((goed / totaal) * 100) : 0
-  console.log(`\n──────────\nTotaal ${goed}/${totaal} (${pct}%) over ${mappen.length} mail(s)`)
+  console.log(`\n──────────\nTotaal ${goed}/${totaal} (${pct}%) over ${gescoord} mail(s)`)
   console.log(`Wat het model teruggaf staat in ${UITVOER_DIR}\n`)
 }
 

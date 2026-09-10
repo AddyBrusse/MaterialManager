@@ -327,6 +327,30 @@ Verder schrijft het script sinds die draai weg wat het model werkelijk teruggaf
 (`apps/api/.score/<map>.json`, gitignored). Een draai kost geld en ongeveer een
 minuut per mail; een misser napluizen hoort daarna geen tweede draai te vragen.
 
+### 5.1b Een mail toevoegen
+
+Map maken onder `__tests__/mails/`, de mail erin als `mail.msg`, script draaien.
+Zonder `verwacht.json` scoort die mail niet maar schrijft het script een
+**voorstel** weg in `.score/<map>.verwacht-voorstel.json`.
+
+Dat voorstel is wat het model ervan máákte, niet wat er staat. Klakkeloos
+overnemen bakt de fout van vandaag in als het goede antwoord van morgen, en dan
+meet de set voor altijd niets meer. Daarom komt het in `.score/` terecht en niet
+naast de mail: het moet langs mensenogen voordat het meetelt. Haal er ook uit
+waar je niets van vindt — de scorer kijkt alleen naar wat er staat, dus een veld
+weglaten is beter dan er een slag naar slaan.
+
+Wat een mail de moeite waard maakt, ongeveer in die volgorde:
+
+1. **Hij ging mis.** Een mail die je in het controlescherm moest corrigeren is de
+   waardevolste die er is: daar zit een echt gat.
+2. **Een andere klant dan Veratio.** De set is nu volledig Veratio; dat is op dit
+   moment het grootste blinde vlak.
+3. **Een vorm die er nog niet in zit.** Gescande inkooporder, doorgestuurde mail,
+   opdrachtbevestiging in plaats van aanvraag, order zonder bijlagen.
+
+Volume helpt minder dan variatie: acht mails die op elkaar lijken meten één ding.
+
 ### 5.2c Wat 100% wel en niet zegt
 
 De set staat op 77/77. Dat is een **regressienet**, geen bewijs van kwaliteit:
