@@ -544,3 +544,30 @@ Gevolg voor de bouwvolgorde: **eerst de set verbreden, dan de code.** Een set op
 voor een probleem dat nergens meer zichtbaar is. En D (opruimen) is nog niet
 gratis: `hoortBij`, `komtVanTekening` en `schoonOmschrijving` doen hier het werk
 dat de score op 100% houdt.
+
+## 2026-09-10 — De eerste gemeten promptwijziging
+
+De scoreset staat op **148/148** over zes mails van vijf klanten (Veratio, Stinis,
+Global Factories, Post Metaalbewerking, Lindhout).
+
+Het aanscherpen van de leesregel voor `materiaal` — "zegt de klant expliciet wat
+hij aanlevert, dan is dát het materiaal" — repareerde de enige misser en liet de
+andere 147 controles staan. Dat is de eerste keer dat over een promptwijziging
+iets harders te zeggen viel dan "ik denk dat dit beter is". Precies waarvoor de
+set gebouwd is.
+
+Daarbij één regel vastgelegd die bijna misging: **een voorbeeld in een prompt is
+verzonnen, of komt uit een mail die niet in de scoreset zit.** Eerst stond het
+geval uit de Veratio-fixture letterlijk in de systeemprompt; die mail zou daarna
+slagen omdat het antwoord in de prompt stond in plaats van omdat het model hem
+las. Zie features/62 §5.2e.
+
+Wat B opleverde is hiermee ook concreet: `4 4-9-2026pcs` (Stinis) en
+`11-09-26103716.D VM Drag Nozzle 114 1 Pieces 147,85 147,851` (Global Factories)
+worden goed uit elkaar gehaald. Drie leveranciers, drie ERP-systemen, drie
+manieren waarop de uitgeklopte pdf-tekst kapot is.
+
+Wat dit **niet** zegt: de set is nog steeds klein en het goede antwoord komt uit
+diezelfde mails. 100% betekent "niets kapot", niet "goed genoeg". De volgende stap
+is daarom geen code maar gebruik: elke mail die in het echt misgaat gaat als
+fixture in de set, vóór hij gerepareerd wordt.

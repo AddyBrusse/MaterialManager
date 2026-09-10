@@ -402,6 +402,23 @@ Ook D (opruimen) is nog niet gratis: `hoortBij`, `komtVanTekening` en
 `schoonOmschrijving` dóen hier het werk dat de score op 100% houdt. Ze zijn pas
 weg te halen als C hun taak overneemt, niet ervoor.
 
+### 5.2f De metingen tot nu toe
+
+| Datum | Set | Score | Wat er veranderde |
+|---|---|---|---|
+| 09-09 | 2 mails | 65% | *niet geldig* — alle missers zaten in de scorer zelf (§5.2b) |
+| 09-09 | 2 mails | 77/77 | na de scorerfix |
+| 10-09 | 6 mails, 5 klanten | 147/148 | vier fixtures erbij (Stinis, Global Factories, Post, Lindhout) |
+| 10-09 | 6 mails, 5 klanten | **148/148** | leesregel voor `materiaal` aangescherpt (§5.2e) |
+
+Die laatste stap is de eerste keer dat een promptwijziging gemeten is in plaats
+van beredeneerd: hij repareerde de enige misser en liet de andere 147 staan. Zonder
+de set was "ik denk dat dit beter is" het enige geweest wat erover te zeggen viel.
+
+Wat de tijden laten zien: een mail mét handelsdocument is 11–25 s, een mail zónder
+is 52–56 s. Dat komt doordat bij de tweede alle bijlagetekst in de prompt belandt.
+Daar zit ruimte, maar pas als het knelt.
+
 ### 5.2e Nooit een voorbeeld uit de testset in de prompt
 
 Bij het aanscherpen van de leesregel voor `materiaal` (2026-09-10) zette ik eerst
