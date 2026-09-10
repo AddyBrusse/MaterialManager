@@ -227,6 +227,10 @@ export function documentenVoorModel(
 ): ModelBijlage[] {
   const document = leidendDocument(mail.attachments)?.filename ?? null
 
+  // Met MAIL_AI_DOCUMENT=tekst valt alles terug op de oude regel: alleen een pdf
+  // zónder tekstlaag gaat mee. Zo is na te meten wat het native meesturen doet.
+  const leidendeMag = config.ai.documentNative
+
   const kandidaten = mail.attachments
     .filter((a) => isPdf(a, buffers))
     // Mét document: alleen het document en wat er verder als document telt (een
@@ -238,7 +242,7 @@ export function documentenVoorModel(
     )
     // Een leesbare tweede documentpagina gaat al als tekst mee; die hoeft niet
     // ook nog eens native.
-    .filter((a) => !a.tekst || a.filename === document)
+    .filter((a) => !a.tekst || (leidendeMag && a.filename === document))
 
   const rang = (a: MailAttachment) => (a.filename === document ? 0 : 1)
   return kandidaten

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { CandidateLine, NormalizedMail } from '@stockmanager/shared'
+import { config } from '../../config'
 import {
   bevestigdDoor, buildLines, buildPrompt, grondingVan, haystack, isGrounded,
   documentenVoorModel, tekeningStaatErIn, type AiLine,
@@ -109,6 +110,20 @@ describe('documentenVoorModel', () => {
   it('valt zonder handelsdocument terug op elke pdf zonder tekstlaag', () => {
     const m = mail({ attachments: [attachment('Foam axle_upper roll.pdf', null)] })
     expect(namen(m, buffers(['Foam axle_upper roll.pdf']))).toEqual(['Foam axle_upper roll.pdf'])
+  })
+
+  it('valt met MAIL_AI_DOCUMENT=tekst terug op de oude regel', () => {
+    // De noodrem, en tegelijk de enige manier om na te meten wat het native
+    // meesturen oplevert: draai de scoreset met en zonder.
+    const m = mail({ attachments: [attachment('Bestelling Boers 2690655.pdf', 'Inkooporder ...')] })
+    const b = buffers(['Bestelling Boers 2690655.pdf'])
+    const oud = config.ai.documentNative
+    try {
+      ;(config.ai as { documentNative: boolean }).documentNative = false
+      expect(namen(m, b)).toEqual([])
+    } finally {
+      ;(config.ai as { documentNative: boolean }).documentNative = oud
+    }
   })
 
   it('slaat een 3D-model over: dat is geen pdf', () => {

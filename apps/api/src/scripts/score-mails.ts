@@ -86,7 +86,11 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  console.log(`model ${config.ai.model}, effort ${config.ai.effort}, controlelezing ${config.ai.controle ? 'aan' : 'uit'}`)
+  console.log(
+    `model ${config.ai.model}, effort ${config.ai.effort}, ` +
+      `controlelezing ${config.ai.controle ? 'aan' : 'uit'}, ` +
+      `handelsdocument ${config.ai.documentNative ? 'als volledige pdf' : 'alleen als tekst'}`
+  )
 
   let goed = 0
   let totaal = 0

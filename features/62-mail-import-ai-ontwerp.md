@@ -327,6 +327,24 @@ Verder schrijft het script sinds die draai weg wat het model werkelijk teruggaf
 (`apps/api/.score/<map>.json`, gitignored). Een draai kost geld en ongeveer een
 minuut per mail; een misser napluizen hoort daarna geen tweede draai te vragen.
 
+### 5.2c Wat 100% wel en niet zegt
+
+De set staat op 77/77. Dat is een **regressienet**, geen bewijs van kwaliteit:
+het goede antwoord is afgeleid uit diezelfde twee mails, dus de set kan alleen
+nog naar beneden. Twee gevolgen die de bouwvolgorde raken:
+
+- **Een set op 100% kan geen verbetering aantonen.** C (titelblok lezen) lost
+  hier niets op wat nog stuk is. Blind bouwen aan C betekent code toevoegen voor
+  een probleem dat de set niet laat zien — precies het soort werk waar dit
+  ontwerp vanaf wilde.
+- **Eerst de set verbreden, dan de code.** Elke mail die in het echt misgaat
+  hoort erin; de Stinis-aanvraag (gescande inkooporder) staat er nog steeds niet
+  in. Pas als de set een fout laat zien, is er iets te repareren én te meten.
+
+Ook D (opruimen) is nog niet gratis: `hoortBij`, `komtVanTekening` en
+`schoonOmschrijving` dóen hier het werk dat de score op 100% houdt. Ze zijn pas
+weg te halen als C hun taak overneemt, niet ervoor.
+
 ### 5.3 Aanpassen, later
 
 | Wat verandert | Hoe | Release nodig? |

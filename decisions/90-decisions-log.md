@@ -520,3 +520,27 @@ trap 1 en 2). Er passen er maar drie; op de Veratio-bestelling zou het model twe
 van de acht tekeningen zien, en die twee lijken dan bijzonder. Koppelen gaat op
 naam. Trap 3 — een tekening alsnog meesturen als een regel er géén krijgt — is
 nog niet gebouwd.
+
+## 2026-09-10 — Nulmeting op 100%, en een schakelaar om de tegenproef te kunnen draaien
+
+De scoreset staat op **77/77 (100%)** over de twee Veratio-mails, inclusief de
+vier stuksprijzen die in de kapotte kolomtekst van de inkooporder zaten
+(`€34,4925-06-2026 15`). De eerste draai kwam op 65% uit, maar alle missers
+daarvan zaten in de scorer zelf — zie de commit van die dag.
+
+Wat die 100% betekent: een regressienet. Het goede antwoord is afgeleid uit
+diezelfde mails, dus de set kan alleen nog naar beneden. Het bewijst niet dat
+mail nummer drie ook goed gaat.
+
+Wat er nog niet uit blijkt: dat het native meesturen van het handelsdocument het
+verschil máákte. Er is geen meting van vóór die wijziging. Daarom
+`MAIL_AI_DOCUMENT=tekst`, dat terugvalt op de oude regel (alleen een pdf zónder
+tekstlaag gaat mee). Twee draaien van de scoreset geven dan de tegenproef. Het is
+tegelijk een noodrem als een klantdocument het model ooit in de war blijkt te
+sturen.
+
+Gevolg voor de bouwvolgorde: **eerst de set verbreden, dan de code.** Een set op
+100% kan geen verbetering aantonen, dus C (titelblok lezen) zou code toevoegen
+voor een probleem dat nergens meer zichtbaar is. En D (opruimen) is nog niet
+gratis: `hoortBij`, `komtVanTekening` en `schoonOmschrijving` doen hier het werk
+dat de score op 100% houdt.
