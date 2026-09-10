@@ -4,12 +4,13 @@ import { apiFetch, apiUpload } from './client'
 
 const LS_KEY = 'sm_articles'
 
-export interface ArticleRecipe {
-  profileId: string
-  gradeId: string
-  dimensions: Record<string, number>
-  lengthPerPieceMm: number
-}
+// Recept, calculatie en de losse knopen erin staan in `@stockmanager/shared`:
+// de API rekent met dezelfde types voor de prijssnapshot. Hier alleen
+// doorgegeven zodat de schermen ze van hun eigen api-module blijven halen.
+import type {
+  ArticleRecipe, EstimateStep, EstimateNodeType, EstimateNode, ArticleEstimate,
+} from '@stockmanager/shared'
+export type { ArticleRecipe, EstimateStep, EstimateNodeType, EstimateNode, ArticleEstimate }
 
 export interface ArticleOperation {
   id: string
@@ -31,35 +32,6 @@ export interface ArticleAttachment {
 export interface ArticleSetupNotes {
   workholding: string
   general: string
-}
-
-export interface EstimateStep {
-  id: string
-  name: string
-  cycleMin: number
-}
-export type EstimateNodeType = 'material' | 'machine' | 'external'
-export interface EstimateNode {
-  id: string
-  type: EstimateNodeType
-  name: string
-  gradeId?: string | null
-  profileId?: string | null
-  dimensions?: Record<string, number> | null
-  lengthMm?: number | null
-  qty?: number
-  costOverride?: number | null
-  machineId?: string | null
-  setupMin?: number
-  rateOverride?: number | null
-  steps?: EstimateStep[]
-  externalCost?: number | null
-  note?: string | null
-}
-export interface ArticleEstimate {
-  marginPct: number
-  nodes: EstimateNode[]
-  updatedAt: string
 }
 
 export interface Article {

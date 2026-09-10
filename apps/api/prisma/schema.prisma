@@ -345,10 +345,62 @@ model Article {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  reserveringen ZaagReservering[]
+  reserveringen    ZaagReservering[]
+  prijsSnapshots   ArtikelPrijsSnapshot[]
 
   @@map("articles")
 }
+
+/// Prijshistorie van een artikel: één rij per meetmoment.
+///
+/// Twee bronnen in één tabel, onderscheiden door `bron`, zodat het scherm er
+/// één lijn van kan maken:
+///   'order'      — een offerte is geaccepteerd, dit is wat de klant betaalt
+///                  bij dit aantal, met de kostprijs van dat moment ernaast.
+///   'calculatie' — het recept is opgeslagen en de kostprijs veranderde.
+///
+/// Alles per stuk EN per order, want zonder aantal is een prijs per stuk niet
+/// te lezen: insteltijd wordt over de batch verdeeld.
+model ArtikelPrijsSnapshot {
+  id                  String   @id @default(uuid())
+  artikelId           String   @map("artikel_id")
+  bron                String
+  gemetenOp           DateTime @map("gemeten_op")
+
+  qty                 Float
+  kostprijsPerStuk    Float    @map("kostprijs_per_stuk")
+  // Kostprijs en calculatie-verkoopprijs herrekend bij 1 stuk. Dit is de enige
+  // vergelijkbare maat over de tijd: `kostprijsPerStuk` hangt aan het aantal
+  // van dát moment (insteltijd wordt over de batch verdeeld), dus een order van
+  // 10 zou de lijn laten kelderen zonder dat er iets goedkoper geworden is.
+  kostprijsBasis      Float    @map("kostprijs_basis")
+  verkoopprijsBasis   Float    @map("verkoopprijs_basis")
+  verkoopprijsPerStuk Float?   @map("verkoopprijs_per_stuk")
+  margePct            Float?   @map("marge_pct")
+  kostprijsTotaal     Float    @map("kostprijs_totaal")
+  verkoopprijsTotaal  Float?   @map("verkoopprijs_totaal")
+
+  // Opbouw per stuk, bij dit aantal. Zonder deze vier zie je later wel dát de
+  // kostprijs steeg, maar niet of het het materiaal was of het uurtarief.
+  materiaalPerStuk    Float    @map("materiaal_per_stuk")
+  instellenPerStuk    Float    @map("instellen_per_stuk")
+  bewerkingPerStuk    Float    @map("bewerking_per_stuk")
+  externPerStuk       Float    @map("extern_per_stuk")
+
+  projectId           String?  @map("project_id")
+  offerteId           String?  @map("offerte_id")
+  offerteRegelId      String?  @map("offerte_regel_id")
+  relatieId           String?  @map("relatie_id")
+  klant               String?
+  door                String?
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  artikel Article @relation(fields: [artikelId], references: [id], onDelete: Cascade)
+
+  @@index([artikelId, gemetenOp])
+  @@map("artikel_prijs_snapshots")
+}
+
 
 model DocSequence {
   prefix String @id

@@ -10,6 +10,7 @@ import {
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { PROJECT_INCLUDE, serialize, persist } from '../services/project-store'
+import { snapshotBijOrder } from '../services/prijs-snapshot'
 import type { Prisma } from '@prisma/client'
 
 const router = Router()
@@ -367,6 +368,21 @@ router.post(
     const updated = await withProject(req.params.id, async (p, tx) => {
       const acceptedOfferte = p.offertes.find(o => o.id === req.params.offId)
       if (!acceptedOfferte) throw new AppError(404, 'NOT_FOUND', 'Offerte niet gevonden')
+
+      // Prijshistorie: dit is het moment waarop er echt iets verkocht is, en de
+      // enige plek in de code waar een order ontstaat. Wat de klant betaalt komt
+      // van de regel, de kostprijs wordt erbij berekend bij dat aantal.
+      const relatie = p.relatieId
+        ? await tx.relatie.findUnique({ where: { id: p.relatieId }, select: { naam: true } })
+        : null
+      await snapshotBijOrder(tx, {
+        regels: acceptedOfferte.regels,
+        projectId: p.id,
+        offerteId: acceptedOfferte.id,
+        relatieId: p.relatieId,
+        klant: relatie?.naam ?? null,
+        door: req.user.id,
+      })
 
       const newOrders: ProductieOrder[] = []
       for (const regel of acceptedOfferte.regels) {

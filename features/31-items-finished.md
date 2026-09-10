@@ -65,6 +65,7 @@ plus three tabs:
 |---|---|
 | Calculatie | `ArticleCalculator` — see `features/38-article-calculator.md` |
 | Bestanden | `ArticleFilesTab` — setup sheet attachments |
+| Prijshistorie | `ArticlePrijshistorieTab` — grafiek + tabel uit `artikel_prijs_snapshots`; zie de beslissing van 2026-09-10 in `decisions/90-decisions-log.md` |
 | Historie | `ArticleHistoryTab` — derived from stock movements |
 
 Add/edit of the core record fields uses `ArticleForm` in a Modal (`size={720}`),

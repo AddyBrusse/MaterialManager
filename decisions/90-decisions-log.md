@@ -684,3 +684,53 @@ aanvrager zelf is. Wie de race won doet er niet toe; alleen wie het slot nú hee
 Nagemeten: zes gelijktijdige aanvragen van dezelfde gebruiker geven één 201 en vijf
 200, met één slot in de database en nul fouten. Twee gebruikers tegelijk op een
 leeg slot geven één winnaar en 409 voor de ander.
+
+## 2026-09-10 — Prijshistorie per artikel, en waarom de lijn bij 1 stuk rekent
+
+Een artikel had geen prijshistorie. `articles.estimate` is één JSON-kolom die bij
+elke opslag overschreven wordt, en de verkoopprijs stond alleen op de offerteregel
+van dat ene project. Je kon dus niet zien wat je een klant eerder rekende, en niet
+waarom een kostprijs veranderd was.
+
+Nu schrijft `artikel_prijs_snapshots` twee soorten meetmomenten weg, met een kolom
+`bron` zodat het één historie blijft:
+
+- `calculatie` — het recept is opgeslagen en de prijs veranderde. Zonder deze
+  punten heeft een artikel dat twee keer per jaar besteld wordt twee stipjes en
+  geen lijn.
+- `order` — een offerte is geaccepteerd. Wat de klant werkelijk betaalt, bij dat
+  aantal, met de kostprijs van dat moment ernaast.
+
+**De calculatiekern is daarvoor naar `packages/shared` verhuisd** (`calc/estimate.ts`,
+`calc/artikel-prijs.ts`). De API moet de kostprijs zelf kunnen uitrekenen: liet je
+de frontend hem meesturen, dan hing de historie af van welk scherm de order
+toevallig aanmaakte, en een order die ooit ergens anders vandaan komt heeft er
+helemaal geen. `apps/web/src/api/estimate.ts` en `utils/artikel-prijs.ts` geven de
+gedeelde functies nu alleen door, zodat de schermen hun import houden.
+
+**Elke rij draagt twee maten, en dat is het punt waar dit ontwerp zich op
+corrigeerde.** De eerste versie bewaarde alleen de prijs per stuk bij het aantal
+van dat moment. Bij de eerste echte meting zakte de lijn van € 92,70 naar € 25,20
+— niet omdat er iets goedkoper geworden was, maar omdat die order tien stuks was en
+de insteltijd over de batch gaat. Daarom staat er naast `kostprijs_per_stuk` (wat
+er werkelijk gold) ook `kostprijs_basis`: dezelfde calculatie herrekend bij 1 stuk.
+De grafiek tekent de basis, de tooltip en de tabel tonen wat er bij dat aantal
+werkelijk gebeurde. Twee schalen in één lijn zou een grafiek opleveren die de
+verkeerde vraag beantwoordt.
+
+Verder: de opbouw (materiaal / instellen / bewerking / extern) gaat mee per rij,
+anders zie je later wel dát de kostprijs steeg maar niet waardoor. Een
+calculatiesnapshot die dezelfde prijs oplevert als de vorige wordt overgeslagen,
+zodat opslaan zonder prijsgevolg geen punt oplevert. `project_id` en `offerte_id`
+zijn bewust géén foreign keys: een opgeruimd project mag geen gaten in de historie
+slaan, en klantnaam en aantal staan er los bij zodat een rij op zichzelf leesbaar
+blijft.
+
+De grafiek is de eerste in het programma. `recharts` stond al in de
+dependencies maar werd nergens gebruikt; `@mantine/charts` bewust niet, dat brengt
+eigen styling mee naast ons thema. Trapjeslijn (`stepAfter`) en geen vloeiende
+curve: een prijs staat stil en springt dan, een curve zou over de tussenliggende
+maanden liegen. De y-as begint niet op nul — dit is een verloop, geen staafje —
+maar draagt wel altijd de bedragen. De twee lijnkleuren (`--chart-verkoop`,
+`--chart-kost`) zijn gecontroleerd op kleurenblindheid en contrast, met eigen
+stappen voor donker in plaats van een omgeklapte lichte set.

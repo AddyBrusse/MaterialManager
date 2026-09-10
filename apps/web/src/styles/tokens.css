@@ -32,6 +32,14 @@
   --danger: #b8270c;
   --danger-soft: rgba(184, 39, 12, 0.12);
 
+  /* Grafieklijnen. Twee tinten die ook voor kleurenblinden en in grijsdruk uit
+     elkaar te houden zijn (gecontroleerd met de palette-validator: CVD ΔE 32
+     protan / 25 tritan, contrast > 3:1 op wit). Verkoopprijs draagt bewust het
+     accentblauw — dat is de lijn waar het gesprek met de klant over gaat. */
+  --chart-verkoop: #2d6df6;
+  --chart-kost: #a85a00;
+  --chart-grid: rgba(15, 17, 22, 0.07);
+
   --shadow-sm: 0 1px 2px rgba(15, 17, 22, 0.04);
   --shadow-md: 0 1px 2px rgba(15, 17, 22, 0.04), 0 4px 12px rgba(15, 17, 22, 0.06);
   --shadow-pop: 0 12px 32px rgba(15, 17, 22, 0.12), 0 2px 6px rgba(15, 17, 22, 0.06);
@@ -71,6 +79,11 @@
   --success-soft: rgba(17, 122, 69, 0.22);
   --warning-soft: rgba(168, 90, 0, 0.22);
   --danger-soft: rgba(184, 39, 12, 0.22);
+  /* Eigen stappen voor donker, geen omgeklapte lichte: op #14161a valt het
+     lichte paar buiten de leesbare lichtheidsband. */
+  --chart-verkoop: #4d8ff0;
+  --chart-kost: #c08526;
+  --chart-grid: rgba(255, 255, 255, 0.08);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -2487,3 +2500,91 @@ a.art-att-name:hover { color: var(--accent); text-decoration: underline; }
   white-space: pre-wrap; font-size: 12px; margin: 0;
   max-height: 200px; overflow: auto; color: var(--text-2);
 }
+
+/* ── Prijshistorie (artikeltab) ────────────────────────────────────────────── */
+.ph-wrap { display: flex; flex-direction: column; gap: 16px; }
+
+.ph-stats { display: flex; flex-wrap: wrap; gap: 8px; }
+.ph-stat {
+  flex: 1 1 130px; min-width: 130px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px;
+}
+.ph-stat-label {
+  font-size: 11px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-3); margin-bottom: 4px;
+}
+.ph-stat-waarde { font-family: var(--font-mono); font-size: 16px; color: var(--text); }
+/* Een gestegen kostprijs is niet per se slecht nieuws, dus geen rood/groen —
+   alleen een richting in gedempte kleur. */
+.ph-stat-waarde[data-toon="op"] { color: var(--warning); }
+.ph-stat-waarde[data-toon="af"] { color: var(--success); }
+
+.ph-grafiek {
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 12px 4px;
+}
+.ph-grafiek-leeg {
+  background: var(--bg-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; text-align: center; color: var(--text-3); font-size: 12.5px;
+}
+
+.ph-legenda { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 8px 4px; }
+.ph-legenda-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--text-2);
+}
+/* Het lijnstukje in de legenda en in de tooltip draagt de kleur; de tekst
+   ernaast blijft gewone inkt, zodat identiteit nooit alleen aan kleur hangt. */
+.ph-legenda-item i, .ph-tip-rij i {
+  width: 12px; height: 2px; border-radius: 1px; display: inline-block;
+}
+i[data-lijn="verkoop"] { background: var(--chart-verkoop); }
+i[data-lijn="kost"] {
+  background: repeating-linear-gradient(
+    90deg, var(--chart-kost) 0 5px, transparent 5px 8px
+  );
+}
+i[data-lijn="order"] {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--chart-verkoop); border: 2px solid var(--bg-2);
+  box-shadow: 0 0 0 1px var(--border-strong);
+}
+
+.ph-tip {
+  background: var(--bg-2); border: 1px solid var(--border-strong);
+  border-radius: var(--radius); box-shadow: var(--shadow-pop);
+  padding: 8px 10px; font-size: 12px; min-width: 168px;
+}
+.ph-tip-kop {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600; color: var(--text);
+  padding-bottom: 6px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.ph-tip-rij { display: flex; align-items: center; gap: 10px; padding: 2px 0; }
+.ph-tip-rij span {
+  flex: 1; display: inline-flex; align-items: center; gap: 6px; color: var(--text-2);
+}
+.ph-tip-rij b { font-family: var(--font-mono); font-weight: 500; color: var(--text); }
+
+.ph-bron {
+  font-size: 10.5px; font-weight: 500; padding: 1px 6px;
+  border-radius: 10px; white-space: nowrap;
+}
+.ph-bron[data-bron="order"] { background: var(--accent-soft); color: var(--accent); }
+.ph-bron[data-bron="calculatie"] { background: var(--bg-chip); color: var(--text-2); }
+.ph-ref { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); margin-left: 6px; }
+
+/* st-tbl is `width: max-content` — gemaakt voor een scrollende pagina. Hier
+   staat hij in een tabblad met vaste breedte, dus vaste kolommen. */
+.ph-tabel-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+table.st-tbl.ph-tabel { width: 100%; table-layout: fixed; }
+table.st-tbl.ph-tabel tbody tr { cursor: default; }
+table.st-tbl.ph-tabel tbody td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-stat-noot { font-size: 10.5px; color: var(--text-4); margin-top: 2px; }
+.ph-legenda-noot { font-size: 11px; color: var(--text-4); }
+.ph-tip-noot {
+  font-size: 10.5px; color: var(--text-4);
+  margin: 2px 0 0; text-align: right;
+}
+.ph-tip-order { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
