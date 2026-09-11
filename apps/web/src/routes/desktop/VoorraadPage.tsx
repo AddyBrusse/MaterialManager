@@ -14,17 +14,11 @@ import { RawMaterialForm } from '../../components/raw-materials/RawMaterialForm'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { surfaceFinishesApi } from '../../api/surface-finishes'
-import { reservationsStore, type ZaagReservation } from '../../api/reservations'
+import { houdtVast, type ZaagReservation } from '../../api/reservations'
+import { movementsApi, MOVEMENT_REASON_LABELS, type StockMovementRow } from '../../api/movements'
+import { useReserveringen } from '../../hooks/useReserveringen'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
-
-const MOCK_HISTORY = [
-  { d: '26 mei', who: 'ONT-2026-0418', delta: +6000, k: 'Binnen geboekt', nr: 'Tata Steel NL' },
-  { d: '24 mei', who: 'WO-2026-0331',  delta:  -300, k: 'Uitgegeven',     nr: 'Order #12044'  },
-  { d: '22 mei', who: 'WO-2026-0327',  delta:  -200, k: 'Uitgegeven',     nr: 'Order #12031'  },
-  { d: '18 mei', who: '—',             delta:  +150, k: 'Correctie',      nr: 'Voorraadcorrectie' },
-  { d: '14 mei', who: 'WO-2026-0312',  delta:  -500, k: 'Uitgegeven',     nr: 'Order #12005'  },
-]
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 // v = remaining mm, min = threshold mm, orig = original length mm
@@ -418,6 +412,56 @@ function MutatieModal({ row, opened, onClose }: {
 }
 
 // ── item detail drawer ────────────────────────────────────────────────────────
+/**
+ * De voorraadmutaties van één staaf, nieuwste eerst.
+ *
+ * Toont het verschil, niet alleen de nieuwe stand: een zager wil zien hoeveel
+ * eraf ging. Bij een `overwrite` (zoals het afboeken na het zagen) is dat het
+ * verschil tussen de vorige en de nieuwe stand.
+ */
+function MutatieLijst({ itemId }: { itemId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['movements', itemId],
+    queryFn: () => movementsApi.listVoorItem(itemId),
+  })
+
+  if (isLoading) return <div className="cell-muted" style={{ fontSize: 12, padding: '10px 0' }}>Laden…</div>
+  if (!data || data.length === 0) {
+    return <div className="cell-muted" style={{ fontSize: 12, padding: '10px 0' }}>Nog geen mutaties</div>
+  }
+
+  return (
+    <div>
+      {data.map((m: StockMovementRow) => {
+        const verschil = Number(m.newStock) - Number(m.previousStock)
+        return (
+          <div key={m.id} style={{
+            display: 'grid', gridTemplateColumns: '48px 1fr auto',
+            gap: 12, alignItems: 'center',
+            padding: '10px 0', borderTop: '1px solid var(--border)',
+          }}>
+            <span className="cell-muted cell-mono" style={{ fontSize: 12 }}>
+              {new Date(m.createdAt).toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })}
+            </span>
+            <div>
+              <div className="cell-strong" style={{ fontSize: 13 }}>{MOVEMENT_REASON_LABELS[m.reason]}</div>
+              <div className="cell-muted cell-mono" style={{ fontSize: 11.5, marginTop: 1 }}>
+                {m.user?.name ?? '—'}{m.note ? ` · ${m.note}` : ''}
+              </div>
+            </div>
+            <span className="cell-mono" style={{
+              fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap',
+              color: verschil > 0 ? 'var(--success)' : verschil < 0 ? 'var(--danger)' : 'var(--text-3)',
+            }}>
+              {verschil > 0 ? '+' : ''}{verschil.toLocaleString('nl-NL')} mm
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
   row: RawMaterialRow
   barReservations: ZaagReservation[]
@@ -426,8 +470,9 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
   const remaining  = Number(row.currentStock)
   const min        = Number(row.minStock) || 0
   const original   = Number(row.lengthMm)
-  const cut        = original - remaining
-  const totalRes   = barReservations.reduce((s, r) => s + r.sawLength, 0)
+  // Van de server, niet zelf opgeteld: één definitie voor het hele programma.
+  const gereserveerd = row.gereserveerdMm
+  const vrij         = row.vrijMm
   const st         = statusFor(remaining, min, original)
   const pct        = original > 0 ? Math.min(100, Math.max(0, (remaining / original) * 100)) : 0
   const lvlCls     = st.cls === 'ok' || st.cls === 'info' ? '' : st.cls
@@ -463,9 +508,12 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
           {/* ── stat tiles ── */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
             {[
+              // Drie getallen, zoals elk voorraadsysteem: wat ligt er, wat
+              // ligt vast, wat kun je nog vergeven. Vrij is het getal waar een
+              // zager op af gaat, dus dat staat naast het fysieke.
               { lbl: 'Fysieke lengte', val: fmm(remaining), foot: `${Math.round(pct)}% van origineel` },
-              { lbl: 'Gereserveerd',   val: totalRes > 0 ? fmm(totalRes) : '—', foot: totalRes > 0 ? `${barReservations.length} reservering(en)` : 'niets ingepland', warn: totalRes > 0 },
-              { lbl: 'Gesneden',       val: fmm(cut),        foot: 'al verwerkt'      },
+              { lbl: 'Vrij',           val: fmm(vrij), foot: vrij <= 0 ? 'volledig vastgelegd' : 'nog te vergeven', warn: vrij <= 0 },
+              { lbl: 'Gereserveerd',   val: gereserveerd > 0 ? fmm(gereserveerd) : '—', foot: gereserveerd > 0 ? `${barReservations.length} reservering(en)` : 'niets ingepland', warn: gereserveerd > 0 },
               { lbl: 'Origineel',      val: fmm(original),   foot: 'beginlengte staf' },
             ].map(t => (
               <div key={t.lbl} className="st-stat">
@@ -549,37 +597,19 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
             </div>
           )}
 
-          {/* ── history ── */}
+          {/* ── historie ── */}
+          {/* Echte voorraadmutaties. Hier stond een vaste lijst verzonnen
+              regels; die verborg juist de mutatie die het afboeken zojuist
+              geschreven had, en toonde een ontvangst die nooit bestaan heeft. */}
           <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-3)', marginBottom: 2 }}>Historie</div>
-          <div>
-            {MOCK_HISTORY.map((r, i) => (
-              <div key={i} style={{
-                display: 'grid', gridTemplateColumns: '48px 1fr auto',
-                gap: 12, alignItems: 'center',
-                padding: '10px 0', borderTop: '1px solid var(--border)',
-              }}>
-                <span className="cell-muted cell-mono" style={{ fontSize: 12 }}>{r.d}</span>
-                <div>
-                  <div className="cell-strong" style={{ fontSize: 13 }}>{r.k}</div>
-                  <div className="cell-muted cell-mono" style={{ fontSize: 11.5, marginTop: 1 }}>{r.who} · {r.nr}</div>
-                </div>
-                <span className="cell-mono" style={{ fontWeight: 600, fontSize: 13, color: r.delta > 0 ? 'var(--success)' : 'var(--danger)', whiteSpace: 'nowrap' }}>
-                  {r.delta > 0 ? '+' : ''}{r.delta.toLocaleString('nl-NL')} mm
-                </span>
-              </div>
-            ))}
-          </div>
+          <MutatieLijst itemId={row.id} />
         </div>
 
         {/* ── footer ── */}
         <div className="st-drawer-ft">
-          <button
-            className="st-btn ghost"
-            style={{ marginRight: 'auto' }}
-            onClick={() => notifications.show({ message: 'Volledige geschiedenis — binnenkort beschikbaar' })}
-          >
-            Geschiedenis
-          </button>
+          {/* De knop "Geschiedenis — binnenkort beschikbaar" stond hier naast
+              een lijst die nu de echte mutaties toont; die belofte was al
+              ingelost. */}
           <button className="st-btn" onClick={onEdit}>
             <IconEdit size={14} />Bewerken
           </button>
@@ -614,15 +644,15 @@ export function VoorraadPage() {
   const { data: profilesData } = useQuery({ queryKey: ['profiles'], queryFn: profilesApi.list })
   const { data: surfaceFinishesData } = useQuery({ queryKey: ['surface-finishes'], queryFn: surfaceFinishesApi.list })
 
-  // Open/in-progress reservations per bar for availability display.
-  const [allReservations] = useState(() => reservationsStore.list())
+  // Wat er per staaf vastligt komt van de server mee in `gereserveerdMm` — één
+  // definitie voor het hele programma. De reserveringen zelf zijn hier alleen
+  // nodig om in de lade te laten zien wélke dat zijn.
+  const { data: allReservations = [] } = useReserveringen()
   const reservedByBar = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const r of allReservations) {
-      if (r.status !== 'done') map[r.barId] = (map[r.barId] ?? 0) + r.sawLength
-    }
+    for (const row of data?.data ?? []) map[row.id] = row.gereserveerdMm
     return map
-  }, [allReservations])
+  }, [data])
 
   const deleteMutation = useMutation({
     mutationFn: rawMaterialsApi.remove,
@@ -946,7 +976,7 @@ export function VoorraadPage() {
       {drawerRow && (
         <ItemDrawer
           row={drawerRow}
-          barReservations={allReservations.filter(r => r.barId === drawerRow.id && r.status !== 'done')}
+          barReservations={allReservations.filter(r => r.barId === drawerRow.id && houdtVast(r))}
           onClose={() => setDrawerRow(null)}
           onEdit={() => { setEditItem(drawerRow); setDrawerRow(null) }}
           onMutatie={() => openMutatie(drawerRow)}

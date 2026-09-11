@@ -1,8 +1,11 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { IconTrash, IconCut, IconAlertTriangle, IconPrinter, IconX } from '@tabler/icons-react'
+import { IconTrash, IconCut, IconAlertTriangle, IconPrinter, IconX, IconBan } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { reservationsStore, initReservations, type ZaagReservation } from '../../api/reservations'
+import { houdtVast, type ZaagReservation } from '../../api/reservations'
+import {
+  useReserveringen, useVerwijderReservering, useAnnuleerReservering,
+} from '../../hooks/useReserveringen'
 
 function sortByCreatedDesc(rows: ZaagReservation[]): ZaagReservation[] {
   return [...rows].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -161,6 +164,7 @@ function ReservationGroup({
   items,
   isActive,
   onDelete,
+  onAnnuleer,
   onDeleteGroup,
   onPrint,
 }: {
@@ -168,6 +172,7 @@ function ReservationGroup({
   items: ZaagReservation[]
   isActive: boolean
   onDelete: (id: string) => void
+  onAnnuleer: (id: string) => void
   onDeleteGroup: (calcNr: string) => void
   onPrint: (calcNr: string) => void
 }) {
@@ -248,14 +253,25 @@ function ReservationGroup({
               </td>
               <td className="cell-muted" style={{ fontSize: 12 }}>{formatDate(r.createdAt)}</td>
               <td>
-                <button
-                  className="st-icon-btn"
-                  style={{ color: 'var(--danger)' }}
-                  title="Reservering verwijderen"
-                  onClick={() => onDelete(r.id)}
-                >
-                  <IconTrash size={13} />
-                </button>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {/* Annuleren geeft het materiaal vrij en laat staan dát deze
+                      zaagbon niet doorging; verwijderen wist hem helemaal. */}
+                  <button
+                    className="st-icon-btn"
+                    title="Annuleren — materiaal komt vrij, de reservering blijft zichtbaar"
+                    onClick={() => onAnnuleer(r.id)}
+                  >
+                    <IconBan size={13} />
+                  </button>
+                  <button
+                    className="st-icon-btn"
+                    style={{ color: 'var(--danger)' }}
+                    title="Reservering verwijderen"
+                    onClick={() => onDelete(r.id)}
+                  >
+                    <IconTrash size={13} />
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -267,18 +283,15 @@ function ReservationGroup({
 
 // ── page ──────────────────────────────────────────────────────────────────────
 export function ReserveringenPage() {
-  const [reservations, setReservations] = useState<ZaagReservation[]>(() =>
-    sortByCreatedDesc(reservationsStore.list())
-  )
+  const { data: alle = [] } = useReserveringen()
+  const verwijder = useVerwijderReservering()
+  const annuleer = useAnnuleerReservering()
   const [activeZaagbon, setActiveZaagbon] = useState<string | null>(null)
 
-  // reservationsStore.list() is a snapshot of an in-memory cache that's only
-  // populated once the background initReservations() fetch resolves — the
-  // lazy useState above can capture an empty/stale snapshot taken before
-  // that happens. Re-fetch and refresh local state once the real data is in.
-  useEffect(() => {
-    initReservations().then(() => setReservations(sortByCreatedDesc(reservationsStore.list())))
-  }, [])
+  // Afgeboekte en geannuleerde reserveringen horen niet in deze lijst: die
+  // houden geen materiaal meer vast. De zaagbon zelf is terug te vinden in de
+  // voorraadmutaties van de staaf.
+  const reservations = useMemo(() => sortByCreatedDesc(alle.filter(houdtVast)), [alle])
 
   const groups = useMemo(() => {
     const map = new Map<string, ZaagReservation[]>()
@@ -304,36 +317,43 @@ export function ReserveringenPage() {
   const totalBars = reservations.length
   const totalMm   = reservations.reduce((s, r) => s + r.sawLength, 0)
 
+  // Annuleren geeft het materiaal vrij en laat zien dát de zaagbon geannuleerd
+  // is; verwijderen wist hem. Dat eerste is bijna altijd wat je wilt — een
+  // reservering die niet doorgaat is zelf informatie.
+  function handleAnnuleer(id: string) {
+    annuleer.mutate(id)
+  }
+
   function handleDelete(id: string) {
-    reservationsStore.remove(id)
-    setReservations(prev => prev.filter(r => r.id !== id))
-    notifications.show({
-      color: 'orange',
-      title: 'Reservering verwijderd',
-      message: 'De zaag-reservering is verwijderd. De beschikbare lengte is weer vrijgegeven.',
+    verwijder.mutate(id, {
+      onSuccess: () => notifications.show({
+        color: 'orange',
+        title: 'Reservering verwijderd',
+        message: 'De zaag-reservering is verwijderd. De beschikbare lengte is weer vrijgegeven.',
+      }),
     })
   }
 
   function handleDeleteGroup(calcNr: string) {
     const toDelete = reservations.filter(r => r.calculatieNr === calcNr)
-    toDelete.forEach(r => reservationsStore.remove(r.id))
-    setReservations(prev => prev.filter(r => r.calculatieNr !== calcNr))
-    if (activeZaagbon === calcNr) setActiveZaagbon(null)
-    notifications.show({
-      color: 'orange',
-      title: 'Groep verwijderd',
-      message: `${toDelete.length} reservering${toDelete.length !== 1 ? 'en' : ''} verwijderd${calcNr ? ` voor ${calcNr}` : ''}.`,
+    Promise.all(toDelete.map(r => verwijder.mutateAsync(r.id))).then(() => {
+      if (activeZaagbon === calcNr) setActiveZaagbon(null)
+      notifications.show({
+        color: 'orange',
+        title: 'Groep verwijderd',
+        message: `${toDelete.length} reservering${toDelete.length !== 1 ? 'en' : ''} verwijderd${calcNr ? ` voor ${calcNr}` : ''}.`,
+      })
     })
   }
 
   function handleDeleteAll() {
-    reservations.forEach(r => reservationsStore.remove(r.id))
-    setReservations([])
-    setActiveZaagbon(null)
-    notifications.show({
-      color: 'orange',
-      title: 'Alle reserveringen verwijderd',
-      message: 'Alle zaag-reserveringen zijn verwijderd.',
+    Promise.all(reservations.map(r => verwijder.mutateAsync(r.id))).then(() => {
+      setActiveZaagbon(null)
+      notifications.show({
+        color: 'orange',
+        title: 'Alle reserveringen verwijderd',
+        message: 'Alle zaag-reserveringen zijn verwijderd.',
+      })
     })
   }
 
@@ -395,6 +415,7 @@ export function ReserveringenPage() {
               items={items}
               isActive={activeZaagbon === calcNr}
               onDelete={handleDelete}
+              onAnnuleer={handleAnnuleer}
               onDeleteGroup={handleDeleteGroup}
               onPrint={handlePrint}
             />

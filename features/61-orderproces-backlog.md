@@ -164,10 +164,15 @@ mutatie, geen reservering, in de hele keten niet.
   `accepteerOfferte` bepaalt wat er aan materiaal nodig is en zet dat vast.
   *Hangt af van 6.*
 
-- [ ] **8. Voorraad afboeken**
-  Beslissen op welk moment de mutatie valt: bij gereedmelden van de
-  productieorder, of bij het verzenden van de paklijst.
-  *Hangt af van 6 en 7.*
+- [~] **8. Voorraad afboeken** — *zaagpad gedaan 2026-09-11, productiepad open*
+  Afboeken bij het zagen is er: één transactie (staaf korter, mutatie
+  weggeschreven, reservering laat het materiaal los), met `vrij = fysiek −
+  gereserveerd` als servergetal en een weigering als je meer reserveert dan er
+  vrij is. Zie de beslissing van 2026-09-11 in `decisions/90-decisions-log.md`.
+
+  Wat nog open staat is het **productiepad**: op welk moment valt de mutatie voor
+  een productieorder — bij gereedmelden van de order, of bij het verzenden van de
+  paklijst? Dat is een keuze over de werkvloer, niet over de code.
 
 - [ ] **9. Inkoopsuggesties**
   Bij accepteren: wat is nodig, wat ligt er, wat moet besteld worden.

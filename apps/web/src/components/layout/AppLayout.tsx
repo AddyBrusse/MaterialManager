@@ -14,7 +14,8 @@ import { useInitAppData } from '../../hooks/useInitAppData'
 import { usePopoutRoutes } from '../../hooks/usePopout'
 import { openPopout, focusPopout, requestClosePopout, POPOUT_ROUTES } from '../../utils/popout'
 import { rawMaterialsApi } from '../../api/raw-materials'
-import { reservationsStore } from '../../api/reservations'
+import { houdtVast, type ZaagReservation } from '../../api/reservations'
+import { useReserveringen } from '../../hooks/useReserveringen'
 import { usersApi } from '../../api/users'
 import type { User } from '@stockmanager/shared'
 import logoBoers from '../../assets/logo-boers.png'
@@ -46,22 +47,17 @@ function getInitials(name: string) {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-// Counts derived from the saved zaag reservations:
-// - reservationCount: total reserved bars
-// - zaagflowCount: number of active jobs (calculatienummer groups not yet fully done)
-function readReservationCounts(): { reservationCount: number; zaagflowCount: number } {
-  const list = reservationsStore.list()
-  const groups = new Map<string, string[]>()
-  for (const r of list) {
-    const k = r.calculatieNr || '—'
-    if (!groups.has(k)) groups.set(k, [])
-    groups.get(k)!.push(r.status ?? 'open')
-  }
-  let zaagflowCount = 0
-  for (const statuses of groups.values()) {
-    if (statuses.some(s => s !== 'done')) zaagflowCount++
-  }
-  return { reservationCount: list.length, zaagflowCount }
+// Tellers uit de reserveringen:
+// - reservationCount: staven die nog materiaal vasthouden (afgeboekt en
+//   geannuleerd tellen niet mee — daar ligt niets meer vast, en een badge die
+//   maar blijft oplopen leest niemand meer)
+// - zaagflowCount: zaagbonnen (calculatienummers) waar nog werk in zit
+export function reservationCounts(
+  list: { calculatieNr: string; status: ZaagReservation['status'] }[],
+): { reservationCount: number; zaagflowCount: number } {
+  const open = list.filter(houdtVast)
+  const bonnen = new Set(open.map(r => r.calculatieNr || '—'))
+  return { reservationCount: open.length, zaagflowCount: bonnen.size }
 }
 
 function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
@@ -82,22 +78,11 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   const { data: rawData } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
   const voorraadCount = rawData?.data?.length ?? 0
 
-  // Reservation + zaagflow counts — read from the reservations cache (synced from API)
-  const [counts, setCounts] = useState(readReservationCounts)
-  // Re-read on location change …
-  useEffect(() => { setCounts(readReservationCounts()) }, [location.pathname])
-  // … and immediately whenever reservations change (create in calculator,
-  // start/complete in zaagflow), without needing to navigate.
-  useEffect(() => {
-    const handler = () => setCounts(readReservationCounts())
-    window.addEventListener('sm-reservations-changed', handler)
-    window.addEventListener('storage', handler) // cross-tab updates
-    return () => {
-      window.removeEventListener('sm-reservations-changed', handler)
-      window.removeEventListener('storage', handler)
-    }
-  }, [])
-  const { reservationCount, zaagflowCount } = counts
+  // Reserverings- en zaagflowtellers. Komen uit dezelfde query als de rest van
+  // het programma, dus een reservering die ergens gemaakt of afgeboekt wordt
+  // werkt deze badges vanzelf bij — er is geen eigen event meer voor nodig.
+  const { data: reserveringen } = useReserveringen()
+  const { reservationCount, zaagflowCount } = reservationCounts(reserveringen ?? [])
 
   const { data: todosData } = useQuery({ queryKey: ['todos'], queryFn: todosApi.list, refetchInterval: 20000 })
   const openTodoCount = todosData?.data?.filter(t => !t.done).length ?? 0

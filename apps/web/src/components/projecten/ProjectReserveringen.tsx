@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
 import { IconBookmark } from '@tabler/icons-react'
 import { useNavigate } from 'react-router-dom'
-import { reservationsStore, initReservations, type ZaagReservation } from '../../api/reservations'
+import { houdtVast } from '../../api/reservations'
+import { useReserveringen } from '../../hooks/useReserveringen'
 
 // Wat er aan materiaal voor dit project vastligt (punt 6 uit
 // features/61-orderproces-backlog.md). Tot nu toe waren reserveringen en
@@ -10,14 +10,12 @@ import { reservationsStore, initReservations, type ZaagReservation } from '../..
 // materiaal klaarlag.
 export function ProjectReserveringen({ projectId }: { projectId: string }) {
   const navigate = useNavigate()
-  const [alle, setAlle] = useState<ZaagReservation[]>(() => reservationsStore.list())
-
-  useEffect(() => { initReservations().then(() => setAlle(reservationsStore.list())) }, [])
+  const { data: alle = [] } = useReserveringen()
 
   const eigen = alle.filter(r => r.projectId === projectId)
   if (eigen.length === 0) return null
 
-  const openMm = eigen.filter(r => r.status !== 'done').reduce((s, r) => s + r.sawLength, 0)
+  const openMm = eigen.filter(houdtVast).reduce((s, r) => s + r.sawLength, 0)
 
   return (
     <div className="mi-card" style={{ marginTop: 14 }}>

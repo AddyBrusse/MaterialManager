@@ -1,8 +1,26 @@
 import { apiFetch } from './client'
 
-const LS_KEY = 'sm_zaag_reservations'
+/**
+ * Reserveringen komen van de server, niet uit localStorage.
+ *
+ * Tot 2026-09-11 hield dit bestand een eigen kopie in `localStorage` bij en
+ * werd de server er fire-and-forget achteraan gestuurd (`.catch(() => {})`).
+ * Twee dingen gingen daar mis: een mislukte call merkte niemand, en de
+ * frontend verzon zelf een id terwijl de server zijn eigen id maakte — een
+ * reservering afboeken in dezelfde sessie ging dan naar een id dat de server
+ * niet kende, en de reservering bleef open in de database terwijl het scherm
+ * 'klaar' zei.
+ */
 
-export type ReservationStatus = 'open' | 'in_progress' | 'done'
+export type ReservationStatus = 'open' | 'in_progress' | 'done' | 'geannuleerd'
+
+/** Deze twee houden materiaal vast; done en geannuleerd niet. Moet gelijk
+ *  blijven aan `OPEN_STATUSSEN` in `apps/api/src/services/voorraad.ts`. */
+export const OPEN_STATUSSEN: ReservationStatus[] = ['open', 'in_progress']
+
+export function houdtVast(r: { status: ReservationStatus }): boolean {
+  return OPEN_STATUSSEN.includes(r.status)
+}
 
 export interface ZaagReservation {
   id: string
@@ -28,131 +46,75 @@ export interface ZaagReservation {
   createdAt: string
   priority: number | null      // planner sets order (1 = highest); null = no priority
   rush: boolean                // planner "Spoed" flag — rush jobs jump the queue
-  status: ReservationStatus    // open → in_progress → done
-  restLengteMm: number | null  // measured rest after sawing (set when marking done)
+  status: ReservationStatus
+  restLengteMm: number | null  // gemeten rest na het zagen (gezet bij afboeken)
   completedAt: string | null
 }
 
-function migrate(r: Partial<ZaagReservation>): ZaagReservation {
-  return {
-    priority: null,
-    rush: false,
-    status: 'open',
-    restLengteMm: null,
-    completedAt: null,
-    barLocation: '',
-    barVorm: 'Rond',
-    projectId: null,
-    artikelId: null,
-    steekbreedte: 0,
-    vlakToeslag: 0,
-    fysiekeLengte: (r as { sawLength?: number }).sawLength ?? 0,
-    ...r,
-  } as ZaagReservation
+export type CreateReservationInput = Omit<
+  ZaagReservation,
+  'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt'
+>
+
+export interface Beschikbaarheid {
+  fysiekMm: number
+  gereserveerdMm: number
+  vrijMm: number
 }
 
-function loadLocal(): ZaagReservation[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return []
-    return (JSON.parse(raw) as Partial<ZaagReservation>[]).map(migrate)
-  } catch { return [] }
+export interface AfboekResultaat {
+  reservering: ZaagReservation
+  mutatieId: string
+  schroot: boolean
+  vorigeVoorraadMm: number
+  nieuweVoorraadMm: number
 }
 
-function saveLocal(data: ZaagReservation[]): void {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(data)) } catch {}
-  // Notify same-tab listeners (e.g. sidebar count badges) — the native
-  // 'storage' event only fires in *other* tabs, so we emit our own.
-  try { window.dispatchEvent(new Event('sm-reservations-changed')) } catch {}
-}
+export const reservationsApi = {
+  list: () => apiFetch<ZaagReservation[]>('/reservations').then((r) => r.data),
 
-let cache: ZaagReservation[] = loadLocal()
+  listVoorProject: (projectId: string) =>
+    apiFetch<ZaagReservation[]>(`/reservations?projectId=${encodeURIComponent(projectId)}`)
+      .then((r) => r.data),
 
-export async function initReservations(): Promise<void> {
-  try {
-    const { data } = await apiFetch<ZaagReservation[]>('/reservations')
-    cache = data
-    saveLocal(data)
-  } catch {
-    cache = loadLocal()
-  }
-}
+  /** De hele batch in één verzoek: de server legt hem tegen de vrije lengte en
+   *  weigert de hele set als er één staaf te krap is. */
+  create: (items: CreateReservationInput[]) =>
+    apiFetch<ZaagReservation[]>('/reservations', {
+      method: 'POST', body: JSON.stringify(items),
+    }).then((r) => r.data),
 
-type CreateInput = Omit<ZaagReservation, 'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt'>
+  remove: (id: string) => apiFetch<void>(`/reservations/${id}`, { method: 'DELETE' }),
 
-export const reservationsStore = {
-  list: () => cache,
-
-  create: (items: CreateInput[]): ZaagReservation[] => {
-    const created: ZaagReservation[] = items.map((item, i) => ({
-      ...item,
-      id: `res_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
-      createdAt: new Date().toISOString(),
-      priority: null,
-      rush: false,
-      status: 'open' as ReservationStatus,
-      restLengteMm: null,
-      completedAt: null,
-    }))
-    cache = [...cache, ...created]
-    saveLocal(cache)
-    apiFetch<ZaagReservation[]>('/reservations', { method: 'POST', body: JSON.stringify(items) })
-      .catch(() => {})
-    return created
-  },
-
-  remove: async (id: string): Promise<void> => {
-    cache = cache.filter(r => r.id !== id)
-    saveLocal(cache)
-    apiFetch<void>(`/reservations/${id}`, { method: 'DELETE' }).catch(() => {})
-  },
-
-  setPriority: async (id: string, priority: number | null): Promise<void> => {
-    cache = cache.map(r => r.id === id ? { ...r, priority } : r)
-    saveLocal(cache)
+  setPriority: (id: string, priority: number | null) =>
     apiFetch<ZaagReservation>(`/reservations/${id}/priority`, {
       method: 'PATCH', body: JSON.stringify({ priority }),
-    }).catch(() => {})
-  },
+    }).then((r) => r.data),
 
-  // Apply a full planner ordering in one write: job at index i → priority i+1,
-  // plus its rush flag, on every reservation it contains. Reservations not in
-  // any listed job are left untouched.
-  applyPlan: async (jobs: { ids: string[]; rush: boolean }[]): Promise<void> => {
-    const plan = new Map<string, { priority: number; rush: boolean }>()
-    jobs.forEach((job, i) => {
-      for (const id of job.ids) plan.set(id, { priority: i + 1, rush: job.rush })
-    })
-    cache = cache.map(r => {
-      const p = plan.get(r.id)
-      return p ? { ...r, priority: p.priority, rush: p.rush } : r
-    })
-    saveLocal(cache)
-    try {
-      const { data } = await apiFetch<ZaagReservation[]>('/reservations/plan', {
-        method: 'POST', body: JSON.stringify({ jobs }),
-      })
-      cache = data
-      saveLocal(cache)
-    } catch {}
-  },
+  applyPlan: (jobs: { ids: string[]; rush: boolean }[]) =>
+    apiFetch<ZaagReservation[]>('/reservations/plan', {
+      method: 'POST', body: JSON.stringify({ jobs }),
+    }).then((r) => r.data),
 
-  setStatus: async (id: string, status: ReservationStatus): Promise<void> => {
-    cache = cache.map(r => r.id === id ? { ...r, status } : r)
-    saveLocal(cache)
+  /** Alleen heen en weer tussen open en in_progress — afsluiten gaat via
+   *  afboeken of annuleren, zodat de voorraad meebeweegt. */
+  setStatus: (id: string, status: 'open' | 'in_progress') =>
     apiFetch<ZaagReservation>(`/reservations/${id}/status`, {
       method: 'PATCH', body: JSON.stringify({ status }),
-    }).catch(() => {})
-  },
+    }).then((r) => r.data),
 
-  complete: async (id: string, restLengteMm: number | null): Promise<void> => {
-    const completedAt = new Date().toISOString()
-    cache = cache.map(r =>
-      r.id === id ? { ...r, status: 'done', restLengteMm, completedAt } : r,
-    )
-    saveLocal(cache)
-    apiFetch<ZaagReservation>(`/reservations/${id}/complete`, {
-      method: 'POST', body: JSON.stringify({ restLengteMm }),
-    }).catch(() => {})
-  },
+  /** Eén verzoek, één transactie: staaf korter, mutatie vastgelegd, reservering
+   *  gesloten. Mislukt er iets, dan gebeurt er niets van dit alles. */
+  afboeken: (id: string, body: { restLengteMm: number | null; schroot?: boolean; note?: string }) =>
+    apiFetch<AfboekResultaat>(`/reservations/${id}/afboeken`, {
+      method: 'POST', body: JSON.stringify(body),
+    }).then((r) => r.data),
+
+  /** Materiaal vrijgeven zonder af te boeken. */
+  annuleer: (id: string) =>
+    apiFetch<ZaagReservation>(`/reservations/${id}/annuleer`, { method: 'POST' })
+      .then((r) => r.data),
+
+  beschikbaarheid: (barId: string) =>
+    apiFetch<Beschikbaarheid>(`/reservations/beschikbaarheid/${barId}`).then((r) => r.data),
 }

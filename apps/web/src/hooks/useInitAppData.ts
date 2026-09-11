@@ -4,7 +4,6 @@ import { initMachines } from '../api/machines'
 import { initRelaties } from '../api/relaties'
 import { initArticles } from '../api/articles'
 import { initProjects } from '../api/projects'
-import { initReservations } from '../api/reservations'
 import { initGrades } from '../api/grades'
 import { initProfiles } from '../api/profiles'
 import { loadCompany } from '../api/company'
@@ -29,7 +28,6 @@ export function useInitAppData(): void {
       initRelaties(),
       initArticles(),
       initProjects(),
-      initReservations(),
       initGrades(),
       initProfiles(),
       loadCompany(),
@@ -38,7 +36,6 @@ export function useInitAppData(): void {
       qc.invalidateQueries({ queryKey: ['relaties'] })
       qc.invalidateQueries({ queryKey: ['articles'] })
       qc.invalidateQueries({ queryKey: ['projects'] })
-      qc.invalidateQueries({ queryKey: ['reservations'] })
       qc.invalidateQueries({ queryKey: ['grades'] })
       qc.invalidateQueries({ queryKey: ['profiles'] })
       qc.invalidateQueries({ queryKey: ['company'] })
