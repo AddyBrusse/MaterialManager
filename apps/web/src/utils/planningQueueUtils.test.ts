@@ -24,10 +24,13 @@ import {
 // Mon 2026-07-13 (offset 0) .. Sat 2026-07-18 (offset 5) .. Sun (offset 6).
 const WINDOW_START = new Date(2026, 6, 13)
 
+// De stangenlader doet hier niet ter zake; deze tests gaan over de wachtrij.
+const LOADER = { barloaderMinMm: 500, barloaderMaxMm: 1100, opspanlengteMm: 30, afsteekMm: 3 }
+
 const MACHINES: Machine[] = [
-  { id: 'm-zaag', name: 'Zaag', machineRatePerHour: 55, operatorRatePerHour: 45, defaultSetupMin: 10, worksWeekends: true, createdAt: '' },
-  { id: 'm-las', name: 'Las', machineRatePerHour: 60, operatorRatePerHour: 50, defaultSetupMin: 15, worksWeekends: false, createdAt: '' },
-  { id: 'm-frees', name: 'Frees', machineRatePerHour: 80, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, createdAt: '' },
+  { id: 'm-zaag', name: 'Zaag', machineRatePerHour: 55, operatorRatePerHour: 45, defaultSetupMin: 10, worksWeekends: true, ...LOADER, createdAt: '' },
+  { id: 'm-las', name: 'Las', machineRatePerHour: 60, operatorRatePerHour: 50, defaultSetupMin: 15, worksWeekends: false, ...LOADER, createdAt: '' },
+  { id: 'm-frees', name: 'Frees', machineRatePerHour: 80, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, ...LOADER, createdAt: '' },
 ]
 
 let jobSeq = 0

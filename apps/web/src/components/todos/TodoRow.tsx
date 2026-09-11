@@ -1,4 +1,4 @@
-import { IconTrash, IconCalendarCheck, IconCalendarPlus } from '@tabler/icons-react'
+import { IconTrash, IconCalendarCheck, IconCalendarPlus, IconCut, IconShoppingCart } from '@tabler/icons-react'
 import type { Todo } from '@stockmanager/shared'
 import { formatDate } from '../../api/projects'
 
@@ -10,6 +10,9 @@ const PRIORITY_CFG: Record<Todo['priority'], { label: string; cls: string }> = {
 
 interface Props {
   todo: Todo
+  /** Voor een todo die het programma zelf aanmaakte: de handeling openen in
+   *  plaats van alleen een zin tonen. */
+  onActie?: () => void
   currentUserId?: string
   onClaim: () => void
   onComplete: (done: boolean) => void
@@ -18,7 +21,7 @@ interface Props {
   settingAgenda?: boolean
 }
 
-export function TodoRow({ todo, currentUserId, onClaim, onComplete, onDelete, onSetAgenda, settingAgenda }: Props) {
+export function TodoRow({ todo, currentUserId, onActie, onClaim, onComplete, onDelete, onSetAgenda, settingAgenda }: Props) {
   const overdue = !!todo.dueDate && !todo.done && new Date(todo.dueDate) < new Date()
   const claimedByMe = !!currentUserId && todo.claimedByUserId === currentUserId
   const priorityCfg = PRIORITY_CFG[todo.priority]
@@ -35,6 +38,15 @@ export function TodoRow({ todo, currentUserId, onClaim, onComplete, onDelete, on
         <span style={{ flex: 1, fontWeight: 500, textDecoration: todo.done ? 'line-through' : 'none' }}>
           {todo.title}
         </span>
+        {/* Een todo die het programma aanmaakte weet waar hij over gaat en kan
+            de bijbehorende handeling openen. */}
+        {!todo.done && todo.soort && onActie && (
+          <button className="todo-actie" onClick={onActie}>
+            {todo.soort === 'materiaal_selecteren'
+              ? <><IconCut size={12} />Selecteren</>
+              : <><IconShoppingCart size={12} />Bestellen</>}
+          </button>
+        )}
         <span className={priorityCfg.cls} style={{ fontSize: 10.5 }}>{priorityCfg.label}</span>
         {todo.dueDate && (
           <span className={`st-badge ${overdue ? 'danger' : 'info'}`} style={{ fontSize: 10.5 }}>

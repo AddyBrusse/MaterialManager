@@ -5,6 +5,7 @@ const LS_KEY = 'sm_company'
 
 const DEFAULTS: Company = {
   id:            'default',
+  schrootDrempelMm: 200,
   naam:          'Boer Metaalbewerking',
   adres:         'Industrieweg 1',
   postcode:      '1234 AB',

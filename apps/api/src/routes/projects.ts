@@ -11,6 +11,7 @@ import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { PROJECT_INCLUDE, serialize, persist } from '../services/project-store'
 import { snapshotBijOrder } from '../services/prijs-snapshot'
+import { todosBijOpdracht } from '../services/materiaal-selectie'
 import type { Prisma } from '@prisma/client'
 
 const router = Router()
@@ -381,6 +382,20 @@ router.post(
         offerteId: acceptedOfferte.id,
         relatieId: p.relatieId,
         klant: relatie?.naam ?? null,
+        door: req.user.id,
+      })
+
+      // Nu er een opdracht ligt moet er besloten worden wát er gezaagd gaat
+      // worden. Dat doet het programma niet zelf: per artikel komt er een todo
+      // "materiaal selecteren", en die opent het keuzescherm met een voorstel.
+      // Stilzwijgend materiaal vastleggen is precies hoe je een staaf kwijtraakt
+      // die voor een spoedklus bedoeld was.
+      await todosBijOpdracht(tx, {
+        projectId: p.id,
+        projectNaam: p.naam,
+        regels: acceptedOfferte.regels.map(r => ({
+          id: r.id, artikelId: r.artikelId, naam: r.naam, qty: r.qty,
+        })),
         door: req.user.id,
       })
 

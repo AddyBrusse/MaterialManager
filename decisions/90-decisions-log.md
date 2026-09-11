@@ -797,3 +797,72 @@ Wat hier **niet** in zit: afboeken bij productie (punt 8 van
 `features/61-orderproces-backlog.md` vraagt nog een keuze — bij gereedmelden van
 de order of bij het verzenden van de paklijst) en inkoop (punt 9). Reserveren bij
 het accepteren van een offerte (punt 7) ook niet; de bouwstenen liggen er nu wel.
+
+## 2026-09-11 — Materiaal kiezen bij het aanmaken van een opdracht
+
+Zodra een offerte geaccepteerd is moet besloten worden wát er gezaagd gaat
+worden. Dat doet het programma **niet** vanzelf: per orderregel met een artikel
+komt er een todo "materiaal selecteren", en die opent een scherm met een
+voorstel. Stilzwijgend materiaal vastleggen is precies hoe je een staaf
+kwijtraakt die voor een spoedklus bedoeld was.
+
+### De rekenkern
+
+Draaiwerk gaat via een stangenlader: de draaibank trekt een stang van pakweg
+500–1100 mm naar binnen. De vraag is dus niet alleen "welke staaf" maar ook "op
+welke lengte zagen we hem", en die twee hangen samen.
+
+    stukLengte  = werkstuk + vlakToeslag + afsteek + zaagsnede
+    laderstang  = k × stukLengte + opspanlengte,  min ≤ laderstang ≤ max
+
+Door de laderlengte precies op `k × stukLengte + opspanlengte` te leggen blijft
+er per laderstang per definitie niets over. Wat er dan nog te winnen valt zit in
+de **voorraadstaaf**: hoeveel blijft er liggen als je er laderstangen uit zaagt.
+Elke haalbare k wordt geprobeerd — dat zijn er hooguit een handvol — en
+gerangschikt op:
+
+1. **dekking** — materiaal dat er niet ligt is het probleem, niet een paar
+   millimeter afval;
+2. **minst écht verloren materiaal** — een restant boven de schrootdrempel gaat
+   terug het rek in en is geen verlies, alleen wat eronder valt is weg;
+3. **minste stangwissels** voor de operator.
+
+Binnen één laderlengte gaan **korte staven voor** — restjes opmaken — maar niet
+tegen elke prijs: laat een korte staaf meer dan 15% van zichzelf als schroot
+achter, dan gaat er eerst een langere. Gemeten: een staaf van 1200 mm die bij
+laderlengte 1011 een restje van 189 mm achterlaat (15,75%) wordt overgeslagen;
+dezelfde staaf op 1050 mm (restje 39 mm) gaat juist voorop.
+
+Alles in `packages/shared/calc/zaagplan.ts`, puur en zonder database, met 15
+tests.
+
+### Waar de maten staan
+
+Stangenlader-grenzen, opspanlengte en afsteek horen bij de **machine**: de DMG en
+de Doosan kunnen een andere stanglengte aan. Per zaagbon mag ervan afgeweken
+worden, zoals dat al met kerf en vlaktoeslag ging. De **schrootdrempel** staat op
+`company` — die gaat over de voorraad en niet over één machine.
+
+`lengthPerPieceMm` in het artikelrecept is vanaf nu expliciet de **kale
+werkstuklengte**; de toeslagen komen er in de berekening bovenop. In bestaande
+recepten is dat veld niet consequent ingevuld, en daar is geen migratie voor te
+verzinnen — daarom toont het keuzescherm de hele som (`100 mm werkstuk + 3 vlak
++ 3 afsteek + 3 zaagsnede`) zodat een verkeerd ingevulde lengte zichtbaar is
+vóórdat er iets vastligt.
+
+### Todo's die een handeling kunnen openen
+
+`Todo` draagt nu optioneel `soort`, `projectId`, `artikelId` en
+`offerteRegelId`. Een todo die het programma zelf aanmaakt weet daarmee waar hij
+over gaat en krijgt een knop die het bijbehorende scherm opent, in plaats van
+alleen een zin te tonen. Handmatige todo's houden die velden leeg.
+
+Het keuzescherm is te bereiken vanuit de todolijst én vanuit de orderregels op de
+opdrachtbevestiging. Bevestigen legt de reserveringen aan, vinkt de todo af, en
+zet bij een tekort een **bestel-todo** klaar met het aantal en de millimeters die
+nog nodig zijn — de haak voor de inkoopmodule (punt 9 van de backlog).
+
+Bevestigen rekent het plan bewust **niet** opnieuw uit: tussen tonen en
+bevestigen kan iemand anders materiaal weggehaald hebben, en dan hoort de
+reservering te botsen (409, dezelfde controle als bij handmatig reserveren) in
+plaats van stilletjes iets anders vast te leggen.

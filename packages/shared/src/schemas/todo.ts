@@ -3,9 +3,18 @@ import { z } from 'zod'
 export const TodoPrioritySchema = z.enum(['low', 'normal', 'high'])
 export type TodoPriority = z.infer<typeof TodoPrioritySchema>
 
+/** Wat een door het programma aangemaakte todo aanstuurt. Een handmatige todo
+ *  heeft geen soort — die draagt alleen een zin. */
+export const TodoSoortSchema = z.enum(['materiaal_selecteren', 'bestellen'])
+export type TodoSoort = z.infer<typeof TodoSoortSchema>
+
 export const TodoSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
+  soort: TodoSoortSchema.nullable().default(null),
+  projectId: z.string().nullable().default(null),
+  artikelId: z.string().nullable().default(null),
+  offerteRegelId: z.string().nullable().default(null),
   dueDate: z.string().datetime().nullable(),
   priority: TodoPrioritySchema,
   done: z.boolean(),

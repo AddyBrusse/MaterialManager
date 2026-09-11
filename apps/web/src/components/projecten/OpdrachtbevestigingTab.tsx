@@ -14,7 +14,8 @@ import {
 } from '../../services/opdrachtbevestiging-pdf'
 import { sendViaMicrosoft365, pdfToBase64 } from '../../services/graph-mail'
 import { RegelsTable } from './RegelsTable'
-import type { Project, Opdrachtbevestiging } from '@stockmanager/shared'
+import { MateriaalSelectieModal } from '../materiaal/MateriaalSelectieModal'
+import type { Project, Opdrachtbevestiging, OfferteRegel } from '@stockmanager/shared'
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ function OBCard({ project, ob, onChanged }: OBCardProps) {
   const user     = useUserStore(s => s.user)
   const [expanded, setExpanded] = useState(true)
   const [mailSending, setMailSending] = useState(false)
+  // De orderregel waarvoor het materiaalkeuzescherm openstaat.
+  const [materiaalRegel, setMateriaalRegel] = useState<OfferteRegel | null>(null)
   const cfg      = OB_STATUS[ob.status]
   const subtotaal = ob.regels.reduce((s, r) => s + r.totaal, 0)
   const btw       = Math.round(subtotaal * 0.21 * 100) / 100
@@ -155,6 +158,7 @@ function OBCard({ project, ob, onChanged }: OBCardProps) {
           <RegelsTable
             projectId={project.id}
             regels={ob.regels}
+            onMateriaal={(r) => setMateriaalRegel(r)}
             grades={grades}
             profiles={profiles}
             machines={machines}
@@ -222,6 +226,17 @@ function OBCard({ project, ob, onChanged }: OBCardProps) {
             )}
           </div>
         </div>
+      )}
+
+      {materiaalRegel?.artikelId && (
+        <MateriaalSelectieModal
+          projectId={project.id}
+          artikelId={materiaalRegel.artikelId}
+          artikelNaam={materiaalRegel.naam}
+          aantal={materiaalRegel.qty}
+          calculatieNr={ob.id}
+          onClose={() => setMateriaalRegel(null)}
+        />
       )}
     </div>
   )
