@@ -2588,3 +2588,82 @@ table.st-tbl.ph-tabel tbody td { white-space: nowrap; overflow: hidden; text-ove
   margin: 2px 0 0; text-align: right;
 }
 .ph-tip-order { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+
+/* ── Materiaalselectie ─────────────────────────────────────────────────────── */
+/* Draait op de overlay van de zaagflow (.zf-overlay/.zf-modal); hier alleen wat
+   dit scherm anders maakt: breder, want er staat een tabel met zes kolommen in. */
+/* `.zf-modal` zet `max-width: 520px`; dat is te smal voor een tabel met zes
+   kolommen, dus die grens hier ophogen en niet alleen `width`. */
+.zf-modal.ms-modal {
+  width: min(880px, 94vw); max-width: min(880px, 94vw);
+  max-height: 88vh; display: flex; flex-direction: column;
+}
+
+.ms-kop {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.ms-titel { font-size: 15px; font-weight: 600; color: var(--text); }
+.ms-sub { font-size: 12.5px; color: var(--text-3); margin-top: 2px; }
+.ms-kop > button { margin-left: auto; }
+
+.ms-body { padding: 14px 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+
+.ms-machine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; }
+.ms-machine > span:first-child { color: var(--text-3); }
+.ms-machine .st-btn[data-actief="true"] {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+}
+.ms-loader { margin-left: auto; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-3); }
+
+.ms-som { display: flex; flex-wrap: wrap; gap: 8px; }
+.ms-som > div {
+  flex: 1 1 120px; min-width: 120px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 8px 10px;
+}
+.ms-som span {
+  display: block; font-size: 10.5px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--text-3); margin-bottom: 3px;
+}
+.ms-som b { font-family: var(--font-mono); font-size: 14px; font-weight: 500; color: var(--text); }
+
+/* De som achter het voorstel, zodat niemand hoeft te raden waar de lengte
+   vandaan komt. */
+.ms-uitleg {
+  font-size: 11.5px; color: var(--text-3); font-family: var(--font-mono);
+  padding: 0 2px;
+}
+
+/* st-tbl is `width: max-content` — gemaakt voor een scrollende pagina, niet
+   voor een modal. Vaste kolommen dus. */
+.ms-tbl-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+table.st-tbl.ms-tbl { width: 100%; table-layout: fixed; }
+table.st-tbl.ms-tbl tbody tr { cursor: default; }
+table.st-tbl.ms-tbl tbody td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-schroot {
+  margin-left: 6px; font-size: 10px; font-weight: 500; padding: 1px 5px;
+  border-radius: 10px; background: var(--warning-soft); color: var(--warning);
+}
+
+.ms-tekort {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--warning-soft); color: var(--warning);
+  border-radius: var(--radius); padding: 10px 12px; font-size: 12.5px;
+}
+.ms-tekort strong { display: block; margin-bottom: 2px; }
+.ms-tekort div div { color: var(--text-2); }
+
+.ms-voet {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 16px; border-top: 1px solid var(--border); background: var(--bg);
+}
+
+/* Knop op een todo die het programma zelf aanmaakte. */
+.todo-actie {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11.5px; font-weight: 500; padding: 2px 8px;
+  border-radius: 12px; border: 1px solid var(--accent);
+  background: var(--accent-soft); color: var(--accent); cursor: pointer;
+}
+.todo-actie:hover { background: var(--accent); color: var(--text-on-accent); }

@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import type { Todo } from '@stockmanager/shared'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import { todosApi } from '../../api/todos'
 import { useUserStore } from '../../stores/user'
 import { TodoAddRow } from '../../components/todos/TodoAddRow'
 import { TodoRow } from '../../components/todos/TodoRow'
+import { MateriaalSelectieVanTodo } from '../../components/materiaal/MateriaalSelectieVanTodo'
 import { TodoAlerts } from '../../components/todos/TodoAlerts'
 import { useTodoAlerts } from '../../components/todos/useTodoAlerts'
 import { createCalendarEvent } from '../../services/graph-calendar'
@@ -14,6 +16,8 @@ export function TodosPage() {
   const qc = useQueryClient()
   const user = useUserStore(s => s.user)
   const [settingAgendaId, setSettingAgendaId] = useState<string | null>(null)
+  // De todo waarvoor het materiaalkeuzescherm openstaat.
+  const [selectieTodo, setSelectieTodo] = useState<Todo | null>(null)
 
   const { data } = useQuery({
     queryKey: ['todos'],
@@ -105,6 +109,7 @@ export function TodosPage() {
             onDelete={() => removeMut.mutate(t.id)}
             onSetAgenda={() => handleSetAgenda(t.id)}
             settingAgenda={settingAgendaId === t.id}
+            onActie={t.soort === 'materiaal_selecteren' ? () => setSelectieTodo(t) : undefined}
           />
         ))}
       </div>
@@ -129,6 +134,10 @@ export function TodosPage() {
             ))}
           </div>
         </details>
+      )}
+
+      {selectieTodo && (
+        <MateriaalSelectieVanTodo todo={selectieTodo} onClose={() => setSelectieTodo(null)} />
       )}
     </div>
   )

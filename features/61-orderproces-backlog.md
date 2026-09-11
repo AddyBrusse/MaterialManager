@@ -160,9 +160,13 @@ mutatie, geen reservering, in de hele keten niet.
   beschikbare lengte per staaf op de voorraadpagina en de totalen op de
   reserveringenpagina.
 
-- [ ] **7. Reserveren bij accepteren van de offerte**
-  `accepteerOfferte` bepaalt wat er aan materiaal nodig is en zet dat vast.
-  *Hangt af van 6.*
+- [x] **7. Materiaal kiezen bij het aanmaken van de opdracht** — *gedaan 2026-09-11*
+  Niet automatisch reserveren maar een todo per orderregel, met een scherm dat
+  een voorstel doet: welke staven, op welke laderlengte, uitgaande van de
+  stangenlader van de draaibank en het recept van het artikel. Korte staven
+  eerst, tenzij dat meer dan 15% van die staaf weggooit. Te bereiken vanuit de
+  todolijst en vanuit de orderregels. Zie de beslissing van 2026-09-11 in
+  `decisions/90-decisions-log.md`.
 
 - [~] **8. Voorraad afboeken** — *zaagpad gedaan 2026-09-11, productiepad open*
   Afboeken bij het zagen is er: één transactie (staaf korter, mutatie
@@ -174,9 +178,11 @@ mutatie, geen reservering, in de hele keten niet.
   een productieorder — bij gereedmelden van de order, of bij het verzenden van de
   paklijst? Dat is een keuze over de werkvloer, niet over de code.
 
-- [ ] **9. Inkoopsuggesties**
-  Bij accepteren: wat is nodig, wat ligt er, wat moet besteld worden.
-  *Hangt af van 6–8; zonder reserveringen is er niets om tegen af te zetten.*
+- [~] **9. Inkoopsuggesties** — *haak ligt er sinds 2026-09-11*
+  Een plan met een tekort maakt bij bevestigen een bestel-todo aan met het
+  aantal en de millimeters die nog nodig zijn. Wat er nog niet is: de
+  inkoopmodule zelf (offerteaanvraag per mail, vergelijkingsmatrix, bestelbon) —
+  zie `01-design files claude design/design_brief_bestellingen.md`.
 
 ## Fase 3 — levering en facturatie
 

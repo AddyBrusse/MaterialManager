@@ -37,6 +37,7 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - **Response shape**: `{ data }` on success, `{ error: { code, message, details? } }` on failure
 - **Calculatiekern in `packages/shared`** (`calc/estimate.ts`, `calc/artikel-prijs.ts`) — web én API rekenen ermee; de API heeft hem nodig voor de prijssnapshot bij het accepteren van een offerte
 - **Voorraad kent drie getallen**: fysiek, gereserveerd, vrij (`fysiek − gereserveerd`). Alleen `apps/api/src/services/voorraad.ts` bepaalt wat "gereserveerd" is; schermen rekenen dat niet zelf uit. Reserveren raakt de fysieke voorraad niet — afboeken doet dat, in één transactie mét voorraadmutatie
+- **Materiaal kiezen gebeurt bij het aanmaken van de opdracht**, via een todo per orderregel en een voorstel uit `packages/shared/calc/zaagplan.ts` (stangenlader-lengte + welke staven). Nooit automatisch vastleggen — een mens ziet het voorstel eerst
 - **Weight** is computed on read (never stored) from profile formula + dimensions + grade density
 - **Mock phase ended (2026-06-22)** — the localStorage→PostgreSQL backend
   migration is fully applied. New features go straight to the real stack
@@ -72,7 +73,7 @@ shouldn't need revisiting.
 | Workflows | `workflows/40-user-flows.md` · `41-receive-material.md` · `42-adjust-stock.md` · `43-edit-locking-flow.md` · `44-mobile-scan-flow.md` |
 | Decisions | `decisions/90-decisions-log.md` |
 | Parked | `03-parked.md` — things not decided yet, do not implement |
-| Newer areas (no doc yet) | Relaties: `api/relaties.ts`, `components/relaties/`, `routes/desktop/Relaties*Page.tsx` · Machines/Bedrijfskosten: `components/settings/{OverheadPage,OverheadTab,BedrijfskostenTab}.tsx` · Zaag calculator/Reserveringen/Zaagflow: `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` · Binnen boeken: `routes/desktop/BinnenBoekenPage.tsx` (see `workflows/41-receive-material.md` status note) · **Projecten**: `api/projects.ts`, `components/projecten/`, `routes/desktop/Projecten*Page.tsx` · **Todos**: `api/todos.ts`, `components/todos/`, `routes/desktop/TodosPage.tsx` · **Prijshistorie**: `api/prijshistorie.ts`, `components/articles/{ArticlePrijshistorieTab,PrijshistorieGrafiek,prijshistorie-lijn}.tsx`, `apps/api/src/services/prijs-snapshot.ts` |
+| Newer areas (no doc yet) | Relaties: `api/relaties.ts`, `components/relaties/`, `routes/desktop/Relaties*Page.tsx` · Machines/Bedrijfskosten: `components/settings/{OverheadPage,OverheadTab,BedrijfskostenTab}.tsx` · Zaag calculator/Reserveringen/Zaagflow: `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` · Binnen boeken: `routes/desktop/BinnenBoekenPage.tsx` (see `workflows/41-receive-material.md` status note) · **Projecten**: `api/projects.ts`, `components/projecten/`, `routes/desktop/Projecten*Page.tsx` · **Todos**: `api/todos.ts`, `components/todos/`, `routes/desktop/TodosPage.tsx` · **Materiaalselectie**: `packages/shared/calc/zaagplan.ts`, `apps/api/src/services/materiaal-selectie.ts`, `components/materiaal/` · **Prijshistorie**: `api/prijshistorie.ts`, `components/articles/{ArticlePrijshistorieTab,PrijshistorieGrafiek,prijshistorie-lijn}.tsx`, `apps/api/src/services/prijs-snapshot.ts` |
 
 ## Projecten UI conventions
 

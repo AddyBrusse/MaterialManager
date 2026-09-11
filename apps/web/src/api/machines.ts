@@ -4,9 +4,14 @@ import { apiFetch } from './client'
 export type { Machine }
 export type MachineInput = CreateMachine
 
+/** Stangenlader en opspanning — de waarden die de API ook als default zet. */
+export const LOADER_DEFAULTS = {
+  barloaderMinMm: 500, barloaderMaxMm: 1100, opspanlengteMm: 30, afsteekMm: 3,
+} as const
+
 export const MOCK_MACHINES: Machine[] = [
-  { id: 'mach_dmg',    name: 'DMG',    machineRatePerHour: 75, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, createdAt: '' },
-  { id: 'mach_doosan', name: 'Doosan', machineRatePerHour: 65, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, createdAt: '' },
+  { id: 'mach_dmg',    name: 'DMG',    machineRatePerHour: 75, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, ...LOADER_DEFAULTS, createdAt: '' },
+  { id: 'mach_doosan', name: 'Doosan', machineRatePerHour: 65, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, ...LOADER_DEFAULTS, createdAt: '' },
 ]
 
 const LS_KEY = 'sm_machines'
@@ -49,7 +54,7 @@ export const machinesApi = {
       saveLocal(cache)
       return r
     } catch {
-      const item: Machine = { id: `mach_${Date.now()}`, ...body, createdAt: new Date().toISOString() }
+      const item: Machine = { id: `mach_${Date.now()}`, ...LOADER_DEFAULTS, ...body, createdAt: new Date().toISOString() }
       cache = [...cache, item]
       saveLocal(cache)
       return { data: item }
