@@ -5,11 +5,14 @@ import {
   IconPrinter, IconArrowRight, IconChevronRight,
 } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
-import { reservationsStore } from '../../api/reservations'
-import { rawMaterialsApi } from '../../api/raw-materials'
-import { useQueryClient } from '@tanstack/react-query'
+import {
+  useReserveringen, useAfboeken, useZetReserveringStatus,
+} from '../../hooks/useReserveringen'
 import { buildJobs, type ZaagJob } from '../../api/zaag-jobs'
 
+// Gelijk aan MIN_REST_MM in apps/api/src/routes/reservations.ts: een rest
+// hieronder is geen bruikbaar stuk staal meer. De server beslist het, hier
+// duwt het de zager alleen naar een keuze.
 const MIN_REST_MM = 100
 function fmm(n: number) { return n.toLocaleString('nl-NL') + ' mm' }
 
@@ -91,11 +94,12 @@ function StepDots({ step }: { step: 1 | 2 | 3 | 4 }) {
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
-function JobModal({ job, onClose, onUpdate }: {
-  job: ZaagJob; onClose: () => void; onUpdate: () => void
+function JobModal({ job, onClose }: {
+  job: ZaagJob; onClose: () => void
 }) {
   const bars = job.reservations
-  const qc   = useQueryClient()
+  const afboeken = useAfboeken()
+  const zetStatus = useZetReserveringStatus()
 
   // Per-bar cursor
   const [barIdx, setBarIdx]       = useState(0)
@@ -173,35 +177,43 @@ function JobModal({ job, onClose, onUpdate }: {
   }
 
   function startJob() {
-    bars.forEach(r => reservationsStore.setStatus(r.id, 'in_progress'))
+    bars.forEach(r => zetStatus.mutate({ id: r.id, status: 'in_progress' }))
     setJobStarted(true)
     setSubStep(2)
-    onUpdate()
   }
 
+  /**
+   * Afboeken: de staaf wordt korter, er komt een voorraadmutatie, en de
+   * reservering laat het materiaal los — in één verzoek, dus één transactie.
+   *
+   * Dit waren twee losse verzoeken met allebei een weggeslikte fout. Lukte het
+   * één en het ander niet, dan stond hier "klaar" terwijl de staaf nog vastlag
+   * of nog zijn oude lengte had. Nu gaat de zager pas door als de server het
+   * bevestigt; mislukt het, dan blijft hij op deze staaf staan met de melding
+   * van de server in beeld.
+   */
   function advanceBar() {
-    const restMm   = Number(bs.rest) || 0
-    // scrap: rest below threshold OR operator chose scrap → bar goes to 0
-    const newStock = (restMm < MIN_REST_MM || bs.decision === 'scrap') ? 0 : restMm
-
-    // 1. Mark reservation done (stores measured rest in reservation record)
-    reservationsStore.complete(bar.id, restMm || null)
-
-    // 2. Update the raw bar's physical remaining length so the calculator
-    //    and vorraad pages reflect the actual post-saw stock immediately.
-    rawMaterialsApi.adjustStock(bar.barId, newStock, 'used', `Zaagflow ${job.calcNr}`)
-      .then(() => qc.invalidateQueries({ queryKey: ['raw-materials'] }))
-      .catch(() => {})
-
-    onUpdate()
-    if (barIdx < bars.length - 1) {
-      setBarIdx(i => i + 1)
-      setSubStep(1)
-      setCheckField('materiaal')
-    } else {
-      notifications.show({ color: 'green', title: 'Job afgerond!', message: `${job.calcNr} is voltooid.` })
-      onClose()
-    }
+    const restMm = Number(bs.rest) || 0
+    afboeken.mutate(
+      {
+        id: bar.id,
+        restLengteMm: restMm || null,
+        schroot: bs.decision === 'scrap',
+        note: `Zaagflow ${job.calcNr}`,
+      },
+      {
+        onSuccess: () => {
+          if (barIdx < bars.length - 1) {
+            setBarIdx(i => i + 1)
+            setSubStep(1)
+            setCheckField('materiaal')
+          } else {
+            notifications.show({ color: 'green', title: 'Job afgerond!', message: `${job.calcNr} is voltooid.` })
+            onClose()
+          }
+        },
+      },
+    )
   }
 
   // Overall progress across all bars
@@ -504,13 +516,16 @@ function JobModal({ job, onClose, onUpdate }: {
             </button>
           )}
           {subStep === 4 && (
+            // Geblokkeerd zolang de server bezig is: twee keer klikken zou een
+            // tweede afboeking versturen. De server weigert die (409), maar een
+            // knop die niets doet is duidelijker dan een foutmelding.
             barIdx < bars.length - 1 ? (
-              <button className="zf-cta" disabled={!step4Done} onClick={advanceBar}>
-                <IconArrowRight size={16} />Volgende as →
+              <button className="zf-cta" disabled={!step4Done || afboeken.isPending} onClick={advanceBar}>
+                <IconArrowRight size={16} />{afboeken.isPending ? 'Afboeken…' : 'Volgende as →'}
               </button>
             ) : (
-              <button className="zf-cta" disabled={!step4Done} onClick={advanceBar}>
-                <IconCircleCheck size={16} />Job afsluiten
+              <button className="zf-cta" disabled={!step4Done || afboeken.isPending} onClick={advanceBar}>
+                <IconCircleCheck size={16} />{afboeken.isPending ? 'Afboeken…' : 'Job afsluiten'}
               </button>
             )
           )}
@@ -524,7 +539,7 @@ function JobModal({ job, onClose, onUpdate }: {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function ZaagflowPage() {
-  const [reservations, setReservations] = useState(() => reservationsStore.list())
+  const { data: reservations = [] } = useReserveringen()
   const [search, setSearch]             = useState('')
   const [filter, setFilter]             = useState<'open' | 'in_progress' | 'done' | 'all'>('open')
   const [activeCalcNr, setActiveCalcNr] = useState<string | null>(null)
@@ -540,8 +555,6 @@ export function ZaagflowPage() {
     () => allJobs.find(j => j.calcNr === activeCalcNr) ?? null,
     [allJobs, activeCalcNr]
   )
-
-  function reload() { setReservations(reservationsStore.list()) }
 
   const counts = useMemo(() => ({
     open:        allJobs.filter(j => j.status === 'open').length,
@@ -601,8 +614,7 @@ export function ZaagflowPage() {
       {activeJob && (
         <JobModal
           job={activeJob}
-          onClose={() => { setActiveCalcNr(null); reload() }}
-          onUpdate={reload}
+          onClose={() => setActiveCalcNr(null)}
         />
       )}
     </>

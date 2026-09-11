@@ -5,17 +5,18 @@ import { requireAdmin } from '../middleware/require-admin'
 import { AppError } from '../middleware/error'
 import { asyncHandler } from '../lib/async-handler'
 import { calcWeightKg } from '../services/weight'
+import { beschikbaarheidVan, gereserveerdPerStaaf } from '../services/voorraad'
 
 const router = Router()
 
 const include = { grade: true, profile: true, surfaceFinish: true, locationSlot: { include: { location: true } } }
 
-function withWeight(item: {
+function withWeight<T extends {
   profile: { volumeFormula: string }
   dimensions: unknown
   lengthMm: { toNumber: () => number }
   grade: { densityKgM3: { toNumber: () => number } }
-}) {
+}>(item: T) {
   const weightKg = calcWeightKg(
     item.profile.volumeFormula,
     item.dimensions as Record<string, number>,
@@ -23,6 +24,21 @@ function withWeight(item: {
     item.grade.densityKgM3.toNumber()
   )
   return { ...item, weightKg: Math.round(weightKg * 1000) / 1000 }
+}
+
+/**
+ * Wat vastligt en wat vrij is, erbij.
+ *
+ * Dit hoort van de server te komen en niet per scherm uitgerekend te worden:
+ * toen elk scherm het zelf deed waren ze het oneens — de voorraadpagina telde
+ * afgeronde reserveringen niet mee als vastliggend, de zaagcalculator wel, en
+ * dezelfde staaf toonde op twee plekken een andere vrije lengte.
+ */
+function metVrij<T extends { id: string; currentStock: unknown }>(
+  item: T, vast: Map<string, number>,
+): T & { gereserveerdMm: number; vrijMm: number } {
+  const gereserveerdMm = vast.get(item.id) ?? 0
+  return { ...item, gereserveerdMm, vrijMm: Number(item.currentStock) - gereserveerdMm }
 }
 
 router.get(
@@ -38,7 +54,8 @@ router.get(
       include,
       orderBy: { code: 'asc' },
     })
-    res.json({ data: items.map(withWeight) })
+    const vast = await gereserveerdPerStaaf(prisma, items.map((i) => i.id))
+    res.json({ data: items.map((i) => metVrij(withWeight(i), vast)) })
   })
 )
 
@@ -47,7 +64,14 @@ router.get(
   asyncHandler(async (req, res) => {
     const item = await prisma.rawMaterial.findUnique({ where: { id: req.params.id }, include })
     if (!item) throw new AppError(404, 'NOT_FOUND', 'Materiaal niet gevonden')
-    res.json({ data: withWeight(item) })
+    const b = await beschikbaarheidVan(prisma, item.id)
+    res.json({
+      data: {
+        ...withWeight(item),
+        gereserveerdMm: b?.gereserveerdMm ?? 0,
+        vrijMm: b?.vrijMm ?? Number(item.currentStock),
+      },
+    })
   })
 )
 

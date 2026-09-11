@@ -16,7 +16,13 @@ export function errorMiddleware(
   }
 
   if (err instanceof AppError) {
-    res.status(err.status).json({ error: { code: err.code, message: err.message } })
+    res.status(err.status).json({
+      error: {
+        code: err.code,
+        message: err.message,
+        ...(err.details !== undefined ? { details: err.details } : {}),
+      },
+    })
     return
   }
 
@@ -54,7 +60,11 @@ export class AppError extends Error {
   constructor(
     public status: number,
     public code: string,
-    message: string
+    message: string,
+    /** Optioneel, volgens de afgesproken foutvorm `{ code, message, details? }`.
+     *  Bedoeld voor wat het scherm nodig heeft om de melding bruikbaar te maken
+     *  — bij een te krappe staaf bijvoorbeeld hoeveel er nog vrij is. */
+    public details?: unknown,
   ) {
     super(message)
   }

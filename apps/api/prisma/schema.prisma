@@ -663,6 +663,8 @@ model ZaagReservering {
   machine        String
   priority       Int?
   rush           Boolean   @default(false)
+  // open → in_progress → done (afgeboekt) of geannuleerd. Alleen open en
+  // in_progress houden materiaal vast; zie services/voorraad.ts.
   status         String    @default("open")
   restLengteMm   Decimal?  @map("rest_lengte_mm")
   completedAt    DateTime? @map("completed_at")
@@ -673,6 +675,8 @@ model ZaagReservering {
 
   @@index([projectId])
   @@index([artikelId])
+  // "Wat ligt er vast op deze staaf" filtert altijd op staaf én status.
+  @@index([barId, status])
   @@map("zaag_reserveringen")
 }
 

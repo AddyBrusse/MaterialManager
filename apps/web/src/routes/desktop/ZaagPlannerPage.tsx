@@ -1,13 +1,14 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd'
 import { useListState } from '@mantine/hooks'
 import { IconGripVertical, IconBolt, IconAlertTriangle } from '@tabler/icons-react'
-import { reservationsStore } from '../../api/reservations'
+import { type ZaagReservation } from '../../api/reservations'
+import { useReserveringen, useZaagplanOpslaan } from '../../hooks/useReserveringen'
 import { buildJobs, type ZaagJob } from '../../api/zaag-jobs'
 
 // Active jobs only (open + in_progress) — done jobs drop off the planner.
-function activeJobs(): ZaagJob[] {
-  return buildJobs(reservationsStore.list()).filter(j => j.status !== 'done')
+function activeJobs(reserveringen: ZaagReservation[]): ZaagJob[] {
+  return buildJobs(reserveringen).filter(j => j.status !== 'done')
 }
 
 function StatusBadge({ status }: { status: ZaagJob['status'] }) {
@@ -21,7 +22,10 @@ function StatusBadge({ status }: { status: ZaagJob['status'] }) {
 }
 
 export function ZaagPlannerPage() {
-  const [jobs, handlers] = useListState<ZaagJob>(activeJobs())
+  const { data: reserveringen = [] } = useReserveringen()
+  const planOpslaan = useZaagplanOpslaan()
+  const verse = useMemo(() => activeJobs(reserveringen), [reserveringen])
+  const [jobs, handlers] = useListState<ZaagJob>(verse)
   // Mirror of current state, readable inside event handlers without stale closures.
   const jobsRef = useRef(jobs)
   jobsRef.current = jobs
@@ -31,35 +35,25 @@ export function ZaagPlannerPage() {
   // Persist the full ordering: priority 1..N + rush flag, one write.
   function persist(order: ZaagJob[]) {
     writingRef.current = true
-    reservationsStore.applyPlan(
-      order.map(j => ({ ids: j.reservations.map(r => r.id), rush: j.rush }))
+    planOpslaan.mutate(
+      order.map(j => ({ ids: j.reservations.map(r => r.id), rush: j.rush })),
+      { onSettled: () => { writingRef.current = false } },
     )
-    writingRef.current = false
   }
 
-  // Re-sync when reservations change elsewhere (calculator add / zaagflow complete).
+  // Verse data uit de query (een reservering elders gemaakt of afgeboekt).
+  // Zolang het dezelfde zaagbonnen zijn houden we de handmatige volgorde van de
+  // planner aan en verversen we alleen de inhoud — anders springt het werk van
+  // iemand onder zijn handen weg.
   useEffect(() => {
-    const onChange = () => {
-      if (writingRef.current) return // our own write — ignore
-      const fresh = activeJobs()
-      const prev = jobsRef.current
-      const prevKeys = new Set(prev.map(j => j.calcNr))
-      const sameSet = fresh.length === prevKeys.size && fresh.every(j => prevKeys.has(j.calcNr))
-      if (sameSet) {
-        // Same jobs — keep the operator's manual order, just refresh job data.
-        handlers.setState(prev.map(pj => fresh.find(f => f.calcNr === pj.calcNr) ?? pj))
-      } else {
-        // Jobs added/removed — adopt the freshly-sorted list.
-        handlers.setState(fresh)
-      }
-    }
-    window.addEventListener('sm-reservations-changed', onChange)
-    window.addEventListener('storage', onChange)
-    return () => {
-      window.removeEventListener('sm-reservations-changed', onChange)
-      window.removeEventListener('storage', onChange)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (writingRef.current) return
+    const prev = jobsRef.current
+    const prevKeys = new Set(prev.map(j => j.calcNr))
+    const sameSet = verse.length === prevKeys.size && verse.every(j => prevKeys.has(j.calcNr))
+    handlers.setState(sameSet
+      ? prev.map(pj => verse.find(f => f.calcNr === pj.calcNr) ?? pj)
+      : verse)
+  }, [verse]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function onDragEnd({ source, destination }: DropResult) {
     if (!destination || destination.index === source.index) return

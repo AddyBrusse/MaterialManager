@@ -1,4 +1,4 @@
-import type { ZaagReservation } from './reservations'
+import { houdtVast, type ZaagReservation } from './reservations'
 
 // A Zaag job = all reservations sharing a calculatienummer (blank → one '—' job).
 export interface ZaagJob {
@@ -25,12 +25,17 @@ export function buildJobs(reservations: ZaagReservation[]): ZaagJob[] {
   }
   return [...map.entries()].map(([calcNr, items]) => {
     const first = items[0]
-    const statuses = items.map(r => r.status)
-    const jobStatus = statuses.every(s => s === 'done') ? 'done'
-      : statuses.some(s => s === 'in_progress') ? 'in_progress' : 'open'
+    // Een zaagbon is af zodra geen enkele regel nog materiaal vasthoudt —
+    // afgeboekt én geannuleerd tellen als afgehandeld. Keek dit alleen naar
+    // 'done', dan bleef een geannuleerde bon voor altijd als open werk in de
+    // wachtrij en op de badge staan.
+    const jobStatus = items.every(r => !houdtVast(r)) ? 'done'
+      : items.some(r => r.status === 'in_progress') ? 'in_progress' : 'open'
     return {
       calcNr, reservations: items, machine: first.machine, materiaal: first.materiaal,
-      diameter: first.diameter, totalPcs: items.reduce((s, r) => s + r.pieces, 0),
+      // Stuks van geannuleerde regels tellen niet mee: die worden niet gezaagd.
+      diameter: first.diameter,
+      totalPcs: items.filter(r => r.status !== 'geannuleerd').reduce((s, r) => s + r.pieces, 0),
       priority: items[0].priority, rush: items.some(r => r.rush),
       status: jobStatus as ZaagJob['status'], createdAt: items[0].createdAt,
     }

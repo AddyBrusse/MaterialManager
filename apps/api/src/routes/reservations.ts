@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
+import { beschikbaarheidVan, gereserveerdPerStaaf, mm, OPEN_STATUSSEN } from '../services/voorraad'
 
 const router = Router()
 
@@ -85,22 +86,60 @@ router.get(
   }),
 )
 
+/**
+ * Reserveren legt materiaal vast maar boekt niets af — dat gebeurt pas bij het
+ * zagen (`/:id/afboeken`).
+ *
+ * De hele batch gaat in één transactie en wordt vóóraf tegen de vrije lengte
+ * gelegd. Twee regels op dezelfde staaf tellen daarbij bij elkaar op: los
+ * passen ze allebei, samen niet, en dat is precies het geval waarin je anders
+ * materiaal reserveert dat er niet is.
+ */
 router.post(
   '/',
   asyncHandler(async (req, res) => {
     const items = z.array(CreateReservationSchema).parse(req.body)
-    const created = await prisma.$transaction(
-      items.map((item, i) =>
-        prisma.zaagReservering.create({
+    if (items.length === 0) throw new AppError(400, 'VALIDATION', 'Geen reserveringen meegestuurd')
+
+    const created = await prisma.$transaction(async (tx) => {
+      const barIds = [...new Set(items.map((i) => i.barId))]
+      const staven = await tx.rawMaterial.findMany({
+        where: { id: { in: barIds } },
+        select: { id: true, code: true, currentStock: true },
+      })
+      const perId = new Map(staven.map((s) => [s.id, s]))
+      const alVast = await gereserveerdPerStaaf(tx, barIds)
+
+      // Wat deze batch zelf op elke staaf legt, opgeteld.
+      const nieuw = new Map<string, number>()
+      for (const item of items) {
+        nieuw.set(item.barId, (nieuw.get(item.barId) ?? 0) + item.sawLength)
+      }
+
+      for (const [barId, gevraagd] of nieuw) {
+        const staaf = perId.get(barId)
+        if (!staaf) throw new AppError(404, 'NOT_FOUND', `Staaf ${barId} bestaat niet`)
+        const vrij = Number(staaf.currentStock) - (alVast.get(barId) ?? 0)
+        if (gevraagd > vrij) {
+          throw new AppError(409, 'ONVOLDOENDE_VRIJ',
+            `Staaf ${staaf.code} heeft nog ${mm(vrij)} vrij, gevraagd ${mm(gevraagd)}`,
+            { barId, code: staaf.code, vrijMm: vrij, gevraagdMm: gevraagd })
+        }
+      }
+
+      const rijen = []
+      for (const [i, item] of items.entries()) {
+        rijen.push(await tx.zaagReservering.create({
           data: {
             id: `res_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
             ...item,
             projectId: item.projectId ?? null,
             artikelId: item.artikelId ?? null,
           },
-        }),
-      ),
-    )
+        }))
+      }
+      return rijen
+    })
     res.status(201).json({ data: created.map(serialize) })
   }),
 )
@@ -152,12 +191,27 @@ router.post(
   }),
 )
 
-const StatusSchema = z.object({ status: z.enum(['open', 'in_progress', 'done']) })
+const StatusSchema = z.object({ status: z.enum(['open', 'in_progress']) })
 
+/**
+ * Alleen heen en weer tussen open en in_progress.
+ *
+ * 'done' en 'geannuleerd' kunnen hier bewust niet: dat zijn de twee manieren
+ * waarop een reservering zijn greep op het materiaal loslaat, en die horen via
+ * `/afboeken` of `/annuleer` te gaan zodat de voorraad in dezelfde transactie
+ * meebeweegt. Anders is een reservering af te sluiten zonder dat er iets
+ * afgeboekt wordt.
+ */
 router.patch(
   '/:id/status',
   asyncHandler(async (req, res) => {
     const { status } = StatusSchema.parse(req.body)
+    const bestaand = await prisma.zaagReservering.findUnique({ where: { id: req.params.id } })
+    if (!bestaand) throw new AppError(404, 'NOT_FOUND', 'Reservering niet gevonden')
+    if (!OPEN_STATUSSEN.includes(bestaand.status as typeof OPEN_STATUSSEN[number])) {
+      throw new AppError(409, 'AL_AFGEROND',
+        `Deze reservering is al ${bestaand.status === 'done' ? 'afgeboekt' : 'geannuleerd'}`)
+    }
     const row = await prisma.zaagReservering.update({
       where: { id: req.params.id },
       data: { status },
@@ -166,17 +220,126 @@ router.patch(
   }),
 )
 
-const CompleteSchema = z.object({ restLengteMm: z.number().nullable() })
+const AfboekenSchema = z.object({
+  /** Gemeten restlengte van de staaf ná het zagen, in mm. */
+  restLengteMm: z.number().nonnegative().nullable(),
+  /** De zager heeft de rest als onbruikbaar bestempeld: de staaf gaat naar 0. */
+  schroot: z.boolean().optional(),
+  note: z.string().optional(),
+})
 
+/** Een rest hieronder is geen bruikbaar stuk staal meer. Ook in de zaagflow
+ *  gebruikt om de zager naar een keuze te duwen. */
+export const MIN_REST_MM = 100
+
+/**
+ * Afboeken: het moment waarop er werkelijk gezaagd is.
+ *
+ * Drie dingen horen bij elkaar en gebeuren daarom in één transactie:
+ *   1. de staaf wordt korter (of gaat naar 0 bij schroot),
+ *   2. er komt een voorraadmutatie met reden `used` of `scrapped`,
+ *   3. de reservering gaat naar `done` en laat het materiaal los.
+ *
+ * Eerder deed de zaagflow 1 en 3 als twee losse verzoeken, allebei met een
+ * weggeslikte fout. Lukte het één en het ander niet, dan stond er op het scherm
+ * "klaar" terwijl de staaf nog vastlag of nog zijn oude lengte had.
+ */
 router.post(
-  '/:id/complete',
+  '/:id/afboeken',
   asyncHandler(async (req, res) => {
-    const { restLengteMm } = CompleteSchema.parse(req.body)
+    const body = AfboekenSchema.parse(req.body)
+
+    const uitkomst = await prisma.$transaction(async (tx) => {
+      const reservering = await tx.zaagReservering.findUnique({ where: { id: req.params.id } })
+      if (!reservering) throw new AppError(404, 'NOT_FOUND', 'Reservering niet gevonden')
+      if (reservering.status === 'done') {
+        throw new AppError(409, 'AL_AFGEBOEKT', 'Deze reservering is al afgeboekt')
+      }
+      if (reservering.status === 'geannuleerd') {
+        throw new AppError(409, 'GEANNULEERD', 'Deze reservering is geannuleerd en kan niet afgeboekt worden')
+      }
+
+      const staaf = await tx.rawMaterial.findUnique({ where: { id: reservering.barId } })
+      if (!staaf) throw new AppError(404, 'NOT_FOUND', 'De staaf van deze reservering bestaat niet meer')
+
+      const gemeten = body.restLengteMm ?? 0
+      // Een rest onder de drempel is geen staaf meer, ook zonder dat iemand
+      // 'schroot' aanvinkt: hij ligt straks in de bak en niet in het rek.
+      const schroot = body.schroot === true || gemeten < MIN_REST_MM
+      const nieuweVoorraad = schroot ? 0 : gemeten
+      const vorigeVoorraad = Number(staaf.currentStock)
+
+      await tx.rawMaterial.update({
+        where: { id: staaf.id },
+        data: { currentStock: nieuweVoorraad },
+      })
+
+      const mutatie = await tx.stockMovement.create({
+        data: {
+          itemType: 'raw',
+          itemId: staaf.id,
+          userId: req.user.id,
+          kind: 'overwrite',
+          amount: nieuweVoorraad,
+          previousStock: vorigeVoorraad,
+          newStock: nieuweVoorraad,
+          reason: schroot ? 'scrapped' : 'used',
+          note: body.note ?? `Zaagbon ${reservering.calculatieNr}`,
+        },
+      })
+
+      const row = await tx.zaagReservering.update({
+        where: { id: reservering.id },
+        data: { status: 'done', restLengteMm: body.restLengteMm, completedAt: new Date() },
+      })
+
+      return { row, mutatie, schroot, vorigeVoorraad, nieuweVoorraad }
+    })
+
+    res.json({
+      data: {
+        reservering: serialize(uitkomst.row),
+        mutatieId: uitkomst.mutatie.id,
+        schroot: uitkomst.schroot,
+        vorigeVoorraadMm: uitkomst.vorigeVoorraad,
+        nieuweVoorraadMm: uitkomst.nieuweVoorraad,
+      },
+    })
+  }),
+)
+
+/**
+ * Annuleren: het materiaal komt vrij zonder dat er iets afgeboekt wordt.
+ *
+ * De reservering blijft staan in plaats van verwijderd te worden — dat een
+ * zaagbon geannuleerd is, is zelf informatie. Verwijderen (DELETE) blijft
+ * bestaan voor een vergissing die nooit had moeten bestaan.
+ */
+router.post(
+  '/:id/annuleer',
+  asyncHandler(async (req, res) => {
+    const bestaand = await prisma.zaagReservering.findUnique({ where: { id: req.params.id } })
+    if (!bestaand) throw new AppError(404, 'NOT_FOUND', 'Reservering niet gevonden')
+    if (bestaand.status === 'done') {
+      throw new AppError(409, 'AL_AFGEBOEKT',
+        'Deze reservering is al afgeboekt; annuleren zou de mutatie niet terugdraaien')
+    }
     const row = await prisma.zaagReservering.update({
       where: { id: req.params.id },
-      data: { status: 'done', restLengteMm, completedAt: new Date() },
+      data: { status: 'geannuleerd' },
     })
     res.json({ data: serialize(row) })
+  }),
+)
+
+/** Wat er per staaf vastligt en wat er vrij is — de voorraadpagina en de
+ *  zaagcalculator lezen hier allebei uit, zodat ze het niet oneens kunnen zijn. */
+router.get(
+  '/beschikbaarheid/:barId',
+  asyncHandler(async (req, res) => {
+    const b = await beschikbaarheidVan(prisma, req.params.barId)
+    if (!b) throw new AppError(404, 'NOT_FOUND', 'Staaf niet gevonden')
+    res.json({ data: b })
   }),
 )
 

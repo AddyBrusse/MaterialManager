@@ -5,7 +5,7 @@ import { notifications } from '@mantine/notifications'
 import { IconPrinter, IconAlertTriangle, IconLock } from '@tabler/icons-react'
 import { rawMaterialsApi, formatLocation } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
-import { reservationsStore } from '../../api/reservations'
+import { useReserveren } from '../../hooks/useReserveringen'
 import { projectsApi } from '../../api/projects'
 import { articlesApi } from '../../api/articles'
 import type { RawMaterialRow } from '../../api/raw-materials'
@@ -73,7 +73,7 @@ export function ZaagCalculatorPage() {
   const [reserved, setReserved] = useState<Record<string, number>>({})
 
   // persisted reservations
-  const [allReservations, setAllReservations] = useState(() => reservationsStore.list())
+  const reserveren = useReserveren()
 
   // Keuzelijsten voor de koppeling. Afgeblazen projecten horen er niet in — daar
   // ga je geen materiaal meer voor vastleggen.
@@ -107,14 +107,6 @@ export function ZaagCalculatorPage() {
   const productLen = Number(werkstukL) + params.steekbreedte + params.vlakToeslag
   const inputReady = !!materiaal && !!diameter && Number(werkstukL) > 0 && aantalNum > 0
 
-  // committed reserved mm per bar (from persisted reservations)
-  const committedByBar = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const res of allReservations) {
-      map[res.barId] = (map[res.barId] ?? 0) + res.sawLength
-    }
-    return map
-  }, [allReservations])
 
   // diameter options for selected material
   const diameterOptions = useMemo(() => {
@@ -145,9 +137,13 @@ export function ZaagCalculatorPage() {
   // calcBar only deducts grijplengte — vlakToeslag is already per-piece inside productLen
   const barResults = useMemo(() =>
     matchingBars.map(bar => {
+      // `vrijMm` komt van de server en telt alleen reserveringen mee die nog
+      // materiaal vasthouden. Dit scherm rekende dat vroeger zelf uit en telde
+      // afgeboekte reserveringen mee: een gezaagde staaf was dan dubbel
+      // geraakt — korter én nog steeds "gereserveerd".
       const fysiek      = Number(bar.currentStock)
-      const committed   = committedByBar[bar.id] ?? 0
-      const effectiveMm = Math.max(0, fysiek - committed)
+      const committed   = bar.gereserveerdMm
+      const effectiveMm = Math.max(0, bar.vrijMm)
       return {
         bar,
         fysiek,
@@ -156,7 +152,7 @@ export function ZaagCalculatorPage() {
         ...calcBar(effectiveMm, machineMax, productLen, params.grijplengte),
       }
     }),
-  [matchingBars, machineMax, productLen, params, committedByBar])
+  [matchingBars, machineMax, productLen, params])
 
   // session total
   const sessionReserved = useMemo(
@@ -214,14 +210,14 @@ export function ZaagCalculatorPage() {
 
     if (items.length === 0) return
 
-    const created = reservationsStore.create(items)
-    setAllReservations(prev => [...prev, ...created])
-    setSelected(new Set())
-    setReserved({})
-    notifications.show({
-      color: 'green',
-      title: 'Reserveringen aangemaakt',
-      message: `${created.length} as${created.length === 1 ? '' : 'sen'} gereserveerd${calculatieNr ? ` voor ${calculatieNr}` : ''}`,
+    // De hele batch in één verzoek: de server legt hem tegen de vrije lengte en
+    // weigert alles als er één staaf te krap is. De selectie blijft dan staan,
+    // zodat je hem kunt aanpassen in plaats van opnieuw te beginnen.
+    reserveren.mutate(items, {
+      onSuccess: () => {
+        setSelected(new Set())
+        setReserved({})
+      },
     })
   }
 

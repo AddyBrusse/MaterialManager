@@ -36,6 +36,7 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - **ORM**: Prisma (decided 2026-05-29, see `decisions/90-decisions-log.md`)
 - **Response shape**: `{ data }` on success, `{ error: { code, message, details? } }` on failure
 - **Calculatiekern in `packages/shared`** (`calc/estimate.ts`, `calc/artikel-prijs.ts`) — web én API rekenen ermee; de API heeft hem nodig voor de prijssnapshot bij het accepteren van een offerte
+- **Voorraad kent drie getallen**: fysiek, gereserveerd, vrij (`fysiek − gereserveerd`). Alleen `apps/api/src/services/voorraad.ts` bepaalt wat "gereserveerd" is; schermen rekenen dat niet zelf uit. Reserveren raakt de fysieke voorraad niet — afboeken doet dat, in één transactie mét voorraadmutatie
 - **Weight** is computed on read (never stored) from profile formula + dimensions + grade density
 - **Mock phase ended (2026-06-22)** — the localStorage→PostgreSQL backend
   migration is fully applied. New features go straight to the real stack

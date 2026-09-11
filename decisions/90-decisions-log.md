@@ -734,3 +734,66 @@ maanden liegen. De y-as begint niet op nul — dit is een verloop, geen staafje 
 maar draagt wel altijd de bedragen. De twee lijnkleuren (`--chart-verkoop`,
 `--chart-kost`) zijn gecontroleerd op kleurenblindheid en contrast, met eigen
 stappen voor donker in plaats van een omgeklapte lichte set.
+
+## 2026-09-11 — Reserveren en afboeken: drie getallen, één transactie
+
+Hoe voorraadsystemen dit doen, en wat we nu ook doen: een staaf heeft **drie**
+getallen in plaats van één.
+
+    fysiek        wat er werkelijk ligt
+    gereserveerd  wat vastligt voor werk dat nog moet gebeuren
+    vrij          fysiek − gereserveerd
+
+Een reservering raakt de fysieke voorraad **niet**. Pas bij het afboeken — als er
+werkelijk gezaagd is — gaat er lengte af, en dan laat de reservering het
+materiaal los. Dat is de kern: zolang die twee dingen los van elkaar gebeuren kan
+een staaf dubbel geraakt worden (korter én nog steeds gereserveerd) of helemaal
+niet geraakt worden.
+
+**`services/voorraad.ts` is de enige plek die "gereserveerd" definieert.** Alleen
+`open` en `in_progress` houden materiaal vast. Eerder rekende elk scherm het zelf
+uit en waren ze het oneens: de voorraadpagina telde afgeronde reserveringen niet
+mee, de zaagcalculator wel — dezelfde staaf toonde op twee plekken een andere
+vrije lengte, en na het zagen was hij in de calculator dubbel geraakt.
+`GET /raw-materials` levert nu `gereserveerdMm` en `vrijMm` mee.
+
+**Afboeken is één transactie** (`POST /reservations/:id/afboeken`): staaf korter,
+voorraadmutatie weggeschreven (`used`, of `scrapped` bij een rest onder 100 mm),
+reservering op `done`. De zaagflow deed dit als twee losse verzoeken met allebei
+een weggeslikte fout (`.catch(() => {})`); lukte het één en het ander niet, dan
+stond er op het scherm "klaar" terwijl de staaf nog vastlag of nog zijn oude
+lengte had. Nagemeten met de database eruit getrokken: de zager krijgt "Afboeken
+mislukt", blijft op dezelfde staaf staan, en in de database is niets veranderd.
+
+**Nieuwe status `geannuleerd`**: materiaal vrijgeven zonder af te boeken. Dat een
+zaagbon niet doorging is zelf informatie, dus de regel blijft staan; verwijderen
+blijft bestaan voor een vergissing die nooit had moeten bestaan. Een zaagbon geldt
+als afgehandeld zodra geen enkele regel nog materiaal vasthoudt — keek dat alleen
+naar `done`, dan bleef een geannuleerde bon voor altijd als open werk in de
+wachtrij en op de badge staan.
+
+**Meer reserveren dan er vrij is wordt geweigerd** (409 `ONVOLDOENDE_VRIJ`, met in
+`details` welke staaf en hoeveel er nog vrij was). De hele batch gaat in één
+transactie en twee regels op dezelfde staaf tellen bij elkaar op: los passen ze
+allebei, samen niet, en dat is precies het geval waarin je anders materiaal
+reserveert dat er niet is. `AppError` draagt daarvoor nu een optioneel
+`details`-veld, volgens de foutvorm die al in de doc stond.
+
+**Reserveringen komen van de server.** `api/reservations.ts` hield een eigen kopie
+in `localStorage` bij en stuurde de server er fire-and-forget achteraan. Behalve
+dat een mislukte call ongemerkt bleef, verzon de frontend zelf een id terwijl de
+server zijn eigen id maakte: een reservering afboeken in dezelfde sessie ging naar
+een id dat de server niet kende (gemeten: HTTP 500), en de reservering bleef open
+in de database terwijl het scherm 'klaar' zei. Na een refresh ging het wél goed,
+dus dit beet alleen als je reserveerde en zaagde zonder te verversen — precies wat
+je op een drukke dag doet. Alles loopt nu via TanStack Query (`useReserveringen`),
+en elke mutatie ververst ook `raw-materials`.
+
+Onderweg meegenomen: de mutatiehistorie in de voorraadlade was een vaste lijst
+verzonnen regels. Die verborg juist de mutatie die het afboeken zojuist geschreven
+had en toonde een ontvangst die nooit bestaan heeft. Leest nu `/movements`.
+
+Wat hier **niet** in zit: afboeken bij productie (punt 8 van
+`features/61-orderproces-backlog.md` vraagt nog een keuze — bij gereedmelden van
+de order of bij het verzenden van de paklijst) en inkoop (punt 9). Reserveren bij
+het accepteren van een offerte (punt 7) ook niet; de bouwstenen liggen er nu wel.
