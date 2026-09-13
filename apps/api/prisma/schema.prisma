@@ -68,6 +68,10 @@ model Company {
   // komen (features/60-mail-import.md §3.2). Een lijst, want bedrijven krijgen
   // er domeinen bij. Leeg = afleiden uit het bedrijfsadres en de gebruikers.
   eigenDomeinen Json     @default("[]") @map("eigen_domeinen")
+  /// Een zaagrestant korter dan dit is geen bruikbaar stuk staal meer en wordt
+  /// als schroot afgeboekt; daarboven gaat het terug het rek in. Werkplaatsbreed
+  /// omdat het over de voorraad gaat, niet over één machine.
+  schrootDrempelMm Int  @default(200) @map("schroot_drempel_mm")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("company")
@@ -283,6 +287,17 @@ model Machine {
   operatorRatePerHour Decimal  @map("operator_rate_per_hour")
   defaultSetupMin     Int      @map("default_setup_min")
   worksWeekends       Boolean  @default(false) @map("works_weekends")
+
+  // Stangenlader en opspanning. Deze horen bij de draaibank en niet bij de
+  // zaagbon: de DMG en de Doosan kunnen een andere stanglengte aan. Per zaagbon
+  // mag ervan afgeweken worden, zoals dat nu al met kerf en vlaktoeslag gaat.
+  barloaderMinMm      Int      @default(500)  @map("barloader_min_mm")
+  barloaderMaxMm      Int      @default(1100) @map("barloader_max_mm")
+  /// Staartje dat de lader niet meer kan pakken — per laderstang één keer weg.
+  opspanlengteMm      Int      @default(30)   @map("opspanlengte_mm")
+  /// Wat de afsteekbeitel per stuk wegneemt.
+  afsteekMm           Int      @default(3)    @map("afsteek_mm")
+
   createdAt           DateTime @default(now()) @map("created_at")
 
   @@map("machines")
@@ -687,6 +702,14 @@ model Todo {
   priority        TodoPriority @default(normal)
   done            Boolean      @default(false)
   completedAt     DateTime?    @map("completed_at")
+  // Waar deze todo over gaat. Een losse todo heeft dit niet; een todo die het
+  // programma zelf aanmaakt wel, zodat de lijst er een knop naast kan zetten
+  // die de bijbehorende handeling opent in plaats van alleen een zin te tonen.
+  soort           String?      // 'materiaal_selecteren' | 'bestellen'
+  projectId       String?      @map("project_id")
+  artikelId       String?      @map("artikel_id")
+  offerteRegelId  String?      @map("offerte_regel_id")
+
   createdByUserId String       @map("created_by_user_id")
   claimedByUserId String?      @map("claimed_by_user_id")
   claimedAt       DateTime?    @map("claimed_at")
@@ -699,6 +722,8 @@ model Todo {
   claimedBy User? @relation("TodoClaimedBy", fields: [claimedByUserId], references: [id])
 
   @@index([done, dueDate])
+  @@index([soort, done])
+  @@index([projectId])
   @@map("todos")
 }
 

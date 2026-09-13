@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconPencil, IconTrash, IconCut } from '@tabler/icons-react'
 import type { Grade, Profile, OfferteRegel } from '@stockmanager/shared'
 import type { Machine } from '../../api/machines'
 import { articlesApi, type Article } from '../../api/articles'
@@ -23,10 +23,14 @@ interface RegelsTableProps {
   footerRows: ReactNode
   /** Nodig om vanuit een regel naar het artikel te springen én terug te komen. */
   projectId?: string
+  /** Materiaal kiezen voor deze regel. Alleen op de opdrachtbevestiging: op een
+   *  offerte is nog niets besloten, dus daar valt niets te reserveren. */
+  onMateriaal?: (regel: OfferteRegel) => void
 }
 
 export function RegelsTable({
   regels, grades, profiles, machines, isLocked, onRowClick, onDeleteRegel, footerRows, projectId,
+  onMateriaal,
 }: RegelsTableProps) {
   const navigate = useNavigate()
   const allArticles = articlesApi.list()
@@ -70,6 +74,7 @@ export function RegelsTable({
             <th style={{ width: 22 }} />
             <th style={{ width: 96, textAlign: 'right' }}>Verkoopprijs</th>
             <th style={{ width: 100, textAlign: 'right' }}>Totaal</th>
+            {onMateriaal && <th style={{ width: 104 }}>Materiaal</th>}
             {showActions && <th style={{ width: 86 }} />}
           </tr>
         </thead>
@@ -142,6 +147,19 @@ export function RegelsTable({
                 </td>
                 <td className="cell-num cell-mono">{formatBedrag(r.verkoopprijs)}</td>
                 <td className="cell-num cell-mono cell-strong">{formatBedrag(r.totaal)}</td>
+                {/* Materiaal kiezen kan alleen voor een regel die aan een
+                    artikel hangt — zonder recept valt er niets te berekenen. */}
+                {onMateriaal && (
+                  <td onClick={e => e.stopPropagation()}>
+                    {r.artikelId ? (
+                      <button className="todo-actie" onClick={() => onMateriaal(r)}>
+                        <IconCut size={12} />Selecteren
+                      </button>
+                    ) : (
+                      <span className="cell-muted" style={{ fontSize: 11.5 }}>—</span>
+                    )}
+                  </td>
+                )}
                 {showActions && (
                   <td onClick={e => e.stopPropagation()}>
                     <div style={{ display: 'flex', gap: 2 }}>
