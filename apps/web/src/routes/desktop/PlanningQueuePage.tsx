@@ -24,6 +24,9 @@ import { QueueTimeline } from '../../components/planning-queue/QueueTimeline'
 import { QueueDetails } from '../../components/planning-queue/QueueDetails'
 import { SuggestScheduleModal } from '../../components/planning-queue/SuggestScheduleModal'
 import { CascadeConfirmModal } from '../../components/planning-queue/CascadeConfirmModal'
+import { KlokBlok } from '../../components/tijd/KlokBlok'
+import { ActieveRegistratie } from '../../components/tijd/ActieveRegistratie'
+import { useLopendeTijd, useTijdActies, useTijdVanStap } from '../../hooks/useTijdregistratie'
 
 interface PendingCascade {
   machineName: string
@@ -53,6 +56,33 @@ export function PlanningQueuePage() {
   const [draggingJob, setDraggingJob] = useState<QueueJob | null>(null)
   const [dragOverBacklog, setDragOverBacklog] = useState(false)
   const [pendingCascade, setPendingCascade] = useState<PendingCascade | null>(null)
+
+  // Tijdregistratie. De wachtrij blijft de wachtrij; hier komt alleen de klok
+  // bij op de kaart die nu draait, en het paneel rechts voor de gekozen stap.
+  const lopendeTijd = useLopendeTijd()
+  const tijdActies = useTijdActies()
+  const registratiePerStap = useMemo(() => {
+    const m = new Map<string, typeof lopendeTijd.data extends (infer T)[] | undefined ? T : never>()
+    for (const r of lopendeTijd.data ?? []) m.set(r.stapId, r)
+    return m
+  }, [lopendeTijd.data])
+
+  // Eén klokrenderer voor beide lijsten: backlog en machinewachtrij tonen
+  // dezelfde kaart, dus ook dezelfde klok. (Stond eerst alleen op de wachtrij,
+  // waardoor lopend backlogwerk geen klok toonde — waargenomen 2026-09-13.)
+  const klokVoor = (stapId: string) => {
+    const r = registratiePerStap.get(stapId)
+    if (!r) return null
+    return (
+      <KlokBlok
+        registratie={r}
+        bezig={tijdActies.pauze.isPending || tijdActies.hervat.isPending || tijdActies.stop.isPending}
+        onPauze={() => tijdActies.pauze.mutate(r.id)}
+        onHervat={() => tijdActies.hervat.mutate(r.id)}
+        onKlaar={() => tijdActies.stop.mutate({ id: r.id })}
+      />
+    )
+  }
 
   const windowStart = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d }, [])
 
@@ -285,6 +315,7 @@ export function PlanningQueuePage() {
           onDragOver={e => { e.preventDefault(); if (draggingJob && !isBacklogJob(draggingJob)) setDragOverBacklog(true) }}
           onDragLeave={() => setDragOverBacklog(false)}
           onDrop={handleDropOnBacklog}
+          klokVoor={klokVoor}
         />
 
         <QueuePanel
@@ -303,6 +334,7 @@ export function PlanningQueuePage() {
           onDragEnd={handleDragEnd}
           onDropOnCard={handleDropOnQueueCard}
           onDropAtEnd={handleDropAtEndOfQueue}
+          klokVoor={klokVoor}
         />
 
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
@@ -333,6 +365,12 @@ export function PlanningQueuePage() {
             onOpenProject={handleOpenProject}
             onSetHold={handleSetHold}
           />
+          {selectedJob && (
+            <div className="tr-paneel-wrap">
+              <div className="st-sb-group-lbl" style={{ marginBottom: 8 }}>Actieve registratie</div>
+              <StapKlok job={selectedJob} />
+            </div>
+          )}
         </div>
       </div>
 
@@ -351,5 +389,42 @@ export function PlanningQueuePage() {
         onCancel={cancelCascade}
       />
     </div>
+  )
+}
+
+
+/**
+ * Het klokpaneel voor de gekozen stap.
+ *
+ * Apart component zodat de uren van déze stap hier opgehaald worden en niet in
+ * de hele wachtrijpagina; de stap wisselt vaker dan de rest van het scherm.
+ */
+function StapKlok({ job }: { job: QueueJob }) {
+  const lopend = useLopendeTijd()
+  const vanStap = useTijdVanStap(job.id)
+  const acties = useTijdActies()
+
+  const registratie = (lopend.data ?? []).find(r => r.stapId === job.id) ?? null
+  // Alleen afgeronde regels: een klok die nu loopt is nog geen feit, en het
+  // getal zou anders bij elke tik verspringen.
+  const vandaag = (vanStap.data ?? [])
+    .filter(r => r.status === 'afgerond')
+    .reduce((s, r) => s + r.seconden, 0)
+
+  const bezig = acties.start.isPending || acties.pauze.isPending
+    || acties.hervat.isPending || acties.stop.isPending || acties.wissel.isPending
+
+  return (
+    <ActieveRegistratie
+      registratie={registratie}
+      geschatSeconden={job.duurMin > 0 ? job.duurMin * 60 : null}
+      vandaagSeconden={vandaag}
+      bezig={bezig}
+      onStart={(soort, bemand) => acties.start.mutate({ stapId: job.id, soort, bemand })}
+      onWissel={(naar) => registratie && acties.wissel.mutate({ id: registratie.id, naar })}
+      onPauze={() => registratie && acties.pauze.mutate(registratie.id)}
+      onHervat={() => registratie && acties.hervat.mutate(registratie.id)}
+      onKlaar={() => registratie && acties.stop.mutate({ id: registratie.id })}
+    />
   )
 }

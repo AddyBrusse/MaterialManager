@@ -16,6 +16,8 @@ import { formatDimensions } from '../../api/raw-materials'
 import { buildEstimateCtx, computeEstimateTotals, type EstimateTotals } from '../../api/estimate'
 import { useUserStore } from '../../stores/user'
 import { ArticleForm } from '../../components/articles/ArticleForm'
+import { useArtikelSamenvattingen } from '../../hooks/useNacalculatie'
+import { Delta } from '../../components/nacalculatie/NacalculatiePaneel'
 
 const EMPTY_ESTIMATE: ArticleEstimate = { marginPct: 0, nodes: [], updatedAt: '' }
 const eur = (n: number) => `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -95,7 +97,7 @@ export function ArtikelenPage() {
     return m
   }, [articles, gradesData, profilesData, machinesData])
   const totalsOf = (id: string): EstimateTotals =>
-    totalsByArticle.get(id) ?? { materialTotal: 0, machiningTotal: 0, setupTotal: 0, cycleTotal: 0, externalTotal: 0, cost: 0, marginPct: 0, sell: 0, timeMin: 0 }
+    totalsByArticle.get(id) ?? { materialTotal: 0, machiningTotal: 0, setupTotal: 0, cycleTotal: 0, externalTotal: 0, cost: 0, marginPct: 0, sell: 0, timeMin: 0, setupMin: 0, cycleMinPerPiece: 0 }
 
   function formatRecipe(a: Article): { text: string; grade: string } | null {
     if (!a.recipe) return null
@@ -274,6 +276,10 @@ export function ArtikelenPage() {
                 <SortTh k="materiaalKosten"    sort={sort} onSort={toggleSort} align="right">Materiaalkosten</SortTh>
                 <SortTh k="uitbestedingKosten" sort={sort} onSort={toggleSort} align="right">Uitbestedingskosten</SortTh>
                 <SortTh k="marge"              sort={sort} onSort={toggleSort} align="right">Marge</SortTh>
+                {/* Nacalculatie: hoe de werkelijke kostprijs zich verhoudt tot de
+                    calculatie, over alle orders van dit artikel heen. Leeg zolang
+                    er niets gemeten is — een 0% zou lezen als "de calculatie klopt". */}
+                <th style={{ width: 110, textAlign: 'right' }}>Nacalculatie</th>
                 <th style={{ width: 36 }} />
               </tr>
             </thead>
@@ -330,6 +336,7 @@ export function ArtikelenPage() {
                     <td className="cell-num">{eur(tot.materialTotal)}</td>
                     <td className="cell-num">{eur(tot.externalTotal)}</td>
                     <td className="cell-num">{tot.marginPct.toLocaleString('nl-NL')}%</td>
+                    <td className="cell-num"><NacalcCel artikelId={it.id} /></td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <Menu position="bottom-end" withinPortal shadow="md">
                         <Menu.Target>
@@ -370,5 +377,25 @@ export function ArtikelenPage() {
 
       <ArticleForm mode="edit" opened={!!editItem} item={editItem ?? undefined} allRows={articles} onClose={() => setEditItem(null)} />
     </>
+  )
+}
+
+
+/**
+ * De nacalculatie-cel in de artikelenlijst.
+ *
+ * Leest uit één gedeelde query voor de hele lijst; een verzoek per rij zou over
+ * honderden artikelen merkbaar traag zijn. Staat er niets gemeten, dan blijft de
+ * cel leeg — een 0% zou lezen als "de calculatie klopt", terwijl er alleen nog
+ * niets gemeten is.
+ */
+function NacalcCel({ artikelId }: { artikelId: string }) {
+  const { data } = useArtikelSamenvattingen()
+  const rij = (data ?? []).find((r) => r.artikelId === artikelId)
+  if (!rij || rij.gemetenOrders === 0) return <span className="cell-muted">—</span>
+  return (
+    <span title={`${rij.gemetenOrders} van ${rij.aantalOrders} orders gemeten`}>
+      <Delta pct={rij.verschilPct} />
+    </span>
   )
 }

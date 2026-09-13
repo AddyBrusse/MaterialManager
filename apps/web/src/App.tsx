@@ -4,6 +4,7 @@ import { UserSelectScreen } from './components/common/UserSelectScreen'
 import { AppLayout } from './components/layout/AppLayout'
 import { PopoutShell } from './components/layout/PopoutShell'
 import { MobileLayout } from './routes/mobile'
+import { TerminalPage } from './routes/TerminalPage'
 import { useUserStore } from './stores/user'
 
 const MOBILE_BREAKPOINT = 900
@@ -28,6 +29,12 @@ export default function App() {
   }, [])
 
   if (!user) return <UserSelectScreen />
+
+  // Een terminal-account krijgt uitsluitend het kioskscherm: geen zijbalk, geen
+  // router, geen weg terug naar de rest van de app. De API weigert dit account
+  // sowieso alles behalve de klok (middleware/terminal-scope.ts) — dit voorkomt
+  // vooral dat er kostprijzen op een scherm in de hal komen te staan.
+  if (user.role === 'terminal') return <TerminalPage />
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>

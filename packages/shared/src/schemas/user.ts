@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
-export const UserRoleSchema = z.enum(['admin', 'user'])
+// 'terminal' is het account van een machinescherm op de werkvloer, niet van een
+// persoon. Het ziet alleen de kioskroute en de API weigert de rest — de app
+// toont kostprijzen en klantgegevens, en een werkvloer-pc hoort daar niet bij te
+// kunnen. Wie er stáát wordt apart gekozen bij het starten van bemand werk.
+export const UserRoleSchema = z.enum(['admin', 'user', 'terminal'])
 export type UserRole = z.infer<typeof UserRoleSchema>
 
 export const UserSchema = z.object({

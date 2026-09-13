@@ -896,3 +896,74 @@ origin/master` vóór elk nieuw stuk werk.
 Wat dit vooral leert: het ontbreken van een rood vinkje is geen bewijs dat er
 getest is. Bij het melden van "CI groen" hoort gecontroleerd te worden dát er een
 run bestaat voor de betreffende commit, niet alleen dat er niets roods staat.
+
+## 2026-09-13 — Tijdregistratie en nacalculatie
+
+**Registratie spiegelt de calculatie.** Eén rij per klok, met `soort`
+('instellen' of 'draaien') en `bemand` erop. Dat is dezelfde splitsing als
+`computeEstimateTotals`: insteltijd telt één keer per batch, cyclustijd per
+stuk. Zonder dat onderscheid tellen twee soorten tijd op in één post en is een
+nacalculatie een tabel waar geen conclusie uit te trekken valt.
+
+Wisselen van instellen naar draaien, of van bemand naar onbemand, sluit de
+lopende regel af en begint een nieuwe — het is geen bewerking van dezelfde
+meting.
+
+**Eén definitie van "werkelijk".** `effectieveSeconden` in
+`packages/shared/schemas/tijdregistratie.ts` is de enige plek die bepaalt wat
+een registratie heeft opgeleverd: een correctie wint van de meting, een lopende
+klok telt door vanaf `lopendSinds`. De server stuurt het resultaat als
+`seconden` mee, zodat wachtrij en terminal nooit een ander getal tonen.
+
+`lopendSinds` in plaats van een teller: zo overleeft een lopende klok een
+herstart van de server zonder tijd te verzinnen.
+
+**Corrigeren mag, wissen niet.** `gemetenSeconden` blijft altijd staan naast
+`bijgesteldeSeconden`, met een verplichte reden. Het verschil tussen wat de klok
+zag en wat een mens ervan maakte is zelf een signaal: wordt er elke week
+bijgesteld, dan klopt er iets niet aan de manier van registreren. Automatisch
+afsluiten van een vergeten klok doen we niet — dat zou tijd verzinnen. Zo'n klok
+wordt gemarkeerd (meer dan zes uur), een mens beslist.
+
+**Nacalculatie wordt afgeleid, nooit opgeslagen.** Een bewaarde nacalculatie
+loopt stil achter zodra er een uur bijkomt of een correctie gemaakt wordt.
+`services/nacalculatie.ts` leest de uren uit de tijdregistratie, het materiaal
+uit de **afgeboekte** zaagbonnen (open reserveringen hebben nog niets verbruikt)
+en de verkoopprijs uit de offerteregel.
+
+Zonder metingen tonen we het gecalculeerde bedrag als "werkelijk", niet nul: een
+nul leest als besparing terwijl er alleen nog niets geklokt is.
+
+Onbemande uren rekenen alleen het machinetarief; de calculatie rekent altijd met
+machine + operator. Dat verschil hoort zichtbaar te zijn, want dat is precies
+wat onbemand draaien oplevert.
+
+**`setupMin` en `cycleMinPerPiece` toegevoegd aan `EstimateTotals`.** `timeMin`
+alleen was niet genoeg: die telt setup en cyclus bij elkaar op, en ze achteraf
+scheiden via de kostenverhouding klopt alleen als elke machine hetzelfde
+uurtarief heeft. In de kern zijn ze exact bekend, dus geven we ze mee.
+
+**Norm bijstellen is het punt van de hele feature.** Zonder terugkoppeling naar
+de calculatie is een nacalculatie een rapport dat niemand leest. `stelNormBij`
+past de machinenode van het artikel aan (naar rato over meerdere nodes) en de
+route schrijft er een prijssnapshot achteraan, zodat de bijstelling ook als punt
+in het prijsverloop verschijnt. Advies pas vanaf drie metingen — twee
+uitschieters zijn geen norm.
+
+Fout die dit opleverde en hier blijft staan: de eerste versie sloeg nodes zonder
+`steps` stilzwijgend over, waardoor een gemeten cyclustijd van 24 min/stuk
+nergens landde bij ART-0001 (calculatie bleef op 0 staan). Een calculatie waarin
+alleen de insteltijd is ingevuld is het gewone geval, niet de uitzondering.
+
+**Rol `terminal` voor de werkvloer-pc.** Geen aparte app: dat betekent een tweede
+build, een tweede deploy op de NAS en een tweede kopie van de API-client, voor
+een probleem dat een rol oplost. Wél een derde rol, want de app toont
+kostprijzen en klantgegevens en een naam is geen slot.
+
+`middleware/terminal-scope.ts` is bewust een **toelaat**lijst: een nieuwe route
+is dan standaard dicht voor de terminal in plaats van standaard open. Een
+vergeten regel levert hooguit een kapot kioskscherm op, geen prijslijst in de hal.
+
+Het terminal-account identificeert de **machine**. Wie er staat kiest zichzelf op
+het scherm bij het starten van bemand werk; onbemand werk heeft geen naam nodig.
+Zonder die stap komen de manuren op het machine-account terecht.

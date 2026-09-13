@@ -3,7 +3,7 @@ import { matchPath } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList, IconCut, IconBookmark,
   IconUsers, IconClipboardList, IconChartBar, IconArrowsSort, IconListCheck,
-  IconChecklist, IconListNumbers, IconFileText, type Icon as TablerIcon,
+  IconChecklist, IconListNumbers, IconFileText, IconClock, type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { VoorraadPage } from '../../routes/desktop/VoorraadPage'
 import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
@@ -21,6 +21,7 @@ import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
 import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
+import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
 import { DocumentenPage } from '../../routes/desktop/DocumentenPage'
 
 // Single source of truth for every tabbable / poppable page in the app. Feeds:
@@ -45,6 +46,7 @@ export const PAGES: PageEntry[] = [
   { path: '/planning-queue', label: 'Wachtrij', Icon: IconListNumbers, Component: PlanningQueuePage, poppable: true, hideChrome: true },
   { path: '/prognose',       label: 'Prognose', Icon: IconChartBar,    Component: PrognosePage,      poppable: true },
   { path: '/todos',          label: 'ToDo',     Icon: IconChecklist,   Component: TodosPage,         poppable: true },
+  { path: '/tijdregistratie', label: 'Tijdregistratie', Icon: IconClock, Component: TijdregistratiePage, poppable: true },
   // Productie
   { path: '/projecten',      label: 'Projecten',     Icon: IconClipboardList, Component: ProjectenPage,     poppable: true },
   { path: '/projecten/:id',  label: 'Project',       Icon: IconClipboardList, Component: ProjectDetailPage, poppable: true, labelFor: p => `Project ${p.id ?? ''}`.trim() },

@@ -71,7 +71,16 @@ export interface EstimateTotals {
   marginPct: number
   sell: number
   timeMin: number
+  /** Insteltijd in minuten, één keer per batch. */
+  setupMin: number
+  /** Cyclustijd in minuten per stuk. */
+  cycleMinPerPiece: number
 }
+
+// setupMin en cycleMinPerPiece staan er sinds de nacalculatie (2026-09-13).
+// timeMin alleen was niet genoeg: die telt setup en cyclus bij elkaar op, en ze
+// achteraf uit elkaar halen via de kostenverhouding klopt alleen als elke
+// machine hetzelfde uurtarief heeft. Hier zijn ze exact bekend, dus geef ze mee.
 
 // Weight (kg) from profile formula + dimensions + length + grade density.
 // Volume in mm³ → m³ (÷ 1e9) × density. Mirrors features/34-grades-profiles.md.
@@ -164,17 +173,20 @@ export function machineMinutes(node: Pick<EstimateNode, 'setupMin' | 'steps'>): 
 export function computeEstimateTotals(est: ArticleEstimate, ctx: EstimateCtx, qty = 1): EstimateTotals {
   const n = Math.max(1, qty)
   let materialTotal = 0, cyclePerPiece = 0, setupTotal = 0, externalBatchTotal = 0, timeMin = 0
+  let setupMin = 0, cycleMinPerPiece = 0
 
   for (const node of est.nodes) {
     if (node.type === 'material') {
       materialTotal += (node.qty ?? 1) * materialCostPerPiece(node, ctx)
     } else if (node.type === 'machine') {
-      const setupMin = node.setupMin || 0
+      const nodeSetupMin = node.setupMin || 0
       const cycleMin = (node.steps ?? []).reduce((s, st) => s + (st.cycleMin || 0), 0)
       const rate = machineRatePerHour(node, ctx)
-      setupTotal += (setupMin / 60) * rate
+      setupTotal += (nodeSetupMin / 60) * rate
       cyclePerPiece += (cycleMin / 60) * rate
-      timeMin += setupMin + n * cycleMin
+      timeMin += nodeSetupMin + n * cycleMin
+      setupMin += nodeSetupMin
+      cycleMinPerPiece += cycleMin
     } else if (node.type === 'external') {
       externalBatchTotal += (node.qty ?? 1) * (node.externalCost ?? 0)
     }
@@ -188,7 +200,7 @@ export function computeEstimateTotals(est: ArticleEstimate, ctx: EstimateCtx, qt
   const sell = cost * (1 + marginPct / 100)
   return {
     materialTotal, machiningTotal, setupTotal: setupPerUnit, cycleTotal: cyclePerPiece,
-    externalTotal, cost, marginPct, sell, timeMin,
+    externalTotal, cost, marginPct, sell, timeMin, setupMin, cycleMinPerPiece,
   }
 }
 
