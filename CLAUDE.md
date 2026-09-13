@@ -55,6 +55,31 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - File naming: kebab-case files, PascalCase React components
 - Log any non-obvious architectural choice in `decisions/90-decisions-log.md`
 
+## Na een squash-merge: branch eerst gelijktrekken
+
+PR's worden **squash**-gemerged. Master krijgt dus één nieuwe commit met de
+inhoud van de branch, maar niet de commit van de branch zelf. Bouw je daarna
+door op de oude branchtop, dan hebben master en de branch dezelfde wijzigingen
+in verschillende commits en ontstaat er een conflict.
+
+Daarom vóór elk nieuw stuk werk:
+
+```
+git fetch origin && git checkout -B <branch> origin/master
+```
+
+**Waarom dit meer is dan netjes opruimen:** een `pull_request`-workflow draait
+niet tegen de branch maar tegen de merge-ref — de denkbeeldige samenvoeging van
+branch en master. Bij een conflict kan GitHub die ref niet maken, en dan start
+CI **helemaal niet**. Geen rode vinkjes, geen melding: de PR blijft gewoon leeg.
+Dat is op 2026-09-11 gebeurd bij PR #26, die twee dagen zonder enige run stond
+terwijl de workflow gewoon actief was.
+
+Een tweede val uit diezelfde dag: een push naar een feature-branch waarvoor op
+dat moment **geen open PR** bestaat triggert ook niets, want de workflow luistert
+alleen op `push: branches: [master]` en op `pull_request`. Push dus pas als de
+PR er is, of open hem meteen erna en controleer dat er een run verschijnt.
+
 ## Reference UI
 
 Theme/layout extraction from `C:\ClaudeProjects\ToolManager-main` is done —

@@ -866,3 +866,33 @@ Bevestigen rekent het plan bewust **niet** opnieuw uit: tussen tonen en
 bevestigen kan iemand anders materiaal weggehaald hebben, en dan hoort de
 reservering te botsen (409, dezelfde controle als bij handmatig reserveren) in
 plaats van stilletjes iets anders vast te leggen.
+
+## 2026-09-13 — CI zweeg twee dagen: een conflicterende PR draait niet
+
+PR #26 stond van 11 tot 13 september open zonder ook maar één workflow-run,
+terwijl de workflow gewoon `active` was en er geen quotum bereikt was. Twee
+oorzaken, allebei procesfouten en geen storing:
+
+1. **De push had geen PR om aan te hangen.** De workflow triggert op
+   `push: branches: [master]` en op `pull_request`. Toen de commit gepusht werd
+   was de vorige PR voor diezelfde branch net gemerged en dus gesloten; er was op
+   dat moment geen open PR, en de branch is geen master. Geen van beide triggers
+   paste.
+
+2. **De PR was vanaf zijn geboorte conflicterend** (`mergeable_state: dirty`).
+   Een `pull_request`-workflow draait tegen de merge-ref, niet tegen de branch.
+   Bij een conflict kan GitHub die ref niet maken en start er niets — zonder
+   melding, zonder rood vinkje. De PR blijft er leeg bij staan.
+
+Het conflict ontstond doordat master de vorige PR als **squash**-commit droeg
+terwijl de branch nog de originele commit had: dezelfde inhoud, andere commit.
+Bewijs voor de oorzaak zit in de tijdstempels — de branch werd om 09:53:13
+opnieuw bovenop master gezet en de eerste run verscheen om 09:54:36.
+
+De regel die dit voorkomt staat in `CLAUDE.md` onder "Na een squash-merge:
+branch eerst gelijktrekken": `git fetch origin && git checkout -B <branch>
+origin/master` vóór elk nieuw stuk werk.
+
+Wat dit vooral leert: het ontbreken van een rood vinkje is geen bewijs dat er
+getest is. Bij het melden van "CI groen" hoort gecontroleerd te worden dát er een
+run bestaat voor de betreffende commit, niet alleen dat er niets roods staat.
