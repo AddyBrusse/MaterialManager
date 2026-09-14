@@ -12,6 +12,8 @@
     "dev:web": "npm run build -w packages/shared && npm run dev -w apps/web",
     "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w apps/web",
     "db:migrate": "npm run db:migrate -w apps/api",
+    "db:deploy": "npm run db:deploy:dev -w apps/api",
+    "db:status": "npm run db:status -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
     "test": "npm run test -w apps/api && npm run test -w apps/web"
   },

@@ -84,7 +84,7 @@ ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(Postgr
     expect(res.code).toBe(500)
     const body = res.body as any
     expect(body.error.code).toBe('MIGRATIE_ONTBREEKT')
-    expect(body.error.message).toContain('prisma migrate deploy')
+    expect(body.error.message).toContain('npm run db:deploy')
     // De reden hoort erbij, ook op de NAS: het noemt geen data.
     expect(body.error.details.reden).toContain('invalid input value for enum')
   })

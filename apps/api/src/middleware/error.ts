@@ -53,8 +53,12 @@ export function errorMiddleware(
     res.status(500).json({
       error: {
         code: 'MIGRATIE_ONTBREEKT',
-        message: 'De database loopt achter op de applicatie. Draai de migraties: '
-          + 'npx prisma migrate deploy --schema apps/api/prisma/schema.prisma',
+        // Het projecteigen script, niet het kale prisma-commando: dat laadt
+        // .env.development niet en faalt op een werk-pc met "Environment
+        // variable not found: DATABASE_URL" — een melding die naar de
+        // verkeerde oorzaak wijst. (Waargenomen 2026-09-14.)
+        message: 'De database loopt achter op de applicatie. Draai de migraties '
+          + 'met: npm run db:deploy',
         details: { reden: pg.message },
       },
     })

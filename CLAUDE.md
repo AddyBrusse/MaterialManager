@@ -120,6 +120,29 @@ install` en `prisma migrate deploy` afbraken op conflictmarkers in
 `packages/shared/src/index.ts` en `schema.prisma`. De lokale top was
 `85091cb`, en `git diff 85091cb origin/master` was leeg — niets te verliezen.
 
+## Migraties draaien op een werk-pc
+
+De omgeving staat in `.env.development` in de hoofdmap (gitignored, zie
+`.env.example`). Prisma laadt dat bestand **niet** vanzelf, dus een kaal
+`npx prisma migrate deploy` faalt met `Environment variable not found:
+DATABASE_URL` — een melding die naar de verkeerde oorzaak wijst.
+
+Gebruik daarom de projectscripts vanaf de hoofdmap:
+
+```
+npm run db:status     # welke migraties staan er nog open
+npm run db:deploy     # openstaande migraties toepassen
+```
+
+Beide laden `.env.development` via `dotenv -e`, net als `npm run dev`.
+`npm run db:deploy -w apps/api` (zonder `:dev`) is de kale variant voor de NAS,
+waar `DATABASE_URL` gewoon in de omgeving staat.
+
+**Waarom dit ertoe doet:** loopt de code voor op de database, dan geeft de API
+sinds 2026-09-14 geen "Interne serverfout" meer maar noemt hij de ontbrekende
+migratie bij naam — met dit commando erbij. Dat werkt alleen als het commando
+klopt.
+
 ## Reference UI
 
 Theme/layout extraction from `C:\ClaudeProjects\ToolManager-main` is done —
