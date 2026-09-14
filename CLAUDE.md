@@ -83,6 +83,43 @@ dat moment **geen open PR** bestaat triggert ook niets, want de workflow luister
 alleen op `push: branches: [master]` en op `pull_request`. Push dus pas als de
 PR er is, of open hem meteen erna en controleer dat er een run verschijnt.
 
+### En aan de kant van de werk-pc: nooit `git pull` op een agent-branch
+
+Hierboven staat wat de agent doet vóór nieuw werk. De lokale checkout heeft
+hetzelfde probleem vanaf de andere kant: zodra de branch gelijkgetrokken is met
+master, is de lokale kopie een **andere geschiedenis met dezelfde inhoud**. Een
+`git pull` probeert die twee dan samen te voegen en dat geeft gegarandeerd een
+conflict — meestal in `CLAUDE.md`, `schema.prisma`, `index.ts` en het
+beslissingenlogboek, precies de bestanden die beide kanten aanraken.
+
+Op een branch waar alleen de agent naartoe schrijft is dit het juiste commando:
+
+```
+git fetch origin
+git reset --hard origin/<branch>
+```
+
+Geen merge, dus geen conflict. Wat lokaal stond was toch een kopie van wat op
+origin staat.
+
+**Controleer dat wel één keer voor je reset**, want `--hard` gooit weg:
+
+```
+git status                                   # moet clean zijn
+git log --oneline origin/<branch>..HEAD      # moet leeg zijn
+```
+
+Staat er wél iets in die log, dan zijn het bijna altijd de **originele commits
+van al gemergede PR's** — master draagt dezelfde inhoud als squash-commit. Te
+bewijzen met `git diff <lokale-top> origin/master`: is die leeg, dan bestaat de
+inhoud al op master en kun je veilig resetten. Is hij niet leeg, dan is er echt
+lokaal werk en hoort dat eerst ergens heen.
+
+Dit is op 2026-09-14 gebeurd: `git pull` gaf vier conflicten, waarna `npm
+install` en `prisma migrate deploy` afbraken op conflictmarkers in
+`packages/shared/src/index.ts` en `schema.prisma`. De lokale top was
+`85091cb`, en `git diff 85091cb origin/master` was leeg — niets te verliezen.
+
 ## Reference UI
 
 Theme/layout extraction from `C:\ClaudeProjects\ToolManager-main` is done —
