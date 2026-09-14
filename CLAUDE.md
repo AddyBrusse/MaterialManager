@@ -143,6 +143,30 @@ sinds 2026-09-14 geen "Interne serverfout" meer maar noemt hij de ontbrekende
 migratie bij naam — met dit commando erbij. Dat werkt alleen als het commando
 klopt.
 
+## De app bereiken vanaf een andere pc
+
+Beide manieren van draaien luisteren op alle netwerkkaarten, dus een andere pc
+op het LAN komt erbij via `http://<ip-van-de-pc>:<poort>`:
+
+| | Poort | Wat het is |
+|---|---|---|
+| `npm run dev` | 5173 | Vite, met `/api` doorgestuurd naar de API op 3000 |
+| `npm run build` + `npm start` | 3000 | Eén Express-proces, zoals op de NAS |
+
+Vite luistert alleen op alle kaarten dankzij `host: true` in
+`apps/web/vite.config.ts`. Staat dat er niet, dan meldt Vite bij het starten
+`Network: use --host to expose` en weigert een andere pc de verbinding —
+gemeten 2026-09-14: localhost gaf 200, het LAN-adres helemaal niets. De
+werkvloer-pc draait de terminal in een browser en moet er dus bij kunnen, ook
+tijdens ontwikkelen.
+
+De proxy in die config wijst naar `http://localhost:3000`, en dat klopt ook van
+buitenaf: de proxy draait op de ontwikkelmachine zelf, dus `localhost` is daar
+de API. Voor de browser op de werkvloer is alles één herkomst.
+
+Blijft het onbereikbaar terwijl het adres klopt, dan is het bijna altijd de
+Windows Firewall die binnenkomend verkeer naar Node blokkeert.
+
 ## Reference UI
 
 Theme/layout extraction from `C:\ClaudeProjects\ToolManager-main` is done —
