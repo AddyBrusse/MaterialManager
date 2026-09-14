@@ -41,6 +41,30 @@ export function errorMiddleware(
     return
   }
 
+  // Draait de code voor op de database, dan is dat geen "interne fout" maar een
+  // vergeten migratie — en dat is precies wat de beheerder moet weten. Deze
+  // melding noemt geen data en geen schema-interne details, dus hij mag ook op
+  // de NAS mee: hem inslikken kostte een ronde zoeken toen het aanmaken van een
+  // terminal-account op 2026-09-14 alleen "Aanmaken mislukt" opleverde, terwijl
+  // Postgres gewoon zei: invalid input value for enum "Role": "terminal".
+  const pg = postgresFout(err)
+  if (pg && MIGRATIE_CODES.has(pg.code)) {
+    console.error(err)
+    res.status(500).json({
+      error: {
+        code: 'MIGRATIE_ONTBREEKT',
+        // Het projecteigen script, niet het kale prisma-commando: dat laadt
+        // .env.development niet en faalt op een werk-pc met "Environment
+        // variable not found: DATABASE_URL" — een melding die naar de
+        // verkeerde oorzaak wijst. (Waargenomen 2026-09-14.)
+        message: 'De database loopt achter op de applicatie. Draai de migraties '
+          + 'met: npm run db:deploy',
+        details: { reden: pg.message },
+      },
+    })
+    return
+  }
+
   console.error(err)
   // In ontwikkeling de echte reden meesturen. "Interne serverfout" in het scherm
   // en een stack in een terminal die niemand openheeft staan, betekent dat een
@@ -54,6 +78,31 @@ export function errorMiddleware(
       ...(config.isDev && { details: { reden: err instanceof Error ? err.message : String(err) } }),
     },
   })
+}
+
+/**
+ * Postgres-fouten die betekenen: de code kent iets dat de database niet heeft.
+ *   22P02 — ongeldige waarde voor een enum (een nieuwe rol, status, soort)
+ *   42P01 — tabel bestaat niet
+ *   42703 — kolom bestaat niet
+ * Alle drie wijzen op een migratie die nog niet gedraaid is.
+ */
+const MIGRATIE_CODES = new Set(['22P02', '42P01', '42703'])
+
+/**
+ * Prisma pakt de Postgres-fout in een ConnectorError; de code staat alleen in
+ * de tekst van de melding. Vandaar dat we hem daaruit vissen in plaats van uit
+ * een veld dat er niet is.
+ */
+function postgresFout(err: unknown): { code: string; message: string } | null {
+  const tekst = err instanceof Error ? err.message : ''
+  // SQLSTATE is vijf tekens alfanumeriek, niet vijf cijfers: 22P02 heeft een
+  // letter in het midden. Met \d{5} matchte hij nooit en viel elke migratiefout
+  // alsnog door naar "Interne serverfout".
+  const code = tekst.match(/code: "([0-9A-Z]{5})"/)?.[1]
+  if (!code) return null
+  const message = tekst.match(/message: "((?:[^"\\]|\\.)*)"/)?.[1] ?? tekst
+  return { code, message: message.replace(/\\"/g, '"') }
 }
 
 export class AppError extends Error {

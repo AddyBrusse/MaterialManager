@@ -8,6 +8,7 @@ import { assertSharedGebouwd } from './lib/shared-check'
 import { prisma } from './db/client'
 import { asyncHandler } from './lib/async-handler'
 import { userContext } from './middleware/user-context'
+import { terminalScope } from './middleware/terminal-scope'
 import { errorMiddleware } from './middleware/error'
 import healthRouter from './routes/health'
 import usersRouter from './routes/users'
@@ -35,6 +36,8 @@ import preferencesRouter from './routes/preferences'
 import todosRouter from './routes/todos'
 import documentenRouter from './routes/documenten'
 import mailImportsRouter from './routes/mail-imports'
+import tijdregistratieRouter from './routes/tijdregistratie'
+import nacalculatieRouter from './routes/nacalculatie'
 
 const app = express()
 
@@ -64,6 +67,8 @@ app.use('/api/pdf', pdfRouter)
 
 // Auth middleware on all remaining /api routes
 app.use('/api', userContext)
+// Direct achter userContext: een terminal-account komt niet verder dan de klok.
+app.use('/api', terminalScope)
 
 app.use('/api/users', usersRouter)
 app.use('/api/raw-materials', rawMaterialsRouter)
@@ -89,6 +94,8 @@ app.use('/api/preferences', preferencesRouter)
 app.use('/api/todos', todosRouter)
 app.use('/api/documenten', documentenRouter)
 app.use('/api/mail-imports', mailImportsRouter)
+app.use('/api/tijdregistratie', tijdregistratieRouter)
+app.use('/api/nacalculatie', nacalculatieRouter)
 
 // Serve uploaded files
 app.use('/uploads', express.static(config.uploadsDir))

@@ -171,7 +171,7 @@ export async function neemRegelsOver({
       qty,
       eenheid: 'st',
       verkoopprijs,
-      bewerkingen: bewerkingenVan(article),
+      bewerkingen: bewerkingenVan(article, bronnen.machines),
     })
   }
 

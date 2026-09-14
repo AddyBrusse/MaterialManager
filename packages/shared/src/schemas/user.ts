@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
-export const UserRoleSchema = z.enum(['admin', 'user'])
+// 'terminal' is het account van een machinescherm op de werkvloer, niet van een
+// persoon. Het ziet alleen de kioskroute en de API weigert de rest — de app
+// toont kostprijzen en klantgegevens, en een werkvloer-pc hoort daar niet bij te
+// kunnen. Wie er stáát wordt apart gekozen bij het starten van bemand werk.
+export const UserRoleSchema = z.enum(['admin', 'user', 'terminal'])
 export type UserRole = z.infer<typeof UserRoleSchema>
 
 export const UserSchema = z.object({
@@ -12,6 +16,13 @@ export const UserSchema = z.object({
   telefoon:    z.string().nullable(),
   role:        UserRoleSchema,
   avatarPath:  z.string().nullable(),
+  /**
+   * Alleen zinvol bij rol 'terminal': aan welke machine dit scherm hangt.
+   * De wachtrij liep hiervoor op accountnaam, en die moest dan exact gelijk
+   * zijn aan wat er op de productiestap staat — anders bleef het scherm leeg
+   * terwijl er werk lag.
+   */
+  machineId:   z.string().nullable(),
   createdAt:   z.string().datetime(),
 })
 export type User = z.infer<typeof UserSchema>
@@ -23,6 +34,7 @@ export const CreateUserSchema = z.object({
   email:      z.string().email('Ongeldig e-mailadres').nullable().default(null),
   telefoon:   z.string().max(30).nullable().default(null),
   role:       UserRoleSchema.default('user'),
+  machineId:  z.string().nullable().default(null),
 })
 export type CreateUser = z.infer<typeof CreateUserSchema>
 

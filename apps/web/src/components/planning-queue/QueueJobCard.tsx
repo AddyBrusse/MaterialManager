@@ -1,4 +1,4 @@
-import type { CSSProperties, DragEvent } from 'react'
+import type { CSSProperties, DragEvent, ReactNode } from 'react'
 import { IconAlertTriangle } from '@tabler/icons-react'
 import { minToUren } from '../../utils/planningUtils'
 import { type QueueJob, shortOrderId, fmtDateWithWeekday } from '../../utils/planningQueueUtils'
@@ -23,13 +23,17 @@ interface QueueJobCardProps {
   latestStart: string | null
   className?: string
   draggable?: boolean
+  /** Het klokblok van een lopende registratie. De kaart weet niets van tijd —
+   *  de pagina bepaalt of er een klok op deze stap loopt en levert hem hier aan. */
+  klok?: ReactNode
   onClick: () => void
   onDragStart?: (e: DragEvent<HTMLDivElement>) => void
   onDragEnd?: () => void
 }
 
 export function QueueJobCard({
-  job, machineLabel, accentColor, selected, risk, latestStart, className, draggable, onClick, onDragStart, onDragEnd,
+  job, machineLabel, accentColor, selected, risk, latestStart, className, draggable, klok,
+  onClick, onDragStart, onDragEnd,
 }: QueueJobCardProps) {
   const { qty, eenheid } = job.item.order
   return (
@@ -54,6 +58,7 @@ export function QueueJobCard({
         {risk && <span className="qjob-risk"><IconAlertTriangle size={11} stroke={2.2} /> risico</span>}
       </div>
       {latestStart && <div className="qjob-start">start uiterlijk {fmtDateWithWeekday(latestStart)}</div>}
+      {klok}
     </div>
   )
 }

@@ -66,23 +66,72 @@ describe('prijsVoor', () => {
 })
 
 describe('bewerkingenVan', () => {
+  const MACHINES = [
+    { id: 'm1', name: 'DMG 450TC EcoLine' },
+    { id: 'm2', name: 'Draaibank' },
+  ]
+
   it('geeft de machinenamen, zonder dubbelen', () => {
     const a = artikel({
       estimate: {
         marginPct: 20, updatedAt: '',
         nodes: [
-          { id: '1', type: 'machine', name: 'Draaien', machineId: 'm1', steps: [] },
-          { id: '2', type: 'machine', name: 'Frezen', machineId: 'm1', steps: [] },
-          { id: '3', type: 'machine', name: 'Draaien', machineId: 'm1', steps: [] },
+          { id: '1', type: 'machine', name: 'DMG 450TC EcoLine', machineId: 'm1', steps: [] },
+          { id: '2', type: 'machine', name: 'Draaibank', machineId: 'm2', steps: [] },
+          { id: '3', type: 'machine', name: 'DMG 450TC EcoLine', machineId: 'm1', steps: [] },
           { id: '4', type: 'material', name: 'Staf', steps: [] },
         ],
       },
     })
-    expect(bewerkingenVan(a)).toEqual(['Draaien', 'Frezen'])
+    expect(bewerkingenVan(a, MACHINES)).toEqual(['DMG 450TC EcoLine', 'Draaibank'])
+  })
+
+  it('neemt de naam uit de machinelijst, niet die van de knoop', () => {
+    // Dit is waar het om gaat: de naam op de stap moet een bestaande machine
+    // benoemen, anders kan de terminal er niet op filteren en kan de planning
+    // hem niet aan een machine hangen. Een knoop die nog "Draaien" heet of een
+    // machine die hernoemd is mag dat niet breken.
+    const a = artikel({
+      estimate: {
+        marginPct: 20, updatedAt: '',
+        nodes: [{ id: '1', type: 'machine', name: 'Draaien', machineId: 'm1', steps: [] }],
+      },
+    })
+    expect(bewerkingenVan(a, MACHINES)).toEqual(['DMG 450TC EcoLine'])
+  })
+
+  it('dedupliceert op de opgeloste naam, niet op die van de knoop', () => {
+    // Twee knopen met verschillende namen op dezelfde machine zijn één
+    // bewerking; zonder dit stonden er twee identieke stappen op de order.
+    const a = artikel({
+      estimate: {
+        marginPct: 20, updatedAt: '',
+        nodes: [
+          { id: '1', type: 'machine', name: 'Voordraaien', machineId: 'm1', steps: [] },
+          { id: '2', type: 'machine', name: 'Nadraaien', machineId: 'm1', steps: [] },
+        ],
+      },
+    })
+    expect(bewerkingenVan(a, MACHINES)).toEqual(['DMG 450TC EcoLine'])
+  })
+
+  it('houdt de naam van de knoop als de machine niet te herleiden is', () => {
+    // Uitbesteed of een verwijderde machine: een bewerking zonder naam is
+    // erger dan een bewerking met de verkeerde.
+    const a = artikel({
+      estimate: {
+        marginPct: 20, updatedAt: '',
+        nodes: [
+          { id: '1', type: 'machine', name: 'Slijpen', machineId: null, steps: [] },
+          { id: '2', type: 'machine', name: 'Zagen', machineId: 'weg', steps: [] },
+        ],
+      },
+    })
+    expect(bewerkingenVan(a, MACHINES)).toEqual(['Slijpen', 'Zagen'])
   })
 
   it('geeft een lege lijst zonder calculatie', () => {
-    expect(bewerkingenVan(artikel({ estimate: null }))).toEqual([])
+    expect(bewerkingenVan(artikel({ estimate: null }), MACHINES)).toEqual([])
   })
 })
 

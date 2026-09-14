@@ -4,6 +4,136 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-09-14 — De koppeling van de terminal komt van de server, niet uit de opgeslagen inlog
+
+**Klacht:** een terminal die op kantoor aan een machine gekoppeld was bleef in de
+hal "Dit scherm hangt nog aan geen machine" tonen, met de wachtrij van de hele
+werkvloer erin (16 stappen).
+
+**Oorzaak:** `useUserStore` is een `persist`-store. Wat erin staat is een
+momentopname van het moment dat er op dat scherm iemand gekozen is. De koppeling
+wordt daarná op kantoor gelegd en verandert die momentopname niet, dus
+`machineId` bleef `null` tot iemand naar de hal liep om opnieuw in te loggen.
+
+Gereproduceerd met een `localStorage`-sessie van vóór de koppeling tegen een
+database mét koppeling: precies het gemelde scherm.
+
+**Beslissing:** de server wint. `bepaalMachineId` in `utils/terminal-wachtrij.ts`
+haalt de koppeling uit de namenlijst die de terminal toch al ophaalt — dat account
+staat er zelf in — en valt alleen terug op de opgeslagen waarde zolang die lijst
+nog onderweg is. Zonder die terugval springt het scherm bij elke verversing even
+van de eigen wachtrij naar alles.
+
+De namenlijst ververst nu elke 10 s, net als de rest van de app. Koppelen op
+kantoor komt daarmee binnen tien seconden aan in de hal, zonder herladen —
+gemeten: banner weg, kop toont de machinenaam, wachtrij van 2 naar 1.
+
+**Wat hier niet verandert:** de rol blijft wél uit de opgeslagen inlog komen.
+Die verandert zelden, en hem van de server halen zou betekenen dat een scherm
+midden in het werk van rol kan wisselen.
+
+---
+
+## 2026-09-14 — Bewerkingsnamen komen uit de machinelijst
+
+**Beslissing:** de naam van een machineknoop in de calculatie is de naam van de
+**machine**, niet een vrij in te typen tekst. `bewerkingenVan` lost de naam op
+via `machineId` tegen de machinelijst; het vrije naamveld is weg bij
+machineknopen (materiaal en uitbesteding houden het wel — daar is geen lijst om
+tegen op te lossen).
+
+**Waarom:** die naam reist door. Hij komt als `bewerkingen` op de offerteregel,
+en bij het accepteren als `machine` op de productiestap. Daar moeten de terminal
+en de planning hem kunnen herleiden tot een machine uit de lijst — anders
+verdwijnt het werk uit de wachtrij van de machine waar het op staat (zie de
+klacht van dezelfde dag hierboven). Een vrij typbare naam dreef daarvan af zodra
+iemand de knoop anders noemde dan de machine, of een machine hernoemde.
+
+Opgelost via `machineId` en niet één keer weggeschreven, zodat het hernoemen van
+een machine meteen doorwerkt in nieuwe offertes. Valt de `machineId` niet te
+herleiden — geen machine gekozen, of een machine die verwijderd is — dan blijft
+de naam van de knoop staan: een bewerking zonder naam is erger dan een bewerking
+met de verkeerde. Het dedupliceren gebeurt op de opgeloste naam, dus twee
+knopen op dezelfde machine leveren één stap op in plaats van twee identieke.
+
+**Wat niet meeverandert:** `bewerkingen` op een bestaande offerteregel is
+bevroren (zie de opmerking in `api/projects.ts`) en de `machine` op bestaande
+productiestappen blijft staan. Die dragen dus nog de oude tekst. De wachtrij van
+de terminal gaat daar sinds dezelfde dag netjes mee om, dus een migratie is niet
+nodig.
+
+`PrijsBronnen.machines` heeft er daarvoor een `name` bij gekregen; alle
+aanroepers (artikelkiezer, mail-import, prijzen bijwerken, en de prijssnapshot
+in de API) geven hem mee.
+
+---
+
+## 2026-09-14 — Terminal: wachtrijfilter op machine-identiteit, en gereedmelden vanaf de machine
+
+**Aanleiding:** drie klachten van de werkvloer op één dag — de gekoppelde
+terminal filterde verkeerd, starten en stoppen van de klok "leek niets te
+doen", en een bewerking kon niet gereedgemeld worden.
+
+**1. Een tekst die geen machine benoemt kan ook geen machine uitsluiten.**
+
+Op een productiestap staat de machine als tékst: `geplandMachine` als de
+planning hem heeft toegewezen, anders `machine` — en dat laatste is bij een
+order uit een geaccepteerde offerte gewoon de naam van de bewerking
+(`machine: naam` in `api/projects.ts`). Die tekst hoeft dus helemaal geen
+machine te benoemen. De terminal vergeleek hem rechttoe rechtaan met de naam
+van de gekoppelde machine, en dan verdwijnt al het werk zodra de bewerking
+anders heet dan de machine. Gemeten: terminal gekoppeld aan "DMG 450TC
+EcoLine" toonde `(0)` en "Geen openstaand werk" terwijl er twee stappen open
+stonden, met bewerkingen "DMG" en "Draaien".
+
+De regel staat nu in `apps/web/src/utils/terminal-wachtrij.ts`: benoemt de
+tekst een bestaande machine, dan geldt die toewijzing strikt; benoemt hij er
+geen, dan is de stap aan geen machine toegewezen en hoort hij op elke terminal
+zichtbaar te zijn — met een badge "niet ingepland", zodat niemand denkt dat
+hij voor deze machine bedoeld was. Namen worden vergeleken zoals een mens ze
+leest (spaties en hoofdletters tellen niet), verder wordt er niet geraden.
+
+En: nooit "geen openstaand werk" zeggen terwijl er werk ligt. Is de eigen
+wachtrij leeg maar staan er elders stappen open, dan zegt het scherm hoeveel
+en waar — anders zet de operator hem uit.
+
+**2. Een knop die niets zegt, doet niets — voor wie ervoor staat.**
+
+De klok werkte wel (registraties stonden gewoon in de database), maar het
+scherm bevestigde niets. De terminal staat op anderhalve meter en de operator
+kijkt er kort op. Start, pauze, hervat, wisselen en gereedmelden geven nu een
+melding op leesformaat.
+
+**3. Gereedmelden hoort bij de machine, niet bij kantoor.**
+
+"Stap klaar" stopte alleen de klok. De stap bleef daarna gewoon in de
+wachtrij staan — dat was de directe aanleiding voor klacht 2. De knop meldt de
+stap nu gereed via de bestaande route
+`POST /projects/:id/orders/:orderId/stap/:stapId/check`, met een bevestiging
+ervoor: terugzetten kan alleen op kantoor.
+
+Drie keuzes daarbij:
+- **De server rondt de klok af, in dezelfde transactie als het gereedmelden**
+  (`rondAfVoorStap` in `services/tijdregistratie.ts`). Een gereedgemelde stap
+  met een lopende klok telt door — `lopendSinds` is een tijdstip, geen teller
+  — en de nacalculatie groeit dan na afloop van het werk nog dagen door. Dit
+  geldt ook voor het afvinken op kantoor, dat hetzelfde probleem had.
+- **Gereedmelden kan ook zonder klok.** Wie vergeet te klokken moet het werk
+  alsnog kunnen afmelden; anders blijft de order eeuwig open en klopt de
+  planning niet meer. Het scherm zegt dan expliciet dat er geen tijd geboekt
+  wordt.
+- **De terminal wacht op de server.** `checkOffStap` is optimistisch met een
+  melding achteraf; dat kan hier niet, want de operator loopt weg zodra het
+  scherm "klaar" zegt. `meldStapGereed` is awaited.
+
+`middleware/terminal-scope.ts` kreeg daarvoor schrijfrecht per regel in plaats
+van "alles behalve de klok is alleen-lezen", en één extra regel voor die ene
+check-route — vóór de brede `/projects`-regel, want de eerste die past wint.
+Geen `/projects`-breed schrijfrecht: een terminal die offertes kan wijzigen is
+een prijslijst in de hal.
+
+---
+
 ## 2026-07-21 — Kanban and Gantt planning boards removed; Wachtrij is now the only planning board
 
 **Decision:** Deleted `PlanningKanbanPage`/`components/planning-kanban/*`/`planningKanbanUtils.ts` and `PlanningGanttPage`/`components/planning-gantt/*`, plus their routes (`/planning-kanban`, `/planning-gantt`), nav entries, and popout registrations. Also removed the already-orphaned `/planning` route (`PlanningPage.tsx`) — a third, older weekly-grid planner that was unreachable from nav/breadcrumb/popout even before this change — and its sole backend dependent, the `unplanOrder` API wrapper and `POST /projects/:id/orders/:orderId/unplan` route.
@@ -866,3 +996,134 @@ Bevestigen rekent het plan bewust **niet** opnieuw uit: tussen tonen en
 bevestigen kan iemand anders materiaal weggehaald hebben, en dan hoort de
 reservering te botsen (409, dezelfde controle als bij handmatig reserveren) in
 plaats van stilletjes iets anders vast te leggen.
+
+## 2026-09-13 — CI zweeg twee dagen: een conflicterende PR draait niet
+
+PR #26 stond van 11 tot 13 september open zonder ook maar één workflow-run,
+terwijl de workflow gewoon `active` was en er geen quotum bereikt was. Twee
+oorzaken, allebei procesfouten en geen storing:
+
+1. **De push had geen PR om aan te hangen.** De workflow triggert op
+   `push: branches: [master]` en op `pull_request`. Toen de commit gepusht werd
+   was de vorige PR voor diezelfde branch net gemerged en dus gesloten; er was op
+   dat moment geen open PR, en de branch is geen master. Geen van beide triggers
+   paste.
+
+2. **De PR was vanaf zijn geboorte conflicterend** (`mergeable_state: dirty`).
+   Een `pull_request`-workflow draait tegen de merge-ref, niet tegen de branch.
+   Bij een conflict kan GitHub die ref niet maken en start er niets — zonder
+   melding, zonder rood vinkje. De PR blijft er leeg bij staan.
+
+Het conflict ontstond doordat master de vorige PR als **squash**-commit droeg
+terwijl de branch nog de originele commit had: dezelfde inhoud, andere commit.
+Bewijs voor de oorzaak zit in de tijdstempels — de branch werd om 09:53:13
+opnieuw bovenop master gezet en de eerste run verscheen om 09:54:36.
+
+De regel die dit voorkomt staat in `CLAUDE.md` onder "Na een squash-merge:
+branch eerst gelijktrekken": `git fetch origin && git checkout -B <branch>
+origin/master` vóór elk nieuw stuk werk.
+
+Wat dit vooral leert: het ontbreken van een rood vinkje is geen bewijs dat er
+getest is. Bij het melden van "CI groen" hoort gecontroleerd te worden dát er een
+run bestaat voor de betreffende commit, niet alleen dat er niets roods staat.
+
+## 2026-09-13 — Tijdregistratie en nacalculatie
+
+**Registratie spiegelt de calculatie.** Eén rij per klok, met `soort`
+('instellen' of 'draaien') en `bemand` erop. Dat is dezelfde splitsing als
+`computeEstimateTotals`: insteltijd telt één keer per batch, cyclustijd per
+stuk. Zonder dat onderscheid tellen twee soorten tijd op in één post en is een
+nacalculatie een tabel waar geen conclusie uit te trekken valt.
+
+Wisselen van instellen naar draaien, of van bemand naar onbemand, sluit de
+lopende regel af en begint een nieuwe — het is geen bewerking van dezelfde
+meting.
+
+**Eén definitie van "werkelijk".** `effectieveSeconden` in
+`packages/shared/schemas/tijdregistratie.ts` is de enige plek die bepaalt wat
+een registratie heeft opgeleverd: een correctie wint van de meting, een lopende
+klok telt door vanaf `lopendSinds`. De server stuurt het resultaat als
+`seconden` mee, zodat wachtrij en terminal nooit een ander getal tonen.
+
+`lopendSinds` in plaats van een teller: zo overleeft een lopende klok een
+herstart van de server zonder tijd te verzinnen.
+
+**Corrigeren mag, wissen niet.** `gemetenSeconden` blijft altijd staan naast
+`bijgesteldeSeconden`, met een verplichte reden. Het verschil tussen wat de klok
+zag en wat een mens ervan maakte is zelf een signaal: wordt er elke week
+bijgesteld, dan klopt er iets niet aan de manier van registreren. Automatisch
+afsluiten van een vergeten klok doen we niet — dat zou tijd verzinnen. Zo'n klok
+wordt gemarkeerd (meer dan zes uur), een mens beslist.
+
+**Nacalculatie wordt afgeleid, nooit opgeslagen.** Een bewaarde nacalculatie
+loopt stil achter zodra er een uur bijkomt of een correctie gemaakt wordt.
+`services/nacalculatie.ts` leest de uren uit de tijdregistratie, het materiaal
+uit de **afgeboekte** zaagbonnen (open reserveringen hebben nog niets verbruikt)
+en de verkoopprijs uit de offerteregel.
+
+Zonder metingen tonen we het gecalculeerde bedrag als "werkelijk", niet nul: een
+nul leest als besparing terwijl er alleen nog niets geklokt is.
+
+Onbemande uren rekenen alleen het machinetarief; de calculatie rekent altijd met
+machine + operator. Dat verschil hoort zichtbaar te zijn, want dat is precies
+wat onbemand draaien oplevert.
+
+**`setupMin` en `cycleMinPerPiece` toegevoegd aan `EstimateTotals`.** `timeMin`
+alleen was niet genoeg: die telt setup en cyclus bij elkaar op, en ze achteraf
+scheiden via de kostenverhouding klopt alleen als elke machine hetzelfde
+uurtarief heeft. In de kern zijn ze exact bekend, dus geven we ze mee.
+
+**Norm bijstellen is het punt van de hele feature.** Zonder terugkoppeling naar
+de calculatie is een nacalculatie een rapport dat niemand leest. `stelNormBij`
+past de machinenode van het artikel aan (naar rato over meerdere nodes) en de
+route schrijft er een prijssnapshot achteraan, zodat de bijstelling ook als punt
+in het prijsverloop verschijnt. Advies pas vanaf drie metingen — twee
+uitschieters zijn geen norm.
+
+Fout die dit opleverde en hier blijft staan: de eerste versie sloeg nodes zonder
+`steps` stilzwijgend over, waardoor een gemeten cyclustijd van 24 min/stuk
+nergens landde bij ART-0001 (calculatie bleef op 0 staan). Een calculatie waarin
+alleen de insteltijd is ingevuld is het gewone geval, niet de uitzondering.
+
+**Rol `terminal` voor de werkvloer-pc.** Geen aparte app: dat betekent een tweede
+build, een tweede deploy op de NAS en een tweede kopie van de API-client, voor
+een probleem dat een rol oplost. Wél een derde rol, want de app toont
+kostprijzen en klantgegevens en een naam is geen slot.
+
+`middleware/terminal-scope.ts` is bewust een **toelaat**lijst: een nieuwe route
+is dan standaard dicht voor de terminal in plaats van standaard open. Een
+vergeten regel levert hooguit een kapot kioskscherm op, geen prijslijst in de hal.
+
+Het terminal-account identificeert de **machine**. Wie er staat kiest zichzelf op
+het scherm bij het starten van bemand werk; onbemand werk heeft geen naam nodig.
+Zonder die stap komen de manuren op het machine-account terecht.
+
+## 2026-09-14 — Terminal aan een machine koppelen
+
+**De wachtrij liep op accountnaam.** Dat werkt alleen als het account exact heet
+zoals wat er op de productiestap staat. Heette de stap "Draaibank" en het
+account "DMG 450TC EcoLine", dan bleef het scherm leeg terwijl er werk lag — en
+er is niets dat dat zegt. `User.machineId` verwijst nu naar een `Machine`; een
+verwijzing kan niet uit de pas lopen met een hernoeming.
+
+Hangt een terminal nergens aan, dan tonen we álles met een melding erbij. Een
+lijst die te lang is, is minder erg dan een leeg scherm terwijl er werk ligt.
+
+**Werk van een andere machine mag.** Planning verandert op het laatste moment:
+een klus die voor de Doosan stond kan alsnog op de DMG. De terminal toont
+standaard de eigen wachtrij met een schakelaar naar alles, en zet op de kaart
+waar de stap oorspronkelijk gepland stond.
+
+**Daar hangt een rekenkundig gevolg aan.** Gebeurt het werk op een andere
+machine dan gepland, dan horen die uren tegen het tarief van de machine die ze
+maakt. `StartTijd.machineNaam` legt dat vast; leeg valt terug op de geplande
+machine, wat klopt voor de wachtrij op kantoor. Zonder dit zou de nacalculatie
+rekenen met het uurtarief van een machine die stilstond — en dat is precies het
+soort stille fout waar deze hele feature tegen bedoeld is.
+
+Wisselen tussen instellen en draaien neemt de machine mee: het werk staat nog op
+dezelfde bank. Zonder dat viel hij bij elke wissel terug op de geplande machine
+en verdween een omgeboekte klus stilletjes weer.
+
+De kop van de terminal noemt de gekoppelde machine, niet de accountnaam: die
+twee kunnen uiteenlopen en het is de machine die het tarief bepaalt.

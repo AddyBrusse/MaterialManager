@@ -6,7 +6,7 @@ import {
   IconLayersLinked, IconInbox, IconSettings, IconList,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
   IconClipboardList, IconChartBar, IconArrowsSort, IconCheck, IconLogout, IconFileText,
-  IconChecklist, IconListNumbers, IconExternalLink,
+  IconChecklist, IconListNumbers, IconExternalLink, IconClock,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery } from '@tanstack/react-query'
@@ -36,6 +36,7 @@ import { DocumentenPage } from '../../routes/desktop/DocumentenPage'
 import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
+import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
 import { todosApi } from '../../api/todos'
 import { GlobalTabs } from './GlobalTabs'
 import { pageTabs } from '../../utils/pageTabs'
@@ -69,8 +70,11 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
 
   function handleSelectUser(u: User) {
     setUser({
-      id: u.id, name: u.name, role: u.role as 'admin' | 'user',
+      id: u.id, name: u.name, role: u.role as 'admin' | 'user' | 'terminal',
       email: u.email, achternaam: u.achternaam, titel: u.titel,
+      // Nodig zodra je naar een terminal wisselt: die leest zijn wachtrij uit
+      // de koppeling aan een machine.
+      machineId: u.machineId,
     })
   }
 
@@ -94,6 +98,7 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
         { to: '/planning-queue',  label: 'Wachtrij', Icon: IconListNumbers,  count: null },
         { to: '/prognose',        label: 'Prognose', Icon: IconChartBar,     count: null },
         { to: '/todos',           label: 'ToDo',      Icon: IconChecklist,   count: openTodoCount || null },
+        { to: '/tijdregistratie', label: 'Tijdregistratie', Icon: IconClock, count: null },
       ],
     },
     {
@@ -125,7 +130,16 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   ]
 
   const initials = user ? getInitials(user.name) : '?'
-  const role = user?.role === 'admin' ? 'Beheerder' : 'Operator'
+  // Drie rollen, één plek. Een terminal komt hier in de praktijk nooit — die
+  // krijgt de kioskroute en ziet deze zijbalk niet — maar de tweedeling
+  // "admin of anders operator" liet hem als Operator lezen, en dat is precies
+  // de rol die hij niet heeft. Zelfde correctie als in Instellingen.
+  const ROL_NAAM: Record<string, string> = {
+    admin: 'Beheerder',
+    user: 'Operator',
+    terminal: 'Terminal',
+  }
+  const role = ROL_NAAM[user?.role ?? ''] ?? 'Operator'
 
   return (
     <aside className="st-sidebar">
@@ -220,6 +234,7 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/planning-queue':  ['Planning',       'Wachtrij'],
   '/prognose':        ['Planning',       'Prognose'],
   '/todos':           ['Planning',       'ToDo'],
+  '/tijdregistratie': ['Planning',       'Tijdregistratie'],
   '/projecten':       ['Productie',      'Projecten'],
   '/zaagcalculator':  ['Productie',      'Zaagcalculator'],
   '/zaagplanner':     ['Productie',      'Zaagplanner'],
@@ -319,6 +334,7 @@ export function AppLayout() {
             <Route path="/planning-queue"  element={<PopoutAware path="/planning-queue" label="Wachtrij" openRoutes={openRoutes}><PlanningQueuePage /></PopoutAware>} />
             <Route path="/prognose"        element={<PopoutAware path="/prognose" label="Prognose" openRoutes={openRoutes}><PrognosePage /></PopoutAware>} />
             <Route path="/todos"           element={<PopoutAware path="/todos" label="ToDo" openRoutes={openRoutes}><TodosPage /></PopoutAware>} />
+            <Route path="/tijdregistratie" element={<PopoutAware path="/tijdregistratie" label="Tijdregistratie" openRoutes={openRoutes}><TijdregistratiePage /></PopoutAware>} />
             <Route path="*"               element={<Navigate to="/voorraad" replace />} />
           </Routes>
         </div>

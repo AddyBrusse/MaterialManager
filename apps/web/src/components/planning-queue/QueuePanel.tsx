@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { DragEvent } from 'react'
+import type { DragEvent, ReactNode } from 'react'
 import { IconGripVertical } from '@tabler/icons-react'
 import type { Machine } from '../../api/machines'
 import { type QueueJob, type DerivedSlot, isAtRisk, machineAccentColor, computeLatestStart } from '../../utils/planningQueueUtils'
@@ -25,11 +25,14 @@ interface QueuePanelProps {
   onDragEnd: () => void
   onDropOnCard: (e: DragEvent, beforeId: string) => void
   onDropAtEnd: (e: DragEvent) => void
+  /** Het klokblok voor een stap, of null als er geen klok op loopt. De wachtrij
+   *  zelf weet niets van tijdregistratie; de pagina levert het blok aan. */
+  klokVoor?: (stapId: string) => ReactNode
 }
 
 export function QueuePanel({
   machines, selectedMachine, onSelectMachine, bezettingByMachine, jobs, schedule, verplichtKlaar, windowStart,
-  selectedId, onSelect, draggingId, onDragStart, onDragEnd, onDropOnCard, onDropAtEnd,
+  selectedId, onSelect, draggingId, onDragStart, onDragEnd, onDropOnCard, onDropAtEnd, klokVoor,
 }: QueuePanelProps) {
   // Purely-visual drop indicator: id of the card the insert-line sits above,
   // or DROP_END for the bottom of the list. Local state — it never affects the
@@ -112,6 +115,7 @@ export function QueuePanel({
                 selected={selectedId === job.id}
                 risk={risk}
                 latestStart={computeLatestStart(job, verplichtKlaar, windowStart)}
+                klok={klokVoor?.(job.id)}
                 onClick={() => onSelect(job)}
               />
             </div>

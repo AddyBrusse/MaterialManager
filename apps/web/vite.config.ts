@@ -10,6 +10,13 @@ export default defineConfig({
     },
   },
   server: {
+    // Luister op alle netwerkkaarten, niet alleen localhost. Zonder dit meldt
+    // Vite "Network: use --host to expose" en weigert een andere pc op het LAN
+    // de verbinding — gemeten 2026-09-14: localhost gaf 200, het LAN-adres niets.
+    // De werkvloer-pc draait de terminal in een browser en moet erbij kunnen,
+    // ook als de app met `npm run dev` draait in plaats van gebouwd.
+    // Past bij de opzet van deze app: LAN-only, geen wachtwoorden (01-architecture.md).
+    host: true,
     port: Number(process.env.PORT) || 5173,
     proxy: {
       '/api': 'http://localhost:3000',

@@ -99,7 +99,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
       naam: article.naam,
       tekening: article.tekening ?? null,
       rev: article.rev ?? null,
-      machines: bewerkingenVan(article),
+      machines: bewerkingenVan(article, machines),
       materiaal: getMateriaal(article),
       kostprijs,
       qty: 1,
@@ -267,7 +267,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
                   </tr>
                 ) : filtered.map(article => {
                   const isStaged     = staged.some(s => s.artikelId === article.id)
-                  const machineCh    = bewerkingenVan(article)
+                  const machineCh    = bewerkingenVan(article, machines)
                   const kostprijs    = getKostprijs(article)
                   const verkoopprijs = article.estimate
                     ? Math.round(kostprijs * (1 + (article.estimate.marginPct ?? 20) / 100) * 100) / 100

@@ -439,6 +439,31 @@ export const projectsApi = {
     return updated
   },
 
+  /**
+   * Een stap gereedmelden en daarop wachten.
+   *
+   * `checkOffStap` hierboven is optimistisch: het scherm loopt vooruit en een
+   * mislukte opslag komt later als melding binnen. Op de terminal kan dat niet
+   * — de operator loopt weg zodra het scherm "klaar" zegt, en een stap die
+   * daarna toch niet is afgemeld staat morgen nog in de wachtrij. Dus hier
+   * wachten we op de server en geeft een fout een fout.
+   *
+   * De server rondt in dezelfde transactie een nog lopende klok af; zou dat
+   * hier gebeuren, dan kon het ertussenuit vallen.
+   */
+  async meldStapGereed(
+    projectId: string, orderId: string, stapId: string,
+    userName: string, aantalStuks: number | null,
+  ): Promise<Project> {
+    const { data } = await apiFetch<Project>(
+      `/projects/${projectId}/orders/${orderId}/stap/${stapId}/check`,
+      { method: 'POST', body: JSON.stringify({ userName, aantalStuks }) },
+    )
+    cache = cache.map(p => (p.id === projectId ? data : p))
+    saveLocal(cache)
+    return data
+  },
+
   uncheckStap(projectId: string, orderId: string, stapId: string): Project {
     const updated = updateCache(projectId, p => {
       const orders = p.productieOrders.map(o => {

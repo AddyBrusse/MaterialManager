@@ -1,4 +1,4 @@
-import type { DragEvent } from 'react'
+import type { DragEvent, ReactNode } from 'react'
 import {
   type QueueJob, type DerivedSlot, machineAccentColor, isAtRisk, computeLatestStart,
 } from '../../utils/planningQueueUtils'
@@ -19,11 +19,14 @@ interface QueueBacklogProps {
   onDragOver: (e: DragEvent) => void
   onDragLeave: () => void
   onDrop: (e: DragEvent) => void
+  /** Het klokblok voor een stap. Ook backlogwerk kan geklokt worden: of iets
+   *  ingepland is zegt niets over of er nu aan gewerkt wordt. */
+  klokVoor?: (stapId: string) => ReactNode
 }
 
 export function QueueBacklog({
   jobs, machines, schedule, verplichtKlaar, windowStart, selectedId, onSelect, onDragStart, onDragEnd,
-  isDropTarget, onDragOver, onDragLeave, onDrop,
+  isDropTarget, onDragOver, onDragLeave, onDrop, klokVoor,
 }: QueueBacklogProps) {
   return (
     <div className="wq-backlog">
@@ -50,6 +53,7 @@ export function QueueBacklog({
               selected={selectedId === job.id}
               risk={isAtRisk(job, schedule.get(job.id), verplichtKlaar, windowStart)}
               latestStart={computeLatestStart(job, verplichtKlaar, windowStart)}
+              klok={klokVoor?.(job.id)}
               draggable
               onDragStart={e => onDragStart(e, job)}
               onDragEnd={onDragEnd}

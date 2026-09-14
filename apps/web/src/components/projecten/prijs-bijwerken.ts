@@ -84,7 +84,7 @@ export function berekenBijwerkingen(
     const nieuw = {
       ...basis,
       nieuweVerkoopprijs: verkoopprijs,
-      nieuweBewerkingen: bewerkingenVan(artikel),
+      nieuweBewerkingen: bewerkingenVan(artikel, bronnen.machines),
     }
 
     // In centen vergelijken: twee bedragen die op de cent gelijk zijn horen niet

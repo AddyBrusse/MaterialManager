@@ -1,0 +1,324 @@
+/* Tijdregistratie — de klok, en wat er vandaag geregistreerd is.
+ *
+ * Alle kleuren en maten komen uit tokens.css; hier staat alleen wat specifiek
+ * is voor de klok. Prefix `tr-` zodat deze regels nooit botsen met de generieke
+ * namen in planning-queue.css (.qjob, .kpi, …) die daar onder .pg-root leven.
+ */
+
+/* ── Het klokblok op een wachtrijkaart ──────────────────────────────────── */
+
+.tr-klok {
+  margin-top: 6px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.tr-klok.is-pauze { background: var(--warning-soft); }
+.tr-klok.is-onbemand { background: var(--bg-chip); }
+
+.tr-klok-top { display: flex; align-items: center; gap: 7px; }
+
+/* Een pulserende stip leest als "dit loopt nu" zonder er een woord aan te
+   hoeven besteden. Staat stil zodra de klok op pauze staat. */
+.tr-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.tr-klok.is-lopend .tr-dot { animation: tr-puls 2s ease-in-out infinite; }
+.tr-klok.is-pauze .tr-dot { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-soft); }
+.tr-klok.is-onbemand .tr-dot { background: var(--text-3); box-shadow: 0 0 0 3px var(--bg-chip); }
+
+@keyframes tr-puls {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .45; }
+}
+/* Wie beweging liever niet ziet, krijgt hem niet. */
+@media (prefers-reduced-motion: reduce) {
+  .tr-klok.is-lopend .tr-dot { animation: none; }
+}
+
+.tr-tijd {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 16px; font-weight: 500;
+  letter-spacing: -.02em;
+  color: var(--text);
+}
+.tr-soort {
+  margin-left: auto;
+  font-size: 10.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+  color: var(--accent);
+}
+.tr-klok.is-pauze .tr-soort { color: var(--warning); }
+.tr-klok.is-onbemand .tr-soort { color: var(--text-2); }
+
+.tr-wie {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10.5px; color: var(--text-2);
+}
+.tr-knoppen { display: flex; gap: 5px; }
+.tr-knoppen .st-btn { height: 26px; font-size: 11.5px; padding: 0 9px; flex: 1; justify-content: center; }
+
+/* ── De grote klok in het zijpaneel en op de terminal ────────────────────── */
+
+.tr-groot {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 32px; font-weight: 500;
+  letter-spacing: -.03em; line-height: 1;
+  color: var(--text);
+}
+.tr-groot.is-xl { font-size: 68px; letter-spacing: -.04em; }
+
+/* Het paneel onder de wachtrijdetails. Eigen omhulsel en niet
+   .wq-details-panel hergebruikt: die legt een label/waarde-raster op waardoor
+   de klok naast het kopje belandde in plaats van eronder. */
+.tr-paneel-wrap {
+  border-top: 1px solid var(--border);
+  background: var(--bg-2);
+  padding: 12px 14px;
+}
+.tr-paneel { display: flex; flex-direction: column; gap: 10px; }
+.tr-paneel .st-kv {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; font-size: 12px; color: var(--text-2);
+}
+.tr-paneel-kop { display: flex; align-items: center; gap: 10px; }
+
+/* Segmentkeuze instellen|draaien en bemand|onbemand. Twee standen naast
+   elkaar leest sneller dan een keuzelijst, en je ziet meteen wat je níét bent. */
+.tr-seg {
+  display: inline-flex;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-2);
+}
+.tr-seg button {
+  border: 0; background: transparent;
+  font-family: var(--font-sans); font-size: 12px; font-weight: 500;
+  color: var(--text-2); padding: 0 11px; height: 28px;
+  cursor: pointer; white-space: nowrap;
+}
+.tr-seg button + button { border-left: 1px solid var(--border); }
+.tr-seg button.is-actief { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.tr-seg button:disabled { cursor: not-allowed; opacity: .5; }
+
+/* ── Waarschuwing: deze klok loopt te lang ──────────────────────────────── */
+
+.tr-telang {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 9px 11px;
+  background: var(--warning-soft);
+  border-left: 3px solid var(--warning);
+  border-radius: var(--radius-sm);
+  font-size: 12px; color: var(--text-2); line-height: 1.5;
+}
+.tr-telang svg { color: var(--warning); flex-shrink: 0; margin-top: 1px; }
+
+/* ── Correctiemodal ──────────────────────────────────────────────────────── */
+
+/* Het gemeten blok is met opzet niet te bewerken: de klokwaarde blijft staan
+   naast de correctie, want dat verschil is zelf een signaal. */
+.tr-gemeten {
+  background: var(--bg-sidebar);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.tr-gemeten-lbl {
+  font-size: 10.5px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-3);
+}
+.tr-gemeten-val {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-size: 14px; color: var(--text); margin-top: 3px;
+}
+
+.tr-uitleg {
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 12px; line-height: 1.55; color: var(--text-2);
+}
+
+/* ── Terminal: het scherm bij de machine ─────────────────────────────────── */
+
+/* Lichte stijl, dezelfde tokenset als de rest. Knoppen groot genoeg voor
+   vingers met handschoenen aan. */
+.tr-term { height: 100vh; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+.tr-term-top {
+  height: 72px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border); background: var(--bg-sidebar);
+  display: flex; align-items: center; padding: 0 24px; gap: 18px;
+}
+.tr-term-body { flex: 1; display: flex; min-height: 0; }
+.tr-term-wachtrij {
+  width: 422px; flex-shrink: 0;
+  border-right: 1px solid var(--border); background: var(--bg-sidebar);
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+/* Eigen merkvlak: .st-sb-brand-mark uit tokens.css is gestyled voor een <img>
+   in de zijbalk (object-fit), niet voor een letter in een gekleurd vlak. */
+.tr-term-merk {
+  width: 38px; height: 38px; flex-shrink: 0;
+  border-radius: var(--radius);
+  background: var(--danger); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 16px;
+}
+
+/* Derde kolom: de tekening bij de actieve stap. */
+.tr-term-tekening {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  padding: 18px 22px; background: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+.tr-term-doek {
+  flex: 1; margin-top: 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+.tr-term-doek img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+/* Routing: welke stap is klaar, welke loopt, wat komt er nog. */
+.tr-route { display: flex; flex-direction: column; gap: 2px; margin-top: 10px; }
+.tr-route-rij {
+  display: flex; align-items: center; gap: 11px;
+  padding: 9px 2px; font-size: 15px; color: var(--text-2);
+  border-bottom: 1px solid var(--border);
+}
+.tr-route-rij:last-child { border-bottom: 0; }
+.tr-route-rij.is-nu { color: var(--text); font-weight: 600; }
+.tr-route-bol {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--border-strong);
+  display: flex; align-items: center; justify-content: center;
+}
+.tr-route-bol.is-klaar { border-color: var(--success); color: var(--success); }
+.tr-route-bol.is-nu { border-color: var(--accent); background: var(--accent-soft); }
+.tr-route-bol.is-nu::after {
+  content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+}
+
+/* Materiaal bij de actieve stap: welke staaf, welke lengte. */
+.tr-mat {
+  margin-top: 10px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.tr-mat-groot { font-size: 16px; font-weight: 600; color: var(--text); }
+.tr-mat-sub { font-size: 13.5px; color: var(--text-2); margin-top: 2px; }
+.tr-mat-sep { width: 1px; height: 34px; background: var(--border); }
+
+.tr-term-midden {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; padding: 18px 22px;
+  overflow-y: auto;
+}
+
+.tr-tbtn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  height: 64px; border-radius: var(--radius-lg);
+  border: 1px solid var(--border-input); background: var(--bg-2);
+  color: var(--text); font-size: 17px; font-weight: 600;
+  font-family: var(--font-sans); cursor: pointer;
+}
+.tr-tbtn:disabled { opacity: .45; cursor: not-allowed; }
+.tr-tbtn.is-primair { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* 'stap klaar' staat het verst van de rand: niet per ongeluk te raken bij het
+   schoonvegen van het scherm. */
+.tr-tbtn.is-klaar { height: 84px; font-size: 20px; margin-top: auto; }
+
+/* De bevestiging van 'stap klaar'. Neemt dezelfde plek in als de knop zelf
+   (margin-top: auto), zodat de rest van het scherm niet verspringt op het
+   moment dat er een keuze gemaakt moet worden. */
+.tr-bevestig {
+  margin-top: auto;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  padding: 16px 18px;
+}
+.tr-bevestig-t { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.tr-bevestig-s { font-size: 15px; color: var(--text-2); margin-top: 6px; line-height: 1.45; }
+
+.tr-tcard {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  padding: 12px 13px;
+  display: flex; flex-direction: column; gap: 4px;
+  text-align: left; width: 100%; cursor: pointer;
+  font-family: var(--font-sans);
+}
+.tr-tcard.is-actief { border-left-color: var(--accent); background: var(--accent-soft); }
+.tr-tcard-m { font-size: 15px; font-weight: 700; color: var(--text); }
+.tr-tcard-d { font-size: 14px; font-weight: 600; color: var(--text); }
+.tr-tcard-k { font-size: 12.5px; color: var(--text-2); }
+.tr-tcard-q { font-size: 12px; color: var(--text-3); font-family: var(--font-mono); }
+
+/* Operatorkeuze: wie staat er aan deze machine. Grote vlakken, want dit wordt
+   met een handschoen aangetikt. */
+.tr-wie-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.tr-wie-knop {
+  height: 72px; border-radius: var(--radius-lg);
+  border: 1px solid var(--border-input); background: var(--bg-2);
+  font-family: var(--font-sans); font-size: 18px; font-weight: 600; color: var(--text);
+  cursor: pointer;
+}
+.tr-wie-knop.is-gekozen { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+
+/* ── Nacalculatie ────────────────────────────────────────────────────────── */
+
+/* Staaf = werkelijk, streepje = gecalculeerd. Eén gedeelde schaal per tabel,
+   zodat de rijen onderling vergelijkbaar zijn; kleur draagt nooit alleen de
+   boodschap — het percentage staat er altijd naast. */
+.tr-bul { position: relative; height: 14px; background: var(--bg-chip); border-radius: 3px; min-width: 120px; }
+.tr-bul-bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--text-3); }
+.tr-bul-bar.is-over { background: var(--warning); }
+.tr-bul-bar.is-onder { background: var(--success); }
+.tr-bul-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); border-radius: 1px; }
+
+.tr-delta {
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+  font-weight: 500; white-space: nowrap;
+}
+.tr-delta.is-over  { color: var(--warning); }
+.tr-delta.is-onder { color: var(--success); }
+
+/* De conclusie in gewone taal. Zonder dit blijft het een tabel waar iedereen
+   zelf een verhaal bij moet verzinnen. */
+.tr-conclusie {
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-lg);
+  padding: 13px 16px;
+  display: flex; align-items: center; gap: 22px;
+}
+.tr-conclusie-kop { flex-shrink: 0; width: 104px; }
+.tr-conclusie-titel { font-size: 12.5px; font-weight: 600; color: var(--accent); }
+.tr-conclusie-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.tr-conclusie-tekst { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.55; color: var(--text-2); }
+.tr-conclusie-actie { flex-shrink: 0; width: 250px; display: flex; flex-direction: column; gap: 8px; }
+.tr-conclusie-sep { width: 1px; align-self: stretch; background: var(--border); flex-shrink: 0; }
+
+@media (max-width: 900px) {
+  .tr-conclusie { flex-direction: column; align-items: stretch; gap: 12px; }
+  .tr-conclusie-kop, .tr-conclusie-actie { width: auto; }
+  .tr-conclusie-sep { display: none; }
+  .tr-gemeten { grid-template-columns: repeat(2, 1fr); }
+}

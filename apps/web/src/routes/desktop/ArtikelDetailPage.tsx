@@ -22,6 +22,7 @@ import { LocationPickerModal } from '../../components/articles/LocationPickerMod
 import { ArticleFilesTab } from '../../components/articles/ArticleFilesTab'
 import { ArticleHistoryTab, buildHistory } from '../../components/articles/ArticleHistoryTab'
 import { ArticlePrijshistorieTab } from '../../components/articles/ArticlePrijshistorieTab'
+import { ArtikelNacalculatieTab } from '../../components/nacalculatie/ArtikelNacalculatieTab'
 import { Ic, Icon, TypeGlyph, type GlyphKind } from '../../components/articles/calc-icons'
 
 const EMPTY_EST: ArticleEstimate = { marginPct: 35, nodes: [], updatedAt: '' }
@@ -55,7 +56,7 @@ function profileToGlyphKind(formula?: string): GlyphKind {
   }
 }
 
-type Tab = 'calculatie' | 'bestanden' | 'prijshistorie' | 'historie'
+type Tab = 'calculatie' | 'bestanden' | 'nacalculatie' | 'prijshistorie' | 'historie'
 
 export function ArtikelDetailPage() {
   const { id = '' } = useParams()
@@ -295,6 +296,9 @@ export function ArtikelDetailPage() {
         <button data-active={tab === 'bestanden'} onClick={() => setTab('bestanden')}>
           <Ic d={Icon.file} />Bestanden{article.attachments.length > 0 && <span className="tab-count">{article.attachments.length}</span>}
         </button>
+        <button data-active={tab === 'nacalculatie'} onClick={() => setTab('nacalculatie')}>
+          <Ic d={Icon.calc} />Nacalculatie
+        </button>
         <button data-active={tab === 'prijshistorie'} onClick={() => setTab('prijshistorie')}>
           <Ic d={Icon.euro} />Prijshistorie
         </button>
@@ -314,6 +318,7 @@ export function ArtikelDetailPage() {
             setMachine={attachmentUpload.setMachine}
           />
         )}
+        {tab === 'nacalculatie' && <ArtikelNacalculatieTab artikelId={article.id} />}
         {tab === 'prijshistorie' && <ArticlePrijshistorieTab articleId={article.id} />}
         {tab === 'historie' && <ArticleHistoryTab events={historyEvents} />}
       </div>

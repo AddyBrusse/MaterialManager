@@ -38,6 +38,7 @@ export async function bronnenLaden(db: Db): Promise<PrijsBronnen> {
     profiles: profiles.map((p) => ({ id: p.id, volumeFormula: p.volumeFormula })),
     machines: machines.map((m) => ({
       id: m.id,
+      name: m.name,
       machineRatePerHour: num(m.machineRatePerHour),
       operatorRatePerHour: num(m.operatorRatePerHour),
     })),

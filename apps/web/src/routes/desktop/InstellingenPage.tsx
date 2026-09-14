@@ -6,6 +6,7 @@ import { MateriaalbeheerPage } from '../../components/settings/MateriaalbeheerPa
 import { OverheadPage }        from '../../components/settings/OverheadPage'
 import { companyApi }          from '../../api/company'
 import { usersApi }            from '../../api/users'
+import { machinesApi }         from '../../api/machines'
 import type { Company, User, CreateUser } from '@stockmanager/shared'
 
 // ── shared primitives ─────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ function BedrijfTab() {
       notifications.show({ color: 'green', message: 'Bedrijfsgegevens opgeslagen' })
       setDirty(false)
     },
-    onError: () => notifications.show({ color: 'red', message: 'Opslaan mislukt' }),
+    onError: meldFout('Opslaan mislukt'),
   })
 
   function field(key: keyof Company) {
@@ -161,15 +162,44 @@ function BedrijfTab() {
   )
 }
 
+/**
+ * De reden die de server meestuurde, niet een kale "mislukt".
+ *
+ * Op 2026-09-14 gaf het aanmaken van een terminal-account alleen "Aanmaken
+ * mislukt", terwijl de server precies zei wat er aan de hand was: de database
+ * kende de nieuwe rol nog niet omdat de migratie niet gedraaid was. Die melding
+ * weggooien maakte een kwestie van één commando een zoektocht.
+ */
+function meldFout(titel: string) {
+  return (e: unknown) => notifications.show({
+    color: 'red',
+    title: titel,
+    message: e instanceof Error ? e.message : 'Onbekende fout',
+  })
+}
+
+const ROL_LABEL: Record<string, string> = {
+  admin: 'Beheerder',
+  user: 'Gebruiker',
+  terminal: 'Terminal',
+}
+const ROL_BADGE: Record<string, string> = {
+  admin: 'info',
+  user: '',
+  terminal: 'warn',
+}
+
 // ── Gebruikers tab ────────────────────────────────────────────────────────────
 
 interface UserRowProps {
   user: User
+  /** Om de gekoppelde machine bij naam te kunnen tonen en te laten kiezen. */
+  machines: { id: string; name: string }[]
   onSave: (id: string, patch: Partial<User>) => void
   onDelete: (id: string) => void
 }
 
-function UserRow({ user, onSave, onDelete }: UserRowProps) {
+function UserRow({ user, machines, onSave, onDelete }: UserRowProps) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ ...user })
 
@@ -199,7 +229,19 @@ function UserRow({ user, onSave, onDelete }: UserRowProps) {
           <select className="st-select" {...f('role')}>
             <option value="user">Gebruiker</option>
             <option value="admin">Beheerder</option>
+            <option value="terminal" title="Het account van een machinescherm op de werkvloer, geen persoon">Terminal</option>
           </select>
+        </td>
+        <td>
+          {/* De wachtrij van de terminal hangt aan deze koppeling, niet aan de
+              accountnaam: die moest anders exact gelijk zijn aan wat er op de
+              productiestap staat, en dat brak stilletjes bij een hernoeming. */}
+          {form.role === 'terminal' ? (
+            <select className="st-select" {...f('machineId')}>
+              <option value="">Kies machine…</option>
+              {machines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          ) : <span className="cell-muted">—</span>}
         </td>
         <td>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -230,9 +272,14 @@ function UserRow({ user, onSave, onDelete }: UserRowProps) {
       <td className="cell-muted cell-mono" style={{ fontSize: 11.5 }}>{user.email ?? '—'}</td>
       <td className="cell-muted cell-mono" style={{ fontSize: 11.5 }}>{user.telefoon ?? '—'}</td>
       <td>
-        <span className={`st-badge ${user.role === 'admin' ? 'info' : ''}`}>
-          <span className="dot" />{user.role === 'admin' ? 'Beheerder' : 'Gebruiker'}
+        <span className={`st-badge ${ROL_BADGE[user.role] ?? ''}`}>
+          <span className="dot" />{ROL_LABEL[user.role] ?? user.role}
         </span>
+      </td>
+      <td className="cell-muted" style={{ fontSize: 12.5 }}>
+        {user.role === 'terminal'
+          ? (machines.find((m) => m.id === user.machineId)?.name ?? 'niet gekoppeld')
+          : '—'}
       </td>
       <td>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -248,8 +295,17 @@ function UserRow({ user, onSave, onDelete }: UserRowProps) {
   )
 }
 
-function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
-  const empty = { name: '', achternaam: '', titel: '', email: '', telefoon: '', role: 'user' as const }
+function AddUserRow({ machines, onAdd }: {
+  machines: { id: string; name: string }[]
+  onAdd: (u: CreateUser) => void
+}) {
+  // role niet `as const`: dan versmalt het type tot 'user' en is 'terminal' niet
+  // meer toe te kennen. machineId hoort erbij voor de koppeling aan een machine.
+  const empty = {
+    name: '', achternaam: '', titel: '', email: '', telefoon: '',
+    role: 'user' as 'admin' | 'user' | 'terminal',
+    machineId: '',
+  }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(empty)
 
@@ -264,7 +320,7 @@ function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
   if (!open) {
     return (
       <tr>
-        <td colSpan={6}>
+        <td colSpan={7}>
           <button className="st-btn ghost sm" style={{ margin: '4px 0' }} onClick={() => setOpen(true)}>
             <IconPlus size={12} /> Gebruiker toevoegen
           </button>
@@ -288,7 +344,16 @@ function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
         <select className="st-select" {...f('role')}>
           <option value="user">Gebruiker</option>
           <option value="admin">Beheerder</option>
+          <option value="terminal" title="Het account van een machinescherm op de werkvloer, geen persoon">Terminal</option>
         </select>
+      </td>
+      <td>
+        {form.role === 'terminal' ? (
+          <select className="st-select" {...f('machineId')}>
+            <option value="">Kies machine…</option>
+            {machines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        ) : <span className="cell-muted">—</span>}
       </td>
       <td>
         <div style={{ display: 'flex', gap: 4 }}>
@@ -304,6 +369,9 @@ function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
                 email: form.email || null,
                 telefoon: form.telefoon || null,
                 role: form.role,
+                // Alleen een terminal hangt aan een machine; bij een persoon
+                // zou een gevulde waarde alleen maar verwarren.
+                machineId: form.role === 'terminal' ? (form.machineId || null) : null,
               })
               setForm(empty)
               setOpen(false)
@@ -336,8 +404,16 @@ function GebruikersTab() {
       qc.invalidateQueries({ queryKey: ['users'] })
       notifications.show({ color: 'green', message: 'Gebruiker bijgewerkt' })
     },
-    onError: () => notifications.show({ color: 'red', message: 'Opslaan mislukt' }),
+    onError: meldFout('Opslaan mislukt'),
   })
+
+  // Voor de koppeling terminal → machine. De terminal leest zijn wachtrij via
+  // die verwijzing, dus hier moet hij te kiezen zijn.
+  const { data: machinesResp } = useQuery({
+    queryKey: ['machines'],
+    queryFn: () => machinesApi.list(),
+  })
+  const machines = machinesResp?.data ?? []
 
   const createUser = useMutation({
     mutationFn: (body: CreateUser) => usersApi.create(body),
@@ -345,7 +421,7 @@ function GebruikersTab() {
       qc.invalidateQueries({ queryKey: ['users'] })
       notifications.show({ color: 'green', message: 'Gebruiker aangemaakt' })
     },
-    onError: () => notifications.show({ color: 'red', message: 'Aanmaken mislukt' }),
+    onError: meldFout('Aanmaken mislukt'),
   })
 
   const deleteUser = useMutation({
@@ -354,7 +430,7 @@ function GebruikersTab() {
       qc.invalidateQueries({ queryKey: ['users'] })
       notifications.show({ color: 'teal', message: 'Gebruiker verwijderd' })
     },
-    onError: () => notifications.show({ color: 'red', message: 'Verwijderen mislukt' }),
+    onError: meldFout('Verwijderen mislukt'),
   })
 
   return (
@@ -371,7 +447,11 @@ function GebruikersTab() {
       {isLoading ? (
         <div style={{ padding: 20, color: 'var(--text-3)', fontSize: 13 }}>Laden…</div>
       ) : (
-        <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', background: 'var(--bg-2)' }}>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflowX: 'auto', overflowY: 'hidden', background: 'var(--bg-2)' }}>
+          {/* overflowX: 'auto' en niet 'hidden'. De invoerrij is breder dan de
+              lijst (1134 px tegen 1000 px gemeten), en met 'hidden' viel de
+              opslaanknop buiten beeld — de rij was dan niet te bewaren. Verticaal
+              blijft hij klemmen, anders verliest de kaart zijn ronde hoeken. */}
           <table className="st-tbl">
             <thead>
               <tr>
@@ -380,6 +460,8 @@ function GebruikersTab() {
                 <th style={{ minWidth: 180 }}>E-mail (M365)</th>
                 <th style={{ minWidth: 130 }}>Telefoon</th>
                 <th style={{ minWidth: 110 }}>Rol</th>
+                {/* Alleen zinvol bij een terminal; leeg voor personen. */}
+                <th style={{ minWidth: 150 }}>Machine</th>
                 <th style={{ width: 72 }} />
               </tr>
             </thead>
@@ -388,11 +470,12 @@ function GebruikersTab() {
                 <UserRow
                   key={u.id}
                   user={u}
+                  machines={machines}
                   onSave={(id, patch) => updateUser.mutate({ id, patch })}
                   onDelete={id => deleteUser.mutate(id)}
                 />
               ))}
-              <AddUserRow onAdd={body => createUser.mutate(body)} />
+              <AddUserRow machines={machines} onAdd={body => createUser.mutate(body)} />
             </tbody>
           </table>
         </div>

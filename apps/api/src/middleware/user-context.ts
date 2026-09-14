@@ -6,7 +6,7 @@ import { AppError } from './error'
 declare global {
   namespace Express {
     interface Request {
-      user: { id: string; name: string; role: 'admin' | 'user' }
+      user: { id: string; name: string; role: 'admin' | 'user' | 'terminal' }
     }
   }
 }
@@ -35,6 +35,6 @@ export const userContext = asyncHandler(async (req: Request, _res: Response, nex
   if (!user) {
     return next(new AppError(401, 'UNAUTHORIZED', 'Gebruiker niet gevonden'))
   }
-  req.user = { id: user.id, name: user.name, role: user.role as 'admin' | 'user' }
+  req.user = { id: user.id, name: user.name, role: user.role as 'admin' | 'user' | 'terminal' }
   next()
 })

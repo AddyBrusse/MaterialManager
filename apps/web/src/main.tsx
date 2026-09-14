@@ -10,6 +10,7 @@ import '@mantine/notifications/styles.css'
 import '@mantine/charts/styles.css'
 import './styles/tokens.css'
 import './styles/planning-queue.css'
+import './styles/tijdregistratie.css'
 import './styles/prognose.css'
 
 const queryClient = new QueryClient({

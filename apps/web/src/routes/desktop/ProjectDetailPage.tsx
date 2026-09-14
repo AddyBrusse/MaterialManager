@@ -22,6 +22,7 @@ import { MailDropzone } from '../../components/projecten/MailDropzone'
 import { MailImportReview } from '../../components/projecten/MailImportReview'
 import { ProjectStatusActies } from '../../components/projecten/ProjectStatusActies'
 import { ProjectReserveringen } from '../../components/projecten/ProjectReserveringen'
+import { ProjectNacalculatieTab } from '../../components/nacalculatie/ProjectNacalculatieTab'
 import { mailImportsApi } from '../../api/mail-imports'
 import { articlesApi } from '../../api/articles'
 import type { MailImport } from '@stockmanager/shared'
@@ -95,7 +96,7 @@ function SaveIndicator({ state }: { state: 'idle' | 'saving' | 'saved' | 'error'
 
 // ── Tabs ───────────────────────────────────────────────────────────────────────
 
-const TABS = ['offertes', 'opdrachtbevestiging', 'productie', 'paklijst', 'factuur'] as const
+const TABS = ['offertes', 'opdrachtbevestiging', 'productie', 'nacalculatie', 'paklijst', 'factuur'] as const
 type Tab = typeof TABS[number]
 
 // De open tab staat in de URL (?tab=factuur) zodat een document deelbaar en te
@@ -584,6 +585,9 @@ export function ProjectDetailPage() {
           Productie
           {project.productieOrders.length > 0 && <span className="tab-count">{project.productieOrders.length}</span>}
         </button>
+        <button data-active={tab === 'nacalculatie'} onClick={() => setTab('nacalculatie')}>
+          Nacalculatie
+        </button>
         <button data-active={tab === 'paklijst'} onClick={() => setTab('paklijst')}>
           Paklijst
           {project.paklijst && <span className="tab-count">1</span>}
@@ -601,6 +605,7 @@ export function ProjectDetailPage() {
           <ProductieTab project={project} onChanged={rerender} />
           <ProjectReserveringen projectId={project.id} />
         </>}
+        {tab === 'nacalculatie'         && <ProjectNacalculatieTab   projectId={project.id} />}
         {tab === 'paklijst'             && <PaklijstTab              project={project} onChanged={() => { rerender() }} />}
         {tab === 'factuur'              && <FactuurTab               project={project} onChanged={() => { rerender() }} />}
       </div>

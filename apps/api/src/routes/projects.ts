@@ -12,6 +12,7 @@ import { AppError } from '../middleware/error'
 import { PROJECT_INCLUDE, serialize, persist } from '../services/project-store'
 import { snapshotBijOrder } from '../services/prijs-snapshot'
 import { todosBijOpdracht } from '../services/materiaal-selectie'
+import { rondAfVoorStap } from '../services/tijdregistratie'
 import type { Prisma } from '@prisma/client'
 
 const router = Router()
@@ -501,13 +502,24 @@ router.post(
 
 // ── Productie order operations ─────────────────────────────────────────────────
 
-const CheckStapSchema = z.object({ userName: z.string() })
+const CheckStapSchema = z.object({
+  userName: z.string(),
+  /**
+   * Hoeveel stuks er uit deze stap zijn gekomen. De terminal weet dat; het
+   * kantoorscherm dat een stap afvinkt meestal niet en laat hem weg.
+   */
+  aantalStuks: z.number().int().nonnegative().nullable().optional(),
+})
 
 router.post(
   '/:id/orders/:orderId/stap/:stapId/check',
   asyncHandler(async (req, res) => {
-    const { userName } = CheckStapSchema.parse(req.body)
-    const updated = await withProject(req.params.id, (p) => {
+    const { userName, aantalStuks } = CheckStapSchema.parse(req.body)
+    const updated = await withProject(req.params.id, async (p, tx) => {
+      // Eerst de klok, dan de stap: een gereedgemelde stap met een lopende
+      // klok telt door tot iemand hem toevallig ziet, en de nacalculatie
+      // groeit dan na afloop van het werk nog dagen door.
+      await rondAfVoorStap(tx, req.params.stapId, aantalStuks ?? null)
       const productieOrders = p.productieOrders.map(o => {
         if (o.id !== req.params.orderId) return o
         const stappen = o.stappen.map(s =>
