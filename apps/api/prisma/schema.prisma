@@ -89,6 +89,12 @@ model User {
   telefoon   String?
   role       Role     @default(user)
   avatarPath String?  @map("avatar_path")
+  /// Alleen voor rol 'terminal': aan welke machine dit scherm hangt. De
+  /// wachtrij liep hiervoor op accountnaam, en dan moest die naam exact gelijk
+  /// zijn aan wat er op de productiestap staat — noemde de stap "Draaibank" en
+  /// het account "DMG 450TC EcoLine", dan bleef het scherm leeg terwijl er werk
+  /// lag. Een verwijzing kan niet uit de pas lopen met een hernoeming.
+  machineId  String?  @map("machine_id")
   createdAt  DateTime @default(now()) @map("created_at")
 
   movements        StockMovement[]
@@ -99,6 +105,7 @@ model User {
   claimedTodos     Todo[]            @relation("TodoClaimedBy")
   preferences      UserPreference[]
   tijdregistraties TijdRegistratie[]
+  machine          Machine?          @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }
@@ -303,6 +310,9 @@ model Machine {
   afsteekMm      Int @default(3) @map("afsteek_mm")
 
   createdAt DateTime @default(now()) @map("created_at")
+
+  /// Terminalschermen die aan deze machine hangen.
+  terminals User[]
 
   @@map("machines")
 }

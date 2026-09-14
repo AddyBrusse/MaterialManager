@@ -6,6 +6,7 @@ import { MateriaalbeheerPage } from '../../components/settings/MateriaalbeheerPa
 import { OverheadPage }        from '../../components/settings/OverheadPage'
 import { companyApi }          from '../../api/company'
 import { usersApi }            from '../../api/users'
+import { machinesApi }         from '../../api/machines'
 import type { Company, User, CreateUser } from '@stockmanager/shared'
 
 // ── shared primitives ─────────────────────────────────────────────────────────
@@ -192,11 +193,13 @@ const ROL_BADGE: Record<string, string> = {
 
 interface UserRowProps {
   user: User
+  /** Om de gekoppelde machine bij naam te kunnen tonen en te laten kiezen. */
+  machines: { id: string; name: string }[]
   onSave: (id: string, patch: Partial<User>) => void
   onDelete: (id: string) => void
 }
 
-function UserRow({ user, onSave, onDelete }: UserRowProps) {
+function UserRow({ user, machines, onSave, onDelete }: UserRowProps) {
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({ ...user })
 
@@ -228,6 +231,17 @@ function UserRow({ user, onSave, onDelete }: UserRowProps) {
             <option value="admin">Beheerder</option>
             <option value="terminal" title="Het account van een machinescherm op de werkvloer, geen persoon">Terminal</option>
           </select>
+        </td>
+        <td>
+          {/* De wachtrij van de terminal hangt aan deze koppeling, niet aan de
+              accountnaam: die moest anders exact gelijk zijn aan wat er op de
+              productiestap staat, en dat brak stilletjes bij een hernoeming. */}
+          {form.role === 'terminal' ? (
+            <select className="st-select" {...f('machineId')}>
+              <option value="">Kies machine…</option>
+              {machines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          ) : <span className="cell-muted">—</span>}
         </td>
         <td>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -262,6 +276,11 @@ function UserRow({ user, onSave, onDelete }: UserRowProps) {
           <span className="dot" />{ROL_LABEL[user.role] ?? user.role}
         </span>
       </td>
+      <td className="cell-muted" style={{ fontSize: 12.5 }}>
+        {user.role === 'terminal'
+          ? (machines.find((m) => m.id === user.machineId)?.name ?? 'niet gekoppeld')
+          : '—'}
+      </td>
       <td>
         <div style={{ display: 'flex', gap: 4 }}>
           <button className="st-icon-btn" title="Bewerken" onClick={() => setEditing(true)}>
@@ -276,8 +295,17 @@ function UserRow({ user, onSave, onDelete }: UserRowProps) {
   )
 }
 
-function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
-  const empty = { name: '', achternaam: '', titel: '', email: '', telefoon: '', role: 'user' as const }
+function AddUserRow({ machines, onAdd }: {
+  machines: { id: string; name: string }[]
+  onAdd: (u: CreateUser) => void
+}) {
+  // role niet `as const`: dan versmalt het type tot 'user' en is 'terminal' niet
+  // meer toe te kennen. machineId hoort erbij voor de koppeling aan een machine.
+  const empty = {
+    name: '', achternaam: '', titel: '', email: '', telefoon: '',
+    role: 'user' as 'admin' | 'user' | 'terminal',
+    machineId: '',
+  }
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(empty)
 
@@ -292,7 +320,7 @@ function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
   if (!open) {
     return (
       <tr>
-        <td colSpan={6}>
+        <td colSpan={7}>
           <button className="st-btn ghost sm" style={{ margin: '4px 0' }} onClick={() => setOpen(true)}>
             <IconPlus size={12} /> Gebruiker toevoegen
           </button>
@@ -320,6 +348,14 @@ function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
         </select>
       </td>
       <td>
+        {form.role === 'terminal' ? (
+          <select className="st-select" {...f('machineId')}>
+            <option value="">Kies machine…</option>
+            {machines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        ) : <span className="cell-muted">—</span>}
+      </td>
+      <td>
         <div style={{ display: 'flex', gap: 4 }}>
           <button
             className="st-icon-btn"
@@ -333,6 +369,9 @@ function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
                 email: form.email || null,
                 telefoon: form.telefoon || null,
                 role: form.role,
+                // Alleen een terminal hangt aan een machine; bij een persoon
+                // zou een gevulde waarde alleen maar verwarren.
+                machineId: form.role === 'terminal' ? (form.machineId || null) : null,
               })
               setForm(empty)
               setOpen(false)
@@ -367,6 +406,14 @@ function GebruikersTab() {
     },
     onError: meldFout('Opslaan mislukt'),
   })
+
+  // Voor de koppeling terminal → machine. De terminal leest zijn wachtrij via
+  // die verwijzing, dus hier moet hij te kiezen zijn.
+  const { data: machinesResp } = useQuery({
+    queryKey: ['machines'],
+    queryFn: () => machinesApi.list(),
+  })
+  const machines = machinesResp?.data ?? []
 
   const createUser = useMutation({
     mutationFn: (body: CreateUser) => usersApi.create(body),
@@ -413,6 +460,8 @@ function GebruikersTab() {
                 <th style={{ minWidth: 180 }}>E-mail (M365)</th>
                 <th style={{ minWidth: 130 }}>Telefoon</th>
                 <th style={{ minWidth: 110 }}>Rol</th>
+                {/* Alleen zinvol bij een terminal; leeg voor personen. */}
+                <th style={{ minWidth: 150 }}>Machine</th>
                 <th style={{ width: 72 }} />
               </tr>
             </thead>
@@ -421,11 +470,12 @@ function GebruikersTab() {
                 <UserRow
                   key={u.id}
                   user={u}
+                  machines={machines}
                   onSave={(id, patch) => updateUser.mutate({ id, patch })}
                   onDelete={id => deleteUser.mutate(id)}
                 />
               ))}
-              <AddUserRow onAdd={body => createUser.mutate(body)} />
+              <AddUserRow machines={machines} onAdd={body => createUser.mutate(body)} />
             </tbody>
           </table>
         </div>

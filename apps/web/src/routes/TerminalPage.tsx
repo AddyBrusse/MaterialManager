@@ -9,6 +9,7 @@ import { usersApi } from '../api/users'
 import { articlesApi } from '../api/articles'
 import { reservationsApi } from '../api/reservations'
 import { projectsApi, initProjects } from '../api/projects'
+import { machinesApi } from '../api/machines'
 import { useLopendeTijd, useTijdActies, useKlok } from '../hooks/useTijdregistratie'
 import { useUserStore } from '../stores/user'
 import { TE_LANG_SECONDEN } from '../components/tijd/ActieveRegistratie'
@@ -29,6 +30,11 @@ export function TerminalPage() {
   const machineAccount = useUserStore((s) => s.user)
   const [operatorId, setOperatorId] = useState<string | null>(null)
   const [gekozenStap, setGekozenStap] = useState<string | null>(null)
+  // Planning verandert op het laatste moment: een klus die voor de Doosan
+  // stond kan alsnog op de DMG. Standaard tonen we de eigen wachtrij, maar
+  // alles moet te kiezen zijn — anders staat de operator met een machine
+  // stil terwijl er werk ligt.
+  const [alleMachines, setAlleMachines] = useState(false)
 
   const lopend = useLopendeTijd()
   const acties = useTijdActies()
@@ -42,6 +48,12 @@ export function TerminalPage() {
   // projectsApi.list() leest een synchrone cache die eerst gevuld moet worden;
   // zonder initProjects() blijft de wachtrij leeg terwijl er wél werk ligt.
   // (Waargenomen 2026-09-13: terminal toonde nul kaarten bij een echte order.)
+  // De machine waar dit scherm aan hangt. Via de koppeling op het account, niet
+  // via de naam: die moest anders exact gelijk zijn aan wat er op de stap staat.
+  const { data: machinesResp } = useQuery({ queryKey: ['machines'], queryFn: () => machinesApi.list() })
+  const eigenMachine = (machinesResp?.data ?? []).find((m) => m.id === machineAccount?.machineId) ?? null
+  const eigenMachineNaam = eigenMachine?.name ?? null
+
   const { data: projecten } = useQuery({
     queryKey: ['projects', 'terminal'],
     queryFn: async () => { await initProjects(); return projectsApi.list() },
@@ -53,12 +65,13 @@ export function TerminalPage() {
    * op volgorde van de planning. Dezelfde bron als de wachtrijpagina op kantoor,
    * zodat hal en kantoor nooit een andere volgorde tonen.
    */
-  const wachtrij = useMemo(() => {
-    const machine = machineAccount?.name ?? ''
+  const alleStappen = useMemo(() => {
     const rijen: {
       stapId: string; orderId: string; projectId: string
       artikel: string; klant: string; qty: number; eenheid: string
       artikelId: string | null
+      /** De machine waarop deze stap gepland stond. Null = nog niet toegewezen. */
+      geplandOp: string | null
       volgorde: number; totaalStappen: number; positie: number
       routing: { naam: string; gereed: boolean }[]
     }[] = []
@@ -67,15 +80,12 @@ export function TerminalPage() {
         const stappen = o.stappen ?? []
         stappen.forEach((s, i) => {
           if (s.gereedOp) return
-          const opMachine = s.geplandMachine ?? s.machine
-          // Zonder machinenaam op het account tonen we alles — dat is beter dan
-          // een leeg scherm terwijl er wél werk ligt.
-          if (machine && opMachine && opMachine !== machine) return
           rijen.push({
             stapId: s.id, orderId: o.id, projectId: p.id,
             artikel: o.artikelNaam, klant: p.naam,
             qty: o.qty, eenheid: o.eenheid,
             artikelId: o.artikelId ?? null,
+            geplandOp: s.geplandMachine ?? s.machine ?? null,
             volgorde: i + 1, totaalStappen: stappen.length,
             routing: stappen.map((st) => ({ naam: st.naam, gereed: !!st.gereedOp })),
             positie: s.queuePosition ?? Number.MAX_SAFE_INTEGER,
@@ -83,8 +93,19 @@ export function TerminalPage() {
         })
       }
     }
-    return rijen.sort((a, b) => a.positie - b.positie).slice(0, 12)
-  }, [projecten, machineAccount])
+    return rijen.sort((a, b) => a.positie - b.positie)
+  }, [projecten])
+
+  const voorDezeMachine = useMemo(
+    () => (eigenMachineNaam
+      ? alleStappen.filter((r) => r.geplandOp === eigenMachineNaam)
+      : alleStappen),
+    [alleStappen, eigenMachineNaam],
+  )
+
+  // Hangt het scherm nergens aan, dan tonen we alles: een leeg scherm terwijl er
+  // werk ligt is erger dan een lijst die te lang is.
+  const wachtrij = (alleMachines || !eigenMachineNaam ? alleStappen : voorDezeMachine).slice(0, 20)
 
   const actieveStap = gekozenStap ?? wachtrij[0]?.stapId ?? null
   const registratie = (lopend.data ?? []).find((r) => r.stapId === actieveStap) ?? null
@@ -124,6 +145,11 @@ export function TerminalPage() {
     acties.start.mutate({
       stapId: actieveStap, soort, bemand,
       operatorId: bemand ? operatorId : null,
+      // De machine waar het werk werkelijk gebeurt, niet waar het gepland stond.
+      // Draait de DMG een klus van de Doosan, dan hoort die tijd tegen het
+      // DMG-tarief in de nacalculatie — anders rekent hij met een uurtarief van
+      // een machine die niets gedaan heeft.
+      machineNaam: eigenMachineNaam,
     })
   }
 
@@ -161,7 +187,9 @@ export function TerminalPage() {
       <div className="tr-term-top">
         <div className="tr-term-merk">B</div>
         <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.01em' }}>
-          {machineAccount?.name ?? 'Terminal'}
+          {/* De gekoppelde machine, niet de accountnaam: die bepaalt op welk
+              uurtarief de uren geboekt worden, en de twee kunnen uiteenlopen. */}
+          {eigenMachineNaam ?? machineAccount?.name ?? 'Terminal'}
         </div>
         <div className="st-sep-v" />
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 16, color: 'var(--text-2)' }}>
@@ -184,6 +212,40 @@ export function TerminalPage() {
             <span className="st-sb-group-lbl">Wachtrij</span>
             <span className="st-badge">{wachtrij.length}</span>
           </div>
+
+          {/* Planning verandert op het laatste moment. Standaard de eigen
+              wachtrij, één tik om alles te zien — anders staat de machine stil
+              terwijl er werk ligt dat hier prima kan. */}
+          {eigenMachineNaam ? (
+            <div style={{ padding: '0 14px 12px' }}>
+              <div className="tr-seg" style={{ width: '100%' }}>
+                <button
+                  style={{ flex: 1, height: 40, fontSize: 14 }}
+                  className={!alleMachines ? 'is-actief' : ''}
+                  onClick={() => setAlleMachines(false)}
+                >
+                  {eigenMachineNaam} ({voorDezeMachine.length})
+                </button>
+                <button
+                  style={{ flex: 1, height: 40, fontSize: 14 }}
+                  className={alleMachines ? 'is-actief' : ''}
+                  onClick={() => setAlleMachines(true)}
+                >
+                  alle ({alleStappen.length})
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: '0 14px 12px' }}>
+              <div className="tr-telang">
+                <IconAlertTriangle size={14} stroke={2} />
+                <span>
+                  Dit scherm hangt nog aan geen machine. Alle openstaande stappen
+                  worden getoond. Koppel hem op kantoor bij Instellingen &rarr; Gebruikers.
+                </span>
+              </div>
+            </div>
+          )}
           <div style={{ padding: '0 14px', display: 'flex', flexDirection: 'column', gap: 9 }}>
             {wachtrij.length === 0 && <div className="st-empty">Geen openstaand werk.</div>}
             {wachtrij.map((w, i) => {
@@ -209,6 +271,13 @@ export function TerminalPage() {
                   <div className="tr-tcard-q">
                     {w.qty} {w.eenheid} · stap {w.volgorde} van {w.totaalStappen}
                   </div>
+                  {/* Staat de stap voor een andere machine, dan hoort dat op de
+                      kaart: anders boek je ongemerkt werk om zonder het te zien. */}
+                  {eigenMachineNaam && w.geplandOp && w.geplandOp !== eigenMachineNaam && (
+                    <span className="st-badge warn" style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+                      gepland op {w.geplandOp}
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -227,6 +296,17 @@ export function TerminalPage() {
                   {huidig.klant} · {huidig.orderId} · stap {huidig.volgorde} van {huidig.totaalStappen} · {huidig.qty} {huidig.eenheid}
                 </div>
               </div>
+
+              {eigenMachineNaam && huidig.geplandOp && huidig.geplandOp !== eigenMachineNaam && (
+                <div className="tr-telang" style={{ marginTop: 14 }}>
+                  <IconAlertTriangle size={16} stroke={2} />
+                  <span>
+                    Deze stap stond gepland op <strong>{huidig.geplandOp}</strong>. Je klokt hem
+                    op <strong>{eigenMachineNaam}</strong>; de uren gaan tegen het tarief van
+                    deze machine, want daar wordt het werk gedaan.
+                  </span>
+                </div>
+              )}
 
               <div style={{
                 marginTop: 22, border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)',

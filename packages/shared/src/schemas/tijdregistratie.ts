@@ -74,6 +74,16 @@ export const StartTijdSchema = z.object({
   bemand:      z.boolean().default(true),
   /** Bij bemand werk kiest de operator zijn naam op de terminal. */
   operatorId:  z.string().nullable().default(null),
+  /**
+   * De machine waar het werk werkelijk gebeurt. Leeg = de machine waarop de
+   * stap gepland stond.
+   *
+   * Die twee lopen uiteen zodra de planning op het laatste moment wijzigt:
+   * draait de DMG een klus die voor de Doosan stond, dan horen die uren tegen
+   * het DMG-tarief in de nacalculatie. Het geplande tarief zou rekenen met een
+   * machine die niets gedaan heeft.
+   */
+  machineNaam: z.string().nullable().default(null),
   notitie:     z.string().max(500).nullable().default(null),
 })
 export type StartTijd = z.infer<typeof StartTijdSchema>

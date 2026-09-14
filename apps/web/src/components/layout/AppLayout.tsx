@@ -70,8 +70,11 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
 
   function handleSelectUser(u: User) {
     setUser({
-      id: u.id, name: u.name, role: u.role as 'admin' | 'user',
+      id: u.id, name: u.name, role: u.role as 'admin' | 'user' | 'terminal',
       email: u.email, achternaam: u.achternaam, titel: u.titel,
+      // Nodig zodra je naar een terminal wisselt: die leest zijn wachtrij uit
+      // de koppeling aan een machine.
+      machineId: u.machineId,
     })
   }
 

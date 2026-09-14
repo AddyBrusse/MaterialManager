@@ -51,7 +51,7 @@ export const tijdregistratieApi = {
 
   start: (body: {
     stapId: string; soort: TijdSoort; bemand: boolean
-    operatorId?: string | null; notitie?: string | null
+    operatorId?: string | null; machineNaam?: string | null; notitie?: string | null
   }) =>
     apiFetch<TijdRegistratieDTO>('/tijdregistratie/start', {
       method: 'POST', body: JSON.stringify(body),

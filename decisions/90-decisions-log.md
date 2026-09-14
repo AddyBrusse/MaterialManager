@@ -967,3 +967,33 @@ vergeten regel levert hooguit een kapot kioskscherm op, geen prijslijst in de ha
 Het terminal-account identificeert de **machine**. Wie er staat kiest zichzelf op
 het scherm bij het starten van bemand werk; onbemand werk heeft geen naam nodig.
 Zonder die stap komen de manuren op het machine-account terecht.
+
+## 2026-09-14 — Terminal aan een machine koppelen
+
+**De wachtrij liep op accountnaam.** Dat werkt alleen als het account exact heet
+zoals wat er op de productiestap staat. Heette de stap "Draaibank" en het
+account "DMG 450TC EcoLine", dan bleef het scherm leeg terwijl er werk lag — en
+er is niets dat dat zegt. `User.machineId` verwijst nu naar een `Machine`; een
+verwijzing kan niet uit de pas lopen met een hernoeming.
+
+Hangt een terminal nergens aan, dan tonen we álles met een melding erbij. Een
+lijst die te lang is, is minder erg dan een leeg scherm terwijl er werk ligt.
+
+**Werk van een andere machine mag.** Planning verandert op het laatste moment:
+een klus die voor de Doosan stond kan alsnog op de DMG. De terminal toont
+standaard de eigen wachtrij met een schakelaar naar alles, en zet op de kaart
+waar de stap oorspronkelijk gepland stond.
+
+**Daar hangt een rekenkundig gevolg aan.** Gebeurt het werk op een andere
+machine dan gepland, dan horen die uren tegen het tarief van de machine die ze
+maakt. `StartTijd.machineNaam` legt dat vast; leeg valt terug op de geplande
+machine, wat klopt voor de wachtrij op kantoor. Zonder dit zou de nacalculatie
+rekenen met het uurtarief van een machine die stilstond — en dat is precies het
+soort stille fout waar deze hele feature tegen bedoeld is.
+
+Wisselen tussen instellen en draaien neemt de machine mee: het werk staat nog op
+dezelfde bank. Zonder dat viel hij bij elke wissel terug op de geplande machine
+en verdween een omgeboekte klus stilletjes weer.
+
+De kop van de terminal noemt de gekoppelde machine, niet de accountnaam: die
+twee kunnen uiteenlopen en het is de machine die het tarief bepaalt.

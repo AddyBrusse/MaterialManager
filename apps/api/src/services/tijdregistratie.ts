@@ -92,6 +92,8 @@ export interface StartInput {
   soort: TijdSoort
   bemand: boolean
   operatorId: string | null
+  /** Waar het werk werkelijk gebeurt; leeg = waar het gepland stond. */
+  machineNaam: string | null
   notitie: string | null
 }
 
@@ -144,7 +146,10 @@ export async function start(db: Db, input: StartInput, door: { id: string; name:
       soort: input.soort,
       bemand: input.bemand,
       status: 'lopend',
-      machineNaam: stap.geplandMachine ?? stap.machine,
+      // De opgegeven machine wint van de geplande: bij een wijziging op het
+      // laatste moment is dát de machine die de uren maakt, en de nacalculatie
+      // rekent met het tarief van de machine op de registratie.
+      machineNaam: input.machineNaam ?? stap.geplandMachine ?? stap.machine,
       userId: input.bemand ? (operator?.id ?? door.id) : null,
       userNaam: input.bemand ? (operator?.name ?? door.name) : null,
       gestartOp: nu,
@@ -204,6 +209,10 @@ export async function wissel(
     soort: (naar.soort ?? r.soort) as TijdSoort,
     bemand: naar.bemand ?? r.bemand,
     operatorId: naar.operatorId !== undefined ? naar.operatorId : r.userId,
+    // Wisselen van soort of bemanning verandert de machine niet: het werk staat
+    // nog op dezelfde bank. Zonder dit viel hij bij elke wissel terug op de
+    // geplande machine en verdween een omgeboekte klus stilletjes weer.
+    machineNaam: r.machineNaam,
     notitie: null,
   }, door)
 }
