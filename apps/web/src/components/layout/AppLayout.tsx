@@ -127,7 +127,16 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   ]
 
   const initials = user ? getInitials(user.name) : '?'
-  const role = user?.role === 'admin' ? 'Beheerder' : 'Operator'
+  // Drie rollen, één plek. Een terminal komt hier in de praktijk nooit — die
+  // krijgt de kioskroute en ziet deze zijbalk niet — maar de tweedeling
+  // "admin of anders operator" liet hem als Operator lezen, en dat is precies
+  // de rol die hij niet heeft. Zelfde correctie als in Instellingen.
+  const ROL_NAAM: Record<string, string> = {
+    admin: 'Beheerder',
+    user: 'Operator',
+    terminal: 'Terminal',
+  }
+  const role = ROL_NAAM[user?.role ?? ''] ?? 'Operator'
 
   return (
     <aside className="st-sidebar">
