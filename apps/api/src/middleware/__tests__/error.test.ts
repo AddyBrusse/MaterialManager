@@ -63,3 +63,51 @@ describe('errorMiddleware', () => {
     expect((res.body as any).error.message).toBe('Interne serverfout')
   })
 })
+
+describe('errorMiddleware: database loopt achter op de code', () => {
+  /**
+   * De letterlijke melding die Prisma gaf toen er een terminal-account werd
+   * aangemaakt op een database waar de migratie niet op gedraaid was. Niet
+   * nagebouwd maar overgenomen: de code zit alleen in de tekst van de fout, dus
+   * een verzonnen vorm zou hier slagen en in het echt niet.
+   */
+  const ECHTE_PRISMA_FOUT = `
+Invalid \`prisma.user.create()\` invocation:
+
+
+Error occurred during query execution:
+ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "22P02", message: "invalid input value for enum \\"Role\\": \\"terminal\\"", severity: "ERROR", detail: None, column: None, hint: None }), transient: false })`
+
+  it('noemt de ontbrekende migratie in plaats van "Interne serverfout"', () => {
+    alsOntwikkeling(false)
+    const res = stuur(new Error(ECHTE_PRISMA_FOUT))
+    expect(res.code).toBe(500)
+    const body = res.body as any
+    expect(body.error.code).toBe('MIGRATIE_ONTBREEKT')
+    expect(body.error.message).toContain('prisma migrate deploy')
+    // De reden hoort erbij, ook op de NAS: het noemt geen data.
+    expect(body.error.details.reden).toContain('invalid input value for enum')
+  })
+
+  it('herkent een ontbrekende tabel en kolom net zo', () => {
+    alsOntwikkeling(false)
+    for (const code of ['42P01', '42703']) {
+      const res = stuur(new Error(`PostgresError { code: "${code}", message: "relation does not exist" }`))
+      expect((res.body as any).error.code, code).toBe('MIGRATIE_ONTBREEKT')
+    }
+  })
+
+  it('laat een gewone fout gewoon een interne fout blijven', () => {
+    alsOntwikkeling(false)
+    const res = stuur(new Error('kapot'))
+    expect((res.body as any).error.code).toBe('INTERNAL')
+  })
+
+  it('verwart een foutcode met letters niet met een gewone fout', () => {
+    // SQLSTATE is alfanumeriek. Een patroon van vijf cijfers matchte 22P02 niet
+    // en liet elke migratiefout alsnog doorvallen — dat is hier de valstrik.
+    alsOntwikkeling(false)
+    const res = stuur(new Error('PostgresError { code: "22P02", message: "x" }'))
+    expect((res.body as any).error.code).toBe('MIGRATIE_ONTBREEKT')
+  })
+})

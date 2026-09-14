@@ -62,7 +62,7 @@ function BedrijfTab() {
       notifications.show({ color: 'green', message: 'Bedrijfsgegevens opgeslagen' })
       setDirty(false)
     },
-    onError: () => notifications.show({ color: 'red', message: 'Opslaan mislukt' }),
+    onError: meldFout('Opslaan mislukt'),
   })
 
   function field(key: keyof Company) {
@@ -159,6 +159,22 @@ function BedrijfTab() {
       </div>
     </div>
   )
+}
+
+/**
+ * De reden die de server meestuurde, niet een kale "mislukt".
+ *
+ * Op 2026-09-14 gaf het aanmaken van een terminal-account alleen "Aanmaken
+ * mislukt", terwijl de server precies zei wat er aan de hand was: de database
+ * kende de nieuwe rol nog niet omdat de migratie niet gedraaid was. Die melding
+ * weggooien maakte een kwestie van één commando een zoektocht.
+ */
+function meldFout(titel: string) {
+  return (e: unknown) => notifications.show({
+    color: 'red',
+    title: titel,
+    message: e instanceof Error ? e.message : 'Onbekende fout',
+  })
 }
 
 const ROL_LABEL: Record<string, string> = {
@@ -349,7 +365,7 @@ function GebruikersTab() {
       qc.invalidateQueries({ queryKey: ['users'] })
       notifications.show({ color: 'green', message: 'Gebruiker bijgewerkt' })
     },
-    onError: () => notifications.show({ color: 'red', message: 'Opslaan mislukt' }),
+    onError: meldFout('Opslaan mislukt'),
   })
 
   const createUser = useMutation({
@@ -358,7 +374,7 @@ function GebruikersTab() {
       qc.invalidateQueries({ queryKey: ['users'] })
       notifications.show({ color: 'green', message: 'Gebruiker aangemaakt' })
     },
-    onError: () => notifications.show({ color: 'red', message: 'Aanmaken mislukt' }),
+    onError: meldFout('Aanmaken mislukt'),
   })
 
   const deleteUser = useMutation({
@@ -367,7 +383,7 @@ function GebruikersTab() {
       qc.invalidateQueries({ queryKey: ['users'] })
       notifications.show({ color: 'teal', message: 'Gebruiker verwijderd' })
     },
-    onError: () => notifications.show({ color: 'red', message: 'Verwijderen mislukt' }),
+    onError: meldFout('Verwijderen mislukt'),
   })
 
   return (
