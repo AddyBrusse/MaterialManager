@@ -4,6 +4,36 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-09-14 — De koppeling van de terminal komt van de server, niet uit de opgeslagen inlog
+
+**Klacht:** een terminal die op kantoor aan een machine gekoppeld was bleef in de
+hal "Dit scherm hangt nog aan geen machine" tonen, met de wachtrij van de hele
+werkvloer erin (16 stappen).
+
+**Oorzaak:** `useUserStore` is een `persist`-store. Wat erin staat is een
+momentopname van het moment dat er op dat scherm iemand gekozen is. De koppeling
+wordt daarná op kantoor gelegd en verandert die momentopname niet, dus
+`machineId` bleef `null` tot iemand naar de hal liep om opnieuw in te loggen.
+
+Gereproduceerd met een `localStorage`-sessie van vóór de koppeling tegen een
+database mét koppeling: precies het gemelde scherm.
+
+**Beslissing:** de server wint. `bepaalMachineId` in `utils/terminal-wachtrij.ts`
+haalt de koppeling uit de namenlijst die de terminal toch al ophaalt — dat account
+staat er zelf in — en valt alleen terug op de opgeslagen waarde zolang die lijst
+nog onderweg is. Zonder die terugval springt het scherm bij elke verversing even
+van de eigen wachtrij naar alles.
+
+De namenlijst ververst nu elke 10 s, net als de rest van de app. Koppelen op
+kantoor komt daarmee binnen tien seconden aan in de hal, zonder herladen —
+gemeten: banner weg, kop toont de machinenaam, wachtrij van 2 naar 1.
+
+**Wat hier niet verandert:** de rol blijft wél uit de opgeslagen inlog komen.
+Die verandert zelden, en hem van de server halen zou betekenen dat een scherm
+midden in het werk van rol kan wisselen.
+
+---
+
 ## 2026-09-14 — Bewerkingsnamen komen uit de machinelijst
 
 **Beslissing:** de naam van een machineknoop in de calculatie is de naam van de

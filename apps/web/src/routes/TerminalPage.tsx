@@ -13,7 +13,7 @@ import { projectsApi, initProjects } from '../api/projects'
 import { machinesApi } from '../api/machines'
 import { useLopendeTijd, useTijdActies, useKlok } from '../hooks/useTijdregistratie'
 import { useUserStore } from '../stores/user'
-import { bepaalToewijzing, hoortBijMachine } from '../utils/terminal-wachtrij'
+import { bepaalMachineId, bepaalToewijzing, hoortBijMachine } from '../utils/terminal-wachtrij'
 import { TE_LANG_SECONDEN } from '../components/tijd/ActieveRegistratie'
 
 /**
@@ -91,7 +91,12 @@ export function TerminalPage() {
   const lopend = useLopendeTijd()
   const acties = useTijdActies()
 
-  const { data: usersResp } = useQuery({ queryKey: ['users'], queryFn: () => usersApi.list() })
+  // Poll mee met de rest van de app: de koppeling aan een machine wordt op
+  // kantoor gelegd, en dit scherm moet dat merken zonder dat iemand naar de hal
+  // loopt om opnieuw in te loggen.
+  const { data: usersResp } = useQuery({
+    queryKey: ['users'], queryFn: () => usersApi.list(), refetchInterval: 10_000,
+  })
   // Andere terminals staan niet in de namenlijst: een machinescherm is geen
   // operator, en hem aanbieden levert alleen verkeerde manuren op.
   const operators = (usersResp?.data ?? []).filter((u) => u.role !== 'terminal')
@@ -103,7 +108,12 @@ export function TerminalPage() {
   // De machine waar dit scherm aan hangt. Via de koppeling op het account, niet
   // via de naam: die moest anders exact gelijk zijn aan wat er op de stap staat.
   const { data: machinesResp } = useQuery({ queryKey: ['machines'], queryFn: () => machinesApi.list() })
-  const eigenMachine = (machinesResp?.data ?? []).find((m) => m.id === machineAccount?.machineId) ?? null
+
+  // De machine waar dit scherm aan hangt komt van de sérver en niet uit de
+  // opgeslagen inlog; zie bepaalMachineId. De namenlijst hierboven halen we toch
+  // al op en die bevat dit account zelf, dus de actuele koppeling staat erin.
+  const machineId = bepaalMachineId(usersResp?.data, machineAccount)
+  const eigenMachine = (machinesResp?.data ?? []).find((m) => m.id === machineId) ?? null
   const eigenMachineNaam = eigenMachine?.name ?? null
 
   const { data: projecten } = useQuery({

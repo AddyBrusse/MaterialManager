@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { bepaalToewijzing, hoortBijMachine, normaliseerMachine } from '../terminal-wachtrij'
+import {
+  bepaalMachineId, bepaalToewijzing, hoortBijMachine, normaliseerMachine,
+} from '../terminal-wachtrij'
 
 const MACHINES = ['DMG 450TC EcoLine', 'Draaibank', 'Amada Zaag']
 
@@ -54,5 +56,31 @@ describe('normaliseerMachine', () => {
   it('geeft een lege tekst terug voor niets', () => {
     expect(normaliseerMachine(null)).toBe('')
     expect(normaliseerMachine('   ')).toBe('')
+  })
+})
+
+describe('bepaalMachineId', () => {
+  const OPGESLAGEN = { id: 'term-1', machineId: null }
+
+  it('neemt de koppeling van de server, niet uit de opgeslagen inlog', () => {
+    // De klacht van 2026-09-14: op kantoor gekoppeld, maar het scherm in de hal
+    // was ingelogd vóór die koppeling en toonde daarom alle werk.
+    expect(bepaalMachineId([{ id: 'term-1', machineId: 'mach_dmg' }], OPGESLAGEN))
+      .toBe('mach_dmg')
+  })
+
+  it('volgt de server ook als die de koppeling weghaalt', () => {
+    expect(bepaalMachineId([{ id: 'term-1', machineId: null }], { id: 'term-1', machineId: 'oud' }))
+      .toBeNull()
+  })
+
+  it('valt terug op de opgeslagen waarde zolang de lijst onderweg is', () => {
+    // Zonder deze terugval springt het scherm bij elke verversing even van de
+    // eigen wachtrij naar alles.
+    expect(bepaalMachineId(undefined, { id: 'term-1', machineId: 'mach_dmg' })).toBe('mach_dmg')
+  })
+
+  it('geeft niets terug zonder ingelogd account', () => {
+    expect(bepaalMachineId([{ id: 'term-1', machineId: 'mach_dmg' }], null)).toBeNull()
   })
 })

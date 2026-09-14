@@ -58,3 +58,26 @@ export function hoortBijMachine(
   const t = bepaalToewijzing(stapMachine, eigenMachineNaam, alleMachineNamen)
   return t.soort === 'eigen' || t.soort === 'onbekend'
 }
+
+/**
+ * De machine waar dit scherm aan hangt.
+ *
+ * De opgeslagen gebruiker is een momentopname uit `localStorage` van het moment
+ * dat er op dit scherm iemand gekozen is. De koppeling aan een machine wordt
+ * daarná op kantoor gelegd, dus die momentopname zegt dan nog "geen machine" en
+ * de terminal toont het werk van de hele werkvloer. Gemeld 2026-09-14: een
+ * gekoppelde terminal bleef "Dit scherm hangt nog aan geen machine" tonen.
+ *
+ * De server wint dus. De opgeslagen waarde is alleen de terugval zolang de
+ * namenlijst nog onderweg is — anders knippert het scherm bij elke verversing
+ * van "eigen wachtrij" naar "alles".
+ */
+export function bepaalMachineId(
+  live: { id: string; machineId?: string | null }[] | undefined,
+  opgeslagen: { id: string; machineId?: string | null } | null,
+): string | null {
+  if (!opgeslagen) return null
+  const vanServer = live?.find((u) => u.id === opgeslagen.id)
+  if (vanServer) return vanServer.machineId ?? null
+  return opgeslagen.machineId ?? null
+}
