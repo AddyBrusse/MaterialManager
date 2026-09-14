@@ -4,6 +4,40 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-09-14 — Bewerkingsnamen komen uit de machinelijst
+
+**Beslissing:** de naam van een machineknoop in de calculatie is de naam van de
+**machine**, niet een vrij in te typen tekst. `bewerkingenVan` lost de naam op
+via `machineId` tegen de machinelijst; het vrije naamveld is weg bij
+machineknopen (materiaal en uitbesteding houden het wel — daar is geen lijst om
+tegen op te lossen).
+
+**Waarom:** die naam reist door. Hij komt als `bewerkingen` op de offerteregel,
+en bij het accepteren als `machine` op de productiestap. Daar moeten de terminal
+en de planning hem kunnen herleiden tot een machine uit de lijst — anders
+verdwijnt het werk uit de wachtrij van de machine waar het op staat (zie de
+klacht van dezelfde dag hierboven). Een vrij typbare naam dreef daarvan af zodra
+iemand de knoop anders noemde dan de machine, of een machine hernoemde.
+
+Opgelost via `machineId` en niet één keer weggeschreven, zodat het hernoemen van
+een machine meteen doorwerkt in nieuwe offertes. Valt de `machineId` niet te
+herleiden — geen machine gekozen, of een machine die verwijderd is — dan blijft
+de naam van de knoop staan: een bewerking zonder naam is erger dan een bewerking
+met de verkeerde. Het dedupliceren gebeurt op de opgeloste naam, dus twee
+knopen op dezelfde machine leveren één stap op in plaats van twee identieke.
+
+**Wat niet meeverandert:** `bewerkingen` op een bestaande offerteregel is
+bevroren (zie de opmerking in `api/projects.ts`) en de `machine` op bestaande
+productiestappen blijft staan. Die dragen dus nog de oude tekst. De wachtrij van
+de terminal gaat daar sinds dezelfde dag netjes mee om, dus een migratie is niet
+nodig.
+
+`PrijsBronnen.machines` heeft er daarvoor een `name` bij gekregen; alle
+aanroepers (artikelkiezer, mail-import, prijzen bijwerken, en de prijssnapshot
+in de API) geven hem mee.
+
+---
+
 ## 2026-09-14 — Terminal: wachtrijfilter op machine-identiteit, en gereedmelden vanaf de machine
 
 **Aanleiding:** drie klachten van de werkvloer op één dag — de gekoppelde

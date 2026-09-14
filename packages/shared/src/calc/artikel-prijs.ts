@@ -15,7 +15,7 @@ import {
 export interface PrijsBronnen {
   grades: { id: string; densityKgM3: number; pricePerKg?: number }[]
   profiles: { id: string; volumeFormula: string }[]
-  machines: { id: string; machineRatePerHour: number; operatorRatePerHour: number }[]
+  machines: { id: string; name: string; machineRatePerHour: number; operatorRatePerHour: number }[]
 }
 
 /** Het minimum dat je van een artikel nodig hebt om te rekenen. */
@@ -67,12 +67,30 @@ export function prijsVoor(artikel: CalcArtikel, bronnen: PrijsBronnen, qty = 1):
   }
 }
 
-/** Machinenamen uit de calculatie — komen als "bewerkingen" op de offerteregel. */
-export function bewerkingenVan(artikel: CalcArtikel): string[] {
+/**
+ * Machinenamen uit de calculatie — komen als "bewerkingen" op de offerteregel,
+ * en daarvandaan als `machine` op de productiestap.
+ *
+ * De naam komt uit de **machinelijst** en niet uit het vrije naamveld van de
+ * calculatieknoop. Die twee liepen uiteen zodra iemand de knoop anders noemde
+ * dan de machine of een machine hernoemde, en dan benoemt de tekst op de stap
+ * geen bestaande machine meer. De terminal kan er dan niet op filteren en de
+ * planning kan de stap niet aan een machine hangen.
+ *
+ * Valt de `machineId` niet te herleiden (geen machine gekozen, of een machine
+ * die verwijderd is), dan blijft de naam van de knoop staan: een bewerking
+ * zonder naam is erger dan een bewerking met de verkeerde.
+ */
+export function bewerkingenVan(
+  artikel: CalcArtikel,
+  machines: { id: string; name: string }[] = [],
+): string[] {
   if (!artikel.estimate) return []
+  const naamVan = new Map(machines.map((m) => [m.id, m.name]))
   const seen = new Set<string>()
   return artikel.estimate.nodes
-    .filter((n) => n.type === 'machine' && n.name)
-    .map((n) => n.name)
+    .filter((n) => n.type === 'machine')
+    .map((n) => (n.machineId ? naamVan.get(n.machineId) : null) ?? n.name)
+    .filter((name): name is string => !!name)
     .filter((name) => (seen.has(name) ? false : (seen.add(name), true)))
 }

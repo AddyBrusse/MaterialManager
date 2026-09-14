@@ -245,7 +245,12 @@ function MachineModalFields({ draft, machines, onChange }: {
 }) {
   return (
     <Stack gap="sm">
-      <TextInput label="Naam" size="sm" value={draft.name} onChange={e => onChange({ name: e.currentTarget.value })} />
+      {/* Geen vrij naamveld: de naam van een machineknoop is de naam van de
+          machine. Die naam reist door naar de offerteregel (`bewerkingenVan`)
+          en vandaar naar de productiestap, waar de terminal en de planning hem
+          moeten kunnen herleiden tot een machine uit de lijst. Een vrije naam
+          dreef daar vanaf en dan verdwijnt het werk uit de wachtrij van de
+          machine waar het op staat. */}
       <Divider label="Machine" labelPosition="left" />
       <MachineConfig node={draft} machines={machines} onChange={onChange} embedded size="sm" />
       <Divider label="Insteltijd & tarief" labelPosition="left" />
@@ -476,6 +481,40 @@ export function ArticleCalculator({ article, est, onEstChange }: {
       onChange={e => onName(e.target.value)} />
   )
 
+  /**
+   * De naam van een machineknoop is de naam van de máchine.
+   *
+   * Die naam reist mee naar de offerteregel (`bewerkingenVan`) en vandaar naar
+   * de productiestap, waar de terminal en de planning hem moeten kunnen
+   * herleiden tot een machine uit de lijst. Was hij vrij te typen, dan dreef
+   * hij daarvan af en verdween het werk uit de wachtrij van de machine waar
+   * het op staat. Hier tonen we dus wat er straks op de order komt te staan,
+   * niet wat er ooit ingetypt is.
+   */
+  const machineNaam = (node: EstimateNode) =>
+    (node.machineId ? machines.find(m => m.id === node.machineId)?.name : null) ?? node.name
+
+  /**
+   * Alleen-lezen naam: te wijzigen via de machinekeuze, niet met de hand.
+   *
+   * De dubbelklik gaat bewust wél door naar de rij eronder — die opent de
+   * machinekeuze, en dat is nu de enige manier om de naam te veranderen. Bij
+   * het typbare naamveld werd hij tegengehouden omdat dubbelklikken daar een
+   * woord selecteert; hier valt er niets te selecteren.
+   */
+  const vasteNaam = (value: string, titel: string) => (
+    <input className="acalc-name-inp bold" value={value} readOnly title={titel}
+      onClick={e => e.stopPropagation()} />
+  )
+
+  const deleteOnly = (onDelete: () => void, deleteTitle: string) => (
+    <div className="acalc-actions">
+      <button type="button" className="acalc-iconbtn del" title={deleteTitle} onClick={onDelete}>
+        <Ic d={Icon.trash} size={14} />
+      </button>
+    </div>
+  )
+
   const rowActions = (id: string, onDelete: () => void, deleteTitle: string) => (
     <div className="acalc-actions">
       <button type="button" className={`acalc-iconbtn${editRow === id ? ' active' : ''}`} title="Naam bewerken"
@@ -543,12 +582,12 @@ export function ArticleCalculator({ article, est, onEstChange }: {
                     <button type="button" className="acalc-chevron-btn" data-open={isOpen(node.id)}
                       title="Klik om te openen · sleep om te ordenen" {...handleProps(node.id)}
                       onClick={e => { e.stopPropagation(); toggle(node.id) }}><Ic d={Icon.chevronRight} size={14} /></button>
-                    {nameInput(node.id, node.name, v => updateNode(node.id, { name: v }), true)}
+                    {vasteNaam(machineNaam(node), 'Dubbelklik om een andere machine te kiezen')}
                     <span className="acalc-stepsummary">{(node.steps?.length ?? 0) + 1} stappen · {minToHm(totalMin)}</span>
                     <span className="acalc-num-muted">{totalMin} min</span>
                     <AcalcNum value={rate} unit="€/u" width="w72" onChange={v => updateNode(node.id, { rateOverride: v })} />
                     <span className="acalc-total">{eur((totalMin / 60) * rate)}</span>
-                    {rowActions(node.id, () => removeNode(node.id), 'Machine verwijderen')}
+                    {deleteOnly(() => removeNode(node.id), 'Machine verwijderen')}
                   </div>
                   {isOpen(node.id) && (
                     <>
