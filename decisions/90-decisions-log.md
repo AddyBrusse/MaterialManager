@@ -4,6 +4,72 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-09-14 — Terminal: wachtrijfilter op machine-identiteit, en gereedmelden vanaf de machine
+
+**Aanleiding:** drie klachten van de werkvloer op één dag — de gekoppelde
+terminal filterde verkeerd, starten en stoppen van de klok "leek niets te
+doen", en een bewerking kon niet gereedgemeld worden.
+
+**1. Een tekst die geen machine benoemt kan ook geen machine uitsluiten.**
+
+Op een productiestap staat de machine als tékst: `geplandMachine` als de
+planning hem heeft toegewezen, anders `machine` — en dat laatste is bij een
+order uit een geaccepteerde offerte gewoon de naam van de bewerking
+(`machine: naam` in `api/projects.ts`). Die tekst hoeft dus helemaal geen
+machine te benoemen. De terminal vergeleek hem rechttoe rechtaan met de naam
+van de gekoppelde machine, en dan verdwijnt al het werk zodra de bewerking
+anders heet dan de machine. Gemeten: terminal gekoppeld aan "DMG 450TC
+EcoLine" toonde `(0)` en "Geen openstaand werk" terwijl er twee stappen open
+stonden, met bewerkingen "DMG" en "Draaien".
+
+De regel staat nu in `apps/web/src/utils/terminal-wachtrij.ts`: benoemt de
+tekst een bestaande machine, dan geldt die toewijzing strikt; benoemt hij er
+geen, dan is de stap aan geen machine toegewezen en hoort hij op elke terminal
+zichtbaar te zijn — met een badge "niet ingepland", zodat niemand denkt dat
+hij voor deze machine bedoeld was. Namen worden vergeleken zoals een mens ze
+leest (spaties en hoofdletters tellen niet), verder wordt er niet geraden.
+
+En: nooit "geen openstaand werk" zeggen terwijl er werk ligt. Is de eigen
+wachtrij leeg maar staan er elders stappen open, dan zegt het scherm hoeveel
+en waar — anders zet de operator hem uit.
+
+**2. Een knop die niets zegt, doet niets — voor wie ervoor staat.**
+
+De klok werkte wel (registraties stonden gewoon in de database), maar het
+scherm bevestigde niets. De terminal staat op anderhalve meter en de operator
+kijkt er kort op. Start, pauze, hervat, wisselen en gereedmelden geven nu een
+melding op leesformaat.
+
+**3. Gereedmelden hoort bij de machine, niet bij kantoor.**
+
+"Stap klaar" stopte alleen de klok. De stap bleef daarna gewoon in de
+wachtrij staan — dat was de directe aanleiding voor klacht 2. De knop meldt de
+stap nu gereed via de bestaande route
+`POST /projects/:id/orders/:orderId/stap/:stapId/check`, met een bevestiging
+ervoor: terugzetten kan alleen op kantoor.
+
+Drie keuzes daarbij:
+- **De server rondt de klok af, in dezelfde transactie als het gereedmelden**
+  (`rondAfVoorStap` in `services/tijdregistratie.ts`). Een gereedgemelde stap
+  met een lopende klok telt door — `lopendSinds` is een tijdstip, geen teller
+  — en de nacalculatie groeit dan na afloop van het werk nog dagen door. Dit
+  geldt ook voor het afvinken op kantoor, dat hetzelfde probleem had.
+- **Gereedmelden kan ook zonder klok.** Wie vergeet te klokken moet het werk
+  alsnog kunnen afmelden; anders blijft de order eeuwig open en klopt de
+  planning niet meer. Het scherm zegt dan expliciet dat er geen tijd geboekt
+  wordt.
+- **De terminal wacht op de server.** `checkOffStap` is optimistisch met een
+  melding achteraf; dat kan hier niet, want de operator loopt weg zodra het
+  scherm "klaar" zegt. `meldStapGereed` is awaited.
+
+`middleware/terminal-scope.ts` kreeg daarvoor schrijfrecht per regel in plaats
+van "alles behalve de klok is alleen-lezen", en één extra regel voor die ene
+check-route — vóór de brede `/projects`-regel, want de eerste die past wint.
+Geen `/projects`-breed schrijfrecht: een terminal die offertes kan wijzigen is
+een prijslijst in de hal.
+
+---
+
 ## 2026-07-21 — Kanban and Gantt planning boards removed; Wachtrij is now the only planning board
 
 **Decision:** Deleted `PlanningKanbanPage`/`components/planning-kanban/*`/`planningKanbanUtils.ts` and `PlanningGanttPage`/`components/planning-gantt/*`, plus their routes (`/planning-kanban`, `/planning-gantt`), nav entries, and popout registrations. Also removed the already-orphaned `/planning` route (`PlanningPage.tsx`) — a third, older weekly-grid planner that was unreachable from nav/breadcrumb/popout even before this change — and its sole backend dependent, the `unplanOrder` API wrapper and `POST /projects/:id/orders/:orderId/unplan` route.

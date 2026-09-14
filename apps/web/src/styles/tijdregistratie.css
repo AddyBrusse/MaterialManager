@@ -242,6 +242,19 @@
    schoonvegen van het scherm. */
 .tr-tbtn.is-klaar { height: 84px; font-size: 20px; margin-top: auto; }
 
+/* De bevestiging van 'stap klaar'. Neemt dezelfde plek in als de knop zelf
+   (margin-top: auto), zodat de rest van het scherm niet verspringt op het
+   moment dat er een keuze gemaakt moet worden. */
+.tr-bevestig {
+  margin-top: auto;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--accent-soft);
+  padding: 16px 18px;
+}
+.tr-bevestig-t { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.tr-bevestig-s { font-size: 15px; color: var(--text-2); margin-top: 6px; line-height: 1.45; }
+
 .tr-tcard {
   border: 1px solid var(--border);
   border-left: 3px solid var(--border-strong);

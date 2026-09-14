@@ -243,6 +243,28 @@ async function rondAf(
 }
 
 /**
+ * Alle nog lopende klokken op een stap afronden.
+ *
+ * Hoort bij het gereedmelden van de stap: een stap die klaar is met een klok
+ * die doortelt laat de nacalculatie eeuwig oplopen na het werk. `lopendSinds`
+ * is een tijdstip en geen teller, dus zonder afronden groeit "werkelijk" elke
+ * keer dat iemand het scherm opent.
+ *
+ * Geeft terug hoeveel regels er zijn afgerond, zodat de aanroeper kan melden
+ * dat er nog een klok liep.
+ */
+export async function rondAfVoorStap(
+  db: Db, stapId: string, aantalStuks: number | null,
+): Promise<number> {
+  const open = await db.tijdRegistratie.findMany({
+    where: { stapId, status: { in: ['lopend', 'gepauzeerd'] } },
+  })
+  const nu = new Date()
+  for (const r of open) await rondAf(db, r, nu, aantalStuks, null)
+  return open.length
+}
+
+/**
  * Een gemeten tijd bijstellen.
  *
  * De gemeten waarde blijft staan; alleen `bijgesteldeSeconden` komt erbij. Het

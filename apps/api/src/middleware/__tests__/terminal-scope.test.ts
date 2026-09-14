@@ -47,7 +47,26 @@ describe('terminalScope', () => {
     }
   })
 
-  it('laat een terminal nergens anders schrijven dan op de klok', () => {
+  it('laat een terminal een stap gereedmelden', () => {
+    // Het einde van het werk aan de machine: de operator weet als enige
+    // wanneer het laatste stuk eraf komt. Deze regel staat vóór de brede
+    // /projects-regel, die alleen-lezen is — staat hij erachter, dan wint de
+    // brede regel en krijgt de terminal hier een 403.
+    expect(doe('terminal', 'POST', '/projects/PRJ-1/orders/PROD-1/stap/stap_1/check')).toBeUndefined()
+  })
+
+  it('laat de terminal niet méér dan gereedmelden op een stap', () => {
+    // Terugzetten en herplannen zijn kantoorbeslissingen.
+    for (const pad of [
+      '/projects/PRJ-1/orders/PROD-1/stap/stap_1/uncheck',
+      '/projects/PRJ-1/orders/PROD-1/stap/stap_1/hold',
+      '/projects/PRJ-1/orders/PROD-1/gereed',
+    ]) {
+      expect((doe('terminal', 'POST', pad) as { status: number }).status, pad).toBe(403)
+    }
+  })
+
+  it('laat een terminal nergens anders schrijven dan op de klok en het gereedmelden', () => {
     const fout = doe('terminal', 'POST', '/articles')
     expect((fout as { status: number }).status).toBe(403)
     // Ook op een route die hij wél mag lézen.

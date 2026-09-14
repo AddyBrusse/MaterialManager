@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { notifications } from '@mantine/notifications'
 import {
   IconUser, IconPlayerPause, IconPlayerPlay, IconCheck, IconMoon,
-  IconArrowRight, IconAlertTriangle,
+  IconArrowRight, IconAlertTriangle, IconX,
 } from '@tabler/icons-react'
 import { secondenNaarKlok, secondenNaarUren, type TijdSoort } from '@stockmanager/shared'
 import { usersApi } from '../api/users'
@@ -12,7 +13,54 @@ import { projectsApi, initProjects } from '../api/projects'
 import { machinesApi } from '../api/machines'
 import { useLopendeTijd, useTijdActies, useKlok } from '../hooks/useTijdregistratie'
 import { useUserStore } from '../stores/user'
+import { bepaalToewijzing, hoortBijMachine } from '../utils/terminal-wachtrij'
 import { TE_LANG_SECONDEN } from '../components/tijd/ActieveRegistratie'
+
+/**
+ * Een melding op formaat werkvloer.
+ *
+ * De terminal staat op anderhalve meter afstand en de operator kijkt er maar
+ * kort op. Zonder bevestiging lijkt elke druk op de knop niets te doen: de
+ * klok start wel, maar het scherm zegt het niet. Gemeld 2026-09-14.
+ */
+function melding(kleur: 'green' | 'red', titel: string, bericht: string) {
+  notifications.show({
+    color: kleur, title: titel, message: bericht, autoClose: 4000,
+    styles: { title: { fontSize: 17 }, description: { fontSize: 15 } },
+  })
+}
+
+/**
+ * Waar staat deze stap gepland, gezien vanaf deze terminal.
+ *
+ * Drie gevallen, en alle drie moeten ze zichtbaar zijn: op deze machine (geen
+ * badge, dat is de normale gang van zaken), op een andere bestaande machine
+ * (waarschuwing — je boekt werk om), of op iets dat helemaal geen machine
+ * benoemt. Dat laatste is de bewerkingsnaam van de offerteregel; de stap is
+ * dan nooit ingepland. Zonder badge zou zulk werk er hier uitzien alsof het
+ * voor deze machine bedoeld was.
+ */
+function StapMachineBadge(props: {
+  stapMachine: string | null
+  eigenMachineNaam: string | null
+  machineNamen: string[]
+}) {
+  if (!props.eigenMachineNaam) return null
+  const t = bepaalToewijzing(props.stapMachine, props.eigenMachineNaam, props.machineNamen)
+  if (t.soort === 'eigen') return null
+  if (t.soort === 'andere') {
+    return (
+      <span className="st-badge warn" style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+        gepland op {t.machine}
+      </span>
+    )
+  }
+  return (
+    <span className="st-badge" style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+      {t.label ? `niet ingepland · ${t.label}` : 'niet ingepland'}
+    </span>
+  )
+}
 
 /**
  * De terminal bij de machine — het enige scherm dat op de werkvloer-pc draait.
@@ -35,7 +83,11 @@ export function TerminalPage() {
   // alles moet te kiezen zijn — anders staat de operator met een machine
   // stil terwijl er werk ligt.
   const [alleMachines, setAlleMachines] = useState(false)
+  // Gereedmelden is één tik op een scherm dat ook schoongeveegd wordt. Daarom
+  // een bevestiging: terugzetten kan alleen op kantoor.
+  const [bevestigGereed, setBevestigGereed] = useState(false)
 
+  const qc = useQueryClient()
   const lopend = useLopendeTijd()
   const acties = useTijdActies()
 
@@ -96,11 +148,18 @@ export function TerminalPage() {
     return rijen.sort((a, b) => a.positie - b.positie)
   }, [projecten])
 
+  // Alle machinenamen, om te zien of de tekst op een stap er wel één benoemt.
+  // Zie utils/terminal-wachtrij.ts: een tekst die geen machine benoemt (de
+  // bewerkingsnaam van de offerteregel, bijvoorbeeld) kan ook geen machine
+  // uitsluiten, en zulk werk hoort dus op elke terminal zichtbaar te zijn.
+  const machineNamen = useMemo(
+    () => (machinesResp?.data ?? []).map((m) => m.name),
+    [machinesResp],
+  )
+
   const voorDezeMachine = useMemo(
-    () => (eigenMachineNaam
-      ? alleStappen.filter((r) => r.geplandOp === eigenMachineNaam)
-      : alleStappen),
-    [alleStappen, eigenMachineNaam],
+    () => alleStappen.filter((r) => hoortBijMachine(r.geplandOp, eigenMachineNaam, machineNamen)),
+    [alleStappen, eigenMachineNaam, machineNamen],
   )
 
   // Hangt het scherm nergens aan, dan tonen we alles: een leeg scherm terwijl er
@@ -108,6 +167,10 @@ export function TerminalPage() {
   const wachtrij = (alleMachines || !eigenMachineNaam ? alleStappen : voorDezeMachine).slice(0, 20)
 
   const actieveStap = gekozenStap ?? wachtrij[0]?.stapId ?? null
+
+  // Een openstaande bevestiging hoort bij één stap. Springt de keuze naar een
+  // andere klus, dan zou 'ja, gereed' de verkeerde stap afmelden.
+  useEffect(() => { setBevestigGereed(false) }, [actieveStap])
   const registratie = (lopend.data ?? []).find((r) => r.stapId === actieveStap) ?? null
   const seconden = useKlok(registratie)
   const teLang = !!registratie && seconden > TE_LANG_SECONDEN
@@ -150,8 +213,48 @@ export function TerminalPage() {
       // DMG-tarief in de nacalculatie — anders rekent hij met een uurtarief van
       // een machine die niets gedaan heeft.
       machineNaam: eigenMachineNaam,
+    }, {
+      onSuccess: () => melding(
+        'green', `Klok loopt — ${soort}`,
+        `${huidig?.artikel ?? ''} op ${eigenMachineNaam ?? 'deze machine'}`,
+      ),
     })
   }
+
+  /**
+   * De stap gereedmelden.
+   *
+   * Eén verzoek, want de server rondt in dezelfde transactie de nog lopende
+   * klok af (zie routes/projects.ts). Twee losse verzoeken konden halverwege
+   * stranden en lieten dan een stap achter die klaar is met een klok die
+   * doortelt — en de nacalculatie loopt dan op ná het werk.
+   *
+   * Bewust awaited en niet optimistisch: de operator loopt weg zodra het
+   * scherm klaar zegt, en een stap die daarna toch niet is afgemeld staat
+   * morgen nog in de wachtrij.
+   */
+  const gereed = useMutation({
+    mutationFn: (w: {
+      projectId: string; orderId: string; stapId: string; qty: number; liepEenKlok: boolean
+    }) =>
+      projectsApi.meldStapGereed(w.projectId, w.orderId, w.stapId, operator?.name ?? 'Operator', w.qty),
+    onSuccess: (_d, w) => {
+      setBevestigGereed(false)
+      // De afgemelde stap valt uit de wachtrij; de keuze moet mee, anders
+      // blijft het middenvak op een stap staan die er niet meer is.
+      setGekozenStap((huidige) => (huidige === w.stapId ? null : huidige))
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      qc.invalidateQueries({ queryKey: ['tijdregistratie'] })
+      qc.invalidateQueries({ queryKey: ['nacalculatie'] })
+      melding('green', 'Stap gereedgemeld', w.liepEenKlok
+        ? 'De klok is afgerond en de stap is uit de wachtrij.'
+        : 'De stap is uit de wachtrij. Er is geen tijd geboekt.')
+    },
+    onError: (e) => melding(
+      'red', 'Gereedmelden mislukt',
+      `${e instanceof Error ? e.message : 'Onbekende fout'} — de stap staat nog open.`,
+    ),
+  })
 
   // Wie staat er? Zolang dat niet gekozen is kan er geen bemand werk starten —
   // anders komen de manuren op het machine-account terecht en is achteraf niet
@@ -247,7 +350,22 @@ export function TerminalPage() {
             </div>
           )}
           <div style={{ padding: '0 14px', display: 'flex', flexDirection: 'column', gap: 9 }}>
-            {wachtrij.length === 0 && <div className="st-empty">Geen openstaand werk.</div>}
+            {wachtrij.length === 0 && (
+              alleStappen.length > 0 ? (
+                // Nooit "niks te doen" zeggen terwijl er werk ligt: dan zet de
+                // operator het scherm uit. Zeg wát er ligt en waar het staat.
+                <div className="tr-telang">
+                  <IconAlertTriangle size={14} stroke={2} />
+                  <span>
+                    Niets gepland op {eigenMachineNaam}. Er {alleStappen.length === 1 ? 'staat' : 'staan'} wel{' '}
+                    {alleStappen.length} {alleStappen.length === 1 ? 'stap' : 'stappen'} open op andere
+                    machines — tik op <strong>alle</strong> hierboven.
+                  </span>
+                </div>
+              ) : (
+                <div className="st-empty">Geen openstaand werk.</div>
+              )
+            )}
             {wachtrij.map((w, i) => {
               const actief = w.stapId === actieveStap
               const loopt = (lopend.data ?? []).some((r) => r.stapId === w.stapId)
@@ -271,13 +389,16 @@ export function TerminalPage() {
                   <div className="tr-tcard-q">
                     {w.qty} {w.eenheid} · stap {w.volgorde} van {w.totaalStappen}
                   </div>
-                  {/* Staat de stap voor een andere machine, dan hoort dat op de
-                      kaart: anders boek je ongemerkt werk om zonder het te zien. */}
-                  {eigenMachineNaam && w.geplandOp && w.geplandOp !== eigenMachineNaam && (
-                    <span className="st-badge warn" style={{ alignSelf: 'flex-start', marginTop: 2 }}>
-                      gepland op {w.geplandOp}
-                    </span>
-                  )}
+                  {/* Waar staat deze stap gepland? Op een andere machine is dat
+                      een waarschuwing — dan boek je werk om. Benoemt de tekst
+                      geen bekende machine, dan is de stap niet aan een machine
+                      toegewezen; dat is geen fout maar moet wel te zien zijn,
+                      anders lijkt het werk van deze machine te zijn. */}
+                  <StapMachineBadge
+                    stapMachine={w.geplandOp}
+                    eigenMachineNaam={eigenMachineNaam}
+                    machineNamen={machineNamen}
+                  />
                 </button>
               )
             })}
@@ -297,7 +418,8 @@ export function TerminalPage() {
                 </div>
               </div>
 
-              {eigenMachineNaam && huidig.geplandOp && huidig.geplandOp !== eigenMachineNaam && (
+              {eigenMachineNaam
+                && bepaalToewijzing(huidig.geplandOp, eigenMachineNaam, machineNamen).soort === 'andere' && (
                 <div className="tr-telang" style={{ marginTop: 14 }}>
                   <IconAlertTriangle size={16} stroke={2} />
                   <span>
@@ -358,11 +480,18 @@ export function TerminalPage() {
                 ) : (
                   <>
                     {registratie.status === 'gepauzeerd' ? (
-                      <button className="tr-tbtn" onClick={() => acties.hervat.mutate(registratie.id)}>
+                      <button className="tr-tbtn" onClick={() => acties.hervat.mutate(registratie.id, {
+                        onSuccess: () => melding('green', 'Klok loopt weer', 'De tijd telt door.'),
+                      })}>
                         <IconPlayerPlay size={22} stroke={1.8} /> hervat
                       </button>
                     ) : (
-                      <button className="tr-tbtn" onClick={() => acties.pauze.mutate(registratie.id)}>
+                      <button className="tr-tbtn" onClick={() => acties.pauze.mutate(registratie.id, {
+                        onSuccess: (r) => melding(
+                          'green', 'Klok op pauze',
+                          `${secondenNaarKlok(r.seconden)} geteld. De stap blijft open.`,
+                        ),
+                      })}>
                         <IconPlayerPause size={22} stroke={1.8} /> pauze
                       </button>
                     )}
@@ -371,6 +500,11 @@ export function TerminalPage() {
                       onClick={() => acties.wissel.mutate({
                         id: registratie.id,
                         naar: { soort: registratie.soort === 'instellen' ? 'draaien' : 'instellen', operatorId: operator.id },
+                      }, {
+                        onSuccess: (r) => melding(
+                          'green', `Nu ${r.soort}`,
+                          'De vorige regel is afgerond; instellen en draaien tellen apart.',
+                        ),
                       })}
                     >
                       <IconArrowRight size={22} stroke={1.8} />
@@ -386,6 +520,13 @@ export function TerminalPage() {
                   onClick={() => acties.wissel.mutate({
                     id: registratie.id,
                     naar: { bemand: !registratie.bemand, operatorId: registratie.bemand ? null : operator.id },
+                  }, {
+                    onSuccess: (r) => melding(
+                      'green', r.bemand ? 'Weer bemand' : 'Loopt onbemand door',
+                      r.bemand
+                        ? `De uren komen weer op naam van ${r.userNaam ?? operator.name}.`
+                        : 'De machine telt door, er worden geen manuren geboekt.',
+                    ),
                   })}
                 >
                   <IconMoon size={22} stroke={1.8} />
@@ -440,15 +581,52 @@ export function TerminalPage() {
                 </div>
               )}
 
-              <button
-                className="tr-tbtn is-primair is-klaar"
-                disabled={!registratie || acties.stop.isPending}
-                onClick={() => registratie && acties.stop.mutate({
-                  id: registratie.id, aantalStuks: huidig.qty,
-                })}
-              >
-                <IconCheck size={28} stroke={2.2} /> stap klaar
-              </button>
+              {/* Gereedmelden. Niet alleen de klok stoppen: een stap die klaar
+                  is hoort uit de wachtrij te verdwijnen, en de volgende bewerking
+                  moet zichtbaar worden voor de machine erna. Zonder dit bleef de
+                  stap na 'stap klaar' gewoon staan en leek de knop niets te doen
+                  (gemeld 2026-09-14).
+
+                  Ook zonder lopende klok te gebruiken: wie vergeet te klokken
+                  moet het werk alsnog kunnen afmelden — anders blijft de order
+                  eeuwig open en klopt de planning niet meer. */}
+              {!bevestigGereed ? (
+                <button
+                  className="tr-tbtn is-primair is-klaar"
+                  disabled={gereed.isPending}
+                  onClick={() => setBevestigGereed(true)}
+                >
+                  <IconCheck size={28} stroke={2.2} /> stap klaar
+                </button>
+              ) : (
+                <div className="tr-bevestig">
+                  <div className="tr-bevestig-t">
+                    Stap {huidig.volgorde} · {huidig.routing[huidig.volgorde - 1]?.naam ?? ''} gereedmelden?
+                  </div>
+                  <div className="tr-bevestig-s">
+                    {registratie
+                      ? `De lopende klok (${secondenNaarKlok(seconden)}) wordt afgerond op ${huidig.qty} ${huidig.eenheid}.`
+                      : 'Er loopt geen klok op deze stap; er wordt geen tijd geboekt.'}
+                    {' '}Terugzetten kan alleen op kantoor.
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 14 }}>
+                    <button className="tr-tbtn" onClick={() => setBevestigGereed(false)}>
+                      <IconX size={22} stroke={1.8} /> terug
+                    </button>
+                    <button
+                      className="tr-tbtn is-primair"
+                      disabled={gereed.isPending}
+                      onClick={() => gereed.mutate({
+                        projectId: huidig.projectId, orderId: huidig.orderId,
+                        stapId: huidig.stapId, qty: huidig.qty, liepEenKlok: !!registratie,
+                      })}
+                    >
+                      <IconCheck size={22} stroke={2.2} />
+                      {gereed.isPending ? 'bezig…' : 'ja, gereed'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
