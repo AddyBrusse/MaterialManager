@@ -161,6 +161,17 @@ function BedrijfTab() {
   )
 }
 
+const ROL_LABEL: Record<string, string> = {
+  admin: 'Beheerder',
+  user: 'Gebruiker',
+  terminal: 'Terminal',
+}
+const ROL_BADGE: Record<string, string> = {
+  admin: 'info',
+  user: '',
+  terminal: 'warn',
+}
+
 // ── Gebruikers tab ────────────────────────────────────────────────────────────
 
 interface UserRowProps {
@@ -199,6 +210,7 @@ function UserRow({ user, onSave, onDelete }: UserRowProps) {
           <select className="st-select" {...f('role')}>
             <option value="user">Gebruiker</option>
             <option value="admin">Beheerder</option>
+            <option value="terminal" title="Het account van een machinescherm op de werkvloer, geen persoon">Terminal</option>
           </select>
         </td>
         <td>
@@ -230,8 +242,8 @@ function UserRow({ user, onSave, onDelete }: UserRowProps) {
       <td className="cell-muted cell-mono" style={{ fontSize: 11.5 }}>{user.email ?? '—'}</td>
       <td className="cell-muted cell-mono" style={{ fontSize: 11.5 }}>{user.telefoon ?? '—'}</td>
       <td>
-        <span className={`st-badge ${user.role === 'admin' ? 'info' : ''}`}>
-          <span className="dot" />{user.role === 'admin' ? 'Beheerder' : 'Gebruiker'}
+        <span className={`st-badge ${ROL_BADGE[user.role] ?? ''}`}>
+          <span className="dot" />{ROL_LABEL[user.role] ?? user.role}
         </span>
       </td>
       <td>
@@ -288,6 +300,7 @@ function AddUserRow({ onAdd }: { onAdd: (u: CreateUser) => void }) {
         <select className="st-select" {...f('role')}>
           <option value="user">Gebruiker</option>
           <option value="admin">Beheerder</option>
+          <option value="terminal" title="Het account van een machinescherm op de werkvloer, geen persoon">Terminal</option>
         </select>
       </td>
       <td>
@@ -371,7 +384,11 @@ function GebruikersTab() {
       {isLoading ? (
         <div style={{ padding: 20, color: 'var(--text-3)', fontSize: 13 }}>Laden…</div>
       ) : (
-        <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', background: 'var(--bg-2)' }}>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflowX: 'auto', overflowY: 'hidden', background: 'var(--bg-2)' }}>
+          {/* overflowX: 'auto' en niet 'hidden'. De invoerrij is breder dan de
+              lijst (1134 px tegen 1000 px gemeten), en met 'hidden' viel de
+              opslaanknop buiten beeld — de rij was dan niet te bewaren. Verticaal
+              blijft hij klemmen, anders verliest de kaart zijn ronde hoeken. */}
           <table className="st-tbl">
             <thead>
               <tr>
