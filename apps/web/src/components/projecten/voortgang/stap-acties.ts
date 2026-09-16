@@ -28,6 +28,8 @@ export function bouwStapActies(
   naarTab: (tab: string) => void,
   alleenLezen: boolean,
   gebruiker: string,
+  /** De artikelenkiezer openen; ontbreekt als er niets toe te voegen valt. */
+  artikelenToevoegen?: () => void,
 ): StapActies {
   const standen = stapStanden(project, v)
   const geaccepteerd = project.offertes.find(o => o.status === 'geaccepteerd')
@@ -87,6 +89,15 @@ export function bouwStapActies(
           () => projectsApi.accepteerOfferte(project.id, verzonden.id, gebruiker),
           'Opdracht aangemaakt — prijzen vastgezet en productiestappen klaargezet',
         ),
+      }
+    }
+    // Een lege offerte versturen is onzin: dan is dít de volgende stap.
+    if (concept && concept.regels.length === 0) {
+      return {
+        stand: stand('nu'),
+        tekst: 'Artikelen toevoegen →',
+        titel: artikelenToevoegen ? undefined : 'Er is geen offerte in concept',
+        fn: artikelenToevoegen,
       }
     }
     if (concept) {

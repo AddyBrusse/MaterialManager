@@ -63,9 +63,17 @@ export function MatrixRij({ voortgang: v, regel, orders, dicht, onPakbon, onArti
   return (
     <tr className="r">
       <td style={{ padding: '0 5px' }}>
-        {/* 36 px past in de kolom van 46; op 52 liep de tekening over de
-            artikelnaam heen. */}
-        <ArtikelPreviewThumb article={art} size={36} />
+        {/* Geen artikel gekoppeld? Dan een leeg vakje, geen doorgestreept
+            fototeken. Bij een offerte uit een mail hangt er aan geen enkele
+            regel een artikel, en dan staat er dertig keer een foutsymbool
+            onder elkaar voor iets wat geen fout is.
+            36 px past in de kolom van 46; op 52 liep hij over de naam heen. */}
+        {art
+          ? <ArtikelPreviewThumb article={art} size={36} />
+          : <div style={{
+              width: 36, height: 36, borderRadius: 5,
+              border: '1px dashed var(--border)', background: 'var(--bg)',
+            }} />}
       </td>
       <td style={{ padding: '0 10px' }}>
         <div

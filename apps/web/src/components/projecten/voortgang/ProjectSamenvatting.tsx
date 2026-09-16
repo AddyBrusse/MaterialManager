@@ -26,6 +26,16 @@ export function ProjectSamenvatting({ project, voortgang: v }: {
   project: Project
   voortgang: ProjectVoortgang
 }) {
+  // Wat het project waard is. Dit stond alleen in de totaalregel onder de
+  // tabel, en bij een project van dertig regels scroll je daar niet even
+  // heen — terwijl het het eerste is wat je wilt weten.
+  const waarde = v.regels.reduce((t, r) => t + r.besteld * r.verkoopprijs, 0)
+
+  // Zonder regels valt hier niets te melden: de tabel eronder zegt zelf al dat
+  // er nog geen artikelen zijn, en die heeft ook de knop erbij. Twee keer
+  // dezelfde zin met maar één knop leest als een fout.
+  if (v.regels.length === 0) return null
+
   return (
     <div style={{
       background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8,
@@ -34,6 +44,13 @@ export function ProjectSamenvatting({ project, voortgang: v }: {
       <div style={{ fontSize: 14, lineHeight: 1.45 }}>
         <Stand voortgang={v} />
         <Levertijd datum={project.levertijdDatum} />
+        {waarde > 0 && (
+          <>
+            <span style={{ color: 'var(--text-3)' }}> · </span>
+            <span className="cell-mono">{formatBedrag(waarde)}</span>
+            <span style={{ color: 'var(--text-3)' }}> opdrachtwaarde</span>
+          </>
+        )}
       </div>
       {v.besteld > 0 && (
         <div style={{
@@ -50,9 +67,6 @@ export function ProjectSamenvatting({ project, voortgang: v }: {
 }
 
 function Stand({ voortgang: v }: { voortgang: ProjectVoortgang }) {
-  if (v.besteld === 0) {
-    return <span style={{ color: 'var(--text-3)' }}>Nog geen artikelen op dit project.</span>
-  }
   // De kop is wat er nú ligt te wachten; de rest staat er gedempt achter.
   const kop = v.klaar > 0
     ? `${v.klaar} stuks liggen klaar om te leveren`

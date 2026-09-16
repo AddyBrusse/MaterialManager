@@ -90,7 +90,7 @@ export function ProjectInfoCard({
       {/* Geen "Naam" meer: de projectnaam staat in de kopregel, naast het
           nummer, waar je hem ook leest. Hier stond hij dubbel en duwde hij de
           leverdatum naar een tweede regel. */}
-      <Veld label="Klant" breed={170}>
+      <Veld label="Klant" breed={158}>
         <Autocomplete
           className="ad-ac" size="xs" placeholder="Kies klant" maxDropdownHeight={220}
           disabled={readOnly}
@@ -99,7 +99,7 @@ export function ProjectInfoCard({
           onChange={setKlant}
         />
       </Veld>
-      <Veld label="Contact" breed={156}>
+      <Veld label="Contact" breed={146}>
         <Autocomplete
           className="ad-ac" size="xs" placeholder="Kies contact" maxDropdownHeight={220}
           disabled={readOnly || contacten.length === 0}
@@ -108,7 +108,7 @@ export function ProjectInfoCard({
           onChange={setContact}
         />
       </Veld>
-      <Veld label="Ref. klant" breed={110}>
+      <Veld label="Ref. klant" breed={132}>
         <input className="field-inp" placeholder="—" disabled={readOnly}
           value={meta.klantRef} onChange={e => onChange({ klantRef: e.target.value })} />
       </Veld>

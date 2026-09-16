@@ -65,10 +65,14 @@ interface Props {
   onPakbon?: (paklijstId: string) => void
   /** Klik op een artikelregel → naar het artikel. */
   onArtikel?: (artikelId: string) => void
+  /** Artikelen toevoegen aan de offerte die nog bewerkt mag worden. Weggelaten
+   *  als er geen concept-offerte is of het project alleen-lezen is. */
+  onArtikelenToevoegen?: () => void
 }
 
 export function ProjectMatrix({
   project, voortgang: v, regels, acties, offerteNr, onPakbon, onArtikel,
+  onArtikelenToevoegen,
 }: Props) {
   const [dicht, setDicht] = useState<Set<Groep>>(new Set())
   const klap = (g: Groep) => setDicht(vorige => {
@@ -127,7 +131,9 @@ export function ProjectMatrix({
             <StapKop
               naam="Levering" span={isDicht('levering') ? 1 : 2} tint={TINT_B}
               dicht={isDicht('levering')} onKlap={() => klap('levering')}
-              samenvatting={bonnen > 0 ? `${v.geleverd} in ${bonnen} pakbon${bonnen > 1 ? 'nen' : ''}` : '—'}
+              // Geen streepje als er nog niets geleverd is: dat zegt niets wat
+              // de lege kolommen eronder niet al zeggen.
+              samenvatting={bonnen > 0 ? `${v.geleverd} in ${bonnen} pakbon${bonnen > 1 ? 'nen' : ''}` : undefined}
               stand={acties.levering.stand} knopTekst={acties.levering.tekst}
               titel={acties.levering.titel} onClick={acties.levering.fn}
             />
@@ -178,6 +184,28 @@ export function ProjectMatrix({
           </tr>
         </thead>
         <tbody>
+          {/* Nul regels: geen kale kop met een "Totaal 0" eronder, maar zeggen
+              wat er moet gebeuren. Dit is het scherm dat je ziet bij elk nieuw
+              project, dus het moet de weg wijzen in plaats van leeg te staan. */}
+          {v.regels.length === 0 && (
+            <tr>
+              <td colSpan={breedtes.filter(w => w > 0).length} style={{
+                padding: '28px 16px', textAlign: 'center', color: 'var(--text-3)',
+                fontSize: 12.5, borderBottom: 0,
+              }}>
+                {onArtikelenToevoegen ? (
+                  <>
+                    <div style={{ marginBottom: 10 }}>Nog geen artikelen op dit project.</div>
+                    <button className="st-btn sm primary" onClick={onArtikelenToevoegen}>
+                      + Artikelen toevoegen
+                    </button>
+                  </>
+                ) : project.offertes.length === 0
+                  ? 'Maak eerst een offerte — dan kun je er artikelen op zetten.'
+                  : 'Nog geen artikelen op dit project.'}
+              </td>
+            </tr>
+          )}
           {v.regels.map(r => (
             <MatrixRij
               key={r.offerteRegelId}
@@ -189,12 +217,25 @@ export function ProjectMatrix({
               onArtikel={onArtikel}
             />
           ))}
-          <tr>
+          {v.regels.length > 0 && <tr>
             <td colSpan={2} style={{
-              padding: '11px 10px', textAlign: 'right', fontSize: 12,
+              padding: '11px 10px', textAlign: 'left', fontSize: 12,
               color: 'var(--text-2)', borderBottom: 0,
             }}>
-              Totaal
+              {/* De knop staat ónder de regels, waar hij ook bij dertig regels
+                  te vinden is zonder terug te scrollen naar een tabblad. */}
+              {onArtikelenToevoegen
+                ? (
+                  <button
+                    className="st-btn sm"
+                    onClick={onArtikelenToevoegen}
+                    style={{ marginRight: 10 }}
+                  >
+                    + Artikelen toevoegen
+                  </button>
+                )
+                : null}
+              <span style={{ float: 'right' }}>Totaal</span>
             </td>
             {!isDicht('offerte') && <>
               <td className="mn" style={{ padding: '11px 9px', textAlign: 'right', fontWeight: 600, borderBottom: 0, background: TINT_B }}>
@@ -224,7 +265,7 @@ export function ProjectMatrix({
               {isDicht('factuur') ? '' : v.teFacturerenBedrag > 0 ? formatBedrag(v.teFacturerenBedrag) : '—'}
             </td>
             <td style={{ borderBottom: 0 }} />
-          </tr>
+          </tr>}
         </tbody>
       </table>
     </div>

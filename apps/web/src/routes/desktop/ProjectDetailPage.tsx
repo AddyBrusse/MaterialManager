@@ -38,6 +38,8 @@ import { ProjectSamenvatting } from '../../components/projecten/voortgang/Projec
 import { ProjectMatrix } from '../../components/projecten/voortgang/ProjectMatrix'
 import { bouwStapActies } from '../../components/projecten/voortgang/stap-acties'
 import { ProjectKop } from '../../components/projecten/voortgang/ProjectKop'
+import { locksApi } from '../../api/locks'
+import { ArtikelPickerModal } from '../../components/projecten/ArtikelPickerModal'
 
 // ── Stage track ────────────────────────────────────────────────────────────────
 
@@ -162,6 +164,9 @@ export function ProjectDetailPage() {
   // Welke stopactie in het menu gekozen is; het redenveld verschijnt dan onder
   // de kopregel.
   const [stopSoort, setStopSoort] = useState<'on_hold' | 'geannuleerd' | null>(null)
+  // De artikelenkiezer, vanaf de matrix te openen. Hij hangt aan een offerte,
+  // dus alleen zolang er één in concept staat.
+  const [pickerOpen, setPickerOpen] = useState(false)
   const user = useUserStore(s => s.user)
   // De tabbladen zitten nu achter één knop. De matrix is het scherm; de tabs
   // zijn het detailwerk per document — notities op een pakbon, btw op een
@@ -301,9 +306,14 @@ export function ProjectDetailPage() {
   // De voortgang komt uit de gedeelde rekenkern — hetzelfde sommetje als op de
   // server, zodat het scherm en de database niet elk hun eigen waarheid hebben.
   const voortgang = berekenVoortgang(project)
+
+  // Alleen een offerte in concept mag nog regels bij krijgen; een verzonden of
+  // geaccepteerde offerte is een document dat bij de klant ligt.
+  const conceptOfferte = project.offertes.find(o => o.status === 'concept') ?? null
   const stapActies = bouwStapActies(
     project, voortgang, rerender, t => { zetDocumenten(true); setTab(t as Tab) },
     isReadOnly, user?.name ?? 'Onbekend',
+    conceptOfferte && !isReadOnly ? () => setPickerOpen(true) : undefined,
   )
   // Het nummer dat de klant ziet: alle versies van een offerte delen het.
   const offerteNr = project.offertes[0]?.documentNr ?? null
@@ -355,6 +365,7 @@ export function ProjectDetailPage() {
   const revertCfg = REVERT_CONFIG[project.status]
 
   const stilgezet = project.status === 'on_hold' || project.status === 'geannuleerd'
+
 
   // Het menu achter de drie puntjes: de uitzonderingen. Terugkeren naar een
   // vorige stap staat er ook in, mét de reden als het niet mag — een knop die
@@ -411,6 +422,40 @@ export function ProjectDetailPage() {
             <strong>{holderName ?? 'Een andere gebruiker'}</strong> heeft dit project geopend — je kijkt in alleen-lezen modus.
             {holderIdle && ' (al 5 min inactief)'}
           </span>
+          {/* Zonder deze knop blijft een project dat op slot staat door een
+              sessie die niet meer bestaat vóórgoed alleen-lezen: een browser
+              die dichtgaat zonder release laat het slot staan. De server kon
+              het al vrijgeven, alleen was het nergens aan te klikken. */}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {user?.role === 'admin' ? (
+              <button
+                className="st-btn sm"
+                title={`Het slot van ${holderName ?? 'de andere gebruiker'} weghalen en zelf verder werken`}
+                onClick={() => {
+                  locksApi.forceRelease(id, 'project')
+                    .then(() => {
+                      notifications.show({ color: 'green', message: 'Slot overgenomen' })
+                      qc.invalidateQueries({ queryKey: ['lock', 'project', id] })
+                    })
+                    .catch((e: any) => notifications.show({ color: 'red', message: e.message }))
+                }}
+              >
+                Overnemen
+              </button>
+            ) : (
+              <button
+                className="st-btn sm"
+                title={`${holderName ?? 'De houder'} vragen het project los te laten`}
+                onClick={() => {
+                  locksApi.request(id, 'project')
+                    .then(() => notifications.show({ color: 'blue', message: 'Verzoek verstuurd' }))
+                    .catch((e: any) => notifications.show({ color: 'red', message: e.message }))
+                }}
+              >
+                Toegang vragen
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -525,7 +570,13 @@ export function ProjectDetailPage() {
           volgende handeling in de kop. Dit is het scherm — de tabbladen
           hieronder zijn het detailwerk per document. */}
       <ProjectSamenvatting project={project} voortgang={voortgang} />
-      <div className={isReadOnly ? 'prj-ro-shield' : undefined}>
+      {/* Géén prj-ro-shield om de matrix. Die zet opacity op .72 en
+          pointer-events uit, en dan is de tabel ook niet meer te lézen — terwijl
+          alleen-lezen alleen hoort te betekenen dat je niets kunt wijzigen. De
+          stapknoppen zijn hier al afzonderlijk uitgezet; wat overblijft
+          (kolommen in- en uitklappen, doorklikken naar een pakbon of artikel)
+          verandert niets en mag gewoon. */}
+      <div>
         <ProjectMatrix
           project={project}
           voortgang={voortgang}
@@ -534,8 +585,22 @@ export function ProjectDetailPage() {
           offerteNr={offerteNr}
           onPakbon={() => { zetDocumenten(true); setTab('paklijst') }}
           onArtikel={artikelId => navigate(`/artikelen/${artikelId}`)}
+          onArtikelenToevoegen={
+            conceptOfferte && !isReadOnly ? () => setPickerOpen(true) : undefined
+          }
         />
       </div>
+
+      {conceptOfferte && (
+        <ArtikelPickerModal
+          opened={pickerOpen}
+          projectId={project.id}
+          offerteId={conceptOfferte.id}
+          relatieId={project.relatieId}
+          onClose={() => setPickerOpen(false)}
+          onAdded={() => { setPickerOpen(false); rerender() }}
+        />
+      )}
 
       {toonDocumenten && (
         <>
