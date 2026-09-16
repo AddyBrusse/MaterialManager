@@ -229,7 +229,7 @@ export function berekenGhostBelasting(
         const fakeOrder: ProductieOrder = {
           id: '', projectId: project.id, offerteRegelId: regel.id,
           artikelId: regel.artikelId, artikelNaam: regel.naam,
-          qty: regel.qty, eenheid: regel.eenheid,
+          qty: regel.qty, eenheid: regel.eenheid, aantalGereed: 0,
           stappen: [], status: 'gepland', createdAt: '', updatedAt: '',
         }
         const { min } = berekenOrderMin(fakeOrder, articles)

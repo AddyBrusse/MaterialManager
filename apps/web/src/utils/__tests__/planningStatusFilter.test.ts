@@ -11,10 +11,10 @@ function project(status: ProjectStatus): Project {
   return {
     id: 'PRJ-1', naam: 'Test', relatieId: null, contactId: null, klantRef: null,
     status, statusReden: null, statusVorige: null, levertijdDatum: '2026-10-01',
-    notities: '', offertes: [], opdrachtbevestiging: null, paklijst: null, factuur: null,
+    notities: '', offertes: [], opdrachtbevestiging: null, paklijsten: [], facturen: [],
     productieOrders: [{
       id: 'PROD-1', projectId: 'PRJ-1', offerteRegelId: 'r1', artikelId: null,
-      artikelNaam: 'Plaat', qty: 2, eenheid: 'stuks', status: 'gepland',
+      artikelNaam: 'Plaat', qty: 2, eenheid: 'stuks', aantalGereed: 0, status: 'gepland',
       createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',
       stappen: [{
         id: 's1', volgorde: 1, naam: 'zagen', machine: 'Zaag',
