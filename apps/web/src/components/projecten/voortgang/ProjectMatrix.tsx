@@ -134,7 +134,11 @@ export function ProjectMatrix({
             <StapKop
               naam="Factuur" span={1} tint={TINT_A}
               dicht={isDicht('factuur')} onKlap={() => klap('factuur')}
-              samenvatting={v.teFacturerenBedrag > 0 ? `${formatBedrag(v.teFacturerenBedrag)} open` : '—'}
+              // Geen bedrag in deze kop. Gemeten vraagt "FACTUUR € 1.361,04"
+              // 155 px en is er 101; het bedrag staat bovendien al twee keer in
+              // deze kolom — per regel en in de totaalregel. De andere drie
+              // koppen houden hun samenvatting wél, want die tellen iets op wat
+              // nergens anders in één getal staat.
               stand={acties.factuur.stand} knopTekst={acties.factuur.tekst}
               titel={acties.factuur.titel} onClick={acties.factuur.fn}
             />
