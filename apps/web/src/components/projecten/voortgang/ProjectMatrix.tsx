@@ -7,10 +7,16 @@
 // `table-layout: fixed` alles gelijk over de eerste rij, en die eerste rij is
 // hier de groepskoprij met colspans — dan zijn alle kolommen even breed en
 // lopen de groepskoppen over elkaar heen.
+import { useState } from 'react'
 import { formatBedrag } from '../../../api/projects'
 import { StapKop, StappenLabel } from './StapKop'
 import { MatrixRij } from './MatrixRij'
 import type { Project, ProjectVoortgang, StapStand, OfferteRegel } from '@stockmanager/shared'
+
+/** Welke kolomgroepen dicht staan. Inklappen is er niet voor de sier: in de
+ *  offertefase zeggen Productie, Levering en Factuur nog niets, en dan gaat
+ *  hun ruimte naar de kolommen waar je op dat moment wél naar kijkt. */
+type Groep = 'offerte' | 'productie' | 'levering' | 'factuur'
 
 const TINT_A = 'rgba(15,17,22,.035)'
 const TINT_B = 'rgba(15,17,22,.015)'
@@ -28,17 +34,19 @@ const TINT_B = 'rgba(15,17,22,.015)'
 // "€ 113,42" over twee regels breekt.
 const BREEDTES = [
   46,  // tekening
-  178, // artikel
+  172, // artikel (draagt ook de hintregel 'bestellen → maken → …')
   52,  // aantal        ┐
   88,  // stukprijs     ├ kopgroep Offerte (240)
   100, // totaal        ┘
-  168, // gemaakt       — kopgroep Productie
-  58,  // geleverd      ┐ kopgroep Levering (216)
-  158, // pakbonnen     ┘
-  118, // nog te fact.  — kopgroep Factuur
-  214, // voortgang & volgende stap
+  172, // gemaakt       — kopgroep Productie ("PRODUCTIE 82/100" = 165 nodig)
+  72,  // geleverd      ┐ kopgroep Levering (224; de kop vraagt 213)
+  152, // pakbonnen     ┘
+  120, // nog te fact.  — kopgroep Factuur
+  206, // voortgang & volgende stap
 ]
-const MIN_BREEDTE = BREEDTES.reduce((t, w) => t + w, 0)
+// De breedte van een dichtgeklapte groep: net genoeg voor de chevron en de
+// eerste letters, zodat je ziet wat er dicht staat.
+const GOOT = 74
 
 export type StapActies = {
   offerte: { stand: StapStand; tekst: string; titel?: string; fn?: () => void }
@@ -53,12 +61,37 @@ interface Props {
   regels: OfferteRegel[]
   acties: StapActies
   offerteNr: string | null
+  /** Klik op een pakbonchip → naar die pakbon in de documentenweergave. */
+  onPakbon?: (paklijstId: string) => void
+  /** Klik op een artikelregel → naar het artikel. */
+  onArtikel?: (artikelId: string) => void
 }
 
-export function ProjectMatrix({ project, voortgang: v, regels, acties, offerteNr }: Props) {
+export function ProjectMatrix({
+  project, voortgang: v, regels, acties, offerteNr, onPakbon, onArtikel,
+}: Props) {
+  const [dicht, setDicht] = useState<Set<Groep>>(new Set())
+  const klap = (g: Groep) => setDicht(vorige => {
+    const volgende = new Set(vorige)
+    if (volgende.has(g)) volgende.delete(g); else volgende.add(g)
+    return volgende
+  })
+  const isDicht = (g: Groep) => dicht.has(g)
+
   const regelVan = (id: string) => regels.find(r => r.id === id)
   const offerteTotaal = v.regels.reduce((t, r) => t + r.besteld * r.verkoopprijs, 0)
   const bonnen = v.aantalPakbonnen
+
+  // Een dichtgeklapte groep krimpt tot één smalle goot. De verhoudingen van de
+  // open kolommen blijven; alleen de vrijgekomen ruimte wordt verdeeld.
+  const breedtes = [
+    BREEDTES[0], BREEDTES[1],
+    ...(isDicht('offerte') ? [0, 0, GOOT] : BREEDTES.slice(2, 5)),
+    isDicht('productie') ? GOOT : BREEDTES[5],
+    ...(isDicht('levering') ? [0, GOOT] : BREEDTES.slice(6, 8)),
+    isDicht('factuur') ? GOOT : BREEDTES[8],
+    BREEDTES[9],
+  ]
 
   return (
     <div style={{
@@ -66,35 +99,41 @@ export function ProjectMatrix({ project, voortgang: v, regels, acties, offerteNr
       borderRadius: 8, overflowX: 'auto',
     }}>
       <table style={{
-        width: '100%', minWidth: MIN_BREEDTE, tableLayout: 'fixed',
-        borderCollapse: 'separate', borderSpacing: 0,
+        width: '100%', minWidth: breedtes.reduce((t, w) => t + w, 0),
+        tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0,
       }}>
         <colgroup>
-          {BREEDTES.map((w, i) => <col key={i} style={{ width: w }} />)}
+          {breedtes.map((w, i) => (
+            <col key={i} style={w === 0 ? { display: 'none' } : { width: w }} />
+          ))}
         </colgroup>
         <thead>
           <tr>
             <StappenLabel />
             <StapKop
-              naam="Offerte" span={3} tint={TINT_B}
+              naam="Offerte" span={isDicht('offerte') ? 1 : 3} tint={TINT_B}
+              dicht={isDicht('offerte')} onKlap={() => klap('offerte')}
               samenvatting={offerteNr ?? formatBedrag(offerteTotaal)}
               stand={acties.offerte.stand} knopTekst={acties.offerte.tekst}
               titel={acties.offerte.titel} onClick={acties.offerte.fn}
             />
             <StapKop
               naam="Productie" span={1} tint={TINT_A}
+              dicht={isDicht('productie')} onKlap={() => klap('productie')}
               samenvatting={`${v.gemaakt}/${v.besteld}`}
               stand={acties.productie.stand} knopTekst={acties.productie.tekst}
               titel={acties.productie.titel} onClick={acties.productie.fn}
             />
             <StapKop
-              naam="Levering" span={2} tint={TINT_B}
+              naam="Levering" span={isDicht('levering') ? 1 : 2} tint={TINT_B}
+              dicht={isDicht('levering')} onKlap={() => klap('levering')}
               samenvatting={bonnen > 0 ? `${v.geleverd} in ${bonnen} pakbon${bonnen > 1 ? 'nen' : ''}` : '—'}
               stand={acties.levering.stand} knopTekst={acties.levering.tekst}
               titel={acties.levering.titel} onClick={acties.levering.fn}
             />
             <StapKop
               naam="Factuur" span={1} tint={TINT_A}
+              dicht={isDicht('factuur')} onKlap={() => klap('factuur')}
               samenvatting={v.teFacturerenBedrag > 0 ? `${formatBedrag(v.teFacturerenBedrag)} open` : '—'}
               stand={acties.factuur.stand} knopTekst={acties.factuur.tekst}
               titel={acties.factuur.titel} onClick={acties.factuur.fn}
@@ -114,13 +153,23 @@ export function ProjectMatrix({ project, voortgang: v, regels, acties, offerteNr
           <tr className="h">
             <th />
             <th>Artikel</th>
-            <th style={{ textAlign: 'right', background: TINT_B }}>Aantal</th>
-            <th style={{ textAlign: 'right', background: TINT_B }}>Stukprijs</th>
-            <th style={{ textAlign: 'right', background: TINT_B }}>Totaal</th>
-            <th style={{ textAlign: 'right', background: TINT_A }}>Gemaakt</th>
-            <th style={{ textAlign: 'right', background: TINT_B }}>Geleverd</th>
-            <th style={{ background: TINT_B }}>Pakbonnen</th>
-            <th style={{ textAlign: 'right', background: TINT_A }}>Nog te fact.</th>
+            {!isDicht('offerte') && <>
+              <th style={{ textAlign: 'right', background: TINT_B }}>Aantal</th>
+              <th style={{ textAlign: 'right', background: TINT_B }}>Stukprijs</th>
+            </>}
+            <th style={{ textAlign: 'right', background: TINT_B }}>
+              {isDicht('offerte') ? '' : 'Totaal'}
+            </th>
+            <th style={{ textAlign: 'right', background: TINT_A }}>
+              {isDicht('productie') ? '' : 'Gemaakt'}
+            </th>
+            {!isDicht('levering') && (
+              <th style={{ textAlign: 'right', background: TINT_B }}>Geleverd</th>
+            )}
+            <th style={{ background: TINT_B }}>{isDicht('levering') ? '' : 'Pakbonnen'}</th>
+            <th style={{ textAlign: 'right', background: TINT_A }}>
+              {isDicht('factuur') ? '' : 'Nog te fact.'}
+            </th>
             <th />
           </tr>
         </thead>
@@ -131,6 +180,9 @@ export function ProjectMatrix({ project, voortgang: v, regels, acties, offerteNr
               voortgang={r}
               regel={regelVan(r.offerteRegelId)}
               orders={project.productieOrders}
+              dicht={dicht}
+              onPakbon={onPakbon}
+              onArtikel={onArtikel}
             />
           ))}
           <tr>
@@ -140,28 +192,32 @@ export function ProjectMatrix({ project, voortgang: v, regels, acties, offerteNr
             }}>
               Totaal
             </td>
-            <td className="mn" style={{ padding: '11px 9px', textAlign: 'right', fontWeight: 600, borderBottom: 0, background: TINT_B }}>
-              {v.besteld}
-            </td>
-            <td style={{ borderBottom: 0, background: TINT_B }} />
+            {!isDicht('offerte') && <>
+              <td className="mn" style={{ padding: '11px 9px', textAlign: 'right', fontWeight: 600, borderBottom: 0, background: TINT_B }}>
+                {v.besteld}
+              </td>
+              <td style={{ borderBottom: 0, background: TINT_B }} />
+            </>}
             <td className="mn" style={{ padding: '11px 9px', textAlign: 'right', fontWeight: 600, borderBottom: 0, background: TINT_B, whiteSpace: 'nowrap' }}>
-              {formatBedrag(offerteTotaal)}
+              {isDicht('offerte') ? '' : formatBedrag(offerteTotaal)}
             </td>
             <td className="mn" style={{ padding: '11px 9px', textAlign: 'right', fontWeight: 600, color: 'var(--success)', borderBottom: 0, background: TINT_A }}>
-              {v.gemaakt}
+              {isDicht('productie') ? '' : v.gemaakt}
             </td>
-            <td className="mn" style={{ padding: '11px 9px', textAlign: 'right', fontWeight: 600, color: 'var(--accent)', borderBottom: 0, background: TINT_B }}>
-              {v.geleverd}
-            </td>
+            {!isDicht('levering') && (
+              <td className="mn" style={{ padding: '11px 9px', textAlign: 'right', fontWeight: 600, color: 'var(--accent)', borderBottom: 0, background: TINT_B }}>
+                {v.geleverd}
+              </td>
+            )}
             <td className="mn" style={{ padding: '11px 9px', borderBottom: 0, background: TINT_B, fontSize: 11.5, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
               {/* De echte deling over de bonnen — het totaal alleen verbergt dat
                   het twee leveringen waren. */}
-              {project.paklijsten
+              {isDicht('levering') ? '' : project.paklijsten
                 .map(pl => pl.regels.reduce((t, r) => t + r.qty, 0))
-                .join(' + ') || ''}
+                .join(' + ')}
             </td>
             <td className="mn" style={{ padding: '11px 9px', textAlign: 'right', fontWeight: 600, borderBottom: 0, background: TINT_A, whiteSpace: 'nowrap' }}>
-              {v.teFacturerenBedrag > 0 ? formatBedrag(v.teFacturerenBedrag) : '—'}
+              {isDicht('factuur') ? '' : v.teFacturerenBedrag > 0 ? formatBedrag(v.teFacturerenBedrag) : '—'}
             </td>
             <td style={{ borderBottom: 0 }} />
           </tr>

@@ -42,9 +42,13 @@ interface Props {
   voortgang: RegelVoortgang
   regel: OfferteRegel | undefined
   orders: ProductieOrder[]
+  /** Welke kolomgroepen ingeklapt staan — die cellen worden overgeslagen. */
+  dicht: Set<'offerte' | 'productie' | 'levering' | 'factuur'>
+  onPakbon?: (paklijstId: string) => void
+  onArtikel?: (artikelId: string) => void
 }
 
-export function MatrixRij({ voortgang: v, regel, orders }: Props) {
+export function MatrixRij({ voortgang: v, regel, orders, dicht, onPakbon, onArtikel }: Props) {
   const artikelId = regel?.artikelId ?? null
   const art = artikelId ? articlesApi.list().find(a => a.id === artikelId) ?? null : null
   const machine = orders.find(o => o.offerteRegelId === v.offerteRegelId)?.stappen[0]?.machine ?? null
@@ -64,9 +68,14 @@ export function MatrixRij({ voortgang: v, regel, orders }: Props) {
         <ArtikelPreviewThumb article={art} size={36} />
       </td>
       <td style={{ padding: '0 10px' }}>
-        <div style={{
-          fontSize: 12.5, whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.3,
-        }}>
+        <div
+          onClick={artikelId && onArtikel ? () => onArtikel(artikelId) : undefined}
+          title={artikelId && onArtikel ? 'Naar het artikel' : undefined}
+          style={{
+            fontSize: 12.5, whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.3,
+            cursor: artikelId && onArtikel ? 'pointer' : 'default',
+          }}
+        >
           {v.naam}
         </div>
         <div className="cell-mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
@@ -74,44 +83,58 @@ export function MatrixRij({ voortgang: v, regel, orders }: Props) {
         </div>
       </td>
 
-      <td className="mn" style={{ padding: '0 9px', textAlign: 'right', background: TINT_B }}>
-        {v.besteld}
-      </td>
-      <td className="mn" style={{ padding: '0 9px', textAlign: 'right', background: TINT_B, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
-        {formatBedrag(v.verkoopprijs)}
-      </td>
+      {!dicht.has('offerte') && <>
+        <td className="mn" style={{ padding: '0 9px', textAlign: 'right', background: TINT_B }}>
+          {v.besteld}
+        </td>
+        <td className="mn" style={{ padding: '0 9px', textAlign: 'right', background: TINT_B, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
+          {formatBedrag(v.verkoopprijs)}
+        </td>
+      </>}
       <td className="mn" style={{ padding: '0 9px', textAlign: 'right', background: TINT_B, fontWeight: 600, whiteSpace: 'nowrap' }}>
-        {formatBedrag(v.besteld * v.verkoopprijs)}
+        {dicht.has('offerte') ? '' : formatBedrag(v.besteld * v.verkoopprijs)}
       </td>
 
       <td className="mn" style={{
         padding: '0 9px', textAlign: 'right', background: TINT_A,
         color: v.gemaakt === v.besteld ? 'var(--success)' : 'var(--text-2)',
       }}>
-        {v.gemaakt}<span style={{ color: 'var(--text-4)' }}> / {v.besteld}</span>
+        {dicht.has('productie')
+          ? ''
+          : <>{v.gemaakt}<span style={{ color: 'var(--text-4)' }}> / {v.besteld}</span></>}
       </td>
 
-      <td style={{ padding: '0 9px', textAlign: 'right', background: TINT_B }}>
-        {v.geleverd > 0
-          ? <span className="mn" style={{ color: 'var(--accent)', fontWeight: v.geleverd === v.besteld ? 600 : 400 }}>{v.geleverd}</span>
-          : <span style={{ color: 'var(--text-4)' }}>—</span>}
-      </td>
+      {!dicht.has('levering') && (
+        <td style={{ padding: '0 9px', textAlign: 'right', background: TINT_B }}>
+          {v.geleverd > 0
+            ? <span className="mn" style={{ color: 'var(--accent)', fontWeight: v.geleverd === v.besteld ? 600 : 400 }}>{v.geleverd}</span>
+            : <span style={{ color: 'var(--text-4)' }}>—</span>}
+        </td>
+      )}
       <td style={{ padding: '0 9px', background: TINT_B }}>
-        {v.leveringen.length > 0
-          ? (
-            <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3, whiteSpace: 'normal' }}>
-              {v.leveringen.map(l => (
-                <span
-                  key={l.paklijstId}
-                  className="chip mn"
-                  style={{ background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 11 }}
-                >
-                  {l.paklijstId} · {l.qty}
-                </span>
-              ))}
-            </span>
-          )
-          : <span style={{ color: 'var(--text-4)' }}>—</span>}
+        {dicht.has('levering')
+          ? ''
+          : v.leveringen.length > 0
+            ? (
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3, whiteSpace: 'normal' }}>
+                {v.leveringen.map(l => (
+                  <button
+                    key={l.paklijstId}
+                    type="button"
+                    className="chip mn"
+                    onClick={onPakbon ? () => onPakbon(l.paklijstId) : undefined}
+                    title={onPakbon ? `Pakbon ${l.paklijstId} bekijken` : undefined}
+                    style={{
+                      background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 11,
+                      border: 0, cursor: onPakbon ? 'pointer' : 'default', font: 'inherit',
+                    }}
+                  >
+                    {l.paklijstId} · {l.qty}
+                  </button>
+                ))}
+              </span>
+            )
+            : <span style={{ color: 'var(--text-4)' }}>—</span>}
       </td>
 
       <td className="mn" style={{
@@ -119,7 +142,9 @@ export function MatrixRij({ voortgang: v, regel, orders }: Props) {
         fontWeight: v.teFacturerenBedrag > 0 ? 600 : 400, whiteSpace: 'nowrap',
         color: v.teFacturerenBedrag > 0 ? 'var(--text)' : 'var(--text-4)',
       }}>
-        {v.teFacturerenBedrag > 0 ? formatBedrag(v.teFacturerenBedrag) : '—'}
+        {dicht.has('factuur')
+          ? ''
+          : v.teFacturerenBedrag > 0 ? formatBedrag(v.teFacturerenBedrag) : '—'}
       </td>
 
       <td style={{ padding: '0 10px' }}>

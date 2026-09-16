@@ -44,7 +44,7 @@ export function bouwStapActies(
     offerte: offerteActie(),
     productie: {
       stand: stand(standen.productie),
-      tekst: standen.productie === 'klaar' ? 'gemaakt' : `${v.teMaken} inplannen`,
+      tekst: standen.productie === 'klaar' ? 'klaar' : `${v.teMaken} inplannen`,
       titel: standen.productie === 'uit' ? 'Er is nog geen opdracht om in te plannen' : undefined,
       fn: standen.productie === 'uit' ? undefined : () => naarTab('productie'),
     },
@@ -52,7 +52,7 @@ export function bouwStapActies(
       stand: stand(standen.levering),
       tekst: v.klaar > 0
         ? `${v.aantalPakbonnen + 1}e pakbon · ${v.klaar} st →`
-        : v.geleverd > 0 ? 'geleverd' : 'Pakbon maken',
+        : v.geleverd > 0 ? 'klaar' : 'Pakbon maken',
       titel: v.klaar === 0 && v.geleverd === 0 ? 'Er ligt nog niets klaar om te leveren' : undefined,
       fn: v.klaar === 0
         ? undefined
@@ -60,7 +60,7 @@ export function bouwStapActies(
     },
     factuur: {
       stand: stand(standen.factuur),
-      tekst: v.teFactureren > 0 ? 'Factureren' : v.gefactureerd > 0 ? 'gefactureerd' : 'Factureren',
+      tekst: v.teFactureren > 0 ? 'Factureren' : v.gefactureerd > 0 ? 'klaar' : 'Factureren',
       titel: v.teFactureren === 0 && v.gefactureerd === 0
         ? 'Er is nog niets geleverd om te factureren' : undefined,
       fn: v.teFactureren === 0

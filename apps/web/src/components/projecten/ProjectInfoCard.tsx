@@ -78,7 +78,7 @@ export function ProjectInfoCard({
     <div style={{
       background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8,
       padding: '9px 14px', marginBottom: 12,
-      display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+      display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'nowrap', overflow: 'hidden',
     }}>
       <span style={{
         fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase',
@@ -87,10 +87,9 @@ export function ProjectInfoCard({
         Projectgegevens
       </span>
 
-      <Veld label="Naam" breed={220}>
-        <input className="field-inp strong" placeholder="Projectnaam…" disabled={readOnly}
-          value={meta.naam} onChange={e => onChange({ naam: e.target.value })} />
-      </Veld>
+      {/* Geen "Naam" meer: de projectnaam staat in de kopregel, naast het
+          nummer, waar je hem ook leest. Hier stond hij dubbel en duwde hij de
+          leverdatum naar een tweede regel. */}
       <Veld label="Klant" breed={170}>
         <Autocomplete
           className="ad-ac" size="xs" placeholder="Kies klant" maxDropdownHeight={220}
@@ -100,7 +99,7 @@ export function ProjectInfoCard({
           onChange={setKlant}
         />
       </Veld>
-      <Veld label="Contact" breed={160}>
+      <Veld label="Contact" breed={156}>
         <Autocomplete
           className="ad-ac" size="xs" placeholder="Kies contact" maxDropdownHeight={220}
           disabled={readOnly || contacten.length === 0}
@@ -118,7 +117,10 @@ export function ProjectInfoCard({
           value={meta.levertijdDatum} onChange={e => onChange({ levertijdDatum: e.target.value })} />
       </Veld>
 
-      <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-4)', whiteSpace: 'nowrap' }}>
+      <span style={{
+        marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-4)',
+        whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0,
+      }}>
         wordt vanzelf opgeslagen
       </span>
     </div>

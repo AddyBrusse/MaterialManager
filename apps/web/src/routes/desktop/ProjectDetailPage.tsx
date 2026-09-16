@@ -37,6 +37,7 @@ import { useUserStore } from '../../stores/user'
 import { ProjectSamenvatting } from '../../components/projecten/voortgang/ProjectSamenvatting'
 import { ProjectMatrix } from '../../components/projecten/voortgang/ProjectMatrix'
 import { bouwStapActies } from '../../components/projecten/voortgang/stap-acties'
+import { ProjectKop } from '../../components/projecten/voortgang/ProjectKop'
 
 // ── Stage track ────────────────────────────────────────────────────────────────
 
@@ -158,6 +159,9 @@ export function ProjectDetailPage() {
     }, { replace: true })
   }, [setSearchParams])
   const [confirmRevert, setConfirmRevert] = useState(false)
+  // Welke stopactie in het menu gekozen is; het redenveld verschijnt dan onder
+  // de kopregel.
+  const [stopSoort, setStopSoort] = useState<'on_hold' | 'geannuleerd' | null>(null)
   const user = useUserStore(s => s.user)
   // De tabbladen zitten nu achter één knop. De matrix is het scherm; de tabs
   // zijn het detailwerk per document — notities op een pakbon, btw op een
@@ -304,6 +308,7 @@ export function ProjectDetailPage() {
   // Het nummer dat de klant ziet: alle versies van een offerte delen het.
   const offerteNr = project.offertes[0]?.documentNr ?? null
 
+
   const metaLine = [
     project.id,
     relatie?.naam || null,
@@ -349,6 +354,27 @@ export function ProjectDetailPage() {
 
   const revertCfg = REVERT_CONFIG[project.status]
 
+  const stilgezet = project.status === 'on_hold' || project.status === 'geannuleerd'
+
+  // Het menu achter de drie puntjes: de uitzonderingen. Terugkeren naar een
+  // vorige stap staat er ook in, mét de reden als het niet mag — een knop die
+  // zomaar weg is, laat je zoeken.
+  const kopMenu: { label: string; fn: () => void; uit?: string; kleur?: string }[] = isReadOnly
+    ? []
+    : stilgezet
+      ? [{ label: `Hervatten naar ${project.statusVorige ?? 'concept'}`, fn: () => { projectsApi.hervatProject(id); rerender() } }]
+      : [
+          ...(revertCfg
+            ? [{
+                label: revertCfg.label,
+                uit: revertCfg.blocked ? revertCfg.guard : undefined,
+                fn: () => setConfirmRevert(true),
+              }]
+            : []),
+          { label: 'On hold zetten', fn: () => setStopSoort('on_hold') },
+          { label: 'Annuleren', fn: () => setStopSoort('geannuleerd'), kleur: 'var(--danger)' },
+        ]
+
   function RevertBtn() {
     if (!revertCfg || project!.status === 'on_hold' || project!.status === 'geannuleerd') return null
     if (revertCfg.blocked) {
@@ -388,47 +414,44 @@ export function ProjectDetailPage() {
         </div>
       )}
 
-      {/* Header — redesigned to match the article-detail page (ad- look) */}
-      <div className="prj-detail-hd">
-        {/* Title bar */}
-        <div className="ad-titlebar">
-          <div className="ad-glyph">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-            </svg>
-          </div>
-          <div className="ad-title-mid">
-            <div className="ad-title-row">
-              <h1 className="ad-h1">
-                {meta.naam || <span style={{ color: 'var(--text-4)', fontStyle: 'italic', fontWeight: 500 }}>Naamloos project</span>}
-              </h1>
-              <span className={`badge ${cfg.cls}`} title={project.statusReden ?? undefined}>
-                <span className="dot" />{cfg.label}
-              </span>
-              {project.statusReden && (
-                <span style={{ fontSize: 12, color: 'var(--text-3)' }}>— {project.statusReden}</span>
-              )}
-              <StageTrack status={project.status} compact />
-            </div>
-            <div className="ad-metaline">{metaLine}</div>
-          </div>
-          <div className="ad-title-actions">
-            {!isReadOnly && <SaveIndicator state={saveState} />}
-            {!isReadOnly && <RevertBtn />}
-            {!isReadOnly && <ProjectStatusActies project={project} onChanged={rerender} />}
-            <button
-              className="st-btn sm"
-              data-active={toonDocumenten || undefined}
-              onClick={() => zetDocumenten(!toonDocumenten)}
-            >
-              Documenten
-              <span className="tab-count">
-                {project.offertes.length + project.paklijsten.length + project.facturen.length
-                  + (project.opdrachtbevestiging ? 1 : 0)}
-              </span>
-            </button>
-          </div>
+      {/* De kopregel, precies zoals het ontwerp: mapje, projectnummer, naam,
+          en rechts Documenten plus een menu. De stappenbalk met zeven bolletjes
+          is weg — de kolomgroepen in de tabel zijn nu de stappen, mét hun
+          eigen knop, en twee stappenrijen boven elkaar is er één te veel. */}
+      <ProjectKop
+        project={project}
+        naam={meta.naam}
+        onNaam={naam => setMeta({ naam })}
+        documentenAantal={
+          project.offertes.length + project.paklijsten.length + project.facturen.length
+          + (project.opdrachtbevestiging ? 1 : 0)
+        }
+        documentenOpen={toonDocumenten}
+        onDocumenten={() => zetDocumenten(!toonDocumenten)}
+        alleenLezen={isReadOnly}
+        statusLabel={stilgezet ? cfg.label : null}
+        statusReden={project.statusReden}
+        opslaanIndicator={!isReadOnly && <SaveIndicator state={saveState} />}
+        menu={kopMenu}
+      />
+
+      {/* Het redenveld van on hold / annuleren: alleen zichtbaar zodra je het
+          uit het menu kiest. Een reden is verplicht — een project dat stilligt
+          zonder uitleg levert over een maand alleen maar vragen op. */}
+      {stopSoort && (
+        <div style={{
+          background: 'var(--warning-soft)', borderBottom: '1px solid var(--border)',
+          padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <ProjectStatusActies
+            project={project}
+            onChanged={() => { setStopSoort(null); rerender() }}
+            kiezen={stopSoort}
+            onKiezen={setStopSoort}
+          />
         </div>
+      )}
+
 
         {/* Projectgegevens: één regel, geen vier kaarten.
             De kaarten Offerte/Productie/Financieel zeiden hetzelfde als de
@@ -443,7 +466,6 @@ export function ProjectDetailPage() {
           relatie={relatie}
           readOnly={isReadOnly}
         />
-      </div>
 
       {/* Mail-import — alleen op een leeg project, zolang er nog geen offerte is */}
       {!isReadOnly && !linkedImport && project.offertes.length === 0 && (
@@ -510,6 +532,8 @@ export function ProjectDetailPage() {
           regels={basisRegels(project)}
           acties={stapActies}
           offerteNr={offerteNr}
+          onPakbon={() => { zetDocumenten(true); setTab('paklijst') }}
+          onArtikel={artikelId => navigate(`/artikelen/${artikelId}`)}
         />
       </div>
 
