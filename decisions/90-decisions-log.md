@@ -1127,3 +1127,35 @@ en verdween een omgeboekte klus stilletjes weer.
 
 De kop van de terminal noemt de gekoppelde machine, niet de accountnaam: die
 twee kunnen uiteenlopen en het is de machine die het tarief bepaalt.
+
+## 2026-09-17 — Rechtermuismenu op de projectenlijst
+
+**Vooruit navigeert, terug draait terug.** De status van een project is hier
+geen vrij veld: hij is het gevolg van een document. `bevestigd` ontstaat doordat
+iemand een offerte accepteert, `paklijst` doordat er een paklijst gemaakt wordt,
+`gefactureerd` doordat er een factuur is. Een menu dat de status los zet, zou een
+project op `gefactureerd` kunnen laten staan zonder factuur — en dan telt het mee
+in "open facturen" en rekent de nacalculatie met een verkoopprijs die nergens
+vandaan komt.
+
+Daarom opent een stap vooruit de tab waar dat document gemaakt wordt, in plaats
+van iets te raden dat alleen een mens kan kiezen (wélke offerte je verstuurt,
+wélke je accepteert). Terug gaat wél direct, want daar bestaat per stap een
+`revert`-call met dezelfde garde aan de serverkant.
+
+**Eén stap tegelijk terug.** Twee stappen ineens zou twee reverts achter elkaar
+afvuren die elk documenten weggooien, terwijl de tweede op een garde kan
+stuklopen — dan sta je halverwege zonder dat iemand daarom gevraagd heeft. Verder
+terug staat in het menu met de reden erbij ("Eerst terug naar Verzonden"), zodat
+zichtbaar is dat het bestaat en waarom het nu niet kan.
+
+De gardes staan in `components/projecten/project-status-acties.ts` en zijn een
+kopie van wat de server afdwingt. Dat is bewust: het menu moet vóór de klik laten
+zien dat iets niet kan, niet achteraf een foutmelding tonen. De server blijft de
+waarheid — loopt de kopie uit de pas, dan weigert hij nog steeds.
+
+**Geen zwevend submenu.** `Menu.Sub` bestaat in @mantine/core 7.17.8 nog niet, en
+een genest `Menu` hangt zijn dropdown in een eigen portal: een klik op een
+subitem telt dan voor het bovenliggende menu als een klik buiten de dropdown, dat
+sluit op mousedown, en het subitem is weg vóór de klik aankomt. De statuslijst
+klapt daarom uit binnen dezelfde dropdown.
