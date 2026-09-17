@@ -60,9 +60,11 @@ export function MatrixRij({ voortgang: v, regel, orders, dicht, onPakbon, onArti
   let loop = 0
   for (const l of v.leveringen) { loop += l.qty; grenzen.push(loop) }
 
+  const klikbaar = !!(artikelId && onArtikel)
+
   return (
     <tr className="r">
-      <td style={{ padding: '0 5px' }}>
+      <td style={{ padding: '10px 5px' }}>
         {/* Geen artikel gekoppeld? Dan een leeg vakje, geen doorgestreept
             fototeken. Bij een offerte uit een mail hangt er aan geen enkele
             regel een artikel, en dan staat er dertig keer een foutsymbool
@@ -75,36 +77,42 @@ export function MatrixRij({ voortgang: v, regel, orders, dicht, onPakbon, onArti
               border: '1px dashed var(--border)', background: 'var(--bg)',
             }} />}
       </td>
-      <td style={{ padding: '0 10px' }}>
+      <td style={{ padding: '10px 10px' }}>
         <div
-          onClick={artikelId && onArtikel ? () => onArtikel(artikelId) : undefined}
-          title={artikelId && onArtikel ? 'Naar het artikel' : undefined}
+          onClick={klikbaar ? () => onArtikel!(artikelId!) : undefined}
+          title={klikbaar ? 'Naar het artikel' : undefined}
           style={{
             fontSize: 12.5, whiteSpace: 'normal', overflowWrap: 'anywhere', lineHeight: 1.3,
-            cursor: artikelId && onArtikel ? 'pointer' : 'default',
+            color: klikbaar ? 'var(--accent)' : 'var(--text)',
+            textDecoration: klikbaar ? 'underline' : 'none', textDecorationColor: 'var(--accent-soft)',
+            cursor: klikbaar ? 'pointer' : 'default',
           }}
         >
           {v.naam}
         </div>
-        <div className="cell-mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-          {artikelId ?? '—'}
-        </div>
+        {/* Geen artikelId is geen fout — dan bestaat het artikel simpelweg nog
+            niet (regel komt rechtstreeks uit een mail). Een streepje in
+            hetzelfde lettertype als een echt artikelnummer las als kapot;
+            dit zegt wat er werkelijk aan de hand is. */}
+        {artikelId
+          ? <div className="cell-mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>{artikelId}</div>
+          : <div style={{ fontSize: 11, color: 'var(--text-4)', fontStyle: 'italic' }}>geen artikel gekoppeld</div>}
       </td>
 
       {!dicht.has('offerte') && <>
-        <td className="mn" style={{ padding: '0 9px', textAlign: 'right', background: TINT_B }}>
+        <td className="mn" style={{ padding: '10px 9px', textAlign: 'right', background: TINT_B }}>
           {v.besteld}
         </td>
-        <td className="mn" style={{ padding: '0 9px', textAlign: 'right', background: TINT_B, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
+        <td className="mn" style={{ padding: '10px 9px', textAlign: 'right', background: TINT_B, color: 'var(--text-2)', whiteSpace: 'nowrap' }}>
           {formatBedrag(v.verkoopprijs)}
         </td>
       </>}
-      <td className="mn" style={{ padding: '0 9px', textAlign: 'right', background: TINT_B, fontWeight: 600, whiteSpace: 'nowrap' }}>
+      <td className="mn" style={{ padding: '10px 9px', textAlign: 'right', background: TINT_B, fontWeight: 600, whiteSpace: 'nowrap' }}>
         {dicht.has('offerte') ? '' : formatBedrag(v.besteld * v.verkoopprijs)}
       </td>
 
       <td className="mn" style={{
-        padding: '0 9px', textAlign: 'right', background: TINT_A,
+        padding: '10px 9px', textAlign: 'right', background: TINT_A,
         color: v.gemaakt === v.besteld ? 'var(--success)' : 'var(--text-2)',
       }}>
         {dicht.has('productie')
@@ -113,13 +121,13 @@ export function MatrixRij({ voortgang: v, regel, orders, dicht, onPakbon, onArti
       </td>
 
       {!dicht.has('levering') && (
-        <td style={{ padding: '0 9px', textAlign: 'right', background: TINT_B }}>
+        <td style={{ padding: '10px 9px', textAlign: 'right', background: TINT_B }}>
           {v.geleverd > 0
             ? <span className="mn" style={{ color: 'var(--accent)', fontWeight: v.geleverd === v.besteld ? 600 : 400 }}>{v.geleverd}</span>
             : <span style={{ color: 'var(--text-4)' }}>—</span>}
         </td>
       )}
-      <td style={{ padding: '0 9px', background: TINT_B }}>
+      <td style={{ padding: '10px 9px', background: TINT_B }}>
         {dicht.has('levering')
           ? ''
           : v.leveringen.length > 0
@@ -146,7 +154,7 @@ export function MatrixRij({ voortgang: v, regel, orders, dicht, onPakbon, onArti
       </td>
 
       <td className="mn" style={{
-        padding: '0 9px', textAlign: 'right', background: TINT_A,
+        padding: '10px 9px', textAlign: 'right', background: TINT_A,
         fontWeight: v.teFacturerenBedrag > 0 ? 600 : 400, whiteSpace: 'nowrap',
         color: v.teFacturerenBedrag > 0 ? 'var(--text)' : 'var(--text-4)',
       }}>
@@ -155,7 +163,7 @@ export function MatrixRij({ voortgang: v, regel, orders, dicht, onPakbon, onArti
           : v.teFacturerenBedrag > 0 ? formatBedrag(v.teFacturerenBedrag) : '—'}
       </td>
 
-      <td style={{ padding: '0 10px' }}>
+      <td style={{ padding: '10px 10px' }}>
         <VoortgangBalk voortgang={v} leveringGrenzen={grenzen} />
         <div style={{
           display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 11.5,
