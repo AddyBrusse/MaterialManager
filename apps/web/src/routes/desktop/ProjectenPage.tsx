@@ -2,17 +2,19 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconPlus, IconDownload, IconFolder, IconDots, IconTrash,
+  IconPlus, IconDownload, IconFolder,
   IconArrowUp, IconArrowDown, IconUsers, IconClipboardList,
   IconAlertTriangle, IconFileInvoice,
 } from '@tabler/icons-react'
-import { Menu } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { projectsApi } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
 import { useUserPreference } from '../../hooks/useUserPreference'
 import { ColumnSettings } from '../../components/projecten/ColumnSettings'
 import { ColumnHeaderMenu } from '../../components/projecten/ColumnHeaderMenu'
+import {
+  ProjectDotsMenu, ProjectContextMenu, type ContextMenuState,
+} from '../../components/projecten/ProjectRijMenu'
+import { useProjectRijActies } from '../../hooks/useProjectRijActies'
 import {
   PROJECT_STATUS_CONFIG, PROJECT_COLUMNS, COLUMN_BY_ID, DEFAULT_HIDDEN,
   resolveColumns, reorderColumns,
@@ -77,6 +79,12 @@ export function ProjectenPage() {
   const [dragCol, setDragCol] = useState<string | null>(null)
   const [dropCol, setDropCol] = useState<string | null>(null)
   const [colPanelOpen, setColPanelOpen] = useState(false)
+  // Rechtermuismenu op een rij; `null` betekent dicht.
+  const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
+
+  // Openen, status wijzigen, stilleggen en verwijderen zitten in de hook, zodat
+  // de ⋯-knop en het rechtermuismenu dezelfde acties uitvoeren.
+  const { acties, stopModal } = useProjectRijActies(rerender)
 
   function handleHeaderDrop(targetId: string) {
     const moved = dragCol
@@ -156,13 +164,6 @@ export function ProjectenPage() {
     const next = new Set(selected)
     next.has(id) ? next.delete(id) : next.add(id)
     setSelected(next)
-  }
-
-  function handleDelete(p: Project) {
-    if (!window.confirm(`Project ${p.id} (${p.naam}) verwijderen?`)) return
-    projectsApi.remove(p.id)
-    notifications.show({ color: 'orange', message: `Project ${p.id} verwijderd` })
-    rerender()
   }
 
   return (
@@ -337,6 +338,12 @@ export function ProjectenPage() {
                   key={p.id}
                   data-selected={selected.has(p.id)}
                   onClick={() => navigate(`/projecten/${p.id}`)}
+                  // preventDefault houdt het browsermenu weg; de rij-onClick
+                  // vuurt niet mee, want een rechtsklik is geen click-event.
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    setCtxMenu({ x: e.clientX, y: e.clientY, project: p })
+                  }}
                 >
                   <td className="col-checkbox" onClick={e => e.stopPropagation()}>
                     <span className="st-ck" data-on={selected.has(p.id)} onClick={() => toggleOne(p.id)} />
@@ -351,23 +358,7 @@ export function ProjectenPage() {
                     </td>
                   ))}
                   <td onClick={e => e.stopPropagation()}>
-                    <Menu position="bottom-end" withinPortal shadow="md">
-                      <Menu.Target>
-                        <button className="st-icon-btn" title="Acties"><IconDots size={15} /></button>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item leftSection={<IconFolder size={14} />} onClick={() => navigate(`/projecten/${p.id}`)}>
-                          Openen
-                        </Menu.Item>
-                        <Menu.Item
-                          color="red"
-                          leftSection={<IconTrash size={14} />}
-                          onClick={() => handleDelete(p)}
-                        >
-                          Verwijderen
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
+                    <ProjectDotsMenu project={p} acties={acties} />
                   </td>
                 </tr>
               ))}
@@ -388,6 +379,9 @@ export function ProjectenPage() {
           {selected.size > 0 && <span style={{ color: 'var(--text)' }}>· {selected.size} geselecteerd</span>}
         </div>
       </div>
+
+      <ProjectContextMenu state={ctxMenu} onClose={() => setCtxMenu(null)} acties={acties} />
+      {stopModal}
     </>
   )
 }

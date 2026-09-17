@@ -107,6 +107,30 @@ git reset --hard origin/<branch>
 Geen merge, dus geen conflict. Wat lokaal stond was toch een kopie van wat op
 origin staat.
 
+**Vanaf de hoofdmap doet `npm run sync` dit voor je** (`scripts/sync.mjs`):
+
+```
+npm run sync                 # nieuwste claude/*-branch op origin
+npm run sync -- <branch>     # die branch
+npm run sync:dev             # en meteen doorstarten
+```
+
+Hij haalt origin op, gooit een gewijzigde `package-lock.json` weg (gegenereerd,
+geen werk), schakelt over met `git checkout -B <branch> origin/<branch>`, en
+draait `npm install` als de afhankelijkheden veranderd zijn. Zijn er migraties
+bijgekomen, dan zegt hij dat je `npm run db:deploy` moet draaien.
+
+Hij stopt in plaats van iets weg te gooien wanneer er commits op de pc staan die
+op geen enkele remote-branch voorkomen, of wanneer er andere eigen wijzigingen
+in de werkboom zitten. `--force` gooit het alsnog weg. De uitzondering is
+bewust: staan die lokale commits inhoudelijk gelijk aan master, dan zijn het de
+originele commits van een al gemergede PR (zie hierboven) en gaat hij gewoon
+door.
+
+Let op: sta je op een commit van vóór dit script, dan bestaat `npm run sync`
+daar nog niet — dan eerst één keer handmatig met `git fetch` + `git checkout -B`
+hierboven.
+
 **Controleer dat wel één keer voor je reset**, want `--hard` gooit weg:
 
 ```
