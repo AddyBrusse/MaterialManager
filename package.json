@@ -7,6 +7,8 @@
   ],
   "scripts": {
     "postinstall": "npm run build -w packages/shared && npm run db:generate -w apps/api",
+    "sync": "node scripts/sync.mjs",
+    "sync:dev": "node scripts/sync.mjs && npm run dev",
     "dev": "npm run build -w packages/shared && concurrently -n shared,api,web -c gray,cyan,magenta \"npm run dev -w packages/shared\" \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
     "dev:api": "npm run build -w packages/shared && npm run dev -w apps/api",
     "dev:web": "npm run build -w packages/shared && npm run dev -w apps/web",
