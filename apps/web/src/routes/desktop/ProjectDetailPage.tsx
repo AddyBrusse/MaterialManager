@@ -32,6 +32,14 @@ import { ProductieTab } from '../../components/projecten/ProductieTab'
 import { PaklijstTab } from '../../components/projecten/PaklijstTab'
 import { FactuurTab } from '../../components/projecten/FactuurTab'
 import type { Project } from '@stockmanager/shared'
+import { laatstePaklijst, berekenVoortgang, basisRegels } from '@stockmanager/shared'
+import { useUserStore } from '../../stores/user'
+import { ProjectSamenvatting } from '../../components/projecten/voortgang/ProjectSamenvatting'
+import { ProjectMatrix } from '../../components/projecten/voortgang/ProjectMatrix'
+import { bouwStapActies } from '../../components/projecten/voortgang/stap-acties'
+import { ProjectKop } from '../../components/projecten/voortgang/ProjectKop'
+import { locksApi } from '../../api/locks'
+import { ArtikelPickerModal } from '../../components/projecten/ArtikelPickerModal'
 
 // ── Stage track ────────────────────────────────────────────────────────────────
 
@@ -153,6 +161,25 @@ export function ProjectDetailPage() {
     }, { replace: true })
   }, [setSearchParams])
   const [confirmRevert, setConfirmRevert] = useState(false)
+  // Welke stopactie in het menu gekozen is; het redenveld verschijnt dan onder
+  // de kopregel.
+  const [stopSoort, setStopSoort] = useState<'on_hold' | 'geannuleerd' | null>(null)
+  // De artikelenkiezer, vanaf de matrix te openen. Hij hangt aan een offerte,
+  // dus alleen zolang er één in concept staat.
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const user = useUserStore(s => s.user)
+  // De tabbladen zitten nu achter één knop. De matrix is het scherm; de tabs
+  // zijn het detailwerk per document — notities op een pakbon, btw op een
+  // factuur, de offerte-PDF. In de url zodat een herlaadactie hem openhoudt.
+  const toonDocumenten = searchParams.get('docs') === '1'
+  const zetDocumenten = useCallback((aan: boolean) => {
+    setSearchParams(vorige => {
+      const volgende = new URLSearchParams(vorige)
+      if (aan) volgende.set('docs', '1')
+      else { volgende.delete('docs'); volgende.delete('tab') }
+      return volgende
+    }, { replace: true })
+  }, [setSearchParams])
   // Mail-import (features/60-mail-import.md §2.2/§3.7): een gesleepte mail komt
   // eerst in `reviewImport` en raakt het project pas als iemand hem koppelt.
   const [reviewImport, setReviewImport] = useState<MailImport | null>(null)
@@ -276,6 +303,22 @@ export function ProjectDetailPage() {
   const articleOptions = articlesApi.list()
     .map(a => ({ value: a.id, label: a.tekening ? `${a.tekening} · ${a.naam}` : a.naam }))
 
+  // De voortgang komt uit de gedeelde rekenkern — hetzelfde sommetje als op de
+  // server, zodat het scherm en de database niet elk hun eigen waarheid hebben.
+  const voortgang = berekenVoortgang(project)
+
+  // Alleen een offerte in concept mag nog regels bij krijgen; een verzonden of
+  // geaccepteerde offerte is een document dat bij de klant ligt.
+  const conceptOfferte = project.offertes.find(o => o.status === 'concept') ?? null
+  const stapActies = bouwStapActies(
+    project, voortgang, rerender, t => { zetDocumenten(true); setTab(t as Tab) },
+    isReadOnly, user?.name ?? 'Onbekend',
+    conceptOfferte && !isReadOnly ? () => setPickerOpen(true) : undefined,
+  )
+  // Het nummer dat de klant ziet: alle versies van een offerte delen het.
+  const offerteNr = project.offertes[0]?.documentNr ?? null
+
+
   const metaLine = [
     project.id,
     relatie?.naam || null,
@@ -283,33 +326,6 @@ export function ProjectDetailPage() {
     meta.klantRef ? `ref ${meta.klantRef}` : null,
   ].filter(Boolean).join(' · ')
 
-  function NextActionBtn() {
-    const { status } = project!
-    if (status === 'concept' || status === 'offerte') {
-      return (
-        <button className="st-btn primary sm" onClick={() => setTab('offertes')}>
-          Naar offertes →
-        </button>
-      )
-    }
-    if (status === 'productie' && allOrdersGereed(project!)) {
-      return (
-        <button className="st-btn primary sm" onClick={() => { projectsApi.createPaklijst(id); rerender(); setTab('paklijst') }}>
-          Paklijst aanmaken →
-        </button>
-      )
-    }
-    if (status === 'bevestigd' || status === 'productie') {
-      return <button className="st-btn primary sm" onClick={() => setTab('productie')}>Naar productie →</button>
-    }
-    if (status === 'paklijst') {
-      return <button className="st-btn primary sm" onClick={() => setTab('paklijst')}>Naar paklijst →</button>
-    }
-    if (status === 'verzonden') {
-      return <button className="st-btn primary sm" onClick={() => setTab('factuur')}>Factuur aanmaken →</button>
-    }
-    return null
-  }
 
   // Map each status to what it reverts to and which API call to make
   const REVERT_CONFIG: Partial<Record<Project['status'], {
@@ -332,7 +348,7 @@ export function ProjectDetailPage() {
     },
     paklijst: {
       label: 'Terug naar productie',
-      blocked: !!project.paklijst?.verzondenOp,
+      blocked: !!laatstePaklijst(project)?.verzondenOp,
       guard: 'Paklijst is al verzonden',
       fn: () => { projectsApi.revertPaklijst(id); rerender(); setTab('productie') },
     },
@@ -347,6 +363,28 @@ export function ProjectDetailPage() {
   }
 
   const revertCfg = REVERT_CONFIG[project.status]
+
+  const stilgezet = project.status === 'on_hold' || project.status === 'geannuleerd'
+
+
+  // Het menu achter de drie puntjes: de uitzonderingen. Terugkeren naar een
+  // vorige stap staat er ook in, mét de reden als het niet mag — een knop die
+  // zomaar weg is, laat je zoeken.
+  const kopMenu: { label: string; fn: () => void; uit?: string; kleur?: string }[] = isReadOnly
+    ? []
+    : stilgezet
+      ? [{ label: `Hervatten naar ${project.statusVorige ?? 'concept'}`, fn: () => { projectsApi.hervatProject(id); rerender() } }]
+      : [
+          ...(revertCfg
+            ? [{
+                label: revertCfg.label,
+                uit: revertCfg.blocked ? revertCfg.guard : undefined,
+                fn: () => setConfirmRevert(true),
+              }]
+            : []),
+          { label: 'On hold zetten', fn: () => setStopSoort('on_hold') },
+          { label: 'Annuleren', fn: () => setStopSoort('geannuleerd'), kleur: 'var(--danger)' },
+        ]
 
   function RevertBtn() {
     if (!revertCfg || project!.status === 'on_hold' || project!.status === 'geannuleerd') return null
@@ -384,132 +422,95 @@ export function ProjectDetailPage() {
             <strong>{holderName ?? 'Een andere gebruiker'}</strong> heeft dit project geopend — je kijkt in alleen-lezen modus.
             {holderIdle && ' (al 5 min inactief)'}
           </span>
+          {/* Zonder deze knop blijft een project dat op slot staat door een
+              sessie die niet meer bestaat vóórgoed alleen-lezen: een browser
+              die dichtgaat zonder release laat het slot staan. De server kon
+              het al vrijgeven, alleen was het nergens aan te klikken. */}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            {user?.role === 'admin' ? (
+              <button
+                className="st-btn sm"
+                title={`Het slot van ${holderName ?? 'de andere gebruiker'} weghalen en zelf verder werken`}
+                onClick={() => {
+                  locksApi.forceRelease(id, 'project')
+                    .then(() => {
+                      notifications.show({ color: 'green', message: 'Slot overgenomen' })
+                      qc.invalidateQueries({ queryKey: ['lock', 'project', id] })
+                    })
+                    .catch((e: any) => notifications.show({ color: 'red', message: e.message }))
+                }}
+              >
+                Overnemen
+              </button>
+            ) : (
+              <button
+                className="st-btn sm"
+                title={`${holderName ?? 'De houder'} vragen het project los te laten`}
+                onClick={() => {
+                  locksApi.request(id, 'project')
+                    .then(() => notifications.show({ color: 'blue', message: 'Verzoek verstuurd' }))
+                    .catch((e: any) => notifications.show({ color: 'red', message: e.message }))
+                }}
+              >
+                Toegang vragen
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Header — redesigned to match the article-detail page (ad- look) */}
-      <div className="prj-detail-hd">
-        {/* Title bar */}
-        <div className="ad-titlebar">
-          <div className="ad-glyph">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-            </svg>
-          </div>
-          <div className="ad-title-mid">
-            <div className="ad-title-row">
-              <h1 className="ad-h1">
-                {meta.naam || <span style={{ color: 'var(--text-4)', fontStyle: 'italic', fontWeight: 500 }}>Naamloos project</span>}
-              </h1>
-              <span className={`badge ${cfg.cls}`} title={project.statusReden ?? undefined}>
-                <span className="dot" />{cfg.label}
-              </span>
-              {project.statusReden && (
-                <span style={{ fontSize: 12, color: 'var(--text-3)' }}>— {project.statusReden}</span>
-              )}
-              <StageTrack status={project.status} compact />
-            </div>
-            <div className="ad-metaline">{metaLine}</div>
-          </div>
-          <div className="ad-title-actions">
-            {!isReadOnly && <SaveIndicator state={saveState} />}
-            {!isReadOnly && <RevertBtn />}
-            {!isReadOnly && <ProjectStatusActies project={project} onChanged={rerender} />}
-            {!isReadOnly && <NextActionBtn />}
-          </div>
-        </div>
+      {/* De kopregel, precies zoals het ontwerp: mapje, projectnummer, naam,
+          en rechts Documenten plus een menu. De stappenbalk met zeven bolletjes
+          is weg — de kolomgroepen in de tabel zijn nu de stappen, mét hun
+          eigen knop, en twee stappenrijen boven elkaar is er één te veel. */}
+      <ProjectKop
+        project={project}
+        naam={meta.naam}
+        onNaam={naam => setMeta({ naam })}
+        documentenAantal={
+          project.offertes.length + project.paklijsten.length + project.facturen.length
+          + (project.opdrachtbevestiging ? 1 : 0)
+        }
+        documentenOpen={toonDocumenten}
+        onDocumenten={() => zetDocumenten(!toonDocumenten)}
+        alleenLezen={isReadOnly}
+        statusLabel={stilgezet ? cfg.label : null}
+        statusReden={project.statusReden}
+        opslaanIndicator={!isReadOnly && <SaveIndicator state={saveState} />}
+        menu={kopMenu}
+      />
 
-        {/* Info cards */}
-        <div className="prj-info-cards">
-          <ProjectInfoCard
-            meta={meta}
-            onChange={setMeta}
-            relatieOptions={relatieOptions}
-            relatie={relatie}
-            readOnly={isReadOnly}
+      {/* Het redenveld van on hold / annuleren: alleen zichtbaar zodra je het
+          uit het menu kiest. Een reden is verplicht — een project dat stilligt
+          zonder uitleg levert over een maand alleen maar vragen op. */}
+      {stopSoort && (
+        <div style={{
+          background: 'var(--warning-soft)', borderBottom: '1px solid var(--border)',
+          padding: '8px 24px', display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <ProjectStatusActies
+            project={project}
+            onChanged={() => { setStopSoort(null); rerender() }}
+            kiezen={stopSoort}
+            onKiezen={setStopSoort}
           />
-
-          {/* Offerte */}
-          <div className="ad-card">
-            <div className="ad-eyebrow"><Ic d={Icon.file} />Offerte</div>
-          <div className="info-primary mono">
-            {accepted?.id ?? (project.offertes.length > 0 ? project.offertes[project.offertes.length - 1].id : '—')}
-          </div>
-          <div className="info-rows">
-            <div className="info-line">
-              <span className="k">Versie</span>
-              <span className="v">
-                {accepted
-                  ? `v${accepted.versie} · geaccepteerd`
-                  : project.offertes.length > 0
-                  ? `v${project.offertes[project.offertes.length - 1].versie} · ${project.offertes[project.offertes.length - 1].status}`
-                  : '—'}
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">Artikelen</span>
-              <span className="v">
-                {(accepted ?? project.offertes[project.offertes.length - 1])?.regels.length ?? 0} regels
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">Bedrag excl.</span>
-              <span className="v mono">{subtotaal > 0 ? formatBedrag(subtotaal) : '—'}</span>
-            </div>
-          </div>
         </div>
+      )}
 
-          {/* Productie */}
-          <div className="ad-card">
-            <div className="ad-eyebrow"><Ic d={Icon.tool} />Productie</div>
-          <div className="info-primary">
-            {totalOrders > 0 ? `${gereedCount} / ${totalOrders} klaar` : '—'}
-          </div>
-          <div className="info-rows">
-            <div className="info-line">
-              <span className="k">Gereed</span>
-              <span className="v" style={gereedCount > 0 ? { color: 'var(--success)' } : {}}>
-                {gereedCount} orders
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">In productie</span>
-              <span className="v" style={project.productieOrders.filter(o => o.status === 'in_productie').length > 0 ? { color: 'var(--warning)' } : {}}>
-                {project.productieOrders.filter(o => o.status === 'in_productie').length} orders
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">Paklijst</span>
-              <span className="v">{project.paklijst?.id ?? '—'}</span>
-            </div>
-          </div>
-        </div>
 
-          {/* Financieel */}
-          <div className="ad-card">
-            <div className="ad-eyebrow"><Ic d={Icon.euro} />Financieel</div>
-          <div className="info-primary mono">{subtotaal > 0 ? formatBedrag(subtotaal) : '—'}</div>
-          <div className="info-rows">
-            <div className="info-line">
-              <span className="k">Excl. BTW</span>
-              <span className="v mono">{subtotaal > 0 ? formatBedrag(subtotaal) : '—'}</span>
-            </div>
-            <div className="info-line">
-              <span className="k">BTW 21%</span>
-              <span className="v mono">
-                {subtotaal > 0 ? formatBedrag(Math.round(subtotaal * 0.21 * 100) / 100) : '—'}
-              </span>
-            </div>
-            <div className="info-line">
-              <span className="k">Incl. BTW</span>
-              <span className="v mono">
-                {subtotaal > 0 ? formatBedrag(Math.round(subtotaal * 1.21 * 100) / 100) : '—'}
-              </span>
-            </div>
-          </div>
-          </div>
-        </div>
-      </div>
+        {/* Projectgegevens: één regel, geen vier kaarten.
+            De kaarten Offerte/Productie/Financieel zeiden hetzelfde als de
+            matrix eronder, maar met andere getallen — "0 / 2 klaar" telt hele
+            orders, de matrix telt stuks. Twee waarheden op één scherm is erger
+            dan één. Wat hier overblijft is wat je hier invult en nergens
+            anders: klant, contact, referentie en leverdatum. */}
+        <ProjectInfoCard
+          meta={meta}
+          onChange={setMeta}
+          relatieOptions={relatieOptions}
+          relatie={relatie}
+          readOnly={isReadOnly}
+        />
 
       {/* Mail-import — alleen op een leeg project, zolang er nog geen offerte is */}
       {!isReadOnly && !linkedImport && project.offertes.length === 0 && (
@@ -565,50 +566,89 @@ export function ProjectDetailPage() {
         />
       )}
 
-      {/* Tabs */}
-      <div className="detail-tabs">
-        <button data-active={tab === 'offertes'} onClick={() => setTab('offertes')}>
-          Offertes
-          {project.offertes.length > 0 && <span className="tab-count">{project.offertes.length}</span>}
-        </button>
-        <button data-active={tab === 'opdrachtbevestiging'} onClick={() => setTab('opdrachtbevestiging')}>
-          Opdrachtbevestiging
-          {project.opdrachtbevestiging && project.opdrachtbevestiging.status !== 'verzonden' && (
-            <span
-              className="tab-count"
-              style={{ background: 'var(--warning)', color: '#fff' }}
-              title="Opdrachtbevestiging staat nog op concept en is nog niet verzonden naar de klant"
-            >!</span>
-          )}
-        </button>
-        <button data-active={tab === 'productie'} onClick={() => setTab('productie')}>
-          Productie
-          {project.productieOrders.length > 0 && <span className="tab-count">{project.productieOrders.length}</span>}
-        </button>
-        <button data-active={tab === 'nacalculatie'} onClick={() => setTab('nacalculatie')}>
-          Nacalculatie
-        </button>
-        <button data-active={tab === 'paklijst'} onClick={() => setTab('paklijst')}>
-          Paklijst
-          {project.paklijst && <span className="tab-count">1</span>}
-        </button>
-        <button data-active={tab === 'factuur'} onClick={() => setTab('factuur')}>
-          Factuur
-          {project.factuur && <span className="tab-count">1</span>}
-        </button>
+      {/* De matrix: de vier stappen als kolomgroepen, elk met zijn eigen
+          volgende handeling in de kop. Dit is het scherm — de tabbladen
+          hieronder zijn het detailwerk per document. */}
+      <ProjectSamenvatting project={project} voortgang={voortgang} />
+      {/* Géén prj-ro-shield om de matrix. Die zet opacity op .72 en
+          pointer-events uit, en dan is de tabel ook niet meer te lézen — terwijl
+          alleen-lezen alleen hoort te betekenen dat je niets kunt wijzigen. De
+          stapknoppen zijn hier al afzonderlijk uitgezet; wat overblijft
+          (kolommen in- en uitklappen, doorklikken naar een pakbon of artikel)
+          verandert niets en mag gewoon. */}
+      <div>
+        <ProjectMatrix
+          project={project}
+          voortgang={voortgang}
+          regels={basisRegels(project)}
+          acties={stapActies}
+          offerteNr={offerteNr}
+          onPakbon={() => { zetDocumenten(true); setTab('paklijst') }}
+          onArtikel={artikelId => navigate(`/artikelen/${artikelId}`)}
+          onArtikelenToevoegen={
+            conceptOfferte && !isReadOnly ? () => setPickerOpen(true) : undefined
+          }
+        />
       </div>
 
-      <div className={`tab-body${isReadOnly ? ' prj-ro-shield' : ''}`}>
-        {tab === 'offertes'             && <OfferteTab               project={project} onChanged={rerender} />}
-        {tab === 'opdrachtbevestiging'  && <OpdrachtbevestigingTab   project={project} onChanged={rerender} />}
-        {tab === 'productie'            && <>
-          <ProductieTab project={project} onChanged={rerender} />
-          <ProjectReserveringen projectId={project.id} />
-        </>}
-        {tab === 'nacalculatie'         && <ProjectNacalculatieTab   projectId={project.id} />}
-        {tab === 'paklijst'             && <PaklijstTab              project={project} onChanged={() => { rerender() }} />}
-        {tab === 'factuur'              && <FactuurTab               project={project} onChanged={() => { rerender() }} />}
-      </div>
+      {conceptOfferte && (
+        <ArtikelPickerModal
+          opened={pickerOpen}
+          projectId={project.id}
+          offerteId={conceptOfferte.id}
+          relatieId={project.relatieId}
+          onClose={() => setPickerOpen(false)}
+          onAdded={() => { setPickerOpen(false); rerender() }}
+        />
+      )}
+
+      {toonDocumenten && (
+        <>
+          <div className="detail-tabs" style={{ marginTop: 16 }}>
+            <button data-active={tab === 'offertes'} onClick={() => setTab('offertes')}>
+              Offertes
+              {project.offertes.length > 0 && <span className="tab-count">{project.offertes.length}</span>}
+            </button>
+            <button data-active={tab === 'opdrachtbevestiging'} onClick={() => setTab('opdrachtbevestiging')}>
+              Opdrachtbevestiging
+              {project.opdrachtbevestiging && project.opdrachtbevestiging.status !== 'verzonden' && (
+                <span
+                  className="tab-count"
+                  style={{ background: 'var(--warning)', color: '#fff' }}
+                  title="Opdrachtbevestiging staat nog op concept en is nog niet verzonden naar de klant"
+                >!</span>
+              )}
+            </button>
+            <button data-active={tab === 'productie'} onClick={() => setTab('productie')}>
+              Productie
+              {project.productieOrders.length > 0 && <span className="tab-count">{project.productieOrders.length}</span>}
+            </button>
+            <button data-active={tab === 'nacalculatie'} onClick={() => setTab('nacalculatie')}>
+              Nacalculatie
+            </button>
+            <button data-active={tab === 'paklijst'} onClick={() => setTab('paklijst')}>
+              Pakbonnen
+              {project.paklijsten.length > 0 && <span className="tab-count">{project.paklijsten.length}</span>}
+            </button>
+            <button data-active={tab === 'factuur'} onClick={() => setTab('factuur')}>
+              Facturen
+              {project.facturen.length > 0 && <span className="tab-count">{project.facturen.length}</span>}
+            </button>
+          </div>
+
+          <div className={`tab-body${isReadOnly ? ' prj-ro-shield' : ''}`}>
+            {tab === 'offertes'             && <OfferteTab               project={project} onChanged={rerender} />}
+            {tab === 'opdrachtbevestiging'  && <OpdrachtbevestigingTab   project={project} onChanged={rerender} />}
+            {tab === 'productie'            && <>
+              <ProductieTab project={project} onChanged={rerender} />
+              <ProjectReserveringen projectId={project.id} />
+            </>}
+            {tab === 'nacalculatie'         && <ProjectNacalculatieTab   projectId={project.id} />}
+            {tab === 'paklijst'             && <PaklijstTab              project={project} onChanged={() => { rerender() }} />}
+            {tab === 'factuur'              && <FactuurTab               project={project} onChanged={() => { rerender() }} />}
+          </div>
+        </>
+      )}
     </>
   )
 }

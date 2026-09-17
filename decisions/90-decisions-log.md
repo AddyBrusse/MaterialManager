@@ -4,6 +4,77 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-09-16 — Deelleveringen, creditnota's en de projectpagina als brede matrix
+
+**Aanleiding:** de projectpagina had vier KPI-kaarten, een stappenbalk en zes
+tabbladen boven de artikelentabel. Dat kostte zoveel hoogte dat er nog drie van
+de acht regels zichtbaar waren, en de kaarten spraken elkaar tegen: "0 / 2 klaar"
+telde hele orders, terwijl er 82 van de 100 stuks gemaakt waren.
+
+**Beslissing 1 — de kolomgroepen zijn de stappen, en elke groep draagt zijn eigen
+knop.** Geen tabbladen meer voor Offerte/Productie/Levering/Factuur: het zijn
+kolomgroepen in één tabel, met in de kop het kerngetal én de volgende handeling.
+Precies één knop is blauw — de stap die nu aan de beurt is (`stapStanden`) — dus
+je hoeft niet te kiezen waar je begint. De tabbladen bestaan nog wel, achter de
+knop Documenten, voor het detailwerk per document.
+
+**Beslissing 2 — één rekenkern voor de voortgang.** `calc/projectvoortgang.ts` is
+de enige plek die bepaalt wat "gemaakt", "geleverd" en "gefactureerd" betekenen,
+zoals `services/voorraad.ts` dat voor de voorraad doet en `effectieveSeconden`
+voor de tijd. Web én API rekenen ermee, zodat het optimistische scherm en het
+antwoord van de server niet uiteenlopen.
+
+De vier toestanden zijn een **opdeling** van het bestelde aantal, geen geneste
+schalen: `[gefactureerd][geleverd nog niet gefactureerd][klaar op de vloer][nog
+te maken]`. Ze tellen altijd op tot besteld, dus de grijze staart is altijd
+precies "wat er nog moet".
+
+**Een gecrediteerd stuk telt één keer.** Eerst stond hier
+`afgehandeld = gefactureerd + gecrediteerd`, en toen telde de balk 102 van de
+100. Je crediteert een fáctuur, geen levering, dus `gecrediteerd` zit al ín
+`gefactureerd`. Om dezelfde reden is "nog te factureren" `geleverd − gefactureerd`
+en niet ook nog eens min gecrediteerd: dat maakte er 0 van terwijl er twee
+geleverde stuks onbetaald waren. Beide gevallen staan nu in
+`__tests__/projectvoortgang.test.ts`.
+
+**Beslissing 3 — deelleveringen en credits zijn meervoud in het gedeelde schema.**
+De tabellen `paklijsten` en `facturen` konden er per project al meer dan één
+hebben; het gedeelde `Project` sloeg ze plat tot één nullable veld. Nu arrays.
+Een pakbon gaat over wat er op dát moment klaarligt (gemaakt min al geleverd),
+niet over de hele order. Een creditnota is geen negatieve factuur maar een eigen
+document met een eigen nummerreeks (`CRED-`): de factuur die hij crediteert is
+verstuurd en blijft staan.
+
+**Beslissing 4 — een order kan deels gereed zijn.** `aantalGereed` op
+`ProductieOrder`. Zonder dat kon "34 van de 40" niet vastgehouden worden, en dat
+is nu net het getal waar een deellevering op wacht. De operator vult het in bij
+het gereedmelden; afleiden uit de tijdregistratie zou 0 opleveren zodra iemand
+vergeet te klokken, en dan lijkt een volle kist leeg. Een order met 0 die tóch
+op `gereed` staat telt voor zijn volle aantal — anders zou elk bestaand afgerond
+project ineens leeglopen.
+
+**Beslissing 5 — versies delen één documentnummer.** Een nieuwe offerteversie
+vervángt de vorige, dus draagt ze hetzelfde nummer. Tot nu toe trok elke versie
+een nieuw nummer via `nextLocalDocId('OFF')` terwijl `versie` wél 1, 2, 3 telde:
+twee tellingen die iets anders zeiden. Het id kan dat nummer niet zijn (primary
+key, moet per versie verschillen), dus er is een kolom `document_nr` bij.
+
+**Wat de migratie bewust NIET doet:** bestaande offertes hernoemen naar het
+nummer van v1. Die versies zijn onder hun eigen nummer de deur uit gegaan; er
+ligt mogelijk een PDF bij een klant met OFF-2026-015 erop. Dat achteraf
+OFF-2026-014 noemen maakt het scherm netjes en de administratie onwaar.
+Bestaande rijen houden hun eigen nummer; alleen versies die ná de migratie
+bijkomen erven dat van v1.
+
+**Breedte, gemeten:** naast de zijbalk blijft bij een venster van 1440 nog
+1190 px over, niet 1440. Het ontwerp ging uit van 1392 en dan viel juist de
+statuskolom buiten beeld. De kolommen tellen nu op tot 1180; is er minder
+ruimte, dan schuift de tabel liever opzij dan dat de koppen over elkaar lopen.
+Percentages waren het alternatief, maar dan krimpen de geldkolommen mee tot
+"€ 113,42" over twee regels breekt.
+
+---
+
 ## 2026-09-14 — De koppeling van de terminal komt van de server, niet uit de opgeslagen inlog
 
 **Klacht:** een terminal die op kantoor aan een machine gekoppeld was bleef in de

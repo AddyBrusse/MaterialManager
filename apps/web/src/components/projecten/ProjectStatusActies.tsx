@@ -16,8 +16,23 @@ const LABEL: Record<'on_hold' | 'geannuleerd', string> = {
   geannuleerd: 'Annuleren',
 }
 
-export function ProjectStatusActies({ project, onChanged }: { project: Project; onChanged: () => void }) {
-  const [kiezen, setKiezen] = useState<'on_hold' | 'geannuleerd' | null>(null)
+type Soort = 'on_hold' | 'geannuleerd'
+
+export function ProjectStatusActies({
+  project, onChanged, kiezen: extern, onKiezen, verbergKnoppen = false,
+}: {
+  project: Project
+  onChanged: () => void
+  /** Van buitenaf sturen — zo kan het menu in de kopregel dit openen zonder
+   *  dat de knoppen zelf nog naast de projectnaam hoeven te staan. */
+  kiezen?: Soort | null
+  onKiezen?: (soort: Soort | null) => void
+  /** Alleen het redenveld tonen; de knoppen zitten dan in het menu. */
+  verbergKnoppen?: boolean
+}) {
+  const [intern, setIntern] = useState<Soort | null>(null)
+  const kiezen = extern !== undefined ? extern : intern
+  const setKiezen = (s: Soort | null) => { onKiezen ? onKiezen(s) : setIntern(s) }
   const [reden, setReden] = useState('')
   const stilgezet = project.status === 'on_hold' || project.status === 'geannuleerd'
 
@@ -31,6 +46,7 @@ export function ProjectStatusActies({ project, onChanged }: { project: Project; 
   }
 
   if (stilgezet) {
+    if (verbergKnoppen) return null
     return (
       <button
         className="st-btn sm ghost"
@@ -65,6 +81,8 @@ export function ProjectStatusActies({ project, onChanged }: { project: Project; 
       </div>
     )
   }
+
+  if (verbergKnoppen) return null
 
   return (
     <div style={{ display: 'flex', gap: 6 }}>
