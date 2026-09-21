@@ -2,68 +2,47 @@
 
 ## Mantine
 
-Mantine v7 components throughout, `size="xs"`/`"sm"` for desktop density (see
-`frontend/18-design-patterns.md` for modal/drawer sizing rules). Avoid custom
-one-offs when Mantine has it.
+Mantine v7 overal, `size="xs"`/`"sm"` voor desktopdichtheid (zie
+`frontend/18-design-patterns.md` voor modal-/drawermaten). Geen eigen
+maaksels waar Mantine het al heeft.
 
-## Layout (`/components/layout`)
+## Mappen in `apps/web/src/components/`
 
-| Component | Purpose |
+| Map | Waarvoor |
 |---|---|
-| `AppLayout` | Desktop shell — sidebar + topbar + content, see `frontend/15-desktop-view.md` |
+| `layout/` | `AppLayout` (zijbalk + topbar + inhoud), `GlobalTabs`, `PopoutShell`, `pageRegistry` |
+| `common/` | `UserSelectScreen` — de gebruikerskiezer vóór de router |
+| `raw-materials/` | `RawMaterialForm` — toevoegen/bewerken van een grondstof |
+| `articles/` | Artikeldetail: `ArticleForm`, `ArticleCalculator`, `ArticleInfoStrip`, `ArticleFilesTab`, `ArticleHistoryTab`, `ArticleFinancialCard`, `ArticlePrijshistorieTab`, `ArticleSankey`, `PrijshistorieGrafiek`, pickers voor materiaal en locatie, `calc-icons` |
+| `relaties/` | Tabs Gegevens / Contacten / Artikelen |
+| `projecten/` | Het grootste blok: de tabs van de projectdetailpagina (`OfferteTab`, `OpdrachtbevestigingTab`, `ProductieTab`, `PaklijstTab`, `FactuurTab`), `ArtikelPickerModal`, `RegelsTable`, `projectColumns`, plus de mail-import (`MailDropzone`, `MailImportReview`, `MailRegelsTable`, `MailDebugPaneel`) |
+| `materiaal/` | `MateriaalSelectieModal` en `MateriaalSelectieVanTodo` — materiaal kiezen bij het aanmaken van de opdracht |
+| `planning-queue/` | Wachtrij: `QueuePanel`, `QueueTimeline`, `QueueBacklog`, `QueueDetails`, `QueueKpiStrip`, `QueueToolbar`, `QueueJobCard`, `SuggestScheduleModal`, `CascadeConfirmModal`, de STEP-viewer |
+| `prognose/` | `PrognoseBars`, `PrognoseHeatmap` |
+| `todos/` | `TodoRow`, `TodoAddRow`, `TodoAlerts` |
+| `tijd/` | `KlokBlok`, `ActieveRegistratie`, `CorrectieModal` |
+| `nacalculatie/` | `NacalculatiePaneel` plus een tab per invalshoek (project/artikel) |
+| `documenten/` | `documentStatus.ts` — statusafleiding voor de documentenpagina |
+| `settings/` | `MateriaalbeheerPage` (Locaties/Kwaliteiten/Profielen/Nabewerkingen) en `OverheadPage` (Bedrijfskosten/Machines) |
 
-## Common (`/components/common`)
+## Styling
 
-| Component | Purpose |
-|---|---|
-| `UserSelectScreen` | Full-screen user picker shown when no user in `stockmanager-user` |
+Paginalayout en tabellen gebruiken de globale `st-*`-klassen uit
+`apps/web/src/styles/tokens.css` (zie `frontend/19-visual-design.md`).
 
-## Raw materials (`/components/raw-materials`)
+Grotere schermen met veel eigen opmaak hebben een eigen stylesheet naast de
+tokens: `styles/planning-queue.css`, `styles/prognose.css`,
+`styles/tijdregistratie.css`, en in `components/articles/` een paar
+feature-stylesheets. Er is precies één CSS-module in de hele app
+(`routes/desktop/TableSort.module.css`); nieuwe stylesheets volgen liever het
+patroon hierboven dan dat er modules bijkomen.
 
-| Component | Purpose |
-|---|---|
-| `RawMaterialDrawer` | Detail/edit drawer opened from the Voorraad table |
-| `RawMaterialForm` | Add/edit form (grade, profile, dimensions, length, location) |
+## Mobiel
 
-## Articles (`/components/articles`)
+Niet gebouwd — `routes/mobile/index.tsx` toont placeholders. Zie
+`frontend/14-mobile-view.md`.
 
-| Component | Purpose |
-|---|---|
-| `ArticleForm` | Add/edit core article fields, Modal `size={720}` |
-| `ArticleCalculator` | Cost calculator — Materialen/Bewerkingen/Uitbestedingen, see `features/38-article-calculator.md` |
-| `ArticleInfoStrip` | Editable header strip on the article detail page |
-| `ArticleFilesTab` | Setup-sheet attachments (Bestanden tab) |
-| `ArticleHistoryTab` | Stock-movement history (Historie tab) |
-| `calc-icons` | Shared icon set for the calculator UI |
+## Regels
 
-## Relaties (`/components/relaties`)
-
-| Component | Purpose |
-|---|---|
-| `RelatieGegevensTab` | Core relatie fields (Gegevens tab) |
-| `RelatieContactenTab` | Contact persons CRUD (Contacten tab) |
-| `RelatieArtikelenTab` | Articles linked to this relatie (Artikelen tab) |
-
-## Settings (`/components/settings`)
-
-| Component | Purpose |
-|---|---|
-| `MateriaalbeheerPage` | Sub-tabs: Locaties / Kwaliteiten / Profielen |
-| `LocationsTab` | Locations CRUD |
-| `GradesTab` | Grades CRUD (incl. `pricePerKg`) |
-| `ProfilesTab` | Profiles CRUD (volume formula + dimension schema) |
-| `OverheadPage` | Sub-tabs: Bedrijfskosten / Machines |
-| `BedrijfskostenTab` | Overhead/Bedrijfskosten rates |
-| `OverheadTab` | Machines CRUD (rates, used by the calculator) |
-
-## Mobile
-
-Not built yet — `routes/mobile/index.tsx` renders placeholder text. See
-`frontend/14-mobile-view.md` for the intended design.
-
-## Rules
-
-- Files small. If a component nears 150 lines, split it.
-- No CSS modules — styling via global `st-*` classes in
-  `apps/web/src/styles/tokens.css` (see `frontend/19-visual-design.md`)
-- Props typed explicitly, no `any`
+- Bestanden klein. Nadert een component de 150 regels, splitsen.
+- Props expliciet getypeerd, geen `any`.

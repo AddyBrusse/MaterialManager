@@ -1,65 +1,94 @@
 # 11 — Routing
 
-## Device detection
+## Vier schillen, gekozen in `App.tsx`
 
-In `App.tsx`, detect viewport on mount and on resize:
+`App.tsx` kiest vóór de router welke schil je krijgt:
 
-- `window.innerWidth <= 900` (`MOBILE_BREAKPOINT`) → `<MobileLayout />`
-- Otherwise → `<AppLayout />`
+1. **Geen gebruiker gekozen** → `<UserSelectScreen />`, geen router.
+2. **Rol `terminal`** → `<TerminalPage />`, geen router en geen weg terug. Een
+   machinescherm in de hal hoort de rest van de app niet te kunnen bereiken;
+   de API weigert dit account sowieso alles behalve de klok
+   (`apps/api/src/middleware/terminal-scope.ts`).
+3. **Pad begint met `/pop/`** → `<PopoutShell />`, de losgemaakte-vensterschil.
+4. **Anders** → `<MobileLayout />` bij breedte ≤ 900 px (`MOBILE_BREAKPOINT`),
+   anders `<AppLayout />`.
 
-Each layout mounts its own `<Routes>` tree. Paths differ between mobile and
-desktop (desktop uses `/voorraad`, `/artikelen`, …; mobile uses `/raw`,
-`/finished`, `/movements`).
+De mobiel/desktop-keuze wordt inline in `App.tsx` uit `window.innerWidth`
+berekend bij mount en bij resize; er is geen store voor.
 
-## Desktop routes (`AppLayout`)
+## Desktoproutes (`AppLayout`)
 
-| Path | Page | Notes |
+| Pad | Pagina | Notities |
 |---|---|---|
-| `/` | — | Redirects to `/voorraad` |
-| `/voorraad` | `VoorraadPage` | Raw materials list, table + filters; detail/edit via drawer (not a route) |
-| `/binnenboeken` | `BinnenBoekenPage` | Receive raw material — see `workflows/41-receive-material.md` |
-| `/artikelen` | `ArtikelenPage` | Articles list, search + filters |
-| `/artikelen/:id` | `ArtikelDetailPage` | Article detail — full page, tabs (Calculatie/Bestanden/Historie), see `features/31-items-finished.md` |
-| `/relaties` | `RelatiesPage` | Customers/suppliers list |
-| `/relaties/:id` | `RelatieDetailPage` | Relatie detail — tabs (Gegevens/Contacten/Artikelen) |
-| `/instellingen` | `InstellingenPage` | Admin settings — Materiaalbeheer (Locaties/Kwaliteiten/Profielen) + Overhead (Bedrijfskosten/Machines) |
-| `/zaagcalculator` | `ZaagCalculatorPage` | Plan saw cuts from stock |
-| `/reserveringen` | `ReserveringenPage` | Reserved cut plans (badge count from `sm_zaag_reservations` in localStorage) |
-| `/zaagflow` | `ZaagflowPage` | Execute reserved cuts, per-bar flow with quality checks |
-| `*` | — | Redirects to `/voorraad` |
+| `/` | — | Redirect naar `/voorraad` |
+| `/voorraad` | `VoorraadPage` | Grondstoffen, tabel + filters; detail/bewerken via drawer (geen route) |
+| `/binnenboeken` | `BinnenBoekenPage` | Materiaal ontvangen — zie `workflows/41-receive-material.md` |
+| `/artikelen` | `ArtikelenPage` | Artikellijst, zoeken + filters |
+| `/artikelen/:id` | `ArtikelDetailPage` | Artikeldetail met tabs, zie `features/31-items-finished.md` |
+| `/instellingen` | `InstellingenPage` | Beheer — Materiaalbeheer + Bedrijfskosten/Machines |
+| `/zaagcalculator` | `ZaagCalculatorPage` | Zaagsnedes plannen uit voorraad |
+| `/reserveringen` | `ReserveringenPage` | Gereserveerde zaagplannen |
+| `/zaagplanner` | `ZaagPlannerPage` | **Uitgezet in de nav** (`disabled: true`) — hiervoor komt een andere applicatie. De route bestaat nog |
+| `/zaagflow` | `ZaagflowPage` | Reserveringen uitvoeren, per staaf met kwaliteitscontroles |
+| `/relaties` | `RelatiesPage` | Klanten/leveranciers |
+| `/relaties/:id` | `RelatieDetailPage` | Tabs Gegevens/Contacten/Artikelen |
+| `/projecten` | `ProjectenPage` | Projectlijst |
+| `/projecten/:id` | `ProjectDetailPage` | Projectdetail; de open tab staat in de URL (`?tab=factuur`) |
+| `/documenten` | `DocumentenPage` | Alle documenten over projecten heen |
+| `/planning-queue` | `PlanningQueuePage` | Wachtrij — het enige planbord (zie besluit 2026-07-21) |
+| `/prognose` | `PrognosePage` | Werklastprognose |
+| `/todos` | `TodosPage` | Openstaande todo's |
+| `/tijdregistratie` | `TijdregistratiePage` | Uren per order/stap |
+| `*` | — | Redirect naar `/voorraad` |
 
-Nav is grouped into **Materiaal beheer** / **Artikelen** / **Productie** (see
-`AppLayout.tsx`'s `Sidebar`/`NAV`), which also drives the topbar breadcrumb
-(`ROUTE_LABELS`).
+De nav is gegroepeerd in **Planning** / **Productie** / **Materiaalbeheer** /
+**Stamgegevens** (`NAV` in `AppLayout.tsx`), wat ook de broodkruimel in de
+topbar voedt (`ROUTE_LABELS`).
 
-## Mobile routes (`MobileLayout`, `routes/mobile/index.tsx`)
+## `pageRegistry.tsx` is de bron
 
-**Status: stub, not yet built.** A Mantine `AppShell` with a bottom
-`SegmentedControl` (Grondstof / Artikel / Mutaties) routes between three
-placeholder pages that currently just render "nog te bouwen" (yet to be
-built):
+`components/layout/pageRegistry.tsx` bevat `PAGES`: per pagina het pad, label,
+icoon, component en of hij los te maken is (`poppable`). Die lijst voedt zowel
+de tabbalk als de popout-vensters. **Voeg een nieuwe pagina daar toe**, niet
+alleen in de `<Routes>` van `AppLayout` — anders bestaat hij wel als URL maar
+niet als tab of los venster.
 
-| Path | Page | Notes |
-|---|---|---|
-| `/` | — | Redirects to `/raw` |
-| `/raw` | placeholder | Grondstoffen |
-| `/finished` | placeholder | Eindproducten |
-| `/movements` | placeholder | Mutaties |
-| `*` | — | Redirects to `/raw` |
+## Losgemaakte vensters (`/pop/*`)
 
-See `frontend/14-mobile-view.md` for the intended richer design (scan/search/
-adjust) once this gets built.
+Een pagina met `poppable: true` kan in een eigen browservenster open
+(`utils/popout.ts`). Dat venster draait dezelfde componenten via
+`PopoutShell`, dat zijn routes uit `POPOUT_ENTRIES` haalt — inclusief
+parameterroutes zoals `/projecten/:id`, zodat `useParams()` daar werkt.
+`hideChrome` laat de paginakop weg in een popout.
 
-## User select
+## Mobiele routes (`MobileLayout`, `routes/mobile/index.tsx`)
 
-Pre-route gate: if no user in the `useUserStore` (zustand `persist`,
-localStorage key `stockmanager-user`), render `<UserSelectScreen />` instead
-of either layout. After pick, the store persists the user and the app
-re-renders into the normal layout.
+**Status: stub, niet gebouwd.** Een Mantine `AppShell` met een
+`SegmentedControl` onderin (Grondstof / Artikel / Mutaties) tussen drie
+placeholderpagina's die "nog te bouwen" tonen.
 
-## Lock-aware detail pages
+| Pad | Pagina |
+|---|---|
+| `/` | Redirect naar `/raw` |
+| `/raw` | placeholder |
+| `/finished` | placeholder |
+| `/movements` | placeholder |
+| `*` | Redirect naar `/raw` |
 
-**Status: backend exists, frontend not wired up yet.** `apps/api` implements
-the full lock lifecycle (`backend/24-locking.md`), but no frontend route
-currently queries lock state, shows a lock banner, or sends heartbeats — see
-`workflows/43-edit-locking-flow.md` for the intended integration.
+Zie `frontend/14-mobile-view.md` voor het bedoelde ontwerp.
+
+## Gebruikerskeuze
+
+Vóór alle routes: staat er geen gebruiker in `useUserStore` (zustand `persist`,
+localStorage-sleutel `stockmanager-user`), dan verschijnt `<UserSelectScreen />`.
+Na de keuze rendert de app in de normale schil.
+
+## Sloten op detailpagina's
+
+**Gebouwd voor projecten.** `hooks/useProjectLock.ts` haalt de slotstand op,
+stuurt heartbeats en toont wie het project open heeft; `ProjectDetailPage`
+gebruikt hem. De querysleutel is `['lock', 'project', id]`.
+
+Voor grondstoffen en artikelen bestaat de backend-lifecycle wél
+(`backend/24-locking.md`) maar is er nog geen frontend die hem gebruikt — zie
+`workflows/43-edit-locking-flow.md`.

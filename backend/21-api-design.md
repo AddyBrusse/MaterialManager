@@ -1,99 +1,99 @@
 # 21 — API Design
 
-All routes prefixed with `/api`. JSON in/out.
+Alle routes onder `/api`. JSON in en uit.
 
-## User context
+## Gebruikerscontext
 
-Frontend sends `x-user-id: <uuid>` header on every request. Middleware loads the user and attaches `req.user`. No user → 401.
+De frontend stuurt `x-user-id: <uuid>` mee op elk verzoek. `user-context`
+laadt de gebruiker en hangt hem aan `req.user`. Geen gebruiker → 401.
+
+Daarna draait `terminal-scope`: voor de rol `terminal` is alles dicht behalve
+wat expliciet op de **toelatenlijst** staat. Een nieuwe route is dus standaard
+onbereikbaar voor een machinescherm — dat is opzet, zie
+`apps/api/src/middleware/terminal-scope.ts`.
+
+`/api/health` en `/api/pdf` staan vóór de gebruikerscontext en vragen geen
+gebruiker.
 
 ## Endpoints
 
-### Users
-- `GET    /api/users` — list (everyone can see, for dropdown)
-- `POST   /api/users` — create (admin)
-- `PATCH  /api/users/:id` — update (admin)
-- `DELETE /api/users/:id` — delete (admin)
+### Gebruikers
+- `GET /api/users` — lijst (voor de dropdown)
+- `POST` / `PATCH /:id` / `DELETE /:id` — beheerder
 
-### Raw materials
-- `GET    /api/raw-materials` — list with search/filter query params
-- `GET    /api/raw-materials/:id`
-- `POST   /api/raw-materials` — used when receiving (label flow)
-- `PATCH  /api/raw-materials/:id` — requires lock held by caller
-- `DELETE /api/raw-materials/:id` — admin only
+### Grondstoffen, eindproducten, mutaties
+- `GET|POST /api/raw-materials`, `GET|PATCH|DELETE /api/raw-materials/:id`
+- `GET|POST /api/finished-goods`, `GET|PATCH|DELETE /api/finished-goods/:id`
+- `GET /api/movements` (met `?itemId=`), `POST /api/movements`
+- `GET /api/low-stock`, `GET /api/search?q=…`
 
-### Finished goods
-- `GET    /api/finished-goods` — list
-- `GET    /api/finished-goods/:id`
-- `POST   /api/finished-goods` — admin only (creating articles is admin)
-- `PATCH  /api/finished-goods/:id` — requires lock
-- `DELETE /api/finished-goods/:id` — admin only
+### Stamgegevens
+- `/api/locations`, `/api/grades`, `/api/profiles`, `/api/surface-finishes`,
+  `/api/machines` — steeds `GET` lijst, `POST` nieuw, `PATCH /:id`,
+  `DELETE /:id`; schrijven is beheerder
+- `/api/relaties` — idem, plus `GET /:id`
+- `/api/articles` — idem, plus een subroute voor bijlagen
+- `GET|PUT /api/settings/company` — bedrijfsgegevens
 
-### Stock movements
-- `GET    /api/movements` — global log with filters
-- `GET    /api/movements?itemId=...` — per item
-- `POST   /api/movements` — record a movement; updates item stock; doesn't require an item lock (stock adjust is its own flow)
+### Projecten
+De grootste router. Naast `GET /`, `GET /:id`, `POST /`, `PATCH /:id`,
+`DELETE /:id`:
 
-### Locations
-- `GET    /api/locations`
-- `POST   /api/locations` (admin)
-- `PATCH  /api/locations/:id` (admin)
-- `DELETE /api/locations/:id` (admin)
+| Pad | Wat |
+|---|---|
+| `POST /:id/status/stop` · `/status/hervat` | on hold zetten en hervatten |
+| `POST /:id/offertes` | nieuwe offerteversie |
+| `POST|PATCH|DELETE /:id/offertes/:offId/regels[/:regelId]` | offerteregels |
+| `POST /:id/offertes/:offId/verzend` · `/accepteer` | versturen, accepteren (schrijft de prijssnapshot) |
+| `POST /:id/opdrachtbevestiging` · `/opdrachtbevestiging/verzend` | OB aanmaken en versturen |
+| `POST /:id/orders/:orderId/stap/:stapId/check` · `/uncheck` | stap gereedmelden en terugdraaien |
+| `PATCH /:id/orders/:orderId/stap/:stapId/plan` · `/hold` | planning en `notBefore` |
+| `POST /:id/orders/:orderId/gereed` | hele order gereed |
+| `POST /:id/paklijst` · `/paklijst/verzend` | paklijst |
+| `POST /:id/factuur` · `/factuur/verzend` | factuur |
+| `POST /:id/revert/{bevestigd,productie,paklijst,verzonden,gefactureerd}` | één fase terugdraaien |
 
-### Grades
-- `GET    /api/grades`
-- `POST   /api/grades` (admin)
-- `PATCH  /api/grades/:id` (admin)
-- `DELETE /api/grades/:id` (admin)
+### Productie en uren
+- `/api/tijdregistratie` — `GET /lopend`, `GET /dag`, `GET /stap/:stapId`,
+  `GET /order/:orderId`, `POST /start`, `POST /:id/{pauze,hervat,wissel,stop,corrigeer}`,
+  `DELETE /:id`
+- `/api/nacalculatie` — `GET /project/:id`, `/order/:id`, `/artikel/:id`,
+  `/artikelen`, plus `POST /artikel/:id/norm` ("norm bijstellen")
 
-### Profiles
-- `GET    /api/profiles`
-- `POST   /api/profiles` (admin)
-- `PATCH  /api/profiles/:id` (admin)
-- `DELETE /api/profiles/:id` (admin)
+### Zaagpijplijn
+`/api/reservations` — lijst/aanmaken/verwijderen, `PATCH /:id/priority`,
+`POST /plan`, `PATCH /:id/status`, `POST /:id/afboeken`, `POST /:id/annuleer`,
+`GET /beschikbaarheid/:barId`, en het materiaalvoorstel
+(`POST /materiaal-plan`, `POST /materiaal-plan/bevestig`).
 
-### Labels
-- `POST   /api/labels/print` — reserves 10 numbers, marks printed, returns the batch
-- `GET    /api/labels?status=printed_unused` — list unused printed labels
-- `POST   /api/labels/:number/consume` — when user fills in details for a received material
+### Overig
+- `/api/todos` — lijst, aanmaken, `PATCH /:id`, `/:id/claim`, `/:id/complete`,
+  `/:id/calendar-event`
+- `/api/documenten` — alle documenten over projecten heen
+- `/api/mail-imports` — het mail-importpad, zie `features/60-mail-import.md`
+- `/api/preferences` — schermvoorkeuren per gebruiker (`GET`/`PUT`/`DELETE`)
+- `/api/sequences` — een documentnummer uitgeven
+- `/api/labels`, `/api/locks`, `/api/uploads`, `/api/pdf`
 
-### Locks
-- `GET    /api/locks/:itemId` — current lock state (used by polling)
-- `POST   /api/locks/:itemId/acquire` — try to acquire; 409 if held by other
-- `POST   /api/locks/:itemId/heartbeat` — caller must hold the lock
-- `POST   /api/locks/:itemId/release` — caller releases
-- `POST   /api/locks/:itemId/force-release` — admin only
-- `POST   /api/locks/:itemId/request` — pings holder (in-app notification)
+Voor de sloten: zie `backend/24-locking.md`. Voor uploads:
+`backend/25-file-storage.md`.
 
-### Uploads
-- `POST   /api/uploads/photo` — multipart, returns `{ path }`
-- `POST   /api/uploads/drawing` — multipart PDF, returns `{ path }`
-
-### Search
-- `GET    /api/search?q=...&type=raw|finished&grade=...&size=...&location=...`
-
-### Low stock
-- `GET    /api/low-stock` — returns count + items under min stock
-
-## Error format
+## Foutvorm
 
 ```json
-{ "error": { "code": "LOCK_HELD", "message": "Item wordt bewerkt door <name>", "details": { "userId": "..." } } }
+{ "error": { "code": "LOCK_HELD", "message": "Item wordt bewerkt door <naam>", "details": { "userId": "..." } } }
 ```
 
-Common codes: `VALIDATION`, `NOT_FOUND`, `FORBIDDEN`, `LOCK_HELD`, `LOCK_NOT_HELD`, `LABEL_TAKEN`.
+Veelgebruikte codes: `VALIDATION`, `NOT_FOUND`, `FORBIDDEN`, `LOCK_HELD`,
+`LOCK_NOT_HELD`, `LABEL_TAKEN`.
 
-## Not implemented yet
+## Nog geen route
 
-`/api/articles`, `/api/relaties`, `/api/machines`, and `/api/reservations`
-now exist as real backend routes. Still frontend-only:
-
-- **`/api/overhead`** — Bedrijfskosten/machine overhead is still a
-  localStorage mock (`api/overhead.ts`); it has not been migrated to the
-  Prisma backend yet.
-- **`/api/estimate`** — no route by design: kostprijs is computed
-  synchronously in the browser (`buildEstimateCtx` + `computeEstimateTotals`),
-  not on the server.
-
-When building the overhead backend, the endpoint shapes above
-(list/get/create/patch/delete, admin-gated writes, `{ data }` / `{ error }`
-envelope) are still the convention to follow.
+- **`/api/overhead`** — bedrijfskosten staan nog alleen in localStorage
+  (`apps/web/src/api/overhead.ts`). Die waarden werken wél door in elke
+  kostprijs, dus ze verschillen per browser. Dit is het laatste restje van de
+  mockfase.
+- **`/api/estimate`** — met opzet geen route: de kostprijs wordt synchroon in
+  de browser berekend met `buildEstimateCtx` + `computeEstimateTotals` uit
+  `@stockmanager/shared`. De API gebruikt diezelfde kern voor de
+  prijssnapshot.

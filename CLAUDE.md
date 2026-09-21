@@ -47,11 +47,13 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - **Gereedmelden gebeurt op de terminal, en rondt de klok af in dezelfde transactie** (`rondAfVoorStap`). Een gereedgemelde stap met een lopende klok telt door: `lopendSinds` is een tijdstip, geen teller, dus de nacalculatie groeit dan ná het werk nog dagen door. Het mag ook zonder klok — wie vergeet te klokken moet het werk alsnog kunnen afmelden
 - **Een terminal mag werk van een andere machine pakken.** Planning verandert op het laatste moment; standaard toont hij de eigen wachtrij, één tik toont alles. De registratie boekt dan op de machine waar het werk **werkelijk** gebeurt (`StartTijd.machineNaam`), niet op de geplande — anders rekent de nacalculatie met het uurtarief van een machine die niets gedaan heeft
 - **Weight** is computed on read (never stored) from profile formula + dimensions + grade density
-- **Mock phase ended (2026-06-22)** — the localStorage→PostgreSQL backend
-  migration is fully applied. New features go straight to the real stack
-  (shared schema → Prisma model/migration → API route → frontend), no new
-  localStorage-only modules. See the 2026-06-22 decision in
-  `decisions/90-decisions-log.md`
+- **Mock phase ended (2026-06-22)** — nieuwe functionaliteit gaat rechtstreeks
+  op de echte stack (shared schema → Prisma model/migratie → API-route →
+  frontend), geen nieuwe localStorage-only modules. Zie het besluit van
+  2026-06-22 in `decisions/90-decisions-log.md`.
+  **Eén uitzondering is blijven staan**: `apps/web/src/api/overhead.ts`
+  (bedrijfskosten) heeft nog geen backend en staat dus per browser — terwijl die
+  waarden in elke kostprijs doorwerken. Zie `backend/21-api-design.md`
 
 ## Building rules
 
@@ -186,7 +188,7 @@ shouldn't need revisiting.
 |---|---|
 | Backend | `backend/20-backend-overview.md` · `21-api-design.md` · `22-database-schema.md` · `23-users-roles.md` · `24-locking.md` · `25-file-storage.md` · `26-deployment.md` |
 | Frontend | `frontend/10-frontend-overview.md` · `11-routing.md` · `12-state-management.md` · `13-components.md` · `14-mobile-view.md` · `15-desktop-view.md` · `16-forms-validation.md` · `17-styling-theme.md` · **`18-design-patterns.md`** ← code patterns · **`19-visual-design.md`** ← visual spec (read before touching UI) |
-| Features | `features/30-items-raw.md` · `31-items-finished.md` · `32-stock-movements.md` · `33-locations.md` · `34-grades-profiles.md` · `35-labels.md` · `36-search.md` · `37-low-stock.md` · **`38-article-calculator.md`** ← calculator modal/UI patterns · `39-graph-mail.md` · **`50-operator-terminal.md`** ← parked tablet/kiosk app · `60-mail-import.md` · **`61-orderproces-backlog.md`** ← werklijst orderproces · **`62-mail-import-ai-ontwerp.md`** ← ontwerp AI-leespad (nog niet gebouwd) |
+| Features | `features/30-items-raw.md` · `31-items-finished.md` · `32-stock-movements.md` · `33-locations.md` · `34-grades-profiles.md` · `35-labels.md` · `36-search.md` · `37-low-stock.md` · **`38-article-calculator.md`** ← calculator modal/UI patterns · `39-graph-mail.md` · `50-operator-terminal.md` ← ontwerp achter de machineterminal (gebouwd) · `60-mail-import.md` · **`61-orderproces-backlog.md`** ← werklijst orderproces · **`62-mail-import-ai-ontwerp.md`** ← ontwerp AI-leespad (nog niet gebouwd) |
 | Workflows | `workflows/40-user-flows.md` · `41-receive-material.md` · `42-adjust-stock.md` · `43-edit-locking-flow.md` · `44-mobile-scan-flow.md` |
 | Decisions | `decisions/90-decisions-log.md` |
 | Parked | `03-parked.md` — things not decided yet, do not implement |

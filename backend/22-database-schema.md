@@ -1,156 +1,63 @@
 # 22 — Database Schema
 
-PostgreSQL via Prisma. UUIDs as primary keys (except where natural keys make
-sense). `apps/api/prisma/schema.prisma` is the definitive schema — this doc
-mirrors it (snake_case columns via `@map`, camelCase in Prisma/TS) and is
-implemented essentially as written below, with one drift:
+**`apps/api/prisma/schema.prisma` is de enige bron.** Dit document spiegelt
+hem niet kolom voor kolom — dat liep uit elkaar zodra er een veld bijkwam.
+Hieronder staat wat je uit het schema alleen niet afleest: welke modellen bij
+elkaar horen en welke regels erachter zitten.
 
-> **Drift**: `packages/shared/src/schemas/grade.ts`'s `GradeSchema` has an
-> optional `pricePerKg` (used by `features/38-article-calculator.md`), but
-> the Prisma `Grade` model below does not yet have a `price_per_kg` column.
-> Add it when reconciling the calculator's mock data with the real backend.
+Conventies in het schema: UUID's als sleutel behalve waar een natuurlijke
+sleutel bestaat (documentnummers als `PRJ-2026-003`), `snake_case`-kolommen
+via `@map`, `camelCase` in Prisma en TypeScript.
 
-## Tables
+## De 36 modellen, gegroepeerd
 
-### `users`
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| name | text | unique |
-| role | text | enum: `admin`, `user` |
-| avatar_path | text | nullable |
-| created_at | timestamptz | default now |
+| Gebied | Modellen |
+|---|---|
+| Stamgegevens | `Company`, `User`, `UserPreference`, `Location`, `LocationSlot`, `Grade`, `Profile`, `SurfaceFinish`, `Machine`, `Relatie` |
+| Voorraad | `RawMaterial`, `FinishedGood`, `StockMovement`, `Label` |
+| Sloten | `Lock`, `LockRequest` |
+| Artikelen | `Article`, `ArtikelPrijsSnapshot`, `ArticleAlias` |
+| Project en documenten | `Project`, `Offerte`, `OfferteRegel`, `Opdrachtbevestiging`, `ObRegel`, `Paklijst`, `PaklijstRegel`, `Factuur`, `FactuurRegel`, `DocSequence` |
+| Productie | `ProductieOrder`, `ProductieStap`, `TijdRegistratie`, `ZaagReservering`, `Todo` |
+| Mail-import | `MailImport`, `IngestRun` |
 
-### `locations`
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| kind | text | enum: `rack`, `cabinet` |
-| label | text | "Rack 1", "Kast 2" |
-| created_at | timestamptz | |
+## Regels die niet uit het schema blijken
 
-### `location_slots`
-The fine-grained slot. Rack→Row OR Cabinet→Shelf→Box. Single table with nullable depth.
+- **Gewicht wordt nooit opgeslagen.** `weight_kg` komt bij het lezen uit
+  `profile.volume_formula` + `dimensions` + `length_mm` + de dichtheid van de
+  kwaliteit (`services/weight.ts`).
+- **Voorraad kent drie getallen**: fysiek, gereserveerd, vrij. Alleen
+  `services/voorraad.ts` bepaalt wat gereserveerd is — in de database staat
+  alleen het fysieke aantal plus de reserveringen. Reserveren raakt de fysieke
+  voorraad niet; afboeken doet dat, in één transactie mét voorraadmutatie.
+- **Nacalculatie staat nergens.** Er is geen tabel voor: ze wordt afgeleid uit
+  `TijdRegistratie`, afgeboekte zaagbonnen en de offerteregel. Een bewaarde
+  nacalculatie loopt achter zodra er een uur bijkomt.
+- **Planning hangt aan de stap, niet aan het project.** `ProductieStap` draagt
+  `geplandDatum`, `geplandMachine`, `queuePosition` en `notBefore`.
+  `queuePosition` is een breukgetal, zodat invoegen tussen twee buren geen
+  hernummering van de hele wachtrij vraagt.
+- **Een stap heeft geen 'bezig'-status**: gereed of niet, via `gereedOp` /
+  `gereedDoor`. "In productie" staat op de order, "wacht op materiaal" volgt
+  uit `notBefore`.
+- **`Paklijst` heeft geen statusveld**; verzonden volgt uit `verzondenOp`.
+  Voor de factuur bestaat geen betaalstatus — alleen een vervaldatum.
+- **Er is geen auditlogtabel.** Wie wat wanneer deed is alleen te
+  reconstrueren uit de tijdstempels die er wel zijn (`verzondenOp`,
+  `geaccepteerdOp`, `gereedOp`, `updatedAt`). Wil je een echte geschiedenis,
+  dan is daar een nieuw model voor nodig.
+- **`User.machineId`** koppelt een terminal-account aan een machine. De
+  wachtrij van de terminal hangt daaraan, niet aan de accountnaam.
 
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| location_id | uuid FK locations | |
-| level1 | text | row (for rack) / shelf (for cabinet) |
-| level2 | text | nullable, box (for cabinet only) |
-| created_at | timestamptz | |
+## Migraties
 
-### `grades`
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| name | text | unique, e.g. "S355", "AISI 304" |
-| density_kg_m3 | numeric | for weight calc |
-| created_at | timestamptz | |
+Prisma Migrate. Op een werk-pc via de projectscripts, omdat Prisma
+`.env.development` niet zelf laadt:
 
-### `profiles`
-Shape of raw material. Admin-defined.
+```
+npm run db:status     # welke migraties staan open
+npm run db:deploy     # openstaande migraties toepassen
+```
 
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| name | text | "Rond", "Vierkant", "Plat", "Buis" |
-| dimension_schema | jsonb | declares which dimensions to ask for, e.g. `[{"key":"diameter","label":"Ø","unit":"mm"}]` |
-| volume_formula | text | identifier for a built-in formula: `round`, `square`, `flat`, `tube` |
-| created_at | timestamptz | |
-
-### `raw_materials`
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| code | text | unique, format `#NNNNN` |
-| grade_id | uuid FK grades | |
-| profile_id | uuid FK profiles | |
-| dimensions | jsonb | matches profile.dimension_schema |
-| length_mm | numeric | |
-| location_slot_id | uuid FK location_slots | |
-| photo_path | text | nullable |
-| min_stock | numeric | nullable |
-| current_stock | numeric | denormalized for fast reads; updated by movements |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
-
-Computed `weight_kg` is derived on read, not stored. Formula uses profile's `volume_formula` + `dimensions` + `length_mm` + grade's density.
-
-### `finished_goods`
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| art_no | text | unique, format `ART-NNNN` |
-| name | text | |
-| customer | text | nullable |
-| photo_path | text | nullable |
-| drawing_path | text | nullable |
-| location_slot_id | uuid FK location_slots | |
-| min_stock | numeric | nullable |
-| current_stock | numeric | denormalized |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
-
-### `stock_movements`
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| item_type | text | enum: `raw`, `finished` |
-| item_id | uuid | references raw_materials or finished_goods |
-| user_id | uuid FK users | |
-| kind | text | enum: `delta`, `overwrite` |
-| amount | numeric | delta: signed; overwrite: new value |
-| previous_stock | numeric | snapshot |
-| new_stock | numeric | snapshot |
-| reason | text | enum: `received`, `used`, `scrapped`, `correction`, `other` |
-| note | text | nullable |
-| created_at | timestamptz | index on this |
-
-### `labels`
-Tracks reserved/printed labels.
-
-| Column | Type | Notes |
-|---|---|---|
-| number | text PK | `#NNNNN` |
-| batch_id | uuid | groups 10 |
-| status | text | enum: `printed_unused`, `consumed`, `voided` |
-| printed_at | timestamptz | |
-| printed_by | uuid FK users | |
-| consumed_at | timestamptz | nullable |
-| consumed_raw_material_id | uuid FK raw_materials | nullable |
-
-### `locks`
-| Column | Type | Notes |
-|---|---|---|
-| item_type | text | `raw` or `finished` |
-| item_id | uuid | |
-| user_id | uuid FK users | |
-| acquired_at | timestamptz | |
-| last_heartbeat | timestamptz | |
-| PRIMARY KEY (item_type, item_id) | | one lock per item |
-
-### `lock_requests`
-Optional: when user B presses "Verzoek bewerken".
-
-| Column | Type | Notes |
-|---|---|---|
-| id | uuid PK | |
-| item_type | text | |
-| item_id | uuid | |
-| requested_by | uuid FK users | |
-| created_at | timestamptz | |
-| acknowledged_at | timestamptz | nullable |
-
-## Indexes
-
-- `raw_materials(code)` unique
-- `finished_goods(art_no)` unique
-- `stock_movements(item_id, created_at desc)`
-- `stock_movements(created_at desc)` for global feed
-- `locks(last_heartbeat)` for idle scan
-- `labels(status)` partial index for unused list
-
-## Migrations
-
-Prisma Migrate (`prisma migrate dev` / `migrate deploy`).
+Op de NAS staat `DATABASE_URL` in de omgeving en volstaat
+`npm run db:deploy -w apps/api`. Zie CLAUDE.md.

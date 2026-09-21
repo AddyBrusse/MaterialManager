@@ -14,7 +14,9 @@
 - **React Router** — routing
 - **Zod** — validation (shared with backend)
 - **TanStack Query** — server state, caching, polling
-- Visual reference: `C:\ClaudeProjects\ToolManager-main` (extract theme + layout when building)
+- Visual reference: `frontend/19-visual-design.md` plus the implementation in
+  `apps/web/src/theme/index.ts` and `apps/web/src/styles/tokens.css`. The
+  extraction from ToolManager is done; that project needn't be revisited
 
 ## Backend
 
@@ -42,8 +44,7 @@ StockManager/
 ├── docker/
 │   ├── docker-compose.yml
 │   └── Dockerfile
-├── .env.development
-├── .env.production
+├── .env.development         ← gitignored, zie .env.example
 └── package.json             ← workspaces root
 ```
 
@@ -52,7 +53,7 @@ StockManager/
 - TypeScript strict mode on, both apps
 - ESLint + Prettier
 - File naming: kebab-case for files, PascalCase for React components
-- API responses: `{ data, error }` shape
+- API responses: `{ data }` on success, `{ error: { code, message, details? } }` on failure
 - Dates: ISO 8601 strings on the wire, `Date` in TS
 - UI language: Dutch (component labels, button text, validation messages)
 - Density: high — Mantine `size="xs"` defaults where it fits, compact spacing

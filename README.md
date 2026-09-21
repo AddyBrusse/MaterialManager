@@ -49,19 +49,32 @@ Internal shop management system (inventory, quoting, production planning) for a 
 - [36-search.md](./features/36-search.md)
 - [37-low-stock.md](./features/37-low-stock.md)
 - [38-article-calculator.md](./features/38-article-calculator.md) — calculator modal/UI patterns
+- [39-graph-mail.md](./features/39-graph-mail.md) — mail/agenda via Microsoft Graph
+- [50-operator-terminal.md](./features/50-operator-terminal.md) — ontwerp achter de machineterminal (gebouwd)
+- [60-mail-import.md](./features/60-mail-import.md) — mail-import
+- [61-orderproces-backlog.md](./features/61-orderproces-backlog.md) — werklijst orderproces
+- [62-mail-import-ai-ontwerp.md](./features/62-mail-import-ai-ontwerp.md) — AI-leespad (nog niet gebouwd)
 
 ### Newer areas (code-only, no dedicated doc yet)
 
-These were built after the docs above were written. No feature doc exists —
-read the code directly, and see `decisions/90-decisions-log.md` (2026-06-15
-"mock phase" entry) for their localStorage-mock status.
+Built after the docs above were written. No feature doc exists — read the code,
+and see `decisions/90-decisions-log.md` for the choices behind them. These all
+run on the real stack (Prisma + API routes); the one exception is noted below.
 
 | Area | Code |
 |---|---|
-| Relaties (customers/suppliers) | `apps/web/src/api/relaties.ts`, `apps/web/src/components/relaties/`, `routes/desktop/Relaties*Page.tsx` |
-| Machines & Bedrijfskosten (Instellingen) | `apps/web/src/components/settings/{OverheadPage,OverheadTab,BedrijfskostenTab}.tsx` |
+| Projecten & het documentpad | `api/projects.ts`, `components/projecten/`, `routes/desktop/Projecten*Page.tsx` |
+| Documenten (overzicht) | `api/documenten.ts`, `routes/desktop/DocumentenPage.tsx` |
+| Planning: Wachtrij & Prognose | `components/planning-queue/`, `components/prognose/`, `utils/planning*Utils.ts` |
+| Tijdregistratie & nacalculatie | `packages/shared/{schemas/tijdregistratie,calc/nacalculatie}.ts`, `apps/api/src/services/{tijdregistratie,nacalculatie}.ts`, `components/{tijd,nacalculatie}/` |
+| Machineterminal | `routes/TerminalPage.tsx`, `apps/api/src/middleware/terminal-scope.ts`, `utils/terminal-wachtrij.ts` — ontwerp in `features/50-operator-terminal.md` |
+| Materiaalselectie | `packages/shared/calc/zaagplan.ts`, `apps/api/src/services/materiaal-selectie.ts`, `components/materiaal/` |
+| Todos | `api/todos.ts`, `components/todos/`, `routes/desktop/TodosPage.tsx` |
+| Prijshistorie | `api/prijshistorie.ts`, `apps/api/src/services/prijs-snapshot.ts` |
+| Relaties | `api/relaties.ts`, `components/relaties/`, `routes/desktop/Relaties*Page.tsx` |
 | Zaag calculator / Reserveringen / Zaagflow | `routes/desktop/{ZaagCalculatorPage,ReserveringenPage,ZaagflowPage}.tsx` |
-| Binnen boeken | `routes/desktop/BinnenBoekenPage.tsx` — see status note in `workflows/41-receive-material.md` |
+| Machines & Bedrijfskosten | `components/settings/{OverheadPage,OverheadTab,BedrijfskostenTab}.tsx` — **bedrijfskosten staan nog alleen in localStorage**, zie `backend/21-api-design.md` |
+| Binnen boeken | `routes/desktop/BinnenBoekenPage.tsx` — **nog volledig op mockdata**, zie `workflows/41-receive-material.md` |
 
 ### Workflows
 - [40-user-flows.md](./workflows/40-user-flows.md)
