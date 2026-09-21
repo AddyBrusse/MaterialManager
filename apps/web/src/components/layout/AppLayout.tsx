@@ -32,6 +32,7 @@ import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
 import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
+import { ProjectDetailV2Page } from '../../features/projects/detail/ProjectDetailV2Page'
 import { DocumentenPage } from '../../routes/desktop/DocumentenPage'
 import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
@@ -330,6 +331,9 @@ export function AppLayout() {
             <Route path="/relaties/:id"    element={<RelatieDetailPage />} />
             <Route path="/projecten"       element={<ProjectenPage />} />
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
+            {/* Herindeling uit shopcommand-projectdetail-spec.md, naast het
+                bestaande scherm zodat beide te vergelijken zijn. */}
+            <Route path="/projecten/:id/v2" element={<ProjectDetailV2Page />} />
             <Route path="/documenten"      element={<DocumentenPage />} />
             <Route path="/planning-queue"  element={<PopoutAware path="/planning-queue" label="Wachtrij" openRoutes={openRoutes}><PlanningQueuePage /></PopoutAware>} />
             <Route path="/prognose"        element={<PopoutAware path="/prognose" label="Prognose" openRoutes={openRoutes}><PrognosePage /></PopoutAware>} />

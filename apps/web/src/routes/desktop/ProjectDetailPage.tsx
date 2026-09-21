@@ -412,6 +412,17 @@ export function ProjectDetailPage() {
             <div className="ad-metaline">{metaLine}</div>
           </div>
           <div className="ad-title-actions">
+            {/* Tijdelijk, zolang er twee indelingen naast elkaar staan: de
+                herindeling uit shopcommand-projectdetail-spec.md. Weg zodra er
+                één gekozen is. */}
+            <button
+              type="button"
+              className="btn"
+              onClick={() => navigate(`/projecten/${id}/v2`)}
+              title="De nieuwe indeling bekijken"
+            >
+              Nieuwe indeling
+            </button>
             {!isReadOnly && <SaveIndicator state={saveState} />}
             {!isReadOnly && <RevertBtn />}
             {!isReadOnly && <ProjectStatusActies project={project} onChanged={rerender} />}

@@ -1,0 +1,755 @@
+/*
+ * Projectdetail v2 — eigen designtokens uit §2 van de bouwspecificatie.
+ *
+ * Bewust NIET op :root gezet, maar op .pdv2. De app heeft in styles/tokens.css
+ * al een --bg, --text, --border, --accent en --accent-soft met net andere
+ * waarden; die op :root overschrijven zou elk ander scherm meeveranderen.
+ * Binnen .pdv2 winnen deze waarden, daarbuiten verandert er niets — precies wat
+ * "naast de bestaande pagina" hoort te betekenen.
+ *
+ * Donker: de app schakelt met [data-theme="dark"], niet met Mantine's
+ * [data-mantine-color-scheme]. Beide staan hieronder, zodat dit blad blijft
+ * werken als de app ooit op de Mantine-variant overstapt.
+ */
+
+.pdv2 {
+  --bg: #fbfbfa;
+  --bg2: #ffffff;
+  --bg3: #f4f4f2;
+  --text: #0f1116;
+  --text2: #464c59;
+  --text3: #6a7180;
+  --border: rgba(15, 17, 22, 0.1);
+  --border2: rgba(15, 17, 22, 0.18);
+  --accent: #2d6df6;
+  --accent-tx: #1a53d1;
+  --accent-soft: rgba(45, 109, 246, 0.09);
+  --ok: #117a45;
+  --ok-soft: rgba(17, 122, 69, 0.1);
+  --warn: #a85a00;
+  --warn-soft: rgba(168, 90, 0, 0.12);
+  --dgr: #b8270c;
+  --dgr-soft: rgba(184, 39, 12, 0.1);
+  --rail: rgba(15, 17, 22, 0.13);
+  --alt: rgba(15, 17, 22, 0.022);
+
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+
+  /* §2.3 — buitenmarge; krimpt in de popout (§10) */
+  --gutter: 20px;
+  --rail-w: 304px;
+}
+
+[data-theme='dark'] .pdv2,
+[data-mantine-color-scheme='dark'] .pdv2 {
+  --bg: #0d0e11;
+  --bg2: #14161a;
+  --bg3: #1a1d23;
+  --text: #ecedf0;
+  --text2: #aeb4c0;
+  --text3: #8d95a4;
+  --border: rgba(236, 237, 240, 0.11);
+  --border2: rgba(236, 237, 240, 0.2);
+  /* --accent blijft #2d6df6 als vulkleur: witte tekst erop haalt 4,55:1.
+     Accentkleurige tékst gebruikt --accent-tx, die op donker oplicht. */
+  --accent-tx: #7ea6ff;
+  --accent-soft: rgba(45, 109, 246, 0.18);
+  --ok: #3fb883;
+  --ok-soft: rgba(63, 184, 131, 0.14);
+  --warn: #e0912f;
+  --warn-soft: rgba(224, 145, 47, 0.14);
+  --dgr: #f2705a;
+  --dgr-soft: rgba(242, 112, 90, 0.14);
+  --rail: rgba(236, 237, 240, 0.18);
+  --alt: rgba(236, 237, 240, 0.03);
+}
+
+/* ── Regio-indeling (§3) ──────────────────────────────────────────────────── */
+
+.pdv2 {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12px;
+  overflow: hidden; /* de pagina zelf scrollt niet */
+}
+
+.pdv2 .mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.pdv2 .num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ── Objectkop (§3.1) ─────────────────────────────────────────────────────── */
+
+.pdv2-head {
+  position: relative;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px var(--gutter) 0;
+  flex: none;
+}
+.pdv2-head-row1 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 10px;
+}
+.pdv2-nr {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text3);
+}
+.pdv2-title {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.pdv2-spacer {
+  flex: 1;
+}
+.pdv2-samenvatting {
+  font-size: 11.5px;
+  color: var(--text2);
+}
+
+/* slot- en opslagstatus */
+.pdv2-slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text2);
+}
+.pdv2-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.pdv2-dot.ok {
+  background: var(--ok);
+}
+.pdv2-dot.warn {
+  background: var(--warn);
+}
+.pdv2-sep {
+  color: var(--text3);
+}
+.pdv2-opslag.mislukt {
+  color: var(--dgr);
+  font-weight: 600;
+}
+
+/* facetten */
+.pdv2-facets {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  column-gap: 22px;
+  padding-bottom: 11px;
+}
+.pdv2-facet + .pdv2-facet {
+  border-left: 1px solid var(--border);
+  padding-left: 12px;
+}
+.pdv2-facet-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+}
+.pdv2-facet-val {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pdv2-facet-val.warn {
+  color: var(--warn);
+}
+.pdv2-facet-val.dgr {
+  color: var(--dgr);
+}
+.pdv2-facet-val.ok {
+  color: var(--ok);
+}
+.pdv2-facet-sub {
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* inklapknop op de onderrand */
+.pdv2-collapse {
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg2);
+  color: var(--text3);
+  cursor: pointer;
+  z-index: 2;
+}
+.pdv2-collapse:hover {
+  color: var(--text);
+}
+
+/* ── Meldingsbalk (§3.2) ──────────────────────────────────────────────────── */
+
+.pdv2-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--warn-soft);
+  padding: 7px var(--gutter);
+  font-size: 11.5px;
+  flex: none;
+}
+.pdv2-strip.dgr {
+  background: var(--dgr-soft);
+}
+.pdv2-strip b {
+  color: var(--warn);
+  font-weight: 600;
+}
+.pdv2-strip.dgr b {
+  color: var(--dgr);
+}
+.pdv2-strip span {
+  color: var(--text2);
+}
+
+/* ── Tabbalk (§3.3) ───────────────────────────────────────────────────────── */
+
+.pdv2-tabs {
+  display: flex;
+  align-items: stretch;
+  height: 38px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--gutter);
+  flex: none;
+}
+.pdv2-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+}
+.pdv2-tab:hover {
+  color: var(--text);
+  background: var(--alt);
+}
+.pdv2-tab.active {
+  color: var(--accent-tx);
+  border-bottom-color: var(--accent);
+}
+.pdv2-badge {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg3);
+  color: var(--text3);
+}
+.pdv2-badge.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.pdv2-badge.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.pdv2-badge.dgr {
+  background: var(--dgr-soft);
+  color: var(--dgr);
+}
+.pdv2-badge.accent {
+  background: var(--accent-soft);
+  color: var(--accent-tx);
+}
+
+/* ── Inhoudsgebied (§3.4) ─────────────────────────────────────────────────── */
+
+.pdv2-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  gap: 12px;
+  padding: 12px var(--gutter);
+  align-items: start;
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+.pdv2-main,
+.pdv2-rail {
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+}
+.pdv2-main > * + *,
+.pdv2-rail > * + * {
+  margin-top: 10px;
+}
+
+/* ── Kaarten ──────────────────────────────────────────────────────────────── */
+
+.pdv2-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.pdv2-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.pdv2-card-head h2 {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+}
+.pdv2-count {
+  font-size: 10.5px;
+  color: var(--text3);
+}
+.pdv2-card-body {
+  padding: 10px;
+}
+.pdv2-empty {
+  padding: 10px;
+  font-size: 11.5px;
+  color: var(--text3);
+}
+.pdv2-bron {
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 10.5px;
+  color: var(--text3);
+  font-style: italic;
+}
+
+/* ── Knoppen ──────────────────────────────────────────────────────────────── */
+
+.pdv2-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pdv2-btn:hover:not(:disabled) {
+  background: var(--bg3);
+}
+.pdv2-btn.s {
+  height: 24px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+.pdv2-btn.primair {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.pdv2-btn.primair:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.06);
+}
+.pdv2-btn.ghost {
+  background: none;
+  border-color: transparent;
+  color: var(--accent-tx);
+}
+.pdv2-btn.ghost:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.pdv2-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pdv2-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-family: var(--mono);
+  color: var(--accent-tx);
+  cursor: pointer;
+  text-align: left;
+}
+.pdv2-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Pills ────────────────────────────────────────────────────────────────── */
+
+.pdv2-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: var(--bg3);
+  color: var(--text3);
+  white-space: nowrap;
+}
+.pdv2-pill.ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.pdv2-pill.warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.pdv2-pill.dgr {
+  background: var(--dgr-soft);
+  color: var(--dgr);
+}
+.pdv2-pill.accent {
+  background: var(--accent-soft);
+  color: var(--accent-tx);
+}
+
+/* ── Tabellen ─────────────────────────────────────────────────────────────── */
+
+.pdv2-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.pdv2-tbl th {
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text3);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.pdv2-tbl th.num {
+  text-align: right;
+}
+.pdv2-tbl td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+/* Een datum of bedrag dat over twee regels breekt maakt de rij hoger en de
+   kolom onleesbaar; liever afkappen dan afbreken. */
+.pdv2-tbl td.mono,
+.pdv2-tbl td.num {
+  white-space: nowrap;
+}
+.pdv2-tbl tbody tr:hover {
+  background: var(--alt);
+}
+.pdv2-tbl tr.gekozen td {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.pdv2-tbl tr.geaccepteerd td {
+  background: var(--ok-soft);
+}
+.pdv2-tbl tr.vervallen td {
+  color: var(--text3);
+}
+.pdv2-tbl tr.totaal td {
+  border-top: 2px solid var(--border2);
+  border-bottom: 0;
+  font-weight: 600;
+}
+.pdv2-tbl .sub {
+  display: block;
+  font-size: 10.5px;
+  color: var(--text3);
+  font-family: var(--sans);
+  text-align: left;
+}
+.pdv2-chip {
+  display: inline-block;
+  padding: 1px 5px;
+  margin: 1px 3px 1px 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg3);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* ── Voortgangsmeter ──────────────────────────────────────────────────────── */
+
+.pdv2-meter {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--rail);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.pdv2-meter > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.pdv2-meter > i.ok {
+  background: var(--ok);
+}
+
+/* ── Afwijkingsbalk nacalculatie (§5.5) ───────────────────────────────────── */
+
+.pdv2-dev {
+  position: relative;
+  width: 132px;
+  height: 8px;
+  background: var(--bg3);
+  border-radius: 2px;
+}
+.pdv2-dev::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 1px;
+  height: 12px;
+  background: var(--border2);
+}
+.pdv2-dev > i {
+  position: absolute;
+  top: 0;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--rail);
+}
+
+/* ── Zijkolom ─────────────────────────────────────────────────────────────── */
+
+.pdv2-aandacht {
+  display: flex;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.pdv2-aandacht:last-child {
+  border-bottom: 0;
+}
+.pdv2-staaf {
+  width: 3px;
+  border-radius: 2px;
+  flex: none;
+  background: var(--accent);
+}
+.pdv2-staaf.rood {
+  background: var(--dgr);
+}
+.pdv2-staaf.amber {
+  background: var(--warn);
+}
+.pdv2-aandacht-t {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.pdv2-aandacht-s {
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-top: 1px;
+}
+.pdv2-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11.5px;
+}
+.pdv2-kv > span:first-child {
+  color: var(--text2);
+}
+.pdv2-note {
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Velden (§5.1) ────────────────────────────────────────────────────────── */
+
+.pdv2-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.pdv2-veld label {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  margin-bottom: 3px;
+}
+.pdv2-veld input,
+.pdv2-veld textarea {
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--border2);
+  border-radius: 3px;
+  background: var(--bg2);
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+}
+.pdv2-veld textarea {
+  height: auto;
+  min-height: 52px;
+  padding: 5px 8px;
+  white-space: pre-line;
+  resize: vertical;
+}
+.pdv2-veld input[readonly],
+.pdv2-veld textarea[readonly] {
+  background: var(--bg3);
+}
+.pdv2-veld .hint {
+  font-size: 10.5px;
+  color: var(--text3);
+  margin-top: 2px;
+}
+
+/* ── Footerbalk (§3.5) ────────────────────────────────────────────────────── */
+
+.pdv2-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  padding: 9px var(--gutter);
+  flex: none;
+}
+.pdv2-foot-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+}
+.pdv2-reden {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text2);
+}
+.pdv2-reden .ico {
+  color: var(--text3);
+}
+.pdv2-reden.blok .ico {
+  color: var(--warn);
+}
+
+/* terugdraaipopover */
+.pdv2-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 360px;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  padding: 9px 11px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+}
+.pdv2-pop h3 {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text3);
+}
+.pdv2-pop h3.dicht {
+  color: var(--dgr);
+}
+.pdv2-pop-regel {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  padding: 2px 0;
+  color: var(--text3);
+}
+.pdv2-pop-regel.blok {
+  color: var(--dgr);
+}
+.pdv2-anchor {
+  position: relative;
+}
+
+/* ── Popout / smal venster (§10) ──────────────────────────────────────────── */
+
+@media (max-width: 1200px) {
+  .pdv2 {
+    --gutter: 16px;
+    --rail-w: 264px;
+  }
+  .pdv2-facets {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 9px;
+  }
+  .pdv2-facet:nth-child(3n + 1) {
+    border-left: 0;
+    padding-left: 0;
+  }
+  .pdv2-facet:nth-child(3n + 1) + .pdv2-facet {
+    border-left: 1px solid var(--border);
+    padding-left: 12px;
+  }
+}

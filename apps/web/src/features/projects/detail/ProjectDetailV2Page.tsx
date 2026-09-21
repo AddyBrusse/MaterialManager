@@ -1,0 +1,299 @@
+import { useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { notifications } from '@mantine/notifications'
+
+import { projectsApi } from '../../../api/projects'
+import { relatiesApi } from '../../../api/relaties'
+import { todosApi } from '../../../api/todos'
+import { reservationsApi } from '../../../api/reservations'
+import { nacalculatieApi } from '../../../api/nacalculatie'
+import { useProjectLock } from '../../../hooks/useProjectLock'
+import { useProjectSaveState } from '../../../hooks/useProjectSaveState'
+import { usePopoutRoutes } from '../../../hooks/usePopout'
+
+import { ObjectHeader } from './components/ObjectHeader'
+import { StatusStrip } from './components/StatusStrip'
+import { TabBar } from './components/TabBar'
+import { FooterBar } from './components/FooterBar'
+import { AlgemeenTab } from './tabs/AlgemeenTab'
+import { OffertesTab } from './tabs/OffertesTab'
+import { OpdrachtTab } from './tabs/OpdrachtTab'
+import { ProductieTab } from './tabs/ProductieTab'
+import { NacalculatieTab } from './tabs/NacalculatieTab'
+import { DocumentenTab } from './tabs/DocumentenTab'
+import { AandachtBox } from './sidebar/AandachtBox'
+import { GeldBox } from './sidebar/GeldBox'
+import { ReserveringenBox } from './sidebar/ReserveringenBox'
+import { TodoBox } from './sidebar/TodoBox'
+
+import { actiesGeblokkeerd, primaireActie, terugActie } from './lib/status'
+import { bouwAandacht } from './lib/aandacht'
+import {
+  bouwActiviteit,
+  bouwFacetten,
+  bouwGeld,
+  bouwReserveringen,
+  bouwSamenvatting,
+  bouwTabBadges,
+  bouwTodos,
+} from './lib/build-vm'
+import { tijdstip } from './lib/format'
+import type { SlotVM, TabId } from './types'
+import './project-detail.css'
+
+const TAB_IDS: TabId[] = [
+  'algemeen',
+  'offertes',
+  'opdracht',
+  'productie',
+  'nacalculatie',
+  'documenten',
+]
+
+/** Per gebruiker onthouden, niet per project (§3.1). */
+const KOP_KEY = 'pdv2_kop_ingeklapt'
+
+function leesKop(): boolean {
+  try {
+    return localStorage.getItem(KOP_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+function leesTab(waarde: string | null, status: string | undefined): TabId {
+  if (waarde && (TAB_IDS as string[]).includes(waarde)) return waarde as TabId
+  // Een project dat in productie staat open je om de productie te zien; alles
+  // ervóór begint bij Algemeen.
+  return status === 'productie' ? 'productie' : 'algemeen'
+}
+
+function bouwSlot(
+  holderName: string | null,
+  isReadOnly: boolean,
+  holderIdle: boolean,
+  opslag: 'idle' | 'saving' | 'saved' | 'error',
+): SlotVM {
+  const tekst =
+    opslag === 'saving'
+      ? 'Bezig met opslaan…'
+      : opslag === 'error'
+        ? `Opslaan mislukt — opnieuw geprobeerd ${tijdstip(new Date().toISOString())}`
+        : opslag === 'saved'
+          ? `Opgeslagen ${tijdstip(new Date().toISOString())}`
+          : 'Geen wijzigingen'
+
+  return {
+    houder: holderName
+      ? `${holderName} heeft dit project open${holderIdle ? ' · inactief' : ''}`
+      : null,
+    vreemd: isReadOnly,
+    opslag: opslag === 'idle' ? 'stil' : opslag === 'saving' ? 'bezig' : opslag === 'error' ? 'mislukt' : 'opgeslagen',
+    opslagTekst: tekst,
+  }
+}
+
+/**
+ * Projectdetail v2 — de herindeling uit `shopcommand-projectdetail-spec.md`.
+ *
+ * Staat naast het bestaande scherm op /projecten/:id/v2, zodat beide te
+ * vergelijken zijn voordat er één gekozen wordt. Deelt geen componenten met de
+ * oude pagina: die mag hier niet door kunnen breken.
+ *
+ * De knoppen die een document maken of versturen zijn hier nog niet
+ * aangesloten — dit is de indeling, niet de bediening. Ze melden dat en
+ * verwijzen naar het bestaande scherm.
+ */
+export function ProjectDetailV2Page() {
+  const { id = '' } = useParams()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const poppedOut = usePopoutRoutes()
+  const inPopoutWindow = window.location.pathname.startsWith('/pop/')
+  const isPoppedOut = !inPopoutWindow && poppedOut.has(`/projecten/${id}/v2`)
+  const { isReadOnly, holderName, holderIdle } = useProjectLock(id, !isPoppedOut)
+  const saveState = useProjectSaveState(id)
+
+  const { data: project, isPending } = useQuery({
+    queryKey: ['projects', id],
+    queryFn: () => projectsApi.get(id),
+    enabled: !!id,
+    retry: 5,
+    retryDelay: 300,
+  })
+
+  // Let op de vorm: AppLayout vult diezelfde cachesleutel ['todos'] met de
+  // hele envelope ({ data }), niet met de lijst. Wie het eerst laadt bepaalt
+  // wat hier binnenkomt, dus moet dit dezelfde vorm aanhouden — anders staat er
+  // soms een object waar een array verwacht wordt, en precies dát liet de
+  // pagina klappen zodra de zijbalk als eerste geladen had.
+  const { data: todosEnvelope } = useQuery({
+    queryKey: ['todos'],
+    queryFn: todosApi.list,
+  })
+  const todos = todosEnvelope?.data ?? []
+  const { data: reserveringen = [] } = useQuery({
+    queryKey: ['reservations', id],
+    queryFn: () => reservationsApi.listVoorProject(id),
+    enabled: !!id,
+  })
+  // De nacalculatie kan 404'en zolang er niets te rekenen valt; dat is een
+  // lege staat, geen fout, dus niet opnieuw proberen.
+  const { data: nacalcRuw = null } = useQuery({
+    queryKey: ['nacalculatie', 'project', id],
+    queryFn: () => nacalculatieApi.project(id),
+    enabled: !!id,
+    retry: false,
+  })
+  // Een project waarvan geen enkel artikel een calculatie heeft levert wél een
+  // antwoord op, maar met nul orders erin. Dat is geen kostprijs van € 0,00 —
+  // dat is geen kostprijs. Hier één keer platgeslagen, zodat de facetten, de
+  // badge, de FactBox Geld en het tabblad niet elk apart die vergissing maken.
+  const nacalc = nacalcRuw && nacalcRuw.orders.length > 0 ? nacalcRuw : null
+
+  const [kopIngeklapt, setKopIngeklapt] = useState(leesKop)
+
+  const relatie = useMemo(() => {
+    if (!project?.relatieId) return null
+    return relatiesApi.listSync().find((r) => r.id === project.relatieId) ?? null
+  }, [project?.relatieId])
+
+  const projectTodos = useMemo(
+    () => todos.filter((t) => t.projectId === id),
+    [todos, id],
+  )
+
+  const tab = leesTab(searchParams.get('tab'), project?.status)
+
+  function kiesTab(t: TabId) {
+    setSearchParams(
+      (vorige) => {
+        const volgende = new URLSearchParams(vorige)
+        volgende.set('tab', t)
+        return volgende
+      },
+      { replace: true },
+    )
+  }
+
+  function toggleKop() {
+    setKopIngeklapt((v) => {
+      const nieuw = !v
+      try {
+        localStorage.setItem(KOP_KEY, nieuw ? '1' : '0')
+      } catch {
+        /* privémodus: dan onthouden we het gewoon niet */
+      }
+      return nieuw
+    })
+  }
+
+  function nogNiet(wat: string) {
+    notifications.show({
+      color: 'blue',
+      title: 'Nog niet aangesloten in v2',
+      message: `${wat} werkt op het bestaande scherm — deze pagina is voorlopig de indeling, niet de bediening.`,
+    })
+  }
+
+  if (isPending) return <div className="pdv2-empty">Laden…</div>
+  if (!project) return <div className="pdv2-empty">Project niet gevonden.</div>
+
+  const geblokkeerd = actiesGeblokkeerd(project) || isReadOnly
+  const facetten = bouwFacetten(project, relatie, nacalc)
+  const badges = bouwTabBadges(project, nacalc)
+  const primair = primaireActie(project)
+  const terug = terugActie(project)
+  const slot = bouwSlot(holderName, isReadOnly, holderIdle, saveState)
+  const aandacht = bouwAandacht({
+    project,
+    todos: projectTodos,
+    nacalculatieAfwijkingPct: nacalc?.verschilPct ?? null,
+    opslagMislukt: saveState === 'error',
+  })
+
+  return (
+    <div className="pdv2">
+      <ObjectHeader
+        project={project}
+        facetten={facetten}
+        samenvatting={bouwSamenvatting(project, relatie)}
+        slot={slot}
+        ingeklapt={kopIngeklapt}
+        onToggle={toggleKop}
+        geblokkeerd={geblokkeerd}
+        onOnHold={() => nogNiet('On hold zetten')}
+        onAnnuleer={() => nogNiet('Annuleren')}
+        onAfdrukken={() => nogNiet('Afdrukken')}
+      />
+
+      <StatusStrip project={project} />
+
+      <TabBar actief={tab} badges={badges} onKies={kiesTab} />
+
+      <div className="pdv2-body">
+        <div className="pdv2-main">
+          {tab === 'algemeen' && (
+            <AlgemeenTab
+              project={project}
+              relatie={relatie}
+              activiteit={bouwActiviteit(project)}
+              geblokkeerd={geblokkeerd}
+            />
+          )}
+          {tab === 'offertes' && (
+            <OffertesTab
+              project={project}
+              geblokkeerd={geblokkeerd}
+              onNieuweVersie={() => nogNiet('Een nieuwe offerteversie maken')}
+            />
+          )}
+          {tab === 'opdracht' && (
+            <OpdrachtTab
+              project={project}
+              todos={projectTodos}
+              reserveringen={reserveringen}
+              geblokkeerd={geblokkeerd}
+              onAanmaken={() => nogNiet('De opdracht aanmaken')}
+              onOpenen={() => nogNiet('De opdrachtbevestiging openen')}
+              onOpnieuwVersturen={() => nogNiet('Opnieuw versturen')}
+              onNaarOrder={() => kiesTab('productie')}
+            />
+          )}
+          {tab === 'productie' && (
+            <ProductieTab
+              project={project}
+              geblokkeerd={geblokkeerd}
+              onPlanner={() => navigate('/planning-queue')}
+              onAfmelden={() => nogNiet('Een stap afmelden')}
+            />
+          )}
+          {tab === 'nacalculatie' && <NacalculatieTab nacalc={nacalc} />}
+          {tab === 'documenten' && (
+            <DocumentenTab
+              project={project}
+              geblokkeerd={geblokkeerd}
+              onOpenen={(doc) => nogNiet(`${doc} openen`)}
+              onMaken={(doc) => nogNiet(`${doc} maken`)}
+            />
+          )}
+        </div>
+
+        <aside className="pdv2-rail">
+          <AandachtBox items={aandacht} />
+          <GeldBox geld={bouwGeld(project, nacalc)} />
+          <ReserveringenBox items={bouwReserveringen(reserveringen)} />
+          <TodoBox items={bouwTodos(projectTodos)} />
+        </aside>
+      </div>
+
+      <FooterBar
+        primair={{ ...primair, kan: primair.kan && !geblokkeerd }}
+        terug={terug}
+        onPrimair={() => nogNiet(primair.label)}
+      />
+    </div>
+  )
+}
