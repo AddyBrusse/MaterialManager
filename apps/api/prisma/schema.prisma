@@ -471,7 +471,11 @@ model Project {
 // ── Offerte ───────────────────────────────────────────────────────────────────
 
 model Offerte {
-  id             String   @id // OFF-YYYY-NNN
+  id             String   @id // OFF-YYYY-NNN, uniek per versie
+  /// Het nummer dat de klant ziet. Versies van dezelfde offerte delen dit; het
+  /// id kan dat niet zijn, want dat is de primary key. Bestaande rijen dragen
+  /// hier hun eigen id — die nummers liggen mogelijk al bij een klant.
+  documentNr     String   @map("document_nr")
   projectId      String   @map("project_id")
   versie         Int
   status         String   @default("concept")
@@ -487,6 +491,7 @@ model Offerte {
 
   @@index([projectId])
   @@index([status])
+  @@index([documentNr])
   @@map("offertes")
 }
 
@@ -559,6 +564,10 @@ model ProductieOrder {
   artikelNaam    String   @map("artikel_naam")
   qty            Float
   eenheid        String
+  /// Hoeveel stuks er werkelijk klaar zijn. Een order was eerder óf gereed óf
+  /// niet, en dan is "34 van de 40" niet vast te houden — terwijl daar de
+  /// deellevering op wacht. De operator vult het in bij het gereedmelden.
+  aantalGereed   Float    @default(0) @map("aantal_gereed")
   status         String   @default("gepland")
   createdAt      DateTime @map("created_at")
   updatedAt      DateTime @map("updated_at")
@@ -671,24 +680,32 @@ model Paklijst {
 }
 
 model PaklijstRegel {
-  id               String @id
-  paklijstId       String @map("paklijst_id")
-  sortOrder        Int    @map("sort_order")
-  productieOrderId String @map("productie_order_id")
-  artikelNaam      String @map("artikel_naam")
+  id               String  @id
+  paklijstId       String  @map("paklijst_id")
+  sortOrder        Int     @map("sort_order")
+  productieOrderId String  @map("productie_order_id")
+  /// Bij welke orderregel dit hoort. Af te leiden via de productieorder, maar
+  /// dan verdwijnt het geleverde aantal zodra die order weg is — en een
+  /// verstuurde pakbon hoort niet van gedachten te veranderen.
+  offerteRegelId   String? @map("offerte_regel_id")
+  artikelNaam      String  @map("artikel_naam")
   qty              Float
   eenheid          String
 
   paklijst Paklijst @relation(fields: [paklijstId], references: [id], onDelete: Cascade)
 
   @@index([paklijstId])
+  @@index([offerteRegelId])
   @@map("paklijst_regels")
 }
 
 // ── Factuur ───────────────────────────────────────────────────────────────────
 
 model Factuur {
-  id            String   @id // FACT-YYYY-NNN
+  id            String   @id // FACT-YYYY-NNN of CRED-YYYY-NNN
+  /// Een credit is geen negatieve factuur maar een eigen document: de factuur
+  /// die hij crediteert is verstuurd en blijft staan, de credit telt ernaast.
+  soort         String   @default("factuur")
   projectId     String   @map("project_id")
   offerteId     String   @map("offerte_id")
   btwPct        Float    @map("btw_pct")
@@ -700,11 +717,16 @@ model Factuur {
   verzondenOp   String?  @map("verzonden_op")
   createdAt     DateTime @map("created_at")
 
-  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  regels  FactuurRegel[]
+  crediteertFactuurId String? @map("crediteert_factuur_id")
+
+  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  regels     FactuurRegel[]
+  crediteert Factuur?       @relation("FactuurCredit", fields: [crediteertFactuurId], references: [id], onDelete: SetNull)
+  credits    Factuur[]      @relation("FactuurCredit")
 
   @@index([projectId])
   @@index([verzondenOp])
+  @@index([soort])
   @@map("facturen")
 }
 

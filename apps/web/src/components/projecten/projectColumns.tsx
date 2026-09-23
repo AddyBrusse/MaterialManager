@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react'
 import { IconFolder } from '@tabler/icons-react'
 import { formatBedrag, formatDate, getProjectSubtotaal } from '../../api/projects'
-import { OFFERTE_STATUSES, OB_STATUSES, type Project } from '@stockmanager/shared'
+import { OFFERTE_STATUSES, OB_STATUSES, laatstePaklijst, laatsteFactuur, gefactureerdInclBtw, type Project } from '@stockmanager/shared'
 
 // ── Status display ────────────────────────────────────────────────────────────
 
@@ -119,7 +119,9 @@ const BTW_PCT = 0.21
 
 /** Invoice total when the project has been invoiced (it carries its own btwPct), else derived. */
 function bedragInclusief(p: Project): number {
-  if (p.factuur) return p.factuur.totaalInclBtw
+  // Meerdere facturen mogelijk, en een credit telt eraf: het bedrag dat de
+  // klant werkelijk moet betalen staat niet meer op één document.
+  if (p.facturen.length > 0) return gefactureerdInclBtw(p)
   const excl = getProjectSubtotaal(p)
   return excl > 0 ? Math.round(excl * (1 + BTW_PCT) * 100) / 100 : 0
 }
@@ -329,27 +331,27 @@ export const PROJECT_COLUMNS: ProjectColumn[] = [
   },
   {
     id: 'paklijstNr', label: 'Paklijst', longLabel: 'Paklijstnummer', width: 130, defaultVisible: false,
-    sortValue: p => p.paklijst?.id ?? null,
-    searchText: p => p.paklijst?.id ?? '',
-    render: p => (p.paklijst ? <span className="cell-mono">{p.paklijst.id}</span> : muted),
+    sortValue: p => laatstePaklijst(p)?.id ?? null,
+    searchText: p => laatstePaklijst(p)?.id ?? '',
+    render: p => (laatstePaklijst(p) ? <span className="cell-mono">{laatstePaklijst(p)!.id}</span> : muted),
   },
   {
     id: 'paklijstVerzonden', label: 'Verzonden', longLabel: 'Paklijst verzonden op', width: 120, defaultVisible: false,
-    sortValue: p => dateSort(p.paklijst?.verzondenOp ?? null),
-    searchText: p => dateSearch(p.paklijst?.verzondenOp ?? null),
-    render: p => dateCell(p.paklijst?.verzondenOp ?? null),
+    sortValue: p => dateSort(laatstePaklijst(p)?.verzondenOp ?? null),
+    searchText: p => dateSearch(laatstePaklijst(p)?.verzondenOp ?? null),
+    render: p => dateCell(laatstePaklijst(p)?.verzondenOp ?? null),
   },
   {
     id: 'factuurNr', label: 'Factuur', longLabel: 'Factuurnummer', width: 130, defaultVisible: false,
-    sortValue: p => p.factuur?.id ?? null,
-    searchText: p => p.factuur?.id ?? '',
-    render: p => (p.factuur ? <span className="cell-mono">{p.factuur.id}</span> : muted),
+    sortValue: p => laatsteFactuur(p)?.id ?? null,
+    searchText: p => laatsteFactuur(p)?.id ?? '',
+    render: p => (laatsteFactuur(p) ? <span className="cell-mono">{laatsteFactuur(p)!.id}</span> : muted),
   },
   {
     id: 'factuurVervaldatum', label: 'Vervaldatum', longLabel: 'Factuur vervaldatum', width: 120, defaultVisible: false,
-    sortValue: p => dateSort(p.factuur?.vervaldatum ?? null),
-    searchText: p => dateSearch(p.factuur?.vervaldatum ?? null),
-    render: p => dateCell(p.factuur?.vervaldatum ?? null),
+    sortValue: p => dateSort(laatsteFactuur(p)?.vervaldatum ?? null),
+    searchText: p => dateSearch(laatsteFactuur(p)?.vervaldatum ?? null),
+    render: p => dateCell(laatsteFactuur(p)?.vervaldatum ?? null),
   },
   {
     id: 'notities', label: 'Notities', width: 200, defaultVisible: false,

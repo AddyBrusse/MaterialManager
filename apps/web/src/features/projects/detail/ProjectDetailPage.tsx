@@ -95,24 +95,24 @@ function bouwSlot(
 }
 
 /**
- * Projectdetail v2 — de herindeling uit `shopcommand-projectdetail-spec.md`.
+ * De projectdetailpagina — de herindeling uit `shopcommand-projectdetail-spec.md`.
  *
- * Staat naast het bestaande scherm op /projecten/:id/v2, zodat beide te
- * vergelijken zijn voordat er één gekozen wordt. Deelt geen componenten met de
- * oude pagina: die mag hier niet door kunnen breken.
+ * Vijf regio's: objectkop met facetten, meldingsbalk, tabbalk met
+ * statusbadges, inhoud met zijkolom, en een footer die de volgende stap toont
+ * mét de reden waarom hij eventueel niet kan.
  *
- * De knoppen die een document maken of versturen zijn hier nog niet
- * aangesloten — dit is de indeling, niet de bediening. Ze melden dat en
- * verwijzen naar het bestaande scherm.
+ * De afleidingen (welke actie is de volgende, wat blokkeert terugdraaien, wat
+ * vraagt aandacht) staan in pure functies onder `lib/`, zonder React of fetch,
+ * zodat ze later ongewijzigd naar de server kunnen.
  */
-export function ProjectDetailV2Page() {
+export function ProjectDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const poppedOut = usePopoutRoutes()
   const inPopoutWindow = window.location.pathname.startsWith('/pop/')
-  const isPoppedOut = !inPopoutWindow && poppedOut.has(`/projecten/${id}/v2`)
+  const isPoppedOut = !inPopoutWindow && poppedOut.has(`/projecten/${id}`)
   const { isReadOnly, holderName, holderIdle } = useProjectLock(id, !isPoppedOut)
   const saveState = useProjectSaveState(id)
 

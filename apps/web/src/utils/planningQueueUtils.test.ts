@@ -70,8 +70,8 @@ function makeJob(overrides: Partial<QueueJob> & { orderId: string }): QueueJob {
       queuePosition: job.queuePosition,
       notBefore: job.notBefore,
     },
-    order: { id: job.orderId, projectId: 'p', offerteRegelId: 'r', artikelId: null, artikelNaam: job.artikel, qty: 1, eenheid: 'stuks', stappen: [], status: 'gepland', createdAt: '', updatedAt: '' },
-    project: { id: 'p', naam: job.klant, relatieId: null, contactId: null, klantRef: job.klant, status: 'productie', statusReden: null, statusVorige: null, levertijdDatum: job.deadline, notities: '', offertes: [], opdrachtbevestiging: null, productieOrders: [], paklijst: null, factuur: null, createdAt: '', updatedAt: '' },
+    order: { id: job.orderId, projectId: 'p', offerteRegelId: 'r', artikelId: null, artikelNaam: job.artikel, qty: 1, eenheid: 'stuks', stappen: [], status: 'gepland', aantalGereed: 0, createdAt: '', updatedAt: '' },
+    project: { id: 'p', naam: job.klant, relatieId: null, contactId: null, klantRef: job.klant, status: 'productie', statusReden: null, statusVorige: null, levertijdDatum: job.deadline, notities: '', offertes: [], opdrachtbevestiging: null, productieOrders: [], paklijsten: [], facturen: [], createdAt: '', updatedAt: '' },
     duurMin: job.duurMin,
     isPlaceholder: job.isPlaceholder,
   }

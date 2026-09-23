@@ -81,19 +81,25 @@ export function bouwAandacht(bron: AandachtBron): AandachtVM[] {
     }
   }
 
-  if (p.factuur?.vervaldatum) {
-    const n = dagenTot(p.factuur.vervaldatum)
-    if (n !== null && n < 0) {
+  // Met deelleveringen staan er meerdere facturen open. Elk zijn eigen regel:
+  // "twee facturen over datum" samenvatten tot één zin verbergt precies welke
+  // het is, en dat is het enige wat je wilt weten om te bellen. Creditnota's
+  // hebben geen vervaldatum die iemand moet bewaken.
+  for (const f of p.facturen) {
+    if (f.soort === 'credit' || !f.vervaldatum) continue
+    const n = dagenTot(f.vervaldatum)
+    if (n === null) continue
+    if (n < 0) {
       uit.push({
         ernst: 'rood',
-        titel: 'Factuur over vervaldatum',
-        toelichting: `${p.factuur.id} — vervallen op ${datum(p.factuur.vervaldatum)}`,
+        titel: `Factuur ${f.id} over vervaldatum`,
+        toelichting: `vervallen op ${datum(f.vervaldatum)} — ${Math.abs(n)} dagen geleden`,
       })
-    } else if (n !== null && n <= 14) {
+    } else if (n <= 14) {
       uit.push({
         ernst: 'amber',
-        titel: `Factuur open tot ${datum(p.factuur.vervaldatum)}`,
-        toelichting: `${p.factuur.id} — of er betaald is, weet dit scherm niet`,
+        titel: `Factuur ${f.id} open tot ${datum(f.vervaldatum)}`,
+        toelichting: 'of er betaald is, weet dit scherm niet',
       })
     }
   }

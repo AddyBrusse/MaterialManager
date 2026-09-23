@@ -17,8 +17,7 @@ import { ZaagflowPage } from '../../routes/desktop/ZaagflowPage'
 import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
 import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
-import { ProjectDetailPage } from '../../routes/desktop/ProjectDetailPage'
-import { ProjectDetailV2Page } from '../../features/projects/detail/ProjectDetailV2Page'
+import { ProjectDetailPage } from '../../features/projects/detail/ProjectDetailPage'
 import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
@@ -51,10 +50,6 @@ export const PAGES: PageEntry[] = [
   // Productie
   { path: '/projecten',      label: 'Projecten',     Icon: IconClipboardList, Component: ProjectenPage,     poppable: true },
   { path: '/projecten/:id',  label: 'Project',       Icon: IconClipboardList, Component: ProjectDetailPage, poppable: true, labelFor: p => `Project ${p.id ?? ''}`.trim() },
-  // Herindeling uit shopcommand-projectdetail-spec.md, naast het bestaande
-  // scherm. Poppable omdat §10 van die spec een venster van 1100 px beschrijft;
-  // zonder deze regel is die variant niet te zien.
-  { path: '/projecten/:id/v2', label: 'Project v2',  Icon: IconClipboardList, Component: ProjectDetailV2Page, poppable: true, hideChrome: true, labelFor: p => `Project ${p.id ?? ''} v2`.trim() },
   { path: '/documenten',     label: 'Documenten',    Icon: IconFileText,      Component: DocumentenPage,    poppable: true },
   { path: '/zaagcalculator', label: 'Zaagcalculator', Icon: IconCut,          Component: ZaagCalculatorPage, poppable: true },
   { path: '/zaagplanner',    label: 'Zaagplanner',   Icon: IconArrowsSort,    Component: ZaagPlannerPage,   poppable: true },

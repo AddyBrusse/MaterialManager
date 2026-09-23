@@ -11,6 +11,7 @@
  */
 
 import type { Project, ProductieOrder } from '@stockmanager/shared'
+import { laatstePaklijst } from '@stockmanager/shared'
 import type { ActieVM, Fase, TerugVM } from '../types'
 import { datumKort } from './format'
 
@@ -106,11 +107,19 @@ export function primaireActie(p: Project): ActieVM {
       }
     }
 
-    case 'paklijst':
-      return { label: 'Paklijst versturen', kan: true }
+    case 'paklijst': {
+      const open = laatstePaklijst(p)
+      return {
+        label: 'Paklijst versturen',
+        kan: Boolean(open && !open.verzondenOp),
+        reden: open && open.verzondenOp ? 'De laatste paklijst is al verzonden.' : undefined,
+      }
+    }
 
     case 'verzonden': {
-      const verzonden = Boolean(p.paklijst?.verzondenOp)
+      // Met deelleveringen kan er meer dan één pakbon zijn; factureren mag
+      // zodra er íets verzonden is, niet pas als alles de deur uit is.
+      const verzonden = p.paklijsten.some((pl) => pl.verzondenOp)
       return {
         label: 'Factureren',
         kan: verzonden,
@@ -192,8 +201,14 @@ export function terugActie(p: Project): TerugVM | null {
       return { label: 'Terugdraaien naar Productie', naar: 'productie', blokkades, gevolgen }
 
     case 'verzonden':
-      gevolgen.push('De verzending wordt ingetrokken.')
-      if (p.factuur) blokkades.push('Er is al een factuur voor dit project.')
+      gevolgen.push('De laatste verzending wordt ingetrokken.')
+      if (p.facturen.length > 0) {
+        blokkades.push(
+          p.facturen.length === 1
+            ? 'Er is al een factuur voor dit project.'
+            : `Er zijn al ${p.facturen.length} facturen voor dit project.`,
+        )
+      }
       return { label: 'Terugdraaien naar Paklijst', naar: 'paklijst', blokkades, gevolgen }
 
     case 'gefactureerd':

@@ -6,6 +6,7 @@ import {
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
+  berekenVoortgang, basisRegels,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
@@ -23,7 +24,7 @@ function now() { return new Date().toISOString() }
 
 type Db = typeof prisma | Prisma.TransactionClient
 
-type DocPrefix = 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT' | 'OB'
+type DocPrefix = 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT' | 'CRED' | 'OB'
 
 // Bestaat dit nummer al? Sinds de documenten eigen tabellen hebben is het id een
 // globale primary key, dus moet een uitgegeven nummer echt vrij zijn.
@@ -35,7 +36,11 @@ async function docIdBezet(db: Db, prefix: DocPrefix, id: string): Promise<boolea
     case 'OB':   return !!(await db.opdrachtbevestiging.findUnique(waar))
     case 'PROD': return !!(await db.productieOrder.findUnique(waar))
     case 'PL':   return !!(await db.paklijst.findUnique(waar))
-    case 'FACT': return !!(await db.factuur.findUnique(waar))
+    // Credits delen de facturentabel maar hebben een eigen reeks: een
+    // creditnota die FACT-2026-002 heet, leest in de administratie als een
+    // tweede factuur.
+    case 'FACT':
+    case 'CRED': return !!(await db.factuur.findUnique(waar))
   }
 }
 
@@ -225,8 +230,15 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = CreateOfferteSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, async (p, tx) => {
+      const id = body.id ?? await nextDocId(tx, 'OFF')
+      // Een nieuwe versie VERVANGT de vorige, dus draagt ze hetzelfde nummer:
+      // de klant kreeg offerte OFF-2026-014 en krijgt er een herziene versie
+      // van, geen tweede offerte. Alleen de allereerste versie geeft een nieuw
+      // nummer uit. Het id moet wel per versie verschillen — dat is de sleutel.
+      const eerste = p.offertes[0]
       const off: Offerte = {
-        id: body.id ?? await nextDocId(tx, 'OFF'),
+        id,
+        documentNr: eerste ? eerste.documentNr : id,
         projectId: p.id,
         versie: p.offertes.length + 1,
         status: 'concept',
@@ -420,6 +432,7 @@ router.post(
           artikelNaam: regel.naam,
           qty: regel.qty,
           eenheid: regel.eenheid,
+          aantalGereed: 0,
           stappen,
           status: 'gepland' as const,
           createdAt: now(),
@@ -618,12 +631,39 @@ router.patch(
   }),
 )
 
+const OrderGereedSchema = z.object({
+  /**
+   * Hoeveel goede stuks er uit de order zijn gekomen. Weggelaten = de volle
+   * hoeveelheid. Minder dan qty betekent dat er nog werk ligt: de order blijft
+   * dan in productie staan, want "gereed" met 34 van de 40 zou zeggen dat de
+   * overige 6 nooit meer komen.
+   */
+  aantal: z.number().nonnegative().optional(),
+})
+
 router.post(
   '/:id/orders/:orderId/gereed',
   asyncHandler(async (req, res) => {
+    const { aantal } = OrderGereedSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, (p) => {
+      const order = p.productieOrders.find(o => o.id === req.params.orderId)
+      if (!order) throw new AppError(404, 'NOT_FOUND', 'Order bestaat niet')
+      const gereed = aantal ?? order.qty
+      if (gereed > order.qty) {
+        throw new AppError(
+          400, 'BAD_REQUEST',
+          `Meer gereedgemeld (${gereed}) dan besteld (${order.qty})`,
+        )
+      }
       const productieOrders = p.productieOrders.map(o =>
-        o.id === req.params.orderId ? { ...o, status: 'gereed' as const, updatedAt: now() } : o,
+        o.id === req.params.orderId
+          ? {
+              ...o,
+              aantalGereed: gereed,
+              status: (gereed >= o.qty ? 'gereed' : 'in_productie') as ProductieOrder['status'],
+              updatedAt: now(),
+            }
+          : o,
       )
       const status = p.status === 'bevestigd' ? 'productie' : p.status
       return { ...p, productieOrders, status, updatedAt: now() }
@@ -634,45 +674,94 @@ router.post(
 
 // ── Paklijst ──────────────────────────────────────────────────────────────────
 
+// Een pakbon gaat over wat er NU klaarligt, niet over de hele order. Bij een
+// deellevering zijn dat 10 van de 40 stuks, en de volgende bon pakt er 12. Elke
+// bon is een eigen document met een eigen nummer; hij laat niets vervallen.
+const CreatePaklijstSchema = z.object({
+  /** Per orderregel hoeveel er mee de deur uit gaat. Leeg = alles wat klaarligt. */
+  regels: z.array(z.object({
+    offerteRegelId: z.string(),
+    qty: z.number().positive(),
+  })).optional(),
+})
+
 router.post(
   '/:id/paklijst',
   asyncHandler(async (req, res) => {
+    const body = CreatePaklijstSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, async (p, tx) => {
-      if (p.paklijst) throw new AppError(409, 'CONFLICT', 'Paklijst bestaat al')
-      const gereed = p.productieOrders.filter(o => o.status === 'gereed')
-      if (gereed.length === 0) throw new AppError(400, 'BAD_REQUEST', 'Geen gereed productie orders')
+      const voortgang = berekenVoortgang(p)
+
+      // Wat er klaarligt per orderregel: gemaakt min wat er al geleverd is.
+      // Zonder dat aftrekken zou de tweede pakbon dezelfde stuks nog een keer
+      // meesturen, en telt het project 44 geleverde stuks van de 40.
+      const klaarPerRegel = new Map(voortgang.regels.map(r => [r.offerteRegelId, r.klaar]))
+
+      const gevraagd = body.regels ?? voortgang.regels
+        .filter(r => r.klaar > 0)
+        .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.klaar }))
+
+      if (gevraagd.length === 0) {
+        throw new AppError(400, 'BAD_REQUEST', 'Er ligt niets klaar om te leveren')
+      }
+
+      for (const g of gevraagd) {
+        const klaar = klaarPerRegel.get(g.offerteRegelId) ?? 0
+        if (g.qty > klaar) {
+          throw new AppError(
+            400, 'BAD_REQUEST',
+            `Regel ${g.offerteRegelId}: ${g.qty} gevraagd, maar er liggen er ${klaar} klaar`,
+          )
+        }
+      }
+
+      // De productieorder erbij zoeken voor de naam en de eenheid. Meerdere
+      // orders kunnen naar dezelfde orderregel wijzen; de eerste volstaat,
+      // want de pakbon legt de orderregel zelf vast.
+      const orderVan = (regelId: string) =>
+        p.productieOrders.find(o => o.offerteRegelId === regelId)
+      const regelVan = (regelId: string) =>
+        basisRegels(p).find(r => r.id === regelId)
 
       const paklijst: Paklijst = {
         id: await nextDocId(tx, 'PL'),
         projectId: p.id,
-        regels: gereed.map(o => ({
-          productieOrderId: o.id,
-          artikelNaam: o.artikelNaam,
-          qty: o.qty,
-          eenheid: o.eenheid,
-        })),
+        regels: gevraagd.map(g => {
+          const order = orderVan(g.offerteRegelId)
+          const regel = regelVan(g.offerteRegelId)
+          return {
+            productieOrderId: order?.id ?? '',
+            offerteRegelId: g.offerteRegelId,
+            artikelNaam: order?.artikelNaam ?? regel?.naam ?? g.offerteRegelId,
+            qty: g.qty,
+            eenheid: order?.eenheid ?? regel?.eenheid ?? 'st',
+          }
+        }),
         notities: '',
         verzondenOp: null,
         createdAt: now(),
       }
 
-      return { ...p, paklijst, status: 'paklijst', updatedAt: now() }
+      return { ...p, paklijsten: [...p.paklijsten, paklijst], status: 'paklijst', updatedAt: now() }
     })
     res.status(201).json({ data: updated })
   }),
 )
 
 router.post(
-  '/:id/paklijst/verzend',
+  '/:id/paklijst/:paklijstId/verzend',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
-      if (!p.paklijst) throw new AppError(404, 'NOT_FOUND', 'Geen paklijst')
-      return {
-        ...p,
-        paklijst: { ...p.paklijst, verzondenOp: now() },
-        status: 'verzonden',
-        updatedAt: now(),
-      }
+      const pl = p.paklijsten.find(x => x.id === req.params.paklijstId)
+      if (!pl) throw new AppError(404, 'NOT_FOUND', 'Geen paklijst')
+      const paklijsten = p.paklijsten.map(x =>
+        x.id === pl.id ? { ...x, verzondenOp: now() } : x,
+      )
+      // Het project heet pas 'verzonden' als alles weg is. Bij een deellevering
+      // ligt er nog werk, en dan zou die status liegen.
+      const na = berekenVoortgang({ ...p, paklijsten })
+      const status = na.klaar === 0 && na.teMaken === 0 ? 'verzonden' : p.status
+      return { ...p, paklijsten, status, updatedAt: now() }
     })
     res.json({ data: updated })
   }),
@@ -680,60 +769,192 @@ router.post(
 
 // ── Factuur ────────────────────────────────────────────────────────────────────
 
-const CreateFactuurSchema = z.object({ btwPct: z.number().optional() })
+// Factureren gaat over wat er GELEVERD is en nog niet gefactureerd. Dat is bij
+// een deellevering minder dan de hele offerte; de rest volgt op de volgende
+// factuur.
+const CreateFactuurSchema = z.object({
+  btwPct: z.number().optional(),
+  regels: z.array(z.object({
+    offerteRegelId: z.string(),
+    qty: z.number().positive(),
+  })).optional(),
+})
+
+function geldbedragen(regels: { totaal: number }[], btwPct: number) {
+  const subtotaal = Math.round(regels.reduce((s, r) => s + r.totaal, 0) * 100) / 100
+  const btwBedrag = Math.round(subtotaal * (btwPct / 100) * 100) / 100
+  return { subtotaal, btwBedrag, totaalInclBtw: Math.round((subtotaal + btwBedrag) * 100) / 100 }
+}
 
 router.post(
   '/:id/factuur',
   asyncHandler(async (req, res) => {
-    const { btwPct = 21 } = CreateFactuurSchema.parse(req.body)
+    const { btwPct = 21, regels: gevraagd } = CreateFactuurSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, async (p, tx) => {
-      if (p.factuur) throw new AppError(409, 'CONFLICT', 'Factuur bestaat al')
       const accepted = p.offertes.find(o => o.status === 'geaccepteerd')
       if (!accepted) throw new AppError(400, 'BAD_REQUEST', 'Geen geaccepteerde offerte')
 
-      const regels = accepted.regels.map(r => ({
-        offerteRegelId: r.id,
-        naam: r.naam,
-        qty: r.qty,
-        eenheid: r.eenheid,
-        verkoopprijs: r.verkoopprijs,
-        totaal: r.totaal,
-      }))
+      const voortgang = berekenVoortgang(p)
+      const openPerRegel = new Map(voortgang.regels.map(r => [r.offerteRegelId, r.teFactureren]))
 
-      const subtotaal = Math.round(regels.reduce((s, r) => s + r.totaal, 0) * 100) / 100
-      const btwBedrag = Math.round(subtotaal * (btwPct / 100) * 100) / 100
-      const totaalInclBtw = Math.round((subtotaal + btwBedrag) * 100) / 100
+      const keuze = gevraagd ?? voortgang.regels
+        .filter(r => r.teFactureren > 0)
+        .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.teFactureren }))
+
+      if (keuze.length === 0) {
+        throw new AppError(400, 'BAD_REQUEST', 'Er staat niets open om te factureren')
+      }
+      for (const g of keuze) {
+        const open = openPerRegel.get(g.offerteRegelId) ?? 0
+        if (g.qty > open) {
+          throw new AppError(
+            400, 'BAD_REQUEST',
+            `Regel ${g.offerteRegelId}: ${g.qty} gevraagd, maar er staat ${open} open`,
+          )
+        }
+      }
+
+      const bron = basisRegels(p)
+      const regels = keuze.map(g => {
+        const r = bron.find(x => x.id === g.offerteRegelId)
+        const prijs = r?.verkoopprijs ?? 0
+        return {
+          offerteRegelId: g.offerteRegelId,
+          naam: r?.naam ?? g.offerteRegelId,
+          qty: g.qty,
+          eenheid: r?.eenheid ?? 'st',
+          verkoopprijs: prijs,
+          totaal: Math.round(g.qty * prijs * 100) / 100,
+        }
+      })
 
       const vervalDate = new Date()
       vervalDate.setDate(vervalDate.getDate() + 30)
 
       const factuur: Factuur = {
         id: await nextDocId(tx, 'FACT'),
+        soort: 'factuur',
+        crediteertFactuurId: null,
         projectId: p.id,
         offerteId: accepted.id,
         regels,
         btwPct,
-        subtotaal,
-        btwBedrag,
-        totaalInclBtw,
+        ...geldbedragen(regels, btwPct),
         notities: '',
         vervaldatum: vervalDate.toISOString().split('T')[0],
         verzondenOp: null,
         createdAt: now(),
       }
 
-      return { ...p, factuur, status: 'gefactureerd', updatedAt: now() }
+      const facturen = [...p.facturen, factuur]
+      // Pas 'gefactureerd' als er niets meer openstaat — anders zegt de status
+      // dat het project klaar is terwijl er nog een tweede levering aankomt.
+      const na = berekenVoortgang({ ...p, facturen })
+      const status = na.teFactureren === 0 && na.teMaken === 0 && na.klaar === 0
+        ? 'gefactureerd' : p.status
+
+      return { ...p, facturen, status, updatedAt: now() }
+    })
+    res.status(201).json({ data: updated })
+  }),
+)
+
+// ── Creditfactuur ─────────────────────────────────────────────────────────────
+
+// Een credit is geen negatieve factuur: de factuur die hij crediteert is
+// verstuurd en blijft staan. De credit is een eigen document dat ernaast telt.
+const CreateCreditSchema = z.object({
+  factuurId: z.string(),
+  regels: z.array(z.object({
+    offerteRegelId: z.string(),
+    qty: z.number().positive(),
+  })).optional(),
+  notities: z.string().optional(),
+})
+
+router.post(
+  '/:id/credit',
+  asyncHandler(async (req, res) => {
+    const body = CreateCreditSchema.parse(req.body)
+    const updated = await withProject(req.params.id, async (p, tx) => {
+      const bron = p.facturen.find(f => f.id === body.factuurId)
+      if (!bron) throw new AppError(404, 'NOT_FOUND', 'Factuur bestaat niet')
+      if (bron.soort === 'credit') {
+        throw new AppError(400, 'BAD_REQUEST', 'Een creditfactuur crediteren kan niet')
+      }
+
+      // Wat er van deze factuur nog te crediteren valt: de gefactureerde
+      // aantallen min wat er eerder al gecrediteerd is.
+      const eerder = new Map<string, number>()
+      for (const c of p.facturen.filter(f => f.crediteertFactuurId === bron.id)) {
+        for (const r of c.regels) {
+          eerder.set(r.offerteRegelId, (eerder.get(r.offerteRegelId) ?? 0) + r.qty)
+        }
+      }
+      const openPerRegel = new Map(bron.regels.map(r =>
+        [r.offerteRegelId, r.qty - (eerder.get(r.offerteRegelId) ?? 0)]))
+
+      const keuze = body.regels ?? bron.regels
+        .map(r => ({ offerteRegelId: r.offerteRegelId, qty: openPerRegel.get(r.offerteRegelId) ?? 0 }))
+        .filter(r => r.qty > 0)
+
+      if (keuze.length === 0) {
+        throw new AppError(400, 'BAD_REQUEST', 'Deze factuur is al volledig gecrediteerd')
+      }
+      for (const g of keuze) {
+        const open = openPerRegel.get(g.offerteRegelId) ?? 0
+        if (g.qty > open) {
+          throw new AppError(
+            400, 'BAD_REQUEST',
+            `Regel ${g.offerteRegelId}: ${g.qty} gevraagd, maar er valt ${open} te crediteren`,
+          )
+        }
+      }
+
+      const regels = keuze.map(g => {
+        const r = bron.regels.find(x => x.offerteRegelId === g.offerteRegelId)
+        const prijs = r?.verkoopprijs ?? 0
+        return {
+          offerteRegelId: g.offerteRegelId,
+          naam: r?.naam ?? g.offerteRegelId,
+          qty: g.qty,
+          eenheid: r?.eenheid ?? 'st',
+          verkoopprijs: prijs,
+          totaal: Math.round(g.qty * prijs * 100) / 100,
+        }
+      })
+
+      const credit: Factuur = {
+        id: await nextDocId(tx, 'CRED'),
+        soort: 'credit',
+        crediteertFactuurId: bron.id,
+        projectId: p.id,
+        offerteId: bron.offerteId,
+        regels,
+        btwPct: bron.btwPct,
+        ...geldbedragen(regels, bron.btwPct),
+        notities: body.notities ?? '',
+        vervaldatum: null,
+        verzondenOp: null,
+        createdAt: now(),
+      }
+
+      return { ...p, facturen: [...p.facturen, credit], updatedAt: now() }
     })
     res.status(201).json({ data: updated })
   }),
 )
 
 router.post(
-  '/:id/factuur/verzend',
+  '/:id/factuur/:factuurId/verzend',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
-      if (!p.factuur) throw new AppError(404, 'NOT_FOUND', 'Geen factuur')
-      return { ...p, factuur: { ...p.factuur, verzondenOp: now() }, updatedAt: now() }
+      const f = p.facturen.find(x => x.id === req.params.factuurId)
+      if (!f) throw new AppError(404, 'NOT_FOUND', 'Geen factuur')
+      const facturen = p.facturen.map(x =>
+        x.id === f.id ? { ...x, verzondenOp: now() } : x,
+      )
+      return { ...p, facturen, updatedAt: now() }
     })
     res.json({ data: updated })
   }),
@@ -805,41 +1026,69 @@ router.post(
 )
 
 // Paklijst → Productie
-// Blocked if paklijst is already verzonden.
+// Haalt de laatste pakbon weg. Een verstuurde bon blijft: die ligt bij de
+// klant en kan niet meer ongedaan gemaakt worden.
 router.post(
   '/:id/revert/paklijst',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
-      if (p.status !== 'paklijst') throw new AppError(400, 'BAD_REQUEST', 'Project is niet in paklijst status')
-      if (p.paklijst?.verzondenOp) {
-        throw new AppError(409, 'CONFLICT', 'Kan niet terugkeren: paklijst is al verzonden')
+      const laatste = p.paklijsten[p.paklijsten.length - 1]
+      if (!laatste) throw new AppError(400, 'BAD_REQUEST', 'Er is geen pakbon om terug te nemen')
+      if (laatste.verzondenOp) {
+        throw new AppError(409, 'CONFLICT', 'Kan niet terugkeren: pakbon is al verzonden')
       }
-      return { ...p, status: 'productie', paklijst: null, updatedAt: now() }
+      const paklijsten = p.paklijsten.filter(x => x.id !== laatste.id)
+      return {
+        ...p,
+        paklijsten,
+        status: paklijsten.length > 0 ? p.status : 'productie',
+        updatedAt: now(),
+      }
     })
     res.json({ data: updated })
   }),
 )
 
-// Verzonden → Paklijst
+// Verzonden → Paklijst: de laatste verzending terugdraaien.
 router.post(
   '/:id/revert/verzonden',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
-      if (p.status !== 'verzonden') throw new AppError(400, 'BAD_REQUEST', 'Project is niet in verzonden status')
-      const paklijst = p.paklijst ? { ...p.paklijst, verzondenOp: null } : null
-      return { ...p, status: 'paklijst', paklijst, updatedAt: now() }
+      const laatste = [...p.paklijsten].reverse().find(x => x.verzondenOp)
+      if (!laatste) throw new AppError(400, 'BAD_REQUEST', 'Er is geen verzonden pakbon')
+      const paklijsten = p.paklijsten.map(x =>
+        x.id === laatste.id ? { ...x, verzondenOp: null } : x,
+      )
+      return { ...p, paklijsten, status: 'paklijst', updatedAt: now() }
     })
     res.json({ data: updated })
   }),
 )
 
-// Gefactureerd → Verzonden
+// Gefactureerd → Verzonden: de laatste factuur weghalen, als die nog niet weg is.
+// Is hij wél verstuurd, dan hoort er een creditfactuur te komen en geen
+// verwijdering — een verstuurde factuur uitgummen laat een gat in de nummering.
 router.post(
   '/:id/revert/gefactureerd',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
-      if (p.status !== 'gefactureerd') throw new AppError(400, 'BAD_REQUEST', 'Project is niet gefactureerd')
-      return { ...p, status: 'verzonden', factuur: null, updatedAt: now() }
+      const laatste = [...p.facturen].reverse().find(f => f.soort === 'factuur')
+      if (!laatste) throw new AppError(400, 'BAD_REQUEST', 'Er is geen factuur')
+      if (laatste.verzondenOp) {
+        throw new AppError(
+          409, 'CONFLICT',
+          'Factuur is al verstuurd — maak een creditfactuur in plaats van hem te verwijderen',
+        )
+      }
+      if (p.facturen.some(f => f.crediteertFactuurId === laatste.id)) {
+        throw new AppError(409, 'CONFLICT', 'Er hangt een creditfactuur aan deze factuur')
+      }
+      return {
+        ...p,
+        facturen: p.facturen.filter(f => f.id !== laatste.id),
+        status: 'verzonden',
+        updatedAt: now(),
+      }
     })
     res.json({ data: updated })
   }),

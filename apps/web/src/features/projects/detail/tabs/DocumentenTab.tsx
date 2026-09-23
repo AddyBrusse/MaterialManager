@@ -1,10 +1,24 @@
-import type { Project } from '@stockmanager/shared'
+import type { Factuur, Paklijst, Project } from '@stockmanager/shared'
+import { gefactureerdInclBtw } from '@stockmanager/shared'
 import { Card } from '../components/Card'
 import { datum, eur, getal, relatieveDagen, dagenTot } from '../lib/format'
 import { geaccepteerdeOfferte, geldendeOfferte, stapTelling } from '../lib/status'
 import { offerteTotaal } from '../lib/build-vm'
 
-interface Rij {
+/**
+ * §5.6 — de route van het project als één tabel. Dit is waar het principe
+ * "status volgt uit een document" letterlijk op het scherm staat.
+ *
+ * **Afwijking van de spec.** §5.6 schrijft vier vaste *rijen* voor. Dat werkt
+ * niet meer nu er in delen geleverd wordt: van Paklijst en Factuur kunnen er
+ * meerdere zijn, plus creditnota's. Het vierstappen-skelet blijft, maar die
+ * twee stappen zijn nu groepen: een kopregel met de stand van de stap, en
+ * daaronder de losse documenten. De vraag "waar staat dit project" leest nog
+ * steeds van boven naar beneden; de vraag "welke pakbon droeg wat" staat er
+ * onder in plaats van verstopt.
+ */
+
+interface StapRij {
   document: string
   nummer: string
   status: string
@@ -16,88 +30,106 @@ interface Rij {
   kan: boolean
 }
 
-/**
- * §5.6 — de route van het project als één tabel. Dit is waar het principe
- * "status volgt uit een document" letterlijk op het scherm staat: vier vaste
- * rijen, ook als ze nog niet bestaan, elk met de voorwaarde waaronder ze
- * ontstaan.
- */
-function bouwRijen(p: Project): Rij[] {
-  const geldend = geldendeOfferte(p)
-  const acc = geaccepteerdeOfferte(p)
-  const { gereed, totaal } = stapTelling(p.productieOrders)
-  const alleStappenGereed = totaal > 0 && gereed === totaal
+function BtnCel({
+  rij,
+  geblokkeerd,
+  onOpenen,
+  onMaken,
+}: {
+  rij: StapRij
+  geblokkeerd: boolean
+  onOpenen: (doc: string) => void
+  onMaken: (doc: string) => void
+}) {
+  return rij.bestaat ? (
+    <button type="button" className="pdv2-btn s" onClick={() => onOpenen(rij.document)}>
+      Openen
+    </button>
+  ) : (
+    <button
+      type="button"
+      className={`pdv2-btn s ${rij.kan ? 'primair' : ''}`}
+      disabled={!rij.kan || geblokkeerd}
+      onClick={() => onMaken(rij.document)}
+    >
+      Maken
+    </button>
+  )
+}
 
-  return [
-    {
-      document: 'Offerte geldend',
-      nummer: geldend?.id ?? '—',
-      status: geldend ? (acc ? 'Geaccepteerd' : geldend.status) : 'Nog niet',
-      statusKleur: acc ? 'ok' : geldend ? 'accent' : '',
-      datumTekst: datum(geldend?.verzondenOp),
-      bedrag: eur(offerteTotaal(p)),
-      herkomst: geldend
-        ? `v${geldend.versie}${
-            geldend.geldigTot
-              ? ` · vervalt ${datum(geldend.geldigTot)} · ${relatieveDagen(geldend.geldigTot)}`
-              : ''
+function Rij({
+  rij,
+  geblokkeerd,
+  onOpenen,
+  onMaken,
+  inspringen,
+}: {
+  rij: StapRij
+  geblokkeerd: boolean
+  onOpenen: (doc: string) => void
+  onMaken: (doc: string) => void
+  inspringen?: boolean
+}) {
+  return (
+    <tr>
+      <td style={inspringen ? { paddingLeft: 26, color: 'var(--text2)' } : undefined}>
+        {rij.document}
+      </td>
+      <td className="mono">{rij.nummer}</td>
+      <td>
+        <span className={`pdv2-pill ${rij.statusKleur}`}>{rij.status}</span>
+      </td>
+      <td className="mono">{rij.datumTekst}</td>
+      <td className="num">{rij.bedrag}</td>
+      <td style={{ color: 'var(--text3)' }}>{rij.herkomst}</td>
+      <td>
+        <BtnCel rij={rij} geblokkeerd={geblokkeerd} onOpenen={onOpenen} onMaken={onMaken} />
+      </td>
+    </tr>
+  )
+}
+
+function paklijstRij(pl: Paklijst): StapRij {
+  return {
+    document: pl.id,
+    nummer: pl.id,
+    status: pl.verzondenOp ? 'Verzonden' : 'Concept',
+    statusKleur: pl.verzondenOp ? 'ok' : '',
+    datumTekst: datum(pl.verzondenOp),
+    bedrag: '—',
+    herkomst: `${pl.regels.length} ${pl.regels.length === 1 ? 'regel' : 'regels'} · ${pl.regels.reduce(
+      (t, r) => t + r.qty,
+      0,
+    )} stuks`,
+    bestaat: true,
+    kan: true,
+  }
+}
+
+function factuurRij(f: Factuur): StapRij {
+  const credit = f.soort === 'credit'
+  const n = dagenTot(f.vervaldatum)
+  return {
+    document: credit ? `${f.id} (credit)` : f.id,
+    nummer: f.id,
+    status: f.verzondenOp ? 'Verzonden' : 'Concept',
+    statusKleur: f.verzondenOp ? (credit ? 'warn' : 'ok') : '',
+    datumTekst: datum(f.verzondenOp),
+    bedrag: credit ? `−${eur(f.totaalInclBtw)}` : eur(f.totaalInclBtw),
+    herkomst: credit
+      ? `crediteert ${f.crediteertFactuurId ?? 'een eerdere factuur'}`
+      : f.vervaldatum
+        ? `vervalt ${datum(f.vervaldatum)} · ${relatieveDagen(f.vervaldatum)}${
+            n !== null && n < 0 ? ' — over tijd' : ''
           }`
-        : 'ontstaat zodra je een offerte opstelt',
-      bestaat: Boolean(geldend),
-      kan: true,
-    },
-    {
-      document: 'Opdrachtbevestiging',
-      nummer: p.opdrachtbevestiging?.id ?? '—',
-      status: p.opdrachtbevestiging
-        ? p.opdrachtbevestiging.verzondenOp
-          ? 'Verzonden'
-          : 'Concept'
-        : 'Nog niet',
-      statusKleur: p.opdrachtbevestiging?.verzondenOp ? 'ok' : '',
-      datumTekst: datum(p.opdrachtbevestiging?.verzondenOp),
-      bedrag: '—',
-      herkomst: p.opdrachtbevestiging
-        ? `regels bevroren uit ${p.opdrachtbevestiging.offerteId}`
-        : 'ontstaat zodra een offerte geaccepteerd is',
-      bestaat: Boolean(p.opdrachtbevestiging),
-      kan: Boolean(acc),
-    },
-    {
-      document: 'Paklijst',
-      nummer: p.paklijst?.id ?? '—',
-      status: p.paklijst ? (p.paklijst.verzondenOp ? 'Verzonden' : 'Concept') : 'Nog niet',
-      statusKleur: p.paklijst?.verzondenOp ? 'ok' : '',
-      datumTekst: datum(p.paklijst?.verzondenOp),
-      bedrag: '—',
-      herkomst: p.paklijst
-        ? `${p.paklijst.regels.length} regels uit de productieorders`
-        : 'ontstaat als alle productiestappen gereed zijn',
-      bestaat: Boolean(p.paklijst),
-      kan: alleStappenGereed,
-    },
-    {
-      document: 'Factuur',
-      nummer: p.factuur?.id ?? '—',
-      status: p.factuur ? (p.factuur.verzondenOp ? 'Verzonden' : 'Concept') : 'Nog niet',
-      statusKleur: p.factuur?.verzondenOp ? 'ok' : '',
-      datumTekst: datum(p.factuur?.verzondenOp),
-      bedrag: eur(p.factuur?.totaalInclBtw ?? null),
-      herkomst: p.factuur
-        ? `uit ${p.factuur.offerteId}${
-            p.factuur.vervaldatum
-              ? ` · vervalt ${datum(p.factuur.vervaldatum)} · ${relatieveDagen(p.factuur.vervaldatum)}`
-              : ''
-          }`
-        : 'ontstaat als de paklijst verzonden is',
-      bestaat: Boolean(p.factuur),
-      kan: Boolean(p.paklijst?.verzondenOp),
-    },
-  ]
+        : 'geen vervaldatum',
+    bestaat: true,
+    kan: true,
+  }
 }
 
 export function DocumentenTab({
-  project,
+  project: p,
   geblokkeerd,
   onOpenen,
   onMaken,
@@ -107,9 +139,81 @@ export function DocumentenTab({
   onOpenen: (doc: string) => void
   onMaken: (doc: string) => void
 }) {
-  const rijen = bouwRijen(project)
-  const f = project.factuur
-  const vervalDagen = dagenTot(f?.vervaldatum)
+  const geldend = geldendeOfferte(p)
+  const acc = geaccepteerdeOfferte(p)
+  const { gereed, totaal } = stapTelling(p.productieOrders)
+  const alleStappenGereed = totaal > 0 && gereed === totaal
+  const ietsVerzonden = p.paklijsten.some((pl) => pl.verzondenOp)
+
+  const offerte: StapRij = {
+    document: 'Offerte geldend',
+    nummer: geldend?.documentNr ?? geldend?.id ?? '—',
+    status: geldend ? (acc ? 'Geaccepteerd' : geldend.status) : 'Nog niet',
+    statusKleur: acc ? 'ok' : geldend ? 'accent' : '',
+    datumTekst: datum(geldend?.verzondenOp),
+    bedrag: eur(offerteTotaal(p)),
+    herkomst: geldend
+      ? `v${geldend.versie}${
+          geldend.geldigTot
+            ? ` · vervalt ${datum(geldend.geldigTot)} · ${relatieveDagen(geldend.geldigTot)}`
+            : ''
+        }`
+      : 'ontstaat zodra je een offerte opstelt',
+    bestaat: Boolean(geldend),
+    kan: true,
+  }
+
+  const ob: StapRij = {
+    document: 'Opdrachtbevestiging',
+    nummer: p.opdrachtbevestiging?.id ?? '—',
+    status: p.opdrachtbevestiging
+      ? p.opdrachtbevestiging.verzondenOp
+        ? 'Verzonden'
+        : 'Concept'
+      : 'Nog niet',
+    statusKleur: p.opdrachtbevestiging?.verzondenOp ? 'ok' : '',
+    datumTekst: datum(p.opdrachtbevestiging?.verzondenOp),
+    bedrag: '—',
+    herkomst: p.opdrachtbevestiging
+      ? `regels bevroren uit ${p.opdrachtbevestiging.offerteId}`
+      : 'ontstaat zodra een offerte geaccepteerd is',
+    bestaat: Boolean(p.opdrachtbevestiging),
+    kan: Boolean(acc),
+  }
+
+  // De twee groepen. De kopregel draagt de stand van de stáp; de documenten
+  // eronder dragen zichzelf. Zonder documenten is de kop gewoon de lege rij
+  // die de spec beschrijft, mét de voorwaarde erin.
+  const paklijstKop: StapRij = {
+    document: p.paklijsten.length > 1 ? `Paklijsten (${p.paklijsten.length})` : 'Paklijst',
+    nummer: p.paklijsten.length === 0 ? '—' : '',
+    status: p.paklijsten.length === 0 ? 'Nog niet' : ietsVerzonden ? 'Verzonden' : 'Concept',
+    statusKleur: ietsVerzonden ? 'ok' : '',
+    datumTekst: p.paklijsten.length === 0 ? '—' : '',
+    bedrag: '—',
+    herkomst:
+      p.paklijsten.length === 0
+        ? 'ontstaat als er iets gemaakt is om te leveren'
+        : 'een pakbon draagt wat er op dat moment klaarlag',
+    bestaat: p.paklijsten.length > 0,
+    kan: alleStappenGereed || p.productieOrders.some((o) => (o.aantalGereed ?? 0) > 0),
+  }
+
+  const facturen = p.facturen
+  const factuurKop: StapRij = {
+    document: facturen.length > 1 ? `Facturen (${facturen.length})` : 'Factuur',
+    nummer: facturen.length === 0 ? '—' : '',
+    status: facturen.length === 0 ? 'Nog niet' : 'Verzonden',
+    statusKleur: facturen.length > 0 ? 'ok' : '',
+    datumTekst: facturen.length === 0 ? '—' : '',
+    bedrag: facturen.length === 0 ? '—' : eur(gefactureerdInclBtw(p)),
+    herkomst:
+      facturen.length === 0
+        ? 'ontstaat als er geleverd is'
+        : 'totaal incl. btw, creditnota’s eraf',
+    bestaat: facturen.length > 0,
+    kan: ietsVerzonden,
+  }
 
   return (
     <>
@@ -129,44 +233,53 @@ export function DocumentenTab({
             </tr>
           </thead>
           <tbody>
-            {rijen.map((r) => (
-              <tr key={r.document}>
-                <td>{r.document}</td>
-                <td className="mono">{r.nummer}</td>
-                <td>
-                  <span className={`pdv2-pill ${r.statusKleur}`}>{r.status}</span>
-                </td>
-                <td className="mono">{r.datumTekst}</td>
-                <td className="num">{r.bedrag}</td>
-                <td style={{ color: 'var(--text3)' }}>{r.herkomst}</td>
-                <td>
-                  {r.bestaat ? (
-                    <button
-                      type="button"
-                      className="pdv2-btn s"
-                      onClick={() => onOpenen(r.document)}
-                    >
-                      Openen
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className={`pdv2-btn s ${r.kan ? 'primair' : ''}`}
-                      disabled={!r.kan || geblokkeerd}
-                      onClick={() => onMaken(r.document)}
-                    >
-                      Maken
-                    </button>
-                  )}
-                </td>
-              </tr>
+            <Rij rij={offerte} geblokkeerd={geblokkeerd} onOpenen={onOpenen} onMaken={onMaken} />
+            <Rij rij={ob} geblokkeerd={geblokkeerd} onOpenen={onOpenen} onMaken={onMaken} />
+
+            <Rij
+              rij={{ ...paklijstKop, bestaat: false, document: paklijstKop.document }}
+              geblokkeerd={geblokkeerd}
+              onOpenen={onOpenen}
+              onMaken={() => onMaken('Paklijst')}
+            />
+            {p.paklijsten.map((pl) => (
+              <Rij
+                key={pl.id}
+                rij={paklijstRij(pl)}
+                geblokkeerd={geblokkeerd}
+                onOpenen={onOpenen}
+                onMaken={onMaken}
+                inspringen
+              />
+            ))}
+
+            <Rij
+              rij={{ ...factuurKop, bestaat: false, document: factuurKop.document }}
+              geblokkeerd={geblokkeerd}
+              onOpenen={onOpenen}
+              onMaken={() => onMaken('Factuur')}
+            />
+            {facturen.map((f) => (
+              <Rij
+                key={f.id}
+                rij={factuurRij(f)}
+                geblokkeerd={geblokkeerd}
+                onOpenen={onOpenen}
+                onMaken={onMaken}
+                inspringen
+              />
             ))}
           </tbody>
         </table>
       </Card>
 
-      {project.paklijst && (
-        <Card titel="Paklijstregels" teller={project.paklijst.id} plat>
+      {p.paklijsten.map((pl) => (
+        <Card
+          key={pl.id}
+          titel={`Paklijstregels — ${pl.id}`}
+          teller={pl.verzondenOp ? `verzonden ${datum(pl.verzondenOp)}` : 'concept'}
+          plat
+        >
           <table className="pdv2-tbl">
             <thead>
               <tr>
@@ -178,7 +291,7 @@ export function DocumentenTab({
               </tr>
             </thead>
             <tbody>
-              {project.paklijst.regels.map((r, i) => (
+              {pl.regels.map((r, i) => (
                 <tr key={`${r.productieOrderId}-${i}`}>
                   <td className="mono">{r.productieOrderId}</td>
                   <td>{r.artikelNaam}</td>
@@ -190,48 +303,7 @@ export function DocumentenTab({
             </tbody>
           </table>
         </Card>
-      )}
-
-      {f && (
-        <Card
-          titel="Factuur"
-          teller={f.id}
-          acties={
-            f.vervaldatum ? (
-              <span
-                className={`pdv2-pill ${
-                  vervalDagen !== null && vervalDagen < 0
-                    ? 'dgr'
-                    : vervalDagen !== null && vervalDagen <= 14
-                      ? 'warn'
-                      : ''
-                }`}
-              >
-                {vervalDagen !== null && vervalDagen < 0
-                  ? 'Over vervaldatum'
-                  : `Vervalt ${datum(f.vervaldatum)}`}
-              </span>
-            ) : null
-          }
-        >
-          <div className="pdv2-kv">
-            <span>Subtotaal</span>
-            <span className="mono">{eur(f.subtotaal)}</span>
-          </div>
-          <div className="pdv2-kv">
-            <span>Btw {f.btwPct} %</span>
-            <span className="mono">{eur(f.btwBedrag)}</span>
-          </div>
-          <div className="pdv2-kv" style={{ fontWeight: 600 }}>
-            <span>Totaal incl. btw</span>
-            <span className="mono">{eur(f.totaalInclBtw)}</span>
-          </div>
-          <div className="pdv2-kv">
-            <span>Verzonden</span>
-            <span className="mono">{datum(f.verzondenOp)}</span>
-          </div>
-        </Card>
-      )}
+      ))}
     </>
   )
 }

@@ -23,12 +23,18 @@ export function toProjectMeta(p: Project): ProjectMeta {
 }
 
 /**
- * Col 1 of the project-detail header: the always-inline "Klant" card.
- * Ported from the article-detail redesign (ArticleInfoCard) — no edit mode,
- * every field writes straight to `meta` via `onChange` and the page debounces
- * the persist. Klant/Contact are searchable Mantine Autocompletes; the project
- * stores only `relatieId`, so the Klant free-text lives in local state and
- * resolves to a relatie on an exact match.
+ * De gegevensregel van een project: klant, contact, referentie en leverdatum.
+ *
+ * Eén horizontale regel, geen kaart met gestapelde velden. De kaartvorm kwam
+ * uit de tijd dat hier vier kaarten naast elkaar stonden; die zijn weg omdat ze
+ * hetzelfde zeiden als de matrix eronder. Wat overblijft zijn de velden die je
+ * hier invult en nergens anders, en die passen naast elkaar — dat scheelt bijna
+ * honderd pixels hoogte, precies wat de artikelenlijst nodig heeft.
+ *
+ * Geen bewerkmodus: elk veld schrijft direct naar `meta` en de pagina bewaart
+ * met vertraging. Klant en contact zijn zoekvelden; het project bewaart alleen
+ * `relatieId`, dus de vrije tekst staat lokaal en lost pas op bij een exacte
+ * treffer.
  */
 export function ProjectInfoCard({
   meta, onChange, relatieOptions, relatie, readOnly = false,
@@ -69,45 +75,69 @@ export function ProjectInfoCard({
   }
 
   return (
-    <div className="ad-card">
-      <div className="ad-eyebrow"><Ic d={Icon.user} />Klant</div>
-      <div className="ad-fields">
-        <div className="ad-fieldrow">
-          <label className="ad-fieldlabel">Naam</label>
-          <input className="field-inp strong" placeholder="Projectnaam…" disabled={readOnly}
-            value={meta.naam} onChange={e => onChange({ naam: e.target.value })} />
-        </div>
-        <div className="ad-fieldrow">
-          <label className="ad-fieldlabel">Klant</label>
-          <Autocomplete
-            className="ad-ac" size="xs" placeholder="Kies klant" maxDropdownHeight={220}
-            disabled={readOnly}
-            data={relatieOptions.map(o => o.label)}
-            value={klantText}
-            onChange={setKlant}
-          />
-        </div>
-        <div className="ad-fieldrow">
-          <label className="ad-fieldlabel">Contact</label>
-          <Autocomplete
-            className="ad-ac" size="xs" placeholder="Kies contact" maxDropdownHeight={220}
-            disabled={readOnly || contacten.length === 0}
-            data={contacten.map(contactLabel)}
-            value={contact ? contactLabel(contact) : ''}
-            onChange={setContact}
-          />
-        </div>
-        <div className="ad-fieldrow">
-          <label className="ad-fieldlabel">Ref. klant</label>
-          <input className="field-inp" placeholder="—" disabled={readOnly}
-            value={meta.klantRef} onChange={e => onChange({ klantRef: e.target.value })} />
-        </div>
-        <div className="ad-fieldrow">
-          <label className="ad-fieldlabel">Levertijd</label>
-          <input className="field-inp" type="date" disabled={readOnly}
-            value={meta.levertijdDatum} onChange={e => onChange({ levertijdDatum: e.target.value })} />
-        </div>
-      </div>
+    <div style={{
+      background: 'var(--bg-2)', border: '1px solid var(--border)', borderRadius: 8,
+      padding: '9px 14px', marginBottom: 12,
+      display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'nowrap', overflow: 'hidden',
+    }}>
+      <span style={{
+        fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase',
+        letterSpacing: '.05em', color: 'var(--text-3)', whiteSpace: 'nowrap',
+      }}>
+        Projectgegevens
+      </span>
+
+      {/* Geen "Naam" meer: de projectnaam staat in de kopregel, naast het
+          nummer, waar je hem ook leest. Hier stond hij dubbel en duwde hij de
+          leverdatum naar een tweede regel. */}
+      <Veld label="Klant" breed={158}>
+        <Autocomplete
+          className="ad-ac" size="xs" placeholder="Kies klant" maxDropdownHeight={220}
+          disabled={readOnly}
+          data={relatieOptions.map(o => o.label)}
+          value={klantText}
+          onChange={setKlant}
+        />
+      </Veld>
+      <Veld label="Contact" breed={146}>
+        <Autocomplete
+          className="ad-ac" size="xs" placeholder="Kies contact" maxDropdownHeight={220}
+          disabled={readOnly || contacten.length === 0}
+          data={contacten.map(contactLabel)}
+          value={contact ? contactLabel(contact) : ''}
+          onChange={setContact}
+        />
+      </Veld>
+      <Veld label="Ref. klant" breed={132}>
+        <input className="field-inp" placeholder="—" disabled={readOnly}
+          value={meta.klantRef} onChange={e => onChange({ klantRef: e.target.value })} />
+      </Veld>
+      <Veld label="Levering" breed={140}>
+        <input className="field-inp" type="date" disabled={readOnly}
+          value={meta.levertijdDatum} onChange={e => onChange({ levertijdDatum: e.target.value })} />
+      </Veld>
+
+      <span style={{
+        marginLeft: 'auto', fontSize: 11.5, color: 'var(--text-4)',
+        whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0,
+      }}>
+        wordt vanzelf opgeslagen
+      </span>
     </div>
+  )
+}
+
+/** Label en veld naast elkaar. Het label buiten het invoervak houdt de regel
+ *  laag — een label erboven kost een tweede regel voor elk veld. */
+function Veld({ label, breed, children }: {
+  label: string
+  breed: number
+  children: React.ReactNode
+}) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 }}>
+      <span style={{ fontSize: 11, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ width: breed }}>{children}</span>
+    </span>
   )
 }

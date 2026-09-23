@@ -312,10 +312,10 @@ export function ProductieTab({ project, onChanged }: Props) {
               }} />
             </div>
           </div>
-          {doneAll && !project.paklijst && (
+          {doneAll && project.paklijsten.length === 0 && (
             <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 600 }}>
               <IconCheck size={14} style={{ marginRight: 4 }} />
-              Alle orders klaar — paklijst kan aangemaakt worden
+              Alle orders klaar — er kan een pakbon gemaakt worden
             </span>
           )}
           <button

@@ -9,6 +9,7 @@
  */
 
 import type { Project, Relatie, Todo } from '@stockmanager/shared'
+import { gefactureerdInclBtw, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import type { ZaagReservation } from '../../../../api/reservations'
 import { houdtVast } from '../../../../api/reservations'
@@ -52,10 +53,14 @@ function faseHerkomst(p: Project): string {
     case 'productie':
       return 'door de eerste gereedmelding'
     case 'paklijst':
-    case 'verzonden':
-      return p.paklijst ? `door ${p.paklijst.id}` : ''
-    case 'gefactureerd':
-      return p.factuur ? `door ${p.factuur.id}` : ''
+    case 'verzonden': {
+      const pl = laatstePaklijst(p)
+      return pl ? `door ${pl.id}` : ''
+    }
+    case 'gefactureerd': {
+      const f = laatsteFactuur(p)
+      return f ? `door ${f.id}` : ''
+    }
     default:
       return ''
   }
@@ -107,14 +112,27 @@ export function bouwFacetten(
 
   // Facet 5 wisselt van betekenis zodra er een factuur is: daarna is de
   // vervaldatum het getal waar iemand naar zoekt, niet de levertijd.
-  if (p.factuur) {
-    const n = dagenTot(p.factuur.vervaldatum)
+  if (p.facturen.length > 0) {
+    // Het bedrag is het totaal mét credits eraf — de losse facturen zeggen niet
+    // meer wat de klant werkelijk moet betalen zodra er één credit tussen staat.
+    // De vervaldatum is die van de meest urgente openstaande factuur, want dát
+    // is de datum waar iemand naar handelt.
+    const metDatum = p.facturen
+      .filter((f) => f.soort !== 'credit' && f.vervaldatum)
+      .sort((a, b) => String(a.vervaldatum).localeCompare(String(b.vervaldatum)))
+    const eerste = metDatum[0] ?? null
+    const n = dagenTot(eerste?.vervaldatum)
+    const credits = p.facturen.filter((f) => f.soort === 'credit').length
     facetten.push({
       label: 'Factuur',
-      waarde: eur(p.factuur.totaalInclBtw),
-      sub: p.factuur.vervaldatum
-        ? `vervalt ${datumKort(p.factuur.vervaldatum)}`
-        : 'geen vervaldatum',
+      waarde: eur(gefactureerdInclBtw(p)),
+      sub: [
+        p.facturen.length > 1 ? `${p.facturen.length} facturen` : laatsteFactuur(p)?.id,
+        credits > 0 ? `${credits} credit${credits > 1 ? 's' : ''}` : null,
+        eerste ? `vervalt ${datumKort(eerste.vervaldatum)}` : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
       kleur: n !== null && n < 0 ? 'dgr' : n !== null && n <= 14 ? 'warn' : undefined,
     })
   } else {
@@ -164,9 +182,14 @@ export function bouwTabBadges(
 ): Record<TabId, TabBadge | null> {
   const { gereed, totaal } = stapTelling(p.productieOrders)
   const acc = geaccepteerdeOfferte(p)
-  const documenten = [geldendeOfferte(p), p.opdrachtbevestiging, p.paklijst, p.factuur].filter(
-    Boolean,
-  ).length
+  // Vier stappen op de route; een stap telt mee zodra er mínstens één document
+  // van is. Twee pakbonnen maken de route niet langer.
+  const documenten = [
+    geldendeOfferte(p),
+    p.opdrachtbevestiging,
+    p.paklijsten.length > 0 ? p.paklijsten[0] : null,
+    p.facturen.length > 0 ? p.facturen[0] : null,
+  ].filter(Boolean).length
   const afw = nacalc?.verschilPct ?? null
 
   return {
@@ -212,11 +235,14 @@ export function bouwGeld(p: Project, nacalc: ProjectNacalculatie | null): GeldVM
     verschilPct: nacalc?.verschilPct ?? null,
     margeWerkelijkPct: nacalc?.margeWerkelijkPct ?? null,
     margeCalculatiePct: nacalc?.margeGecalculeerdPct ?? null,
-    notitie: p.factuur
-      ? `Factuur incl. ${p.factuur.btwPct} % btw: ${eur(
-          p.factuur.totaalInclBtw,
-        )} — of de factuur betaald is, weet dit scherm niet.`
-      : null,
+    notitie:
+      p.facturen.length > 0
+        ? `${
+            p.facturen.length === 1
+              ? 'Factuur incl. btw'
+              : `${p.facturen.length} facturen incl. btw, credits eraf`
+          }: ${eur(gefactureerdInclBtw(p))} — of er betaald is, weet dit scherm niet.`
+        : null,
   }
 }
 
@@ -280,10 +306,19 @@ export function bouwActiviteit(p: Project): ActiviteitVM[] {
         })
     }
   }
-  if (p.paklijst?.verzondenOp)
-    uit.push({ iso: p.paklijst.verzondenOp, tekst: `${p.paklijst.id} verzonden` })
-  if (p.factuur?.verzondenOp)
-    uit.push({ iso: p.factuur.verzondenOp, tekst: `${p.factuur.id} verstuurd` })
+  for (const pl of p.paklijsten) {
+    if (pl.verzondenOp)
+      uit.push({ iso: pl.verzondenOp, tekst: `${pl.id} verzonden (${pl.regels.length} regels)` })
+  }
+  for (const f of p.facturen) {
+    if (f.verzondenOp)
+      uit.push({
+        iso: f.verzondenOp,
+        tekst: `${f.id} ${f.soort === 'credit' ? 'gecrediteerd' : 'verstuurd'} — ${eur(
+          f.totaalInclBtw,
+        )}`,
+      })
+  }
   uit.push({ iso: p.updatedAt, tekst: 'Project bijgewerkt' })
 
   return uit

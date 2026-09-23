@@ -5,8 +5,18 @@ import type {
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
 } from '@stockmanager/shared'
+import { berekenVoortgang, basisRegels } from '@stockmanager/shared'
 import { notifications } from '@mantine/notifications'
 import { apiFetch } from './client'
+
+// Bedragen worden op twee plekken berekend (hier optimistisch, op de server
+// definitief). Zelfde afronding, anders springt het bedrag zodra het antwoord
+// binnenkomt.
+function geldbedragen(regels: { totaal: number }[], btwPct: number) {
+  const subtotaal = Math.round(regels.reduce((s, r) => s + r.totaal, 0) * 100) / 100
+  const btwBedrag = Math.round(subtotaal * (btwPct / 100) * 100) / 100
+  return { subtotaal, btwBedrag, totaalInclBtw: Math.round((subtotaal + btwBedrag) * 100) / 100 }
+}
 
 // ── Cache layer ────────────────────────────────────────────────────────────────
 
@@ -47,8 +57,8 @@ function seedSequenceCounters(projects: Project[]): void {
     for (const o of p.offertes) track(o.id)
     if (p.opdrachtbevestiging) track(p.opdrachtbevestiging.id)
     for (const o of p.productieOrders) track(o.id)
-    if (p.paklijst) track(p.paklijst.id)
-    if (p.factuur) track(p.factuur.id)
+    for (const pl of p.paklijsten) track(pl.id)
+    for (const f of p.facturen) track(f.id)
   }
   for (const [prefix, max] of maxByPrefix) {
     const key = `sm_seq_${prefix.toLowerCase()}`
@@ -190,8 +200,8 @@ export const projectsApi = {
       offertes: [],
       opdrachtbevestiging: null,
       productieOrders: [],
-      paklijst: null,
-      factuur: null,
+      paklijsten: [],
+      facturen: [],
       createdAt: now(),
       updatedAt: now(),
     }
@@ -221,8 +231,13 @@ export const projectsApi = {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
     const id = nextLocalDocId('OFF')
+    // Een nieuwe versie vervángt de vorige, dus draagt ze hetzelfde nummer.
+    // Hier stond eerder alleen `id`, waardoor v2 een ander nummer kreeg dan v1
+    // terwijl `versie` wél doortelde: twee tellingen die iets anders zeiden.
+    const eerste = p.offertes[0]
     const off: Offerte = {
       id,
+      documentNr: eerste ? eerste.documentNr : id,
       projectId,
       versie: p.offertes.length + 1,
       status: 'concept',
@@ -376,6 +391,7 @@ export const projectsApi = {
         artikelNaam: regel.naam,
         qty: regel.qty,
         eenheid: regel.eenheid,
+        aantalGereed: 0,
         stappen,
         status: 'gepland' as const,
         createdAt: now(),
@@ -551,92 +567,227 @@ export const projectsApi = {
   },
 
   // ── Paklijst ──────────────────────────────────────────────────────────────
+  // Een pakbon gaat over wat er NU klaarligt, niet over de hele order. Bij een
+  // deellevering zijn dat 10 van de 40 stuks. De aantallen komen uit
+  // `berekenVoortgang` — dezelfde functie als op de server, zodat het
+  // optimistische scherm en het antwoord daarna niet uit elkaar lopen.
 
-  createPaklijst(projectId: string): Project {
+  createPaklijst(projectId: string, regels?: { offerteRegelId: string; qty: number }[]): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
-    if (p.paklijst) throw new Error('Paklijst bestaat al')
-    const gereed = p.productieOrders.filter(o => o.status === 'gereed')
-    if (gereed.length === 0) throw new Error('Geen gereed productie orders')
+
+    const voortgang = berekenVoortgang(p)
+    const keuze = regels ?? voortgang.regels
+      .filter(r => r.klaar > 0)
+      .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.klaar }))
+    if (keuze.length === 0) throw new Error('Er ligt niets klaar om te leveren')
+
+    const orderVan = (regelId: string) => p.productieOrders.find(o => o.offerteRegelId === regelId)
+    const regelVan = (regelId: string) => basisRegels(p).find(r => r.id === regelId)
 
     const paklijst: Paklijst = {
       id: nextLocalDocId('PL'),
       projectId,
-      regels: gereed.map(o => ({
-        productieOrderId: o.id,
-        artikelNaam: o.artikelNaam,
-        qty: o.qty,
-        eenheid: o.eenheid,
-      })),
+      regels: keuze.map(g => {
+        const order = orderVan(g.offerteRegelId)
+        const regel = regelVan(g.offerteRegelId)
+        return {
+          productieOrderId: order?.id ?? '',
+          offerteRegelId: g.offerteRegelId,
+          artikelNaam: order?.artikelNaam ?? regel?.naam ?? g.offerteRegelId,
+          qty: g.qty,
+          eenheid: order?.eenheid ?? regel?.eenheid ?? 'st',
+        }
+      }),
       notities: '',
       verzondenOp: null,
       createdAt: now(),
     }
-    const updated = updateCache(projectId, p => ({ ...p, paklijst, status: 'paklijst', updatedAt: now() }))
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/paklijst`, { method: 'POST' }), 'Paklijst aanmaken mislukt')
+    const updated = updateCache(projectId, p => ({
+      ...p, paklijsten: [...p.paklijsten, paklijst], status: 'paklijst', updatedAt: now(),
+    }))
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/paklijst`, {
+        method: 'POST', body: JSON.stringify({ regels: keuze }),
+      }),
+      'Paklijst aanmaken mislukt',
+    )
     return updated
   },
 
-  verzendPaklijst(projectId: string): Project {
+  verzendPaklijst(projectId: string, paklijstId: string): Project {
     const updated = updateCache(projectId, p => {
-      if (!p.paklijst) throw new Error('Geen paklijst')
-      return { ...p, paklijst: { ...p.paklijst, verzondenOp: now() }, status: 'verzonden', updatedAt: now() }
+      if (!p.paklijsten.some(x => x.id === paklijstId)) throw new Error('Geen paklijst')
+      const paklijsten = p.paklijsten.map(x =>
+        x.id === paklijstId ? { ...x, verzondenOp: now() } : x,
+      )
+      // 'verzonden' pas als er niets meer ligt of komt — bij een deellevering
+      // zou die status liegen.
+      const na = berekenVoortgang({ ...p, paklijsten })
+      const status = na.klaar === 0 && na.teMaken === 0 ? 'verzonden' as const : p.status
+      return { ...p, paklijsten, status, updatedAt: now() }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/paklijst/verzend`, { method: 'POST' }), 'Paklijst versturen mislukt')
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/paklijst/${paklijstId}/verzend`, { method: 'POST' }),
+      'Paklijst versturen mislukt',
+    )
     return updated
   },
 
   // ── Factuur ───────────────────────────────────────────────────────────────
+  // Factureren gaat over wat er GELEVERD is en nog niet gefactureerd.
 
-  createFactuur(projectId: string, btwPct = 21): Project {
+  createFactuur(
+    projectId: string,
+    btwPct = 21,
+    regels?: { offerteRegelId: string; qty: number }[],
+  ): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
-    if (p.factuur) throw new Error('Factuur bestaat al')
     const accepted = p.offertes.find(o => o.status === 'geaccepteerd')
     if (!accepted) throw new Error('Geen geaccepteerde offerte')
 
-    const regels = accepted.regels.map(r => ({
-      offerteRegelId: r.id,
-      naam: r.naam,
-      qty: r.qty,
-      eenheid: r.eenheid,
-      verkoopprijs: r.verkoopprijs,
-      totaal: r.totaal,
-    }))
+    const voortgang = berekenVoortgang(p)
+    const keuze = regels ?? voortgang.regels
+      .filter(r => r.teFactureren > 0)
+      .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.teFactureren }))
+    if (keuze.length === 0) throw new Error('Er staat niets open om te factureren')
 
-    const subtotaal = Math.round(regels.reduce((s, r) => s + r.totaal, 0) * 100) / 100
-    const btwBedrag = Math.round(subtotaal * (btwPct / 100) * 100) / 100
-    const totaalInclBtw = Math.round((subtotaal + btwBedrag) * 100) / 100
+    const bron = basisRegels(p)
+    const factuurRegels = keuze.map(g => {
+      const r = bron.find(x => x.id === g.offerteRegelId)
+      const prijs = r?.verkoopprijs ?? 0
+      return {
+        offerteRegelId: g.offerteRegelId,
+        naam: r?.naam ?? g.offerteRegelId,
+        qty: g.qty,
+        eenheid: r?.eenheid ?? 'st',
+        verkoopprijs: prijs,
+        totaal: Math.round(g.qty * prijs * 100) / 100,
+      }
+    })
 
     const vervalDate = new Date()
     vervalDate.setDate(vervalDate.getDate() + 30)
 
     const factuur: Factuur = {
       id: nextLocalDocId('FACT'),
+      soort: 'factuur',
+      crediteertFactuurId: null,
       projectId,
       offerteId: accepted.id,
-      regels,
+      regels: factuurRegels,
       btwPct,
-      subtotaal,
-      btwBedrag,
-      totaalInclBtw,
+      ...geldbedragen(factuurRegels, btwPct),
       notities: '',
       vervaldatum: vervalDate.toISOString().split('T')[0],
       verzondenOp: null,
       createdAt: now(),
     }
 
-    const updated = updateCache(projectId, p => ({ ...p, factuur, status: 'gefactureerd', updatedAt: now() }))
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur`, { method: 'POST', body: JSON.stringify({ btwPct }) }), 'Factuur aanmaken mislukt')
+    const updated = updateCache(projectId, p => {
+      const facturen = [...p.facturen, factuur]
+      const na = berekenVoortgang({ ...p, facturen })
+      const status = na.teFactureren === 0 && na.teMaken === 0 && na.klaar === 0
+        ? 'gefactureerd' as const : p.status
+      return { ...p, facturen, status, updatedAt: now() }
+    })
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/factuur`, {
+        method: 'POST', body: JSON.stringify({ btwPct, regels: keuze }),
+      }),
+      'Factuur aanmaken mislukt',
+    )
     return updated
   },
 
-  verzendFactuur(projectId: string): Project {
+  verzendFactuur(projectId: string, factuurId: string): Project {
     const updated = updateCache(projectId, p => {
-      if (!p.factuur) throw new Error('Geen factuur')
-      return { ...p, factuur: { ...p.factuur, verzondenOp: now() }, updatedAt: now() }
+      if (!p.facturen.some(f => f.id === factuurId)) throw new Error('Geen factuur')
+      const facturen = p.facturen.map(f =>
+        f.id === factuurId ? { ...f, verzondenOp: now() } : f,
+      )
+      return { ...p, facturen, updatedAt: now() }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur/verzend`, { method: 'POST' }), 'Factuur versturen mislukt')
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/factuur/${factuurId}/verzend`, { method: 'POST' }),
+      'Factuur versturen mislukt',
+    )
+    return updated
+  },
+
+  // ── Creditfactuur ─────────────────────────────────────────────────────────
+  // Geen negatieve factuur: de gecrediteerde factuur is verstuurd en blijft
+  // staan, de credit telt er als eigen document naast.
+
+  createCredit(
+    projectId: string,
+    factuurId: string,
+    regels?: { offerteRegelId: string; qty: number }[],
+    notities = '',
+  ): Project {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const bron = p.facturen.find(f => f.id === factuurId)
+    if (!bron) throw new Error('Factuur niet gevonden')
+    if (bron.soort === 'credit') throw new Error('Een creditfactuur crediteren kan niet')
+
+    const eerder = new Map<string, number>()
+    for (const c of p.facturen.filter(f => f.crediteertFactuurId === bron.id)) {
+      for (const r of c.regels) {
+        eerder.set(r.offerteRegelId, (eerder.get(r.offerteRegelId) ?? 0) + r.qty)
+      }
+    }
+    const keuze = regels ?? bron.regels
+      .map(r => ({
+        offerteRegelId: r.offerteRegelId,
+        qty: r.qty - (eerder.get(r.offerteRegelId) ?? 0),
+      }))
+      .filter(r => r.qty > 0)
+    if (keuze.length === 0) throw new Error('Deze factuur is al volledig gecrediteerd')
+
+    const creditRegels = keuze.map(g => {
+      const r = bron.regels.find(x => x.offerteRegelId === g.offerteRegelId)
+      const prijs = r?.verkoopprijs ?? 0
+      return {
+        offerteRegelId: g.offerteRegelId,
+        naam: r?.naam ?? g.offerteRegelId,
+        qty: g.qty,
+        eenheid: r?.eenheid ?? 'st',
+        verkoopprijs: prijs,
+        totaal: Math.round(g.qty * prijs * 100) / 100,
+      }
+    })
+
+    const credit: Factuur = {
+      id: nextLocalDocId('CRED'),
+      soort: 'credit',
+      crediteertFactuurId: bron.id,
+      projectId,
+      offerteId: bron.offerteId,
+      regels: creditRegels,
+      btwPct: bron.btwPct,
+      ...geldbedragen(creditRegels, bron.btwPct),
+      notities,
+      vervaldatum: null,
+      verzondenOp: null,
+      createdAt: now(),
+    }
+
+    const updated = updateCache(projectId, p => ({
+      ...p, facturen: [...p.facturen, credit], updatedAt: now(),
+    }))
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/credit`, {
+        method: 'POST', body: JSON.stringify({ factuurId, regels: keuze, notities }),
+      }),
+      'Creditfactuur aanmaken mislukt',
+    )
     return updated
   },
 
@@ -684,24 +835,53 @@ export const projectsApi = {
     return updated
   },
 
+  // Haalt de láátste pakbon weg. Een verstuurde bon blijft: die ligt bij de klant.
   revertPaklijst(projectId: string): Project {
-    const updated = updateCache(projectId, p => ({ ...p, status: 'productie', paklijst: null, updatedAt: now() }))
+    const updated = updateCache(projectId, p => {
+      const laatste = p.paklijsten[p.paklijsten.length - 1]
+      if (!laatste) throw new Error('Er is geen pakbon om terug te nemen')
+      if (laatste.verzondenOp) throw new Error('Pakbon is al verzonden')
+      const paklijsten = p.paklijsten.filter(x => x.id !== laatste.id)
+      return {
+        ...p, paklijsten,
+        status: paklijsten.length > 0 ? p.status : 'productie' as const,
+        updatedAt: now(),
+      }
+    })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/paklijst`, { method: 'POST' }), 'Terugkeren naar productie mislukt')
     return updated
   },
 
   revertVerzonden(projectId: string): Project {
-    const updated = updateCache(projectId, p => ({
-      ...p, status: 'paklijst',
-      paklijst: p.paklijst ? { ...p.paklijst, verzondenOp: null } : null,
-      updatedAt: now(),
-    }))
+    const updated = updateCache(projectId, p => {
+      const laatste = [...p.paklijsten].reverse().find(x => x.verzondenOp)
+      if (!laatste) throw new Error('Er is geen verzonden pakbon')
+      return {
+        ...p, status: 'paklijst' as const,
+        paklijsten: p.paklijsten.map(x => x.id === laatste.id ? { ...x, verzondenOp: null } : x),
+        updatedAt: now(),
+      }
+    })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/verzonden`, { method: 'POST' }), 'Terugkeren naar paklijst mislukt')
     return updated
   },
 
+  // Een verstuurde factuur uitgummen laat een gat in de nummering — daar hoort
+  // een creditfactuur voor, geen verwijdering.
   revertGefactureerd(projectId: string): Project {
-    const updated = updateCache(projectId, p => ({ ...p, status: 'verzonden', factuur: null, updatedAt: now() }))
+    const updated = updateCache(projectId, p => {
+      const laatste = [...p.facturen].reverse().find(f => f.soort === 'factuur')
+      if (!laatste) throw new Error('Er is geen factuur')
+      if (laatste.verzondenOp) throw new Error('Factuur is al verstuurd — maak een creditfactuur')
+      if (p.facturen.some(f => f.crediteertFactuurId === laatste.id)) {
+        throw new Error('Er hangt een creditfactuur aan deze factuur')
+      }
+      return {
+        ...p, status: 'verzonden' as const,
+        facturen: p.facturen.filter(f => f.id !== laatste.id),
+        updatedAt: now(),
+      }
+    })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/gefactureerd`, { method: 'POST' }), 'Terugkeren naar verzonden mislukt')
     return updated
   },
