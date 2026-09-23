@@ -50,8 +50,6 @@ function leesRegel(r: RegelRow): OfferteRegel {
 }
 
 export function serialize(row: ProjectRow): Project {
-  const paklijstRow = row.paklijsten[0] ?? null
-  const factuurRow = row.facturen[0] ?? null
   return {
     id: row.id,
     naam: row.naam,
@@ -66,6 +64,7 @@ export function serialize(row: ProjectRow): Project {
     offertes: row.offertes.map((o): Offerte => ({
       id: o.id,
       projectId: o.projectId,
+      documentNr: o.documentNr,
       versie: o.versie,
       status: o.status as OfferteStatus,
       regels: o.regels.map(leesRegel),
@@ -98,6 +97,7 @@ export function serialize(row: ProjectRow): Project {
       artikelNaam: o.artikelNaam,
       qty: o.qty,
       eenheid: o.eenheid,
+      aantalGereed: o.aantalGereed,
       status: o.status as ProductieOrderStatus,
       stappen: o.stappen.map((s): ProductieStap => ({
         id: s.id,
@@ -114,44 +114,43 @@ export function serialize(row: ProjectRow): Project {
       createdAt: o.createdAt.toISOString(),
       updatedAt: o.updatedAt.toISOString(),
     })),
-    paklijst: paklijstRow
-      ? ({
-          id: paklijstRow.id,
-          projectId: paklijstRow.projectId,
-          regels: paklijstRow.regels.map(r => ({
-            productieOrderId: r.productieOrderId,
-            artikelNaam: r.artikelNaam,
-            qty: r.qty,
-            eenheid: r.eenheid,
-          })),
-          notities: paklijstRow.notities,
-          verzondenOp: paklijstRow.verzondenOp,
-          createdAt: paklijstRow.createdAt.toISOString(),
-        } satisfies Paklijst)
-      : null,
-    factuur: factuurRow
-      ? ({
-          id: factuurRow.id,
-          projectId: factuurRow.projectId,
-          offerteId: factuurRow.offerteId,
-          regels: factuurRow.regels.map(r => ({
-            offerteRegelId: r.offerteRegelId,
-            naam: r.naam,
-            qty: r.qty,
-            eenheid: r.eenheid,
-            verkoopprijs: r.verkoopprijs,
-            totaal: r.totaal,
-          })),
-          btwPct: factuurRow.btwPct,
-          subtotaal: factuurRow.subtotaal,
-          btwBedrag: factuurRow.btwBedrag,
-          totaalInclBtw: factuurRow.totaalInclBtw,
-          notities: factuurRow.notities,
-          vervaldatum: factuurRow.vervaldatum,
-          verzondenOp: factuurRow.verzondenOp,
-          createdAt: factuurRow.createdAt.toISOString(),
-        } satisfies Factuur)
-      : null,
+    paklijsten: row.paklijsten.map((pl): Paklijst => ({
+      id: pl.id,
+      projectId: pl.projectId,
+      regels: pl.regels.map(r => ({
+        productieOrderId: r.productieOrderId,
+        offerteRegelId: r.offerteRegelId,
+        artikelNaam: r.artikelNaam,
+        qty: r.qty,
+        eenheid: r.eenheid,
+      })),
+      notities: pl.notities,
+      verzondenOp: pl.verzondenOp,
+      createdAt: pl.createdAt.toISOString(),
+    })),
+    facturen: row.facturen.map((f): Factuur => ({
+      id: f.id,
+      soort: f.soort as Factuur['soort'],
+      crediteertFactuurId: f.crediteertFactuurId,
+      projectId: f.projectId,
+      offerteId: f.offerteId,
+      regels: f.regels.map(r => ({
+        offerteRegelId: r.offerteRegelId,
+        naam: r.naam,
+        qty: r.qty,
+        eenheid: r.eenheid,
+        verkoopprijs: r.verkoopprijs,
+        totaal: r.totaal,
+      })),
+      btwPct: f.btwPct,
+      subtotaal: f.subtotaal,
+      btwBedrag: f.btwBedrag,
+      totaalInclBtw: f.totaalInclBtw,
+      notities: f.notities,
+      vervaldatum: f.vervaldatum,
+      verzondenOp: f.verzondenOp,
+      createdAt: f.createdAt.toISOString(),
+    })),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   }
@@ -216,11 +215,11 @@ export async function persist(tx: Db, next: Project): Promise<void> {
   )
   await eisEigendom(
     id => tx.paklijst.findUnique({ where: { id }, select: { projectId: true } }),
-    next.paklijst ? [next.paklijst.id] : [], next.id, 'Paklijst',
+    next.paklijsten.map(pl => pl.id), next.id, 'Paklijst',
   )
   await eisEigendom(
     id => tx.factuur.findUnique({ where: { id }, select: { projectId: true } }),
-    next.factuur ? [next.factuur.id] : [], next.id, 'Factuur',
+    next.facturen.map(f => f.id), next.id, 'Factuur',
   )
 
   await tx.project.update({
@@ -244,6 +243,7 @@ export async function persist(tx: Db, next: Project): Promise<void> {
   })
   for (const o of next.offertes) {
     const velden = {
+      documentNr: o.documentNr,
       versie: o.versie,
       status: o.status,
       notities: o.notities,
@@ -335,6 +335,7 @@ export async function persist(tx: Db, next: Project): Promise<void> {
       artikelNaam: o.artikelNaam,
       qty: o.qty,
       eenheid: o.eenheid,
+      aantalGereed: o.aantalGereed,
       status: o.status,
       updatedAt: d(o.updatedAt),
     }
@@ -366,12 +367,13 @@ export async function persist(tx: Db, next: Project): Promise<void> {
     }
   }
 
-  // ── Paklijst ──
-  const pl = next.paklijst
-  if (!pl) {
-    await tx.paklijst.deleteMany({ where: { projectId: next.id } })
-  } else {
-    await tx.paklijst.deleteMany({ where: { projectId: next.id, id: { not: pl.id } } })
+  // ── Paklijsten ──
+  // Meervoud: een order gaat vaak in twee of drie kisten de deur uit, en elke
+  // pakbon is een eigen document dat blijft staan.
+  await tx.paklijst.deleteMany({
+    where: { projectId: next.id, id: { notIn: next.paklijsten.map(pl => pl.id) } },
+  })
+  for (const pl of next.paklijsten) {
     const velden = { notities: pl.notities, verzondenOp: pl.verzondenOp }
     await tx.paklijst.upsert({
       where: { id: pl.id },
@@ -384,6 +386,7 @@ export async function persist(tx: Db, next: Project): Promise<void> {
       const rv = {
         sortOrder: i + 1,
         productieOrderId: r.productieOrderId,
+        offerteRegelId: r.offerteRegelId,
         artikelNaam: r.artikelNaam,
         qty: r.qty,
         eenheid: r.eenheid,
@@ -396,13 +399,16 @@ export async function persist(tx: Db, next: Project): Promise<void> {
     }
   }
 
-  // ── Factuur ──
-  const f = next.factuur
-  if (!f) {
-    await tx.factuur.deleteMany({ where: { projectId: next.id } })
-  } else {
-    await tx.factuur.deleteMany({ where: { projectId: next.id, id: { not: f.id } } })
+  // ── Facturen ──
+  // Een credit verwijst naar de factuur die hij crediteert. Die verwijzing
+  // moet kunnen wijzen naar een rij die in dezelfde lus wordt aangemaakt, dus
+  // eerst alle facturen zonder verwijzing wegschrijven en daarna pas koppelen.
+  await tx.factuur.deleteMany({
+    where: { projectId: next.id, id: { notIn: next.facturen.map(f => f.id) } },
+  })
+  for (const f of next.facturen) {
     const velden = {
+      soort: f.soort,
       offerteId: f.offerteId,
       btwPct: f.btwPct,
       subtotaal: f.subtotaal,
@@ -435,5 +441,12 @@ export async function persist(tx: Db, next: Project): Promise<void> {
         update: rv,
       })
     }
+  }
+  for (const f of next.facturen) {
+    if (f.crediteertFactuurId === null) continue
+    await tx.factuur.update({
+      where: { id: f.id },
+      data: { crediteertFactuurId: f.crediteertFactuurId },
+    })
   }
 }

@@ -56,6 +56,18 @@ router.post(
         })
         return res.json({ data: { acquired: true } })
       }
+      // Een houder die al 5+ min niet geheartbeat heeft is niet meer in het
+      // scherm — vaak een tabblad dat dicht is gegaan zonder release (zie
+      // `release` hierboven). Zonder deze uitzondering blijft zo'n slot
+      // voorgoed staan en moet een beheerder het handmatig overnemen, terwijl
+      // er in werkelijkheid niemand meer naar kijkt.
+      if (isIdle(existing.lastHeartbeat)) {
+        await prisma.lock.update({
+          where: { itemType_itemId: { itemType, itemId: req.params.itemId } },
+          data: { userId: req.user.id, acquiredAt: new Date(), lastHeartbeat: new Date() },
+        })
+        return res.json({ data: { acquired: true } })
+      }
       throw new AppError(
         409,
         'LOCK_HELD',

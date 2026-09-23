@@ -60,6 +60,26 @@ export function useProjectLock(id: string, enabled = true): ProjectLockState {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, active])
 
+  // The unmount cleanup above only runs for an SPA navigation — closing the
+  // tab, refreshing, or a crash skips it entirely, and the server-side lock
+  // then survives until someone notices and force-releases it (see
+  // apps/api/src/routes/locks.ts). `pagehide` fires in both cases; `fetch`
+  // with `keepalive` (unlike sendBeacon) can still carry the `x-user-id`
+  // header the server needs to identify the holder.
+  useEffect(() => {
+    if (!active) return
+    const releaseOnUnload = () => {
+      if (!acquiredRef.current) return
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (currentUserId) headers['x-user-id'] = currentUserId
+      fetch(`/api/locks/${id}/release`, {
+        method: 'POST', headers, body: JSON.stringify({ itemType: 'project' }), keepalive: true,
+      }).catch(() => {})
+    }
+    window.addEventListener('pagehide', releaseOnUnload)
+    return () => window.removeEventListener('pagehide', releaseOnUnload)
+  }, [active, id, currentUserId])
+
   const holder = lock ?? null
   // Server truth wins once the poll lands; until then trust our own acquire.
   const isHolder = holder ? holder.userId === currentUserId : acquired

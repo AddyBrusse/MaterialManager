@@ -47,6 +47,12 @@ export const ProductieOrderSchema = z.object({
   artikelNaam: z.string(),
   qty: z.number(),
   eenheid: z.string(),
+  // Hoeveel stuks er werkelijk klaar zijn. Een order was eerder óf gereed óf
+  // niet, en dan is "34 van de 40" niet vast te houden — terwijl dat precies
+  // het getal is waar een deellevering op wacht. De operator vult het in bij
+  // het gereedmelden; afleiden uit de tijdregistratie zou 0 opleveren zodra
+  // iemand vergeet te klokken, en dan lijkt een volle kist leeg.
+  aantalGereed: z.number().default(0),
   stappen: z.array(ProductieStapSchema),
   status: z.enum(PRODUCTIE_ORDER_STATUSES),
   createdAt: z.string(),
@@ -73,7 +79,14 @@ export type OfferteRegel = z.infer<typeof OfferteRegelSchema>
 // ── Offerte ───────────────────────────────────────────────────────────────────
 
 export const OfferteSchema = z.object({
-  id: z.string(),              // OFF-YYYY-NNN
+  id: z.string(),              // OFF-YYYY-NNN (sleutel, uniek per versie)
+  // Het nummer dat de klant ziet. Versies van dezelfde offerte delen dit: een
+  // nieuwe versie vervángt de vorige, dus hij hoort hetzelfde nummer te dragen.
+  // Het id kan dat niet zijn — dat is de primary key en moet per versie
+  // verschillen. Bestaande offertes dragen hier hun eigen id, want die
+  // nummers liggen mogelijk al bij een klant; alleen versies die na deze
+  // wijziging bijkomen erven het nummer van v1.
+  documentNr: z.string(),
   projectId: z.string(),
   versie: z.number().int(),
   status: z.enum(OFFERTE_STATUSES),
@@ -91,6 +104,11 @@ export type Offerte = z.infer<typeof OfferteSchema>
 
 export const PaklijstRegelSchema = z.object({
   productieOrderId: z.string(),
+  // Bij welke orderregel dit hoort. Af te leiden via de productieorder, maar
+  // dan verdwijnt het geleverde aantal zodra die order weg is — en een
+  // verstuurde pakbon is een document, dat hoort niet van gedachten te
+  // veranderen. Vandaar hier vastgelegd.
+  offerteRegelId: z.string().nullable(),
   artikelNaam: z.string(),
   qty: z.number(),
   eenheid: z.string(),
@@ -119,8 +137,17 @@ export const FactuurRegelSchema = z.object({
 })
 export type FactuurRegel = z.infer<typeof FactuurRegelSchema>
 
+export const FACTUUR_SOORTEN = ['factuur', 'credit'] as const
+export type FactuurSoort = typeof FACTUUR_SOORTEN[number]
+
 export const FactuurSchema = z.object({
-  id: z.string(),              // FACT-YYYY-NNN
+  id: z.string(),              // FACT-YYYY-NNN of CRED-YYYY-NNN
+  // Een credit is geen negatieve factuur maar een eigen document: hij laat de
+  // factuur die hij crediteert staan (die is verstuurd en kan niet meer weg)
+  // en telt er als tegenboeking naast. Daarom een soort en een verwijzing,
+  // geen min-teken op de regels.
+  soort: z.enum(FACTUUR_SOORTEN).default('factuur'),
+  crediteertFactuurId: z.string().nullable().default(null),
   projectId: z.string(),
   offerteId: z.string(),
   regels: z.array(FactuurRegelSchema),
@@ -172,8 +199,11 @@ export const ProjectSchema = z.object({
   offertes: z.array(OfferteSchema),
   opdrachtbevestiging: OpdrachtbevestigingSchema.nullable(),
   productieOrders: z.array(ProductieOrderSchema),
-  paklijst: PaklijstSchema.nullable(),
-  factuur: FactuurSchema.nullable(),
+  // Meervoud, want deelleveringen zijn de regel en niet de uitzondering: één
+  // order gaat in twee of drie kisten de deur uit. Elke pakbon krijgt een
+  // eigen nummer en laat niets vervallen — anders dan een offerteversie.
+  paklijsten: z.array(PaklijstSchema),
+  facturen: z.array(FactuurSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
 })
