@@ -4,6 +4,7 @@ import { notifications } from '@mantine/notifications'
 import type { Project } from '@stockmanager/shared'
 import { laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
 import { projectsApi } from '../../../api/projects'
+import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
 
@@ -52,6 +53,13 @@ export interface ProjectActies {
   maakFactuur: () => void
   verzendFactuur: (factuurId: string) => void
   crediteer: (factuurId: string) => void
+  bewerkRegel: (
+    offerteId: string,
+    regelId: string,
+    patch: { qty?: number; verkoopprijs?: number },
+  ) => void
+  verwijderRegel: (offerteId: string, regelId: string) => void
+  werkPrijzenBij: (offerteId: string, gekozen: Bijwerking[]) => void
 }
 
 export function useProjectActies(project: Project | undefined, naarTab: (t: string) => void): ProjectActies {
@@ -104,6 +112,9 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     maakFactuur: () => {},
     verzendFactuur: () => {},
     crediteer: () => {},
+    bewerkRegel: () => {},
+    verwijderRegel: () => {},
+    werkPrijzenBij: () => {},
   }
   if (!project) return leeg
 
@@ -259,5 +270,39 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
       doe(`${factuurId} verstuurd`, () => projectsApi.verzendFactuur(id, factuurId)),
     crediteer: (factuurId) =>
       doe(`Creditnota op ${factuurId} aangemaakt`, () => projectsApi.createCredit(id, factuurId)),
+    // Regels aanpassen gebeurt cel voor cel. Daar hoort geen groene melding bij:
+    // die zou bij het invullen van een offerte om de paar seconden verschijnen.
+    // Fout gaat wel de deur uit, want dan staat er iets anders op het scherm dan
+    // in de database.
+    bewerkRegel: (offerteId, regelId, patch) => {
+      try {
+        projectsApi.updateOfferteRegel(id, offerteId, regelId, patch)
+        ververs()
+      } catch (e) {
+        notifications.show({
+          color: 'red',
+          title: 'Regel bijwerken mislukt',
+          message: e instanceof Error ? e.message : String(e),
+        })
+      }
+    },
+    verwijderRegel: (offerteId, regelId) =>
+      doe('Regel verwijderd', () => projectsApi.removeOfferteRegel(id, offerteId, regelId)),
+    // `bewerkingen` gaat mee met de prijs en niet los: ze komen uit dezelfde
+    // calculatie, en de productiestappen worden er straks uit gemaakt. Alleen de
+    // prijs verversen zou een regel opleveren met het bedrag van het nieuwe
+    // recept en de stappen van het oude.
+    werkPrijzenBij: (offerteId, gekozen) =>
+      doe(
+        `${gekozen.length} regel${gekozen.length === 1 ? '' : 's'} bijgewerkt uit de calculaties`,
+        () => {
+          for (const b of gekozen) {
+            projectsApi.updateOfferteRegel(id, offerteId, b.regelId, {
+              verkoopprijs: b.nieuweVerkoopprijs,
+              bewerkingen: b.nieuweBewerkingen,
+            })
+          }
+        },
+      ),
   }
 }

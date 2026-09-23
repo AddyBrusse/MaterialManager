@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import type { Offerte, Project } from '@stockmanager/shared'
 import { ArtikelPickerModal } from '../../../../components/projecten/ArtikelPickerModal'
+import { PrijzenBijwerkenModal } from '../../../../components/projecten/PrijzenBijwerkenModal'
+import type { Bijwerking } from '../../../../components/projecten/prijs-bijwerken'
 import { Card } from '../components/Card'
+import { IconRefresh, IconTrash } from '@tabler/icons-react'
 import { datum, eur, getal } from '../lib/format'
 import { geaccepteerdeOfferte } from '../lib/status'
 
@@ -18,16 +21,72 @@ function statusPill(o: Offerte) {
   }
 }
 
+/**
+ * Een getal dat je in de tabel zelf aanpast. Opslaan gebeurt bij het verlaten
+ * van het veld, niet bij elke toetsaanslag: anders gaat er per cijfer een
+ * verzoek naar de server en telt een half ingetypt getal als de nieuwe waarde.
+ */
+function CelGetal({
+  waarde,
+  decimalen = 0,
+  onKlaar,
+}: {
+  waarde: number
+  decimalen?: number
+  onKlaar: (n: number) => void
+}) {
+  const toon = waarde.toLocaleString('nl-NL', {
+    minimumFractionDigits: decimalen,
+    maximumFractionDigits: decimalen,
+  })
+  return (
+    <input
+      defaultValue={toon}
+      key={toon}
+      inputMode="decimal"
+      style={{
+        width: '100%',
+        border: '1px solid transparent',
+        borderRadius: 3,
+        background: 'transparent',
+        font: 'inherit',
+        fontFamily: 'var(--mono)',
+        textAlign: 'right',
+        color: 'inherit',
+        padding: '1px 4px',
+      }}
+      onFocus={(e) => {
+        e.currentTarget.style.borderColor = 'var(--border2)'
+        e.currentTarget.style.background = 'var(--bg2)'
+        e.currentTarget.select()
+      }}
+      onBlur={(e) => {
+        e.currentTarget.style.borderColor = 'transparent'
+        e.currentTarget.style.background = 'transparent'
+        const n = Number(e.currentTarget.value.replace(/\./g, '').replace(',', '.'))
+        if (Number.isFinite(n) && n >= 0 && n !== waarde) onKlaar(n)
+        else e.currentTarget.value = toon
+      }}
+    />
+  )
+}
+
 function RegelsPaneel({
   offerte,
   geldend,
   bewerkbaar,
   onToevoegen,
+  onPrijzen,
+  onRegel,
+  onVerwijder,
 }: {
   offerte: Offerte
   geldend: boolean
   bewerkbaar: boolean
   onToevoegen: () => void
+  onPrijzen: () => void
+  onRegel: (regelId: string, patch: { qty?: number; verkoopprijs?: number }) => void
+  onVerwijder: (regelId: string) => void
 }) {
   const totaal = offerte.regels.reduce((s, r) => s + r.totaal, 0)
   const pill = statusPill(offerte)
@@ -45,6 +104,18 @@ function RegelsPaneel({
         {bewerkbaar && (
           <>
             <span className="pdv2-spacer" />
+            {/* Prijzen komen uit de artikelcalculatie, maar een regel kan ook
+                met de hand zijn ingevuld — vandaar een knop met een overzicht
+                vooraf in plaats van stilzwijgend overschrijven. */}
+            <button
+              type="button"
+              className="pdv2-btn s"
+              onClick={onPrijzen}
+              disabled={offerte.regels.length === 0}
+            >
+              <IconRefresh size={12} />
+              Prijzen bijwerken
+            </button>
             <button type="button" className="pdv2-btn s primair" onClick={onToevoegen}>
               Artikelen toevoegen
             </button>
@@ -65,6 +136,7 @@ function RegelsPaneel({
             <th className="num" style={{ width: 104 }}>
               Totaal
             </th>
+            {bewerkbaar && <th style={{ width: 34 }} />}
           </tr>
         </thead>
         <tbody>
@@ -84,15 +156,46 @@ function RegelsPaneel({
                     ))}
               </td>
               <td className="num">
-                {getal(r.qty)} {r.eenheid}
+                {/* Alleen een concept mag nog veranderen: een verstuurde versie
+                    is de deur uit en een geaccepteerde draagt de productie. */}
+                {bewerkbaar ? (
+                  <CelGetal waarde={r.qty} onKlaar={(qty) => onRegel(r.id, { qty })} />
+                ) : (
+                  <>
+                    {getal(r.qty)} {r.eenheid}
+                  </>
+                )}
               </td>
-              <td className="num">{eur(r.verkoopprijs)}</td>
+              <td className="num">
+                {bewerkbaar ? (
+                  <CelGetal
+                    waarde={r.verkoopprijs}
+                    decimalen={2}
+                    onKlaar={(verkoopprijs) => onRegel(r.id, { verkoopprijs })}
+                  />
+                ) : (
+                  eur(r.verkoopprijs)
+                )}
+              </td>
               <td className="num">{eur(r.totaal)}</td>
+              {bewerkbaar && (
+                <td>
+                  <button
+                    type="button"
+                    className="pdv2-btn s"
+                    title="Regel verwijderen"
+                    aria-label={`Regel ${r.naam} verwijderen`}
+                    onClick={() => onVerwijder(r.id)}
+                  >
+                    <IconTrash size={12} />
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
           {offerte.regels.length === 0 && (
             <tr>
-              <td colSpan={5} className="pdv2-empty">
+              <td colSpan={bewerkbaar ? 6 : 5} className="pdv2-empty">
                 Nog geen regels. Een offerte zonder regels valt niet te versturen.
               </td>
             </tr>
@@ -115,6 +218,9 @@ export function OffertesTab({
   onVerzend,
   onAccepteer,
   onGewijzigd,
+  onRegel,
+  onVerwijderRegel,
+  onPrijzen,
 }: {
   project: Project
   geblokkeerd: boolean
@@ -122,6 +228,9 @@ export function OffertesTab({
   onVerzend: (offerteId: string) => void
   onAccepteer: (offerteId: string) => void
   onGewijzigd: () => void
+  onRegel: (offerteId: string, regelId: string, patch: { qty?: number; verkoopprijs?: number }) => void
+  onVerwijderRegel: (offerteId: string, regelId: string) => void
+  onPrijzen: (offerteId: string, gekozen: Bijwerking[]) => void
 }) {
   const versies = [...project.offertes].sort((a, b) => b.versie - a.versie)
   const acc = geaccepteerdeOfferte(project)
@@ -130,6 +239,7 @@ export function OffertesTab({
   const [gekozen, setGekozen] = useState<string | null>(acc?.id ?? versies[0]?.id ?? null)
   const actief = versies.find((v) => v.id === gekozen) ?? versies[0] ?? null
   const [picker, setPicker] = useState(false)
+  const [prijzen, setPrijzen] = useState(false)
 
   if (versies.length === 0) {
     return (
@@ -246,6 +356,9 @@ export function OffertesTab({
           geldend={actief.id === (acc?.id ?? versies[0].id)}
           bewerkbaar={actief.status === 'concept' && !geblokkeerd}
           onToevoegen={() => setPicker(true)}
+          onPrijzen={() => setPrijzen(true)}
+          onRegel={(regelId, patch) => onRegel(actief.id, regelId, patch)}
+          onVerwijder={(regelId) => onVerwijderRegel(actief.id, regelId)}
         />
       )}
 
@@ -253,6 +366,18 @@ export function OffertesTab({
           verkoopprijs afstemmen, in één keer wegschrijven. Alleen een
           concept-offerte mag nog veranderen — een verstuurde versie is de deur
           uit. */}
+      {actief && (
+        <PrijzenBijwerkenModal
+          opened={prijzen}
+          offerte={actief}
+          onClose={() => setPrijzen(false)}
+          onBijwerken={(gekozen) => {
+            setPrijzen(false)
+            onPrijzen(actief.id, gekozen)
+          }}
+        />
+      )}
+
       {actief && (
         <ArtikelPickerModal
           opened={picker}

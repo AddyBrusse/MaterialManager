@@ -254,6 +254,7 @@ export function ProjectDetailPage() {
               relatie={relatie}
               activiteit={bouwActiviteit(project)}
               geblokkeerd={geblokkeerd}
+              onGewijzigd={acties.ververs}
             />
           )}
           {tab === 'offertes' && (
@@ -264,6 +265,9 @@ export function ProjectDetailPage() {
               onVerzend={acties.verzendOfferte}
               onAccepteer={acties.accepteerOfferte}
               onGewijzigd={acties.ververs}
+              onRegel={acties.bewerkRegel}
+              onVerwijderRegel={acties.verwijderRegel}
+              onPrijzen={acties.werkPrijzenBij}
             />
           )}
           {tab === 'opdracht' && (

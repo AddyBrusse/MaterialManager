@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Project, Relatie } from '@stockmanager/shared'
 import type { ActiviteitVM } from '../types'
 import { Card } from '../components/Card'
+import { MailImportKaart } from '../components/MailImportKaart'
 import { datum, relatieveDagen } from '../lib/format'
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
   relatie: Relatie | null
   activiteit: ActiviteitVM[]
   geblokkeerd: boolean
+  onGewijzigd: () => void
 }
 
 function Veld({
@@ -33,7 +35,7 @@ function Veld({
 }
 
 /** §5.1 — basisgegevens, notities en recente activiteit. */
-export function AlgemeenTab({ project: p, relatie, activiteit, geblokkeerd }: Props) {
+export function AlgemeenTab({ project: p, relatie, activiteit, geblokkeerd, onGewijzigd }: Props) {
   const [bewerken, setBewerken] = useState(false)
   const contact = relatie?.contacten?.find((c) => c.id === p.contactId) ?? null
 
@@ -88,6 +90,8 @@ export function AlgemeenTab({ project: p, relatie, activiteit, geblokkeerd }: Pr
           />
         </div>
       </Card>
+
+      <MailImportKaart project={p} geblokkeerd={geblokkeerd} onGewijzigd={onGewijzigd} />
 
       <Card titel="Recente activiteit" plat>
         {activiteit.length === 0 ? (
