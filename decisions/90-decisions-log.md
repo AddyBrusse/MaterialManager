@@ -4,6 +4,58 @@ Append-only record of design choices. New entries on top.
 
 ---
 
+## 2026-09-21 — Documentatie gelijkgetrokken met de code; twee dode ontwerpdocumenten verwijderd
+
+**Aanleiding:** de docs beschreven grotendeels de app van vóór het orderproces.
+Dat is erger dan geen documentatie: een agent leest `frontend/11-routing.md`,
+ziet twaalf routes waar er negentien zijn, en bouwt iets wat al bestaat.
+
+**Gemeten drift, geen indruk:**
+
+- `frontend/11-routing.md` noemde 12 desktoproutes; `AppLayout.tsx` heeft er 19.
+  Projecten, Documenten, Wachtrij, Prognose, ToDo en Tijdregistratie ontbraken,
+  net als de rol `terminal`, de `/pop/*`-vensters en `pageRegistry.tsx`.
+- Datzelfde bestand zei dat sloten in de frontend "not wired up yet" waren,
+  terwijl `ProjectDetailPage.tsx` `useProjectLock` gewoon gebruikt.
+- `backend/22-database-schema.md` spiegelde 10 tabellen kolom voor kolom; er
+  zijn er 36. De genoteerde "drift" over een ontbrekende `price_per_kg` was al
+  opgelost in het schema.
+- `backend/20-backend-overview.md` beschreef Articles, Relaties, Machines en
+  Reserveringen als localStorage-mocks zonder backend — alle vier hebben een
+  route.
+- `backend/23-users-roles.md` kende twee rollen; er zijn er drie.
+- `features/50-operator-terminal.md` en `03-parked.md` zeiden "niet gebouwd" /
+  "nog niet beginnen" over een terminal die draait.
+
+**Besluit over `22-database-schema.md`:** stoppen met het schema kolom voor
+kolom naspelen. Dat liep per definitie achter en niemand merkte het. Het
+document beschrijft nu de modelgroepen en de regels die je *niet* uit het schema
+afleest (gewicht nooit opgeslagen, drie voorraadgetallen, nacalculatie afgeleid,
+planning aan de stap, geen auditlog). `schema.prisma` is de bron.
+
+**Verwijderd:** `features/40-planning-gantt-design-prompt.md` en
+`features/design_handoff_planning/` (14 bestanden, 264 KB) — een ontwerpbrief en
+een volledige bouwspec voor het **Gantt**-planbord, dat op 2026-07-21 verwijderd
+is ten gunste van Wachtrij. Niet te verwarren met
+`01-design files claude design/design_handoff_planning_page/`, de handoff van
+Wachtrij zelf, waar `utils/planningQueueUtils.ts` nog naar verwijst; die blijft.
+`design_handoff_staaltrack/` blijft ook: `frontend/19-visual-design.md` noemt
+hem als bron.
+
+**Twee gaten die blijven staan** (gevonden, niet gedicht — ze vragen een
+beslissing, geen tekstwijziging):
+
+1. `apps/web/src/api/overhead.ts` heeft nog steeds geen backend. Bedrijfskosten
+   en opslagpercentages staan per browser, en ze werken door in élke kostprijs.
+   Twee pc's kunnen dus een andere kostprijs berekenen voor hetzelfde artikel.
+   Dit is het laatste restant van de mockfase; CLAUDE.md zei ten onrechte dat
+   die volledig afgesloten was en vermeldt de uitzondering nu.
+2. `routes/desktop/BinnenBoekenPage.tsx` draait volledig op mockdata — geen
+   enkele API-aanroep. `workflows/41-receive-material.md` zei dat al; het staat
+   nu ook in `README.md`, omdat het scherm wel in de nav staat.
+
+---
+
 ## 2026-09-14 — De koppeling van de terminal komt van de server, niet uit de opgeslagen inlog
 
 **Klacht:** een terminal die op kantoor aan een machine gekoppeld was bleef in de

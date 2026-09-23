@@ -2,7 +2,10 @@
 
 ## Goal
 
-Internal inventory app for a small CNC shop. Tracks raw materials and finished goods, supports stock adjustments, lookups, and basic admin settings. Used by ~4 users concurrently on phones, tablets, and desktops.
+Internal shop management app for a small CNC shop. Began as inventory
+(grondstoffen, eindproducten, mutaties) and grew into the whole order route:
+quoting, opdracht, production planning, time registration and nacalculatie.
+Used by ~4 users on office pc's, plus a touchscreen pc at each machine.
 
 ## Scope
 
@@ -21,6 +24,18 @@ Internal inventory app for a small CNC shop. Tracks raw materials and finished g
 - Admin settings: users, locations, grades (incl. price/kg), profiles, machines,
   overhead/bedrijfskosten, min stock
 - Saw-cutting production pipeline: zaag calculator → reserveringen → zaagflow
+- **Projecten and the document route**: offerte (multiple versions) →
+  opdrachtbevestiging → productieorders with steps → paklijst → factuur. The
+  project status follows from the documents, it is never typed in
+- **Planning**: Wachtrij (queue per machine, `notBefore` holds, planning
+  suggestions) and Prognose. Planning is by order, not by clock time
+- **Materiaalselectie** per orderregel: a zaagplan proposal a human confirms
+- **Tijdregistratie** on a terminal at the machine (role `terminal`), split
+  instellen/draaien exactly like the calculation
+- **Nacalculatie**, derived — never stored — from hours, afgeboekte zaagbonnen
+  and the offerteregel
+- **Mail-import**: read an incoming request, propose offerteregels
+- Todo's, relaties, prijshistorie
 
 **Out of scope (for now)**
 - ECI Bemet integration
@@ -30,16 +45,18 @@ Internal inventory app for a small CNC shop. Tracks raw materials and finished g
 
 ## Users
 
-- ~4 concurrent users on the shop floor
-- Two roles: **admin** and **user**
+- ~4 concurrent users
+- Three roles: **admin**, **user**, and **terminal** — the last is the account
+  of a machine screen, not a person; it only sees the kiosk route
+  (`backend/23-users-roles.md`)
 - No passwords — user selected from a dropdown on first visit, persisted in browser localStorage
 
 ## Devices
 
-- Desktops (full app)
-- Tablets (mobile UI)
-- Phones (mobile UI)
-- Auto-detect by screen size, route to mobile or desktop UI accordingly
+- Office pc's — the full app
+- A touchscreen pc per machine — the terminal (kiosk) screen
+- Tablets/phones — a mobile UI is designed but **not built**; the layout
+  switch at 900 px exists and renders placeholders
 
 ## Glossary
 
@@ -62,3 +79,10 @@ Internal inventory app for a small CNC shop. Tracks raw materials and finished g
 | Label | Printed sticker with a reserved `#NNNNN` number |
 | Binnen boeken | Receiving workflow: book in raw material against a delivery note |
 | Zaag calculator / Reservering / Zaagflow | Saw-cutting pipeline: plan cuts, reserve stock, then execute with in-flow quality checks |
+| Project | One customer job: carries the offertes, the opdrachtbevestiging, the productieorders, the paklijst and the factuur |
+| Offerte / Opdrachtbevestiging (OB) | Quote (versioned) and its frozen copy once accepted — the OB no longer changes when a new quote version appears |
+| Productieorder / Productiestap | One order per accepted offerteregel; its steps come from that regel's frozen bewerkingen |
+| Wachtrij / queuePosition | Planning by order per machine, not by clock time |
+| Tijdregistratie | Measured work at the machine, split instellen (per batch) / draaien (per piece) |
+| Nacalculatie | Estimated versus actual, derived on read — never stored |
+| Terminal | The machine-screen account (role `terminal`), kiosk route only |

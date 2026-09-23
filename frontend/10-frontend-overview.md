@@ -1,39 +1,47 @@
 # 10 — Frontend Overview
 
-## App shape
+## Vorm van de app
 
-Single Vite + React app. At runtime, the root component picks a layout based on viewport:
+Eén Vite + React-app. `App.tsx` kiest de schil: gebruikerskiezer,
+terminal-kioskscherm, losgemaakt venster, of mobiel/desktop op basis van de
+vensterbreedte (grens 900 px). Zie `frontend/11-routing.md`.
 
-- **Width ≤ ~900px** → mobile layout, mobile-only routes
-- **Width > ~900px** → desktop layout, full routes
+De splitsing mobiel/desktop is op routeniveau, niet alleen CSS: beide hebben
+eigen paginacomponenten en navigatie. Mobiel is nog een stub.
 
-The split is route-level, not just CSS. Mobile and desktop have different page components and navigation.
-
-## Folder layout
+## Mappen
 
 ```
 apps/web/src/
 ├── main.tsx
-├── App.tsx                  ← device detection, MantineProvider, router
+├── App.tsx                  ← schilkeuze, MantineProvider, router
 ├── routes/
-│   ├── desktop/             ← desktop pages
-│   └── mobile/              ← mobile pages
+│   ├── desktop/             ← desktoppagina's
+│   ├── mobile/              ← mobiele stub
+│   └── TerminalPage.tsx     ← kioskscherm voor de rol `terminal`
 ├── components/
-│   ├── common/              ← shared between mobile and desktop
-│   ├── desktop/             ← desktop-only UI
-│   └── mobile/              ← mobile-only UI
-├── hooks/                   ← useUser, useLock, useItem, etc.
-├── api/                     ← typed fetch wrappers around REST endpoints
-├── stores/                  ← Zustand or Mantine context (user, language)
-├── lib/                     ← formatters, weight calc, helpers
-├── theme/                   ← Mantine theme config
-└── types/                   ← local types (server types come from @shared)
+│   ├── layout/              ← AppLayout, GlobalTabs, PopoutShell, pageRegistry
+│   ├── common/              ← gedeeld
+│   └── <feature>/           ← per gebied: articles, projecten, planning-queue,
+│                              relaties, settings, todos, tijd, nacalculatie,
+│                              materiaal, prognose, raw-materials, documenten
+├── hooks/                   ← useProjectLock, useTijdregistratie, usePopout, …
+├── api/                     ← getypeerde fetch-wrappers per resource
+├── services/                ← PDF-opmaak en Graph (mail/agenda)
+├── stores/                  ← Zustand: alleen user.ts
+├── utils/                   ← formatters, planninghulp, popout, voortgang
+├── styles/                  ← tokens.css + een stylesheet per zwaar scherm
+├── theme/                   ← Mantine-themaconfig
+└── types/
 ```
 
-## Principles
+Er is geen `components/desktop/` of `components/mobile/`; componenten staan
+per functiegebied gegroepeerd.
 
-- Keep files small. If a component grows past ~150 lines, split it.
-- Co-locate component CSS in CSS modules next to the `.tsx` file
-- All server interaction goes through TanStack Query + typed API wrappers in `/api`
-- Forms use Mantine `useForm` + Zod resolver
-- Dutch UI labels — centralize strings if useful, but inline is fine for v1
+## Uitgangspunten
+
+- Bestanden klein houden. Groeit een component voorbij ~150 regels, splitsen.
+- Alle serverinteractie via TanStack Query + de wrappers in `/api`
+- Formulieren met Mantine `useForm` + een `validate`-map met Nederlandse
+  meldingen (zie `frontend/16-forms-validation.md`)
+- Nederlandse UI-teksten

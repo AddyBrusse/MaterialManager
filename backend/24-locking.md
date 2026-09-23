@@ -16,7 +16,7 @@ acquire ──► holding ──► (heartbeat every 30s) ──► release
 ## API behavior
 
 ### `POST /api/locks/:itemId/acquire`
-Body: `{ itemType: 'raw' | 'finished' }`
+Body: `{ itemType: 'raw' | 'finished' | 'project' }`
 
 - If no row in `locks` for that item → insert with `acquired_at = now()`, `last_heartbeat = now()`, return 201
 - If row exists with same `user_id` → refresh `last_heartbeat`, return 200
@@ -35,7 +35,7 @@ Body: `{ itemType: 'raw' | 'finished' }`
 - Deletes the lock row regardless
 - 204
 
-### `GET /api/locks/:itemId`
+### `GET /api/locks/:itemId?itemType=raw|finished|project`
 Returns `{ data: null }` if no lock, else `{ data: { userId, userName, acquiredAt, lastHeartbeat, isIdle } }` where `isIdle = (now - lastHeartbeat) > 5 min`.
 
 ### `POST /api/locks/:itemId/request`
@@ -44,24 +44,35 @@ Returns `{ data: null }` if no lock, else `{ data: { userId, userName, acquiredA
 
 ## Frontend behavior
 
+**Gebouwd voor projecten, nog niet voor grondstoffen en artikelen.**
+`hooks/useProjectLock.ts` doet het hele patroon voor `/projecten/:id`:
+slot nemen bij openen, heartbeat elke 30 s, vrijgeven bij sluiten, en elke
+5 s pollen wie het nu heeft (`['lock', 'project', id]`). De hook krijgt een
+`enabled`-vlag, zodat het hoofdvenster het slot níet claimt zolang hetzelfde
+project in een losgemaakt venster open staat — dat venster houdt het slot.
+
+Voor `raw` en `finished` bestaat de backend-lifecycle wel, maar is er nog geen
+scherm dat hem gebruikt. Wat hieronder staat is het bedoelde patroon, zoals
+`useProjectLock` het al invult:
+
 ### Read-only viewer
-- `useQuery(['lock', itemId], { refetchInterval: 5000 })`
-- If response has data and `userId !== currentUser.id` → show `<LockBanner />` with holder name and "Verzoek bewerken" button
-- "Verzoek bewerken" → `POST /api/locks/:itemId/request`
+- `useQuery(['lock', itemType, itemId], { refetchInterval: 5000 })`
+- Data aanwezig en `userId !== currentUser.id` → `<LockBanner />` met de naam
+  van de houder en een knop "Verzoek bewerken"
+- Die knop → `POST /api/locks/:itemId/request`
 
 ### Edit mode
-- On entering edit: `POST /api/locks/:itemId/acquire`
-  - 201 → enter edit form
-  - 409 → show error toast, stay read-only
-- Heartbeat: `setInterval(30_000, () => POST /heartbeat)`
-- On unmount / form save / cancel: `POST /release`
-- Listen for pending lock requests via the lock poll, show a notification "X wil bewerken — vrijgeven?"
+- Bij openen: `POST /api/locks/:itemId/acquire`
+  - 201 → bewerkbaar
+  - 409 → melding, blijft alleen-lezen
+- Heartbeat: `setInterval(30_000, …)`
+- Bij unmount / opslaan / annuleren: `POST /release`
 
 ### Idle banner
-- Frontend also tracks user input (any keystroke/click in the form)
-- If 5 min without input → show `<Alert>` "Je bewerkt nog '<item>'. Nog steeds bezig?"
-  - Buttons: "Ja, doorgaan" (resumes heartbeat) / "Vrijgeven" (releases)
-- This is purely client-side UX; the lock itself doesn't auto-release
+- De frontend volgt zelf toetsaanslagen en kliks in het formulier
+- 5 minuten zonder invoer → `<Alert>` "Je bewerkt nog '<item>'. Nog steeds
+  bezig?" met "Ja, doorgaan" (heartbeat hervat) en "Vrijgeven"
+- Puur clientside: het slot valt nooit vanzelf vrij
 
 ## Edge cases
 

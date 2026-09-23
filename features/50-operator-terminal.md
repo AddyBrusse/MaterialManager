@@ -1,9 +1,14 @@
 # 50 — Machineterminal & tijdregistratie
 
-> **Status: ontwerp, niet gebouwd.** Herschreven 2026-09-08 na de keuze voor een
-> **pc met touchscreen per machine** (was: tablet) en voor een actor die een
-> **persoon óf een robot** kan zijn. Geen code voordat de open besluiten in §9
-> beslist zijn.
+> **Status: gebouwd** (september 2026). Dit document blijft staan als het
+> ontwerp erachter — het *waarom*, niet de huidige code. Wat er nu draait:
+> `apps/web/src/routes/TerminalPage.tsx`, de rol `terminal` met
+> `apps/api/src/middleware/terminal-scope.ts`, `services/tijdregistratie.ts` en
+> `services/nacalculatie.ts`. Zie het besluitenlogboek rond 2026-09-14.
+>
+> De hardwarekeuze (pc met touchscreen per machine, actor kan een persoon óf een
+> robot zijn) is van 2026-09-08. Lees §9 voordat je hier iets aan uitbreidt: de
+> besluiten die daar nog open staan, staan nog steeds open.
 
 ---
 
