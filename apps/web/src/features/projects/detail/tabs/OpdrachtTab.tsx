@@ -1,12 +1,14 @@
-import type { Project, Todo } from '@stockmanager/shared'
+import type { Project, ProjectVoortgang, Todo } from '@stockmanager/shared'
 import type { ZaagReservation } from '../../../../api/reservations'
 import { houdtVast } from '../../../../api/reservations'
 import { Card } from '../components/Card'
+import { VoortgangBalk, voortgangTekst } from '../components/VoortgangBalk'
 import { datum, getal } from '../lib/format'
 import { geaccepteerdeOfferte } from '../lib/status'
 
 interface Props {
   project: Project
+  voortgang: ProjectVoortgang
   todos: Todo[]
   reserveringen: ZaagReservation[]
   geblokkeerd: boolean
@@ -30,7 +32,7 @@ const BRON_EIND =
  * bevestigd heeft, en welke productieorder eruit ontstond.
  */
 export function OpdrachtTab(props: Props) {
-  const { project: p, todos, reserveringen, geblokkeerd } = props
+  const { project: p, voortgang, todos, reserveringen, geblokkeerd } = props
   const ob = p.opdrachtbevestiging
   const acc = geaccepteerdeOfferte(p)
 
@@ -96,13 +98,13 @@ export function OpdrachtTab(props: Props) {
           <thead>
             <tr>
               <th>Artikel</th>
-              <th className="num" style={{ width: 70 }}>
-                Aantal
+              <th className="num" style={{ width: 66 }}>
+                Besteld
               </th>
-              <th style={{ width: 210 }}>Materiaal</th>
+              <th style={{ width: 168 }}>Voortgang</th>
+              <th style={{ width: 200 }}>Materiaal</th>
               <th>Bewerkingen → stappen</th>
               <th style={{ width: 120 }}>Productieorder</th>
-              <th style={{ width: 110 }}>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -123,9 +125,10 @@ export function OpdrachtTab(props: Props) {
                 : res.length > 0
                   ? 'bevestigd'
                   : 'leeg'
-              const gereed = order
-                ? order.stappen.filter((s) => s.gereedOp).length
-                : 0
+              // De voortgang komt uit de gedeelde rekenkern, niet uit een
+              // eigen telling hier: web en API moeten hetzelfde zeggen over
+              // wat "geleverd" betekent.
+              const v = voortgang.regels.find((x) => x.offerteRegelId === r.id) ?? null
 
               return (
                 <tr key={r.id}>
@@ -135,6 +138,16 @@ export function OpdrachtTab(props: Props) {
                   </td>
                   <td className="num">
                     {getal(r.qty)} {r.eenheid}
+                  </td>
+                  <td>
+                    {v ? (
+                      <>
+                        <VoortgangBalk regel={v} breedte={148} />
+                        <span className="sub">{voortgangTekst(v)}</span>
+                      </>
+                    ) : (
+                      <span className="sub">geen voortgang bekend</span>
+                    )}
                   </td>
                   <td>
                     <span
@@ -182,23 +195,6 @@ export function OpdrachtTab(props: Props) {
                       >
                         {order.id}
                       </button>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td>
-                    {order ? (
-                      <span
-                        className={`pdv2-pill ${
-                          order.status === 'gereed'
-                            ? 'ok'
-                            : order.status === 'in_productie'
-                              ? 'accent'
-                              : ''
-                        }`}
-                      >
-                        {gereed}/{order.stappen.length}
-                      </span>
                     ) : (
                       '—'
                     )}

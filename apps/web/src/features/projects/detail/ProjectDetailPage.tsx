@@ -27,8 +27,10 @@ import { GeldBox } from './sidebar/GeldBox'
 import { ReserveringenBox } from './sidebar/ReserveringenBox'
 import { TodoBox } from './sidebar/TodoBox'
 
+import { berekenVoortgang } from '@stockmanager/shared'
 import { actiesGeblokkeerd, primaireActie, terugActie } from './lib/status'
 import { bouwAandacht } from './lib/aandacht'
+import { bouwTabStanden } from './lib/tab-stand'
 import {
   bouwActiviteit,
   bouwFacetten,
@@ -202,8 +204,17 @@ export function ProjectDetailPage() {
   if (!project) return <div className="pdv2-empty">Project niet gevonden.</div>
 
   const geblokkeerd = actiesGeblokkeerd(project) || isReadOnly
+  // Eén berekening voor de hele pagina: de Opdracht-tab toont hem per regel,
+  // Productie telt er stuks mee, en de footer leest eruit wat de volgende stap
+  // is. Drie keer apart rekenen levert drie antwoorden op.
+  const voortgang = berekenVoortgang(project)
   const facetten = bouwFacetten(project, relatie, nacalc)
   const badges = bouwTabBadges(project, nacalc)
+  const tabStanden = bouwTabStanden({
+    project,
+    nacalc,
+    openTodos: projectTodos.filter((t) => !t.done).length,
+  })
   const primair = primaireActie(project)
   const terug = terugActie(project)
   const slot = bouwSlot(holderName, isReadOnly, holderIdle, saveState)
@@ -231,7 +242,7 @@ export function ProjectDetailPage() {
 
       <StatusStrip project={project} />
 
-      <TabBar actief={tab} badges={badges} onKies={kiesTab} />
+      <TabBar actief={tab} badges={badges} standen={tabStanden} onKies={kiesTab} />
 
       <div className="pdv2-body">
         <div className="pdv2-main">
@@ -253,6 +264,7 @@ export function ProjectDetailPage() {
           {tab === 'opdracht' && (
             <OpdrachtTab
               project={project}
+              voortgang={voortgang}
               todos={projectTodos}
               reserveringen={reserveringen}
               geblokkeerd={geblokkeerd}

@@ -4,7 +4,8 @@ import { datum, dagenTot } from '../lib/format'
 
 const BRON =
   'Volgorde, machine en „niet eerder dan" komen uit de opdracht; geplande datum en ' +
-  'wachtrijpositie komen uit de planner. Hier meld je alleen stappen gereed.'
+  'wachtrijpositie komen uit de planner. Hier meld je stappen gereed en vul je in hoeveel ' +
+  'stuks eraf kwamen — dat aantal bepaalt wat er op de volgende pakbon kan.'
 
 function orderPill(o: ProductieOrder) {
   if (o.status === 'gereed') return { tekst: 'Gereed', kleur: 'ok' }
@@ -31,6 +32,10 @@ function wachtReden(o: ProductieOrder): string | null {
 
 function OrderBlok({ order }: { order: ProductieOrder }) {
   const gereed = order.stappen.filter((s) => s.gereedOp).length
+  // Sinds de deelleveringen telt een order in stuks, niet alleen in stappen:
+  // "34 van de 40" is het getal waar een pakbon op wacht. De stappen zeggen
+  // wélk werk gedaan is, het aantal zegt hoevéél eraf komt.
+  const stuks = order.aantalGereed ?? 0
   const pill = orderPill(order)
   const wacht = wachtReden(order)
 
@@ -45,22 +50,23 @@ function OrderBlok({ order }: { order: ProductieOrder }) {
         </span>
         <span style={{ fontWeight: 600 }}>{order.artikelNaam}</span>
         <span className="pdv2-count">
-          {order.qty} {order.eenheid}
+          <span className="mono">
+            {stuks} / {order.qty}
+          </span>{' '}
+          {order.eenheid} gereed
         </span>
         <span className={`pdv2-pill ${pill.kleur}`}>{pill.tekst}</span>
         {wacht && (
           <span style={{ fontSize: 10.5, color: 'var(--warn)' }}>⏱ {wacht}</span>
         )}
         <span className="pdv2-spacer" />
-        <span className="mono" style={{ fontSize: 11 }}>
-          {gereed}/{order.stappen.length}
+        <span className="mono" style={{ fontSize: 11 }} title="Stappen gereed">
+          {gereed}/{order.stappen.length} stappen
         </span>
-        <span className="pdv2-meter" style={{ width: 96, marginTop: 0 }}>
+        <span className="pdv2-meter" style={{ width: 96, marginTop: 0 }} title="Stuks gereed">
           <i
-            className={gereed === order.stappen.length ? 'ok' : ''}
-            style={{
-              width: order.stappen.length ? `${(gereed / order.stappen.length) * 100}%` : '0%',
-            }}
+            className={order.qty > 0 && stuks >= order.qty ? 'ok' : ''}
+            style={{ width: order.qty > 0 ? `${Math.min(stuks / order.qty, 1) * 100}%` : '0%' }}
           />
         </span>
       </div>
@@ -129,6 +135,8 @@ export function ProductieTab({ project, geblokkeerd, onPlanner, onAfmelden }: Pr
   const orders = project.productieOrders
   const gereed = orders.reduce((n, o) => n + o.stappen.filter((s) => s.gereedOp).length, 0)
   const totaal = orders.reduce((n, o) => n + o.stappen.length, 0)
+  const stuksGereed = orders.reduce((n, o) => n + (o.aantalGereed ?? 0), 0)
+  const stuksTotaal = orders.reduce((n, o) => n + o.qty, 0)
 
   if (orders.length === 0) {
     return (
@@ -144,7 +152,7 @@ export function ProductieTab({ project, geblokkeerd, onPlanner, onAfmelden }: Pr
   return (
     <Card
       titel="Productie"
-      teller={`${orders.length} orders · ${gereed} van ${totaal} stappen gereed`}
+      teller={`${orders.length} orders · ${stuksGereed} van ${stuksTotaal} stuks · ${gereed} van ${totaal} stappen`}
       plat
       bron={BRON}
       acties={
