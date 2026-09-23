@@ -10,7 +10,7 @@
  * primaire actie er vooruit hoort, en wat één stap terugdraaien weggooit.
  */
 
-import type { Project, ProductieOrder } from '@stockmanager/shared'
+import type { Project, ProductieOrder, ProjectVoortgang } from '@stockmanager/shared'
 import { laatstePaklijst } from '@stockmanager/shared'
 import type { ActieVM, Fase, TerugVM } from '../types'
 import { datumKort } from './format'
@@ -63,13 +63,26 @@ function faseLabel(f: Fase): string {
  * De primaire actie in de footer, mét de reden als hij niet kan. Die reden
  * staat er altíjd naast vóór het klikken — nooit pas in een melding achteraf.
  */
-export function primaireActie(p: Project): ActieVM {
+export function primaireActie(p: Project, v: ProjectVoortgang): ActieVM {
   const { gereed, totaal } = stapTelling(p.productieOrders)
   const heeftOB = Boolean(p.opdrachtbevestiging)
 
   switch (p.status) {
-    case 'concept':
-      return { label: 'Offerte maken', kan: true }
+    case 'concept': {
+      // Bestaat er al een concept, dan is nóg een offerte maken niet de
+      // volgende stap maar een tweede lege versie. De stap is dan die versie
+      // vullen en versturen.
+      const concept = p.offertes.find((o) => o.status === 'concept')
+      if (!concept) return { label: 'Offerte maken', kan: true }
+      return {
+        label: 'Offerte versturen',
+        kan: concept.regels.length > 0,
+        reden:
+          concept.regels.length === 0
+            ? `${concept.id} heeft nog geen regels — voeg eerst artikelen toe.`
+            : undefined,
+      }
+    }
 
     case 'offerte': {
       const verzonden = p.offertes.some((o) => o.status === 'verzonden')
@@ -89,21 +102,37 @@ export function primaireActie(p: Project): ActieVM {
           reden: acc ? undefined : 'Er is nog geen offerte geaccepteerd.',
         }
       }
+      // Niet elk artikel heeft bewerkingen, dus niet elke order heeft stappen.
+      // Vragen om een stap die niet bestaat is een doodlopende knop; met
+      // deelleveringen is het aantal gereed dan de werkelijke volgende stap.
+      if (totaal > 0) return { label: 'Stap afmelden', kan: true }
       return {
-        label: 'Stap afmelden',
-        kan: totaal > 0,
-        reden: totaal > 0 ? undefined : 'Deze opdracht heeft nog geen productiestappen.',
+        label: 'Stuks gereedmelden',
+        kan: p.productieOrders.length > 0,
+        reden:
+          p.productieOrders.length > 0
+            ? undefined
+            : 'Deze opdracht heeft nog geen productieorders.',
       }
 
     case 'productie': {
-      const open = totaal - gereed
+      // De poort is niet meer "alle stappen gereed" maar "er ligt iets klaar".
+      // Bij deelleveringen gaat de eerste pakbon de deur uit terwijl de rest
+      // nog op de machine staat; wachten tot alles af is zou die manier van
+      // werken juist blokkeren.
+      if (v.klaar > 0) {
+        return { label: `Paklijst maken (${v.klaar} klaar)`, kan: true }
+      }
+      const openStappen = totaal - gereed
       return {
         label: 'Paklijst maken',
-        kan: open === 0 && totaal > 0,
+        kan: false,
         reden:
-          open > 0
-            ? `${open} van de ${totaal} productiestappen zijn nog niet gereed.`
-            : undefined,
+          v.teMaken > 0
+            ? `Er ligt nog niets klaar om te leveren — ${v.teMaken} nog te maken.`
+            : openStappen > 0
+              ? `${openStappen} van de ${totaal} productiestappen zijn nog niet gereed.`
+              : 'Alles wat gemaakt is, is al geleverd.',
       }
     }
 
@@ -118,12 +147,15 @@ export function primaireActie(p: Project): ActieVM {
 
     case 'verzonden': {
       // Met deelleveringen kan er meer dan één pakbon zijn; factureren mag
-      // zodra er íets verzonden is, niet pas als alles de deur uit is.
+      // zodra er íets geleverd is dat nog niet gefactureerd is.
       const verzonden = p.paklijsten.some((pl) => pl.verzondenOp)
+      if (!verzonden) {
+        return { label: 'Factureren', kan: false, reden: 'De paklijst is nog niet verzonden.' }
+      }
       return {
-        label: 'Factureren',
-        kan: verzonden,
-        reden: verzonden ? undefined : 'De paklijst is nog niet verzonden.',
+        label: v.teFactureren > 0 ? `Factureren (${v.teFactureren} stuks)` : 'Factureren',
+        kan: v.teFactureren > 0,
+        reden: v.teFactureren > 0 ? undefined : 'Alles wat geleverd is, is al gefactureerd.',
       }
     }
 

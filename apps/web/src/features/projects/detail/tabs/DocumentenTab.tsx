@@ -1,8 +1,8 @@
-import type { Factuur, Paklijst, Project } from '@stockmanager/shared'
+import type { Factuur, Paklijst, Project, ProjectVoortgang } from '@stockmanager/shared'
 import { gefactureerdInclBtw } from '@stockmanager/shared'
 import { Card } from '../components/Card'
 import { datum, eur, getal, relatieveDagen, dagenTot } from '../lib/format'
-import { geaccepteerdeOfferte, geldendeOfferte, stapTelling } from '../lib/status'
+import { geaccepteerdeOfferte, geldendeOfferte } from '../lib/status'
 import { offerteTotaal } from '../lib/build-vm'
 
 /**
@@ -130,19 +130,19 @@ function factuurRij(f: Factuur): StapRij {
 
 export function DocumentenTab({
   project: p,
+  voortgang: v,
   geblokkeerd,
   onOpenen,
   onMaken,
 }: {
   project: Project
+  voortgang: ProjectVoortgang
   geblokkeerd: boolean
   onOpenen: (doc: string) => void
   onMaken: (doc: string) => void
 }) {
   const geldend = geldendeOfferte(p)
   const acc = geaccepteerdeOfferte(p)
-  const { gereed, totaal } = stapTelling(p.productieOrders)
-  const alleStappenGereed = totaal > 0 && gereed === totaal
   const ietsVerzonden = p.paklijsten.some((pl) => pl.verzondenOp)
 
   const offerte: StapRij = {
@@ -196,7 +196,10 @@ export function DocumentenTab({
         ? 'ontstaat als er iets gemaakt is om te leveren'
         : 'een pakbon draagt wat er op dat moment klaarlag',
     bestaat: p.paklijsten.length > 0,
-    kan: alleStappenGereed || p.productieOrders.some((o) => (o.aantalGereed ?? 0) > 0),
+    // Dezelfde poort als de footer: een volgende pakbon kan pas als er iets
+    // klaarligt dat nog niet geleverd is. Anders staat hier een blauwe knop
+    // die een lege bon zou maken.
+    kan: v.klaar > 0,
   }
 
   const facturen = p.facturen
@@ -212,7 +215,7 @@ export function DocumentenTab({
         ? 'ontstaat als er geleverd is'
         : 'totaal incl. btw, creditnota’s eraf',
     bestaat: facturen.length > 0,
-    kan: ietsVerzonden,
+    kan: ietsVerzonden && v.teFactureren > 0,
   }
 
   return (

@@ -20,7 +20,11 @@ const queryClient = new QueryClient({
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <MantineProvider theme={theme}>
-      <Notifications />
+      {/* Rechtsonder is de standaard, maar daar staat op de projectpagina de
+          primaire knop in de footer. Een toast dekt hem dan af en de volgende
+          klik komt niet aan tot hij wegvalt — gemeten: de knop was enabled en
+          niets mis, maar de klik landde op de melding. Rechtsboven zit niets. */}
+      <Notifications position="top-right" />
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>

@@ -28,6 +28,7 @@ import { ReserveringenBox } from './sidebar/ReserveringenBox'
 import { TodoBox } from './sidebar/TodoBox'
 
 import { berekenVoortgang } from '@stockmanager/shared'
+import { useProjectActies } from './useProjectActies'
 import { actiesGeblokkeerd, primaireActie, terugActie } from './lib/status'
 import { bouwAandacht } from './lib/aandacht'
 import { bouwTabStanden } from './lib/tab-stand'
@@ -156,6 +157,7 @@ export function ProjectDetailPage() {
   const nacalc = nacalcRuw && nacalcRuw.orders.length > 0 ? nacalcRuw : null
 
   const [kopIngeklapt, setKopIngeklapt] = useState(leesKop)
+  const acties = useProjectActies(project, (t) => kiesTab(t as TabId))
 
   const relatie = useMemo(() => {
     if (!project?.relatieId) return null
@@ -215,7 +217,7 @@ export function ProjectDetailPage() {
     nacalc,
     openTodos: projectTodos.filter((t) => !t.done).length,
   })
-  const primair = primaireActie(project)
+  const primair = primaireActie(project, voortgang)
   const terug = terugActie(project)
   const slot = bouwSlot(holderName, isReadOnly, holderIdle, saveState)
   const aandacht = bouwAandacht({
@@ -235,9 +237,9 @@ export function ProjectDetailPage() {
         ingeklapt={kopIngeklapt}
         onToggle={toggleKop}
         geblokkeerd={geblokkeerd}
-        onOnHold={() => nogNiet('On hold zetten')}
-        onAnnuleer={() => nogNiet('Annuleren')}
-        onAfdrukken={() => nogNiet('Afdrukken')}
+        onOnHold={acties.onHold}
+        onAnnuleer={acties.annuleer}
+        onAfdrukken={() => window.print()}
       />
 
       <StatusStrip project={project} />
@@ -258,7 +260,10 @@ export function ProjectDetailPage() {
             <OffertesTab
               project={project}
               geblokkeerd={geblokkeerd}
-              onNieuweVersie={() => nogNiet('Een nieuwe offerteversie maken')}
+              onNieuweVersie={acties.nieuweOfferteVersie}
+              onVerzend={acties.verzendOfferte}
+              onAccepteer={acties.accepteerOfferte}
+              onGewijzigd={acties.ververs}
             />
           )}
           {tab === 'opdracht' && (
@@ -268,9 +273,9 @@ export function ProjectDetailPage() {
               todos={projectTodos}
               reserveringen={reserveringen}
               geblokkeerd={geblokkeerd}
-              onAanmaken={() => nogNiet('De opdracht aanmaken')}
-              onOpenen={() => nogNiet('De opdrachtbevestiging openen')}
-              onOpnieuwVersturen={() => nogNiet('Opnieuw versturen')}
+              onAanmaken={acties.maakOpdracht}
+              onOpenen={() => kiesTab('documenten')}
+              onOpnieuwVersturen={acties.verzendOB}
               onNaarOrder={() => kiesTab('productie')}
             />
           )}
@@ -279,16 +284,24 @@ export function ProjectDetailPage() {
               project={project}
               geblokkeerd={geblokkeerd}
               onPlanner={() => navigate('/planning-queue')}
-              onAfmelden={() => nogNiet('Een stap afmelden')}
+              onStap={acties.stapCheck}
+              onStuks={acties.meldStuksGereed}
             />
           )}
           {tab === 'nacalculatie' && <NacalculatieTab nacalc={nacalc} />}
           {tab === 'documenten' && (
             <DocumentenTab
               project={project}
+              voortgang={voortgang}
               geblokkeerd={geblokkeerd}
               onOpenen={(doc) => nogNiet(`${doc} openen`)}
-              onMaken={(doc) => nogNiet(`${doc} maken`)}
+              onMaken={(doc) =>
+                doc === 'Paklijst'
+                  ? acties.maakPaklijst()
+                  : doc === 'Factuur'
+                    ? acties.maakFactuur()
+                    : acties.primair()
+              }
             />
           )}
         </div>
@@ -304,8 +317,10 @@ export function ProjectDetailPage() {
       <FooterBar
         primair={{ ...primair, kan: primair.kan && !geblokkeerd }}
         terug={terug}
-        onPrimair={() => nogNiet(primair.label)}
+        onPrimair={acties.primair}
+        onTerug={acties.terug}
       />
+      {acties.dialoog}
     </div>
   )
 }

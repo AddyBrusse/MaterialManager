@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import type { Offerte, Project, ProductieOrder, ProductieStap } from '@stockmanager/shared'
+import { berekenVoortgang } from '@stockmanager/shared'
 import { primaireActie, terugActie, stapTelling, ordersGereed, geldendeOfferte } from '../status'
+
+/** De echte rekenkern erbij, zodat de test niet met een verzonnen voortgang
+ *  test wat het scherm met de echte doet. */
+const actie = (p: Project) => primaireActie(p, berekenVoortgang(p))
 
 function stap(over: Partial<ProductieStap> = {}): ProductieStap {
   return {
@@ -107,25 +112,76 @@ describe('primaireActie', () => {
         ]),
       ],
     })
-    const actie = primaireActie(p)
-    expect(actie.label).toBe('Paklijst maken')
-    expect(actie.kan).toBe(false)
-    expect(actie.reden).toBe('2 van de 3 productiestappen zijn nog niet gereed.')
+    const uit = actie(p)
+    expect(uit.label).toBe('Paklijst maken')
+    expect(uit.kan).toBe(false)
+    expect(uit.reden).toBe('2 van de 3 productiestappen zijn nog niet gereed.')
   })
 
-  it('geeft paklijst maken vrij zodra alles gereed is', () => {
+  it('geeft paklijst maken vrij zodra er stuks klaarliggen, niet pas als alles af is', () => {
+    // De kern van deelleveringen: 6 van de 10 klaar is genoeg voor een pakbon.
     const p = project({
       status: 'productie',
-      productieOrders: [order([stap({ gereedOp: '2026-09-10T10:00:00Z' })])],
+      offertes: [
+        offerte({
+          status: 'geaccepteerd',
+          regels: [
+            {
+              id: 'r1',
+              sortOrder: 1,
+              artikelId: null,
+              naam: 'Bus',
+              omschrijving: '',
+              qty: 10,
+              eenheid: 'st',
+              verkoopprijs: 10,
+              totaal: 100,
+              bewerkingen: [],
+            },
+          ],
+        }),
+      ],
+      productieOrders: [order([stap()], { qty: 10, aantalGereed: 6 })],
     })
-    expect(primaireActie(p).kan).toBe(true)
+    const uit = actie(p)
+    expect(uit.kan).toBe(true)
+    expect(uit.label).toContain('6 klaar')
+  })
+
+  it('blokkeert de paklijst zolang er niets klaarligt, met het aantal erbij', () => {
+    const p = project({
+      status: 'productie',
+      offertes: [
+        offerte({
+          status: 'geaccepteerd',
+          regels: [
+            {
+              id: 'r1',
+              sortOrder: 1,
+              artikelId: null,
+              naam: 'Bus',
+              omschrijving: '',
+              qty: 10,
+              eenheid: 'st',
+              verkoopprijs: 10,
+              totaal: 100,
+              bewerkingen: [],
+            },
+          ],
+        }),
+      ],
+      productieOrders: [order([stap()], { qty: 10, aantalGereed: 0 })],
+    })
+    const uit = actie(p)
+    expect(uit.kan).toBe(false)
+    expect(uit.reden).toBe('Er ligt nog niets klaar om te leveren — 10 nog te maken.')
   })
 
   it('noemt de ontbrekende acceptatie bij het aanmaken van de opdracht', () => {
     const p = project({ status: 'bevestigd' })
-    const actie = primaireActie(p)
-    expect(actie.label).toBe('Opdracht aanmaken')
-    expect(actie.reden).toBe('Er is nog geen offerte geaccepteerd.')
+    const uit = actie(p)
+    expect(uit.label).toBe('Opdracht aanmaken')
+    expect(uit.reden).toBe('Er is nog geen offerte geaccepteerd.')
   })
 
   it('schakelt naar stap afmelden zodra de opdrachtbevestiging bestaat', () => {
@@ -145,17 +201,17 @@ describe('primaireActie', () => {
       },
       productieOrders: [order([stap()])],
     })
-    expect(primaireActie(p).label).toBe('Stap afmelden')
+    expect(actie(p).label).toBe('Stap afmelden')
   })
 
   it('hervat naar de vorige fase, niet naar concept', () => {
     const p = project({ status: 'on_hold', statusVorige: 'productie' })
-    expect(primaireActie(p).label).toBe('Project hervatten → Productie')
+    expect(actie(p).label).toBe('Project hervatten → Productie')
   })
 
   it('weigert factureren zolang de paklijst niet verzonden is', () => {
     const p = project({ status: 'verzonden' })
-    expect(primaireActie(p).reden).toBe('De paklijst is nog niet verzonden.')
+    expect(actie(p).reden).toBe('De paklijst is nog niet verzonden.')
   })
 })
 

@@ -6,7 +6,15 @@ import type { TerugVM } from '../types'
  * Buiten deze popover is het slotje het enige signaal — het scherm zet geen
  * waarschuwingen in beeld die niemand gevraagd heeft.
  */
-export function RollbackPopover({ terug, onSluit }: { terug: TerugVM; onSluit: () => void }) {
+export function RollbackPopover({
+  terug,
+  onSluit,
+  onTerug,
+}: {
+  terug: TerugVM
+  onSluit: () => void
+  onTerug: () => void
+}) {
   const dicht = terug.blokkades.length > 0
 
   return (
@@ -31,7 +39,14 @@ export function RollbackPopover({ terug, onSluit }: { terug: TerugVM; onSluit: (
           Sluiten
         </button>
         {!dicht && (
-          <button type="button" className="pdv2-btn s primair" disabled>
+          <button
+            type="button"
+            className="pdv2-btn s primair"
+            onClick={() => {
+              onSluit()
+              onTerug()
+            }}
+          >
             Terugdraaien
           </button>
         )}

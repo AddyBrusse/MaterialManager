@@ -553,16 +553,37 @@ export const projectsApi = {
     return updated
   },
 
-  markOrderGereed(projectId: string, orderId: string): Project {
+  /**
+   * Gereedmelden in stuks. Zonder `aantal` geldt de hele order, zoals de server
+   * ook doet — maar met deelleveringen is juist het gedeeltelijke geval de
+   * regel: 34 van de 40 bepaalt wat er op de volgende pakbon kan. De wrapper
+   * stuurde dat aantal niet mee, waardoor deels gereedmelden vanuit het scherm
+   * onmogelijk was.
+   */
+  markOrderGereed(projectId: string, orderId: string, aantal?: number): Project {
     const updated = updateCache(projectId, p => ({
       ...p,
-      productieOrders: p.productieOrders.map(o =>
-        o.id === orderId ? { ...o, status: 'gereed' as const, updatedAt: now() } : o,
-      ),
+      productieOrders: p.productieOrders.map(o => {
+        if (o.id !== orderId) return o
+        const gereed = aantal ?? o.qty
+        return {
+          ...o,
+          aantalGereed: gereed,
+          status: (gereed >= o.qty ? 'gereed' : 'in_productie') as ProductieOrder['status'],
+          updatedAt: now(),
+        }
+      }),
       status: p.status === 'bevestigd' ? 'productie' : p.status,
       updatedAt: now(),
     }))
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/gereed`, { method: 'POST' }), 'Order gereed melden mislukt')
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/gereed`, {
+        method: 'POST',
+        body: JSON.stringify(aantal === undefined ? {} : { aantal }),
+      }),
+      'Order gereed melden mislukt',
+    )
     return updated
   },
 

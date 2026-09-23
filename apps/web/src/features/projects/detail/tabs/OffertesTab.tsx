@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { Offerte, Project } from '@stockmanager/shared'
+import { ArtikelPickerModal } from '../../../../components/projecten/ArtikelPickerModal'
 import { Card } from '../components/Card'
 import { datum, eur, getal } from '../lib/format'
 import { geaccepteerdeOfferte } from '../lib/status'
@@ -17,7 +18,17 @@ function statusPill(o: Offerte) {
   }
 }
 
-function RegelsPaneel({ offerte, geldend }: { offerte: Offerte; geldend: boolean }) {
+function RegelsPaneel({
+  offerte,
+  geldend,
+  bewerkbaar,
+  onToevoegen,
+}: {
+  offerte: Offerte
+  geldend: boolean
+  bewerkbaar: boolean
+  onToevoegen: () => void
+}) {
   const totaal = offerte.regels.reduce((s, r) => s + r.totaal, 0)
   const pill = statusPill(offerte)
 
@@ -31,6 +42,14 @@ function RegelsPaneel({ offerte, geldend }: { offerte: Offerte; geldend: boolean
             ? 'dit is de geldende versie — hierop draait de productie'
             : 'vervallen versie, alleen ter vergelijking'}
         </span>
+        {bewerkbaar && (
+          <>
+            <span className="pdv2-spacer" />
+            <button type="button" className="pdv2-btn s primair" onClick={onToevoegen}>
+              Artikelen toevoegen
+            </button>
+          </>
+        )}
       </div>
       <table className="pdv2-tbl">
         <thead>
@@ -71,6 +90,13 @@ function RegelsPaneel({ offerte, geldend }: { offerte: Offerte; geldend: boolean
               <td className="num">{eur(r.totaal)}</td>
             </tr>
           ))}
+          {offerte.regels.length === 0 && (
+            <tr>
+              <td colSpan={5} className="pdv2-empty">
+                Nog geen regels. Een offerte zonder regels valt niet te versturen.
+              </td>
+            </tr>
+          )}
           <tr className="totaal">
             <td colSpan={4}>Offertetotaal excl. btw</td>
             <td className="num">{eur(totaal)}</td>
@@ -86,10 +112,16 @@ export function OffertesTab({
   project,
   geblokkeerd,
   onNieuweVersie,
+  onVerzend,
+  onAccepteer,
+  onGewijzigd,
 }: {
   project: Project
   geblokkeerd: boolean
   onNieuweVersie: () => void
+  onVerzend: (offerteId: string) => void
+  onAccepteer: (offerteId: string) => void
+  onGewijzigd: () => void
 }) {
   const versies = [...project.offertes].sort((a, b) => b.versie - a.versie)
   const acc = geaccepteerdeOfferte(project)
@@ -97,6 +129,7 @@ export function OffertesTab({
   // waar iemand die dit scherm opent naar op zoek is.
   const [gekozen, setGekozen] = useState<string | null>(acc?.id ?? versies[0]?.id ?? null)
   const actief = versies.find((v) => v.id === gekozen) ?? versies[0] ?? null
+  const [picker, setPicker] = useState(false)
 
   if (versies.length === 0) {
     return (
@@ -148,6 +181,7 @@ export function OffertesTab({
             <th className="num" style={{ width: 104 }}>
               Totaal
             </th>
+            <th style={{ width: 150 }} />
           </tr>
         </thead>
         <tbody>
@@ -175,13 +209,60 @@ export function OffertesTab({
                 <td className="mono">{datum(o.geaccepteerdOp)}</td>
                 <td className="mono">{datum(o.geldigTot)}</td>
                 <td className="num">{eur(o.regels.reduce((s, r) => s + r.totaal, 0))}</td>
+                <td>
+                  {/* Vooruit is per versie een keuze die alleen een mens maakt:
+                      wélke versie gaat de deur uit, wélke accepteert de klant. */}
+                  {o.status === 'concept' && (
+                    <button
+                      type="button"
+                      className="pdv2-btn s"
+                      disabled={geblokkeerd || o.regels.length === 0}
+                      title={o.regels.length === 0 ? 'Deze versie heeft nog geen regels' : undefined}
+                      onClick={() => onVerzend(o.id)}
+                    >
+                      Versturen
+                    </button>
+                  )}
+                  {o.status === 'verzonden' && !acc && (
+                    <button
+                      type="button"
+                      className="pdv2-btn s primair"
+                      disabled={geblokkeerd}
+                      onClick={() => onAccepteer(o.id)}
+                    >
+                      Accepteren
+                    </button>
+                  )}
+                </td>
               </tr>
             )
           })}
         </tbody>
       </table>
 
-      {actief && <RegelsPaneel offerte={actief} geldend={actief.id === (acc?.id ?? versies[0].id)} />}
+      {actief && (
+        <RegelsPaneel
+          offerte={actief}
+          geldend={actief.id === (acc?.id ?? versies[0].id)}
+          bewerkbaar={actief.status === 'concept' && !geblokkeerd}
+          onToevoegen={() => setPicker(true)}
+        />
+      )}
+
+      {/* Dezelfde kiezer als op het oude scherm: artikelen zoeken, marge en
+          verkoopprijs afstemmen, in één keer wegschrijven. Alleen een
+          concept-offerte mag nog veranderen — een verstuurde versie is de deur
+          uit. */}
+      {actief && (
+        <ArtikelPickerModal
+          opened={picker}
+          projectId={project.id}
+          offerteId={actief.id}
+          relatieId={project.relatieId}
+          onClose={() => setPicker(false)}
+          onAdded={onGewijzigd}
+        />
+      )}
     </Card>
   )
 }

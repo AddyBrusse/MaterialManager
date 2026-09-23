@@ -30,7 +30,17 @@ function wachtReden(o: ProductieOrder): string | null {
   return null
 }
 
-function OrderBlok({ order }: { order: ProductieOrder }) {
+function OrderBlok({
+  order,
+  geblokkeerd,
+  onStap,
+  onStuks,
+}: {
+  order: ProductieOrder
+  geblokkeerd: boolean
+  onStap: (orderId: string, stapId: string, gereed: boolean) => void
+  onStuks: (orderId: string) => void
+}) {
   const gereed = order.stappen.filter((s) => s.gereedOp).length
   // Sinds de deelleveringen telt een order in stuks, niet alleen in stappen:
   // "34 van de 40" is het getal waar een pakbon op wacht. De stappen zeggen
@@ -69,6 +79,14 @@ function OrderBlok({ order }: { order: ProductieOrder }) {
             style={{ width: order.qty > 0 ? `${Math.min(stuks / order.qty, 1) * 100}%` : '0%' }}
           />
         </span>
+        <button
+          type="button"
+          className="pdv2-btn s"
+          disabled={geblokkeerd}
+          onClick={() => onStuks(order.id)}
+        >
+          Stuks melden
+        </button>
       </div>
 
       <table className="pdv2-tbl">
@@ -82,6 +100,7 @@ function OrderBlok({ order }: { order: ProductieOrder }) {
             <th style={{ width: 100 }}>Gereed op</th>
             <th style={{ width: 68 }}>Door</th>
             <th style={{ width: 120 }}>Status</th>
+            <th style={{ width: 92 }} />
           </tr>
         </thead>
         <tbody>
@@ -110,6 +129,16 @@ function OrderBlok({ order }: { order: ProductieOrder }) {
                 <td>
                   <span className={`pdv2-pill ${pill.kleur}`}>{pill.tekst}</span>
                 </td>
+                <td>
+                  <button
+                    type="button"
+                    className={`pdv2-btn s ${s.gereedOp ? '' : 'primair'}`}
+                    disabled={geblokkeerd}
+                    onClick={() => onStap(order.id, s.id, !s.gereedOp)}
+                  >
+                    {s.gereedOp ? 'Intrekken' : 'Gereed'}
+                  </button>
+                </td>
               </tr>
             )
           })}
@@ -123,7 +152,8 @@ interface Props {
   project: Project
   geblokkeerd: boolean
   onPlanner: () => void
-  onAfmelden: () => void
+  onStap: (orderId: string, stapId: string, gereed: boolean) => void
+  onStuks: (orderId: string) => void
 }
 
 /**
@@ -131,7 +161,7 @@ interface Props {
  * en `queuePosition` zijn hier alleen-lezen. De enige schrijfactie is
  * gereedmelden.
  */
-export function ProductieTab({ project, geblokkeerd, onPlanner, onAfmelden }: Props) {
+export function ProductieTab({ project, geblokkeerd, onPlanner, onStap, onStuks }: Props) {
   const orders = project.productieOrders
   const gereed = orders.reduce((n, o) => n + o.stappen.filter((s) => s.gereedOp).length, 0)
   const totaal = orders.reduce((n, o) => n + o.stappen.length, 0)
@@ -161,19 +191,18 @@ export function ProductieTab({ project, geblokkeerd, onPlanner, onAfmelden }: Pr
           <button type="button" className="pdv2-btn s" onClick={onPlanner}>
             Openen in planner
           </button>
-          <button
-            type="button"
-            className="pdv2-btn s"
-            onClick={onAfmelden}
-            disabled={geblokkeerd}
-          >
-            Stap afmelden
-          </button>
+
         </>
       }
     >
       {orders.map((o) => (
-        <OrderBlok order={o} key={o.id} />
+        <OrderBlok
+          order={o}
+          key={o.id}
+          geblokkeerd={geblokkeerd}
+          onStap={onStap}
+          onStuks={onStuks}
+        />
       ))}
     </Card>
   )

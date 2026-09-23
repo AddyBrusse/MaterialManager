@@ -7,6 +7,7 @@ interface Props {
   primair: ActieVM
   terug: TerugVM | null
   onPrimair: () => void
+  onTerug: () => void
 }
 
 /**
@@ -16,7 +17,7 @@ interface Props {
  * klikken — nooit pas in een melding achteraf. Dat is het hele idee van deze
  * balk: je ziet wat de volgende stap is én waarom hij nog niet kan.
  */
-export function FooterBar({ primair, terug, onPrimair }: Props) {
+export function FooterBar({ primair, terug, onPrimair, onTerug }: Props) {
   const [open, setOpen] = useState(false)
   const dicht = (terug?.blokkades.length ?? 0) > 0
 
@@ -31,7 +32,13 @@ export function FooterBar({ primair, terug, onPrimair }: Props) {
             {terug.label}
             {dicht && <IconLock size={12} style={{ color: 'var(--text3)' }} />}
           </button>
-          {open && <RollbackPopover terug={terug} onSluit={() => setOpen(false)} />}
+          {open && (
+            <RollbackPopover
+              terug={terug}
+              onSluit={() => setOpen(false)}
+              onTerug={onTerug}
+            />
+          )}
         </span>
       )}
 
