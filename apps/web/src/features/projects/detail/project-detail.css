@@ -277,7 +277,13 @@
      balk met een lichte tab — keert dat contrast om en leest de balk als een
      eigen blok. */
   background: var(--bg2);
-  border-bottom: 1px solid var(--border);
+  /* De scheidingslijn als inset-schaduw, niet als border-bottom. Een border
+     valt buiten het opvulvak en is dus nooit door een tab te bedekken, terwijl
+     `overflow-x: auto` hierboven elke pixel die de tab eroverheen zou steken
+     juist wegknipt. Een inset-schaduw wordt binnen dat vak getekend en ligt
+     ónder de kinderen: de actieve tab dekt hem af met zijn eigen achtergrond,
+     de doorzichtige tabs laten hem staan. */
+  box-shadow: inset 0 -1px 0 var(--border);
   padding: 7px var(--gutter) 0;
   flex: none;
 }
@@ -303,17 +309,17 @@
   background: var(--alt);
   color: var(--text);
 }
-/* Actief: in de kleur van de inhoud eronder, en 1 px eroverheen zodat de
-   onderrand van de balk onder deze tab wegvalt.
-   De rand loopt over boven, links en rechts — niet onder. Zo is de tab
-   omlijnd én open naar de pagina toe: hij leest als het lipje van de map die
-   eronder openligt, en je ziet in één blik welke tab actief is. */
+/* Actief: in de kleur van de inhoud eronder, en zonder lijn eronder — de
+   scheidingslijn van de balk loopt door achter de andere tabs, maar niet
+   achter deze.
+   De rand loopt over boven, links en rechts. Zo is de tab omlijnd én open naar
+   de pagina toe: hij leest als het lipje van de map die eronder openligt, en
+   je ziet in één blik welke tab actief is. */
 .pdv2-tab.active {
   background: var(--bg);
   color: var(--text);
   font-weight: 600;
   border-color: var(--border-strong-pdv2);
-  margin-bottom: -1px;
 }
 .pdv2-tab-lbl {
   white-space: nowrap;
