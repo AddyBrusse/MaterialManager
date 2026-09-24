@@ -43,6 +43,7 @@ export interface ProjectActies {
   terug: () => void
   nieuweOfferteVersie: () => void
   kopieerOfferte: (offerteId: string) => void
+  zetReferentie: (offerteId: string, ref: string) => void
   verzendOfferte: (offerteId: string) => void
   accepteerOfferte: (offerteId: string) => void
   maakOpdracht: () => void
@@ -103,6 +104,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     terug: () => {},
     nieuweOfferteVersie: () => {},
     kopieerOfferte: () => {},
+    zetReferentie: () => {},
     verzendOfferte: () => {},
     accepteerOfferte: () => {},
     maakOpdracht: () => {},
@@ -249,6 +251,12 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     terug,
     nieuweOfferteVersie: () =>
       doe('Nieuwe offerteversie aangemaakt', () => projectsApi.addOfferte(id)),
+    // Stil, net als een regel bewerken: een groene melding bij elk ingevuld
+    // veld is ruis. Fout gaat wel de deur uit — dat meldt syncProject zelf.
+    zetReferentie: (offerteId, ref) => {
+      projectsApi.updateOfferte(id, offerteId, { externeRef: ref })
+      ververs()
+    },
     kopieerOfferte: (offerteId) => {
       const bron = project.offertes.find((o) => o.id === offerteId)
       doe(

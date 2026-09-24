@@ -9,7 +9,9 @@ import type { Offerte } from '../schemas/project'
  * tot de volgende keer dat hij ververst.
  *
  * **Mee:** de regels — artikel, omschrijving, aantal, eenheid, prijs,
- * bewerkingen — en de notities. Dat is de inhoud van de offerte.
+ * bewerkingen — de notities en de externe referentie. Dat laatste omdat een
+ * staffel van 10 stuks antwoord geeft op dezelfde RFQ als die van 5; komt de
+ * kopie door een nieuwe mail, dan pas je hem aan.
  *
  * **Niet mee:** status, verzend- en acceptatiedatum en geldig-tot. Die horen bij
  * het versturen van een versie, niet bij wat erin staat. Een kopie van een
@@ -53,6 +55,7 @@ export function kopieerOfferte(
     status: 'concept',
     regels,
     notities: bron.notities,
+    externeRef: bron.externeRef ?? null,
     geldigTot: null,
     verzondenOp: null,
     geaccepteerdOp: null,

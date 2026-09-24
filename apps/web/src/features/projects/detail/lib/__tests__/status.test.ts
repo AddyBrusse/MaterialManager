@@ -50,6 +50,7 @@ function offerte(over: Partial<Offerte> = {}): Offerte {
     status: 'concept',
     regels: [],
     notities: '',
+    externeRef: null,
     geldigTot: null,
     verzondenOp: null,
     geaccepteerdOp: null,

@@ -2,6 +2,11 @@ import { useNavigate } from 'react-router-dom'
 import type { OfferteRegel } from '@stockmanager/shared'
 import type { Article } from '../../../../api/articles'
 import { ArtikelPreviewThumb } from '../../../../components/projecten/ArtikelPreviewThumb'
+import { buildEstimateCtx, computeEstimateTotals } from '../../../../api/estimate'
+import { gradesApi } from '../../../../api/grades'
+import { profilesApi } from '../../../../api/profiles'
+import { machinesApi } from '../../../../api/machines'
+import { eur } from '../lib/format'
 
 /**
  * De cellen van een offerteregel die uit het artikel komen, niet uit de regel.
@@ -58,6 +63,51 @@ export function TekeningCel({ artikel }: { artikel: Article | null }) {
     <td>
       <span className="mono">{artikel.tekening}</span>
       {artikel.rev && <span className="sub">rev {artikel.rev}</span>}
+    </td>
+  )
+}
+
+/**
+ * Kostprijs per stuk bij dít aantal, uit de artikelcalculatie. Het aantal doet
+ * ertoe: de insteltijd wordt over de stuks verdeeld, dus bij 40 stuks is een
+ * stuk goedkoper dan bij 5. Geen calculatie, dan geen kostprijs — niet € 0.
+ */
+function kostprijsPerStuk(artikel: Article | null, qty: number): number | null {
+  if (!artikel?.estimate) return null
+  try {
+    const ctx = buildEstimateCtx(artikel, gradesApi.listSync(), profilesApi.listSync(), machinesApi.listSync())
+    const kost = computeEstimateTotals(artikel.estimate, ctx, qty).cost
+    return kost > 0 ? kost : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Marge per regel, als opslag op de kostprijs — dezelfde definitie als
+ * `marginPct` in de rekenkern en als de oude offertetabel.
+ *
+ * Rekent met het aantal op de regel. Zet je een staffel van 5 op 40 stuks en
+ * laat je de prijs staan, dan zie je de marge hier oplopen: dat is het signaal
+ * om "Prijzen bijwerken" te doen, zonder dat er iets vanzelf verandert.
+ */
+export function MargeCel({ artikel, regel }: { artikel: Article | null; regel: OfferteRegel }) {
+  const kost = kostprijsPerStuk(artikel, regel.qty || 1)
+  if (kost === null) {
+    return (
+      <td className="num" style={{ color: 'var(--text3)' }} title="Geen calculatie op dit artikel">
+        —
+      </td>
+    )
+  }
+  const marge = Math.round((regel.verkoopprijs / kost - 1) * 100)
+  return (
+    <td
+      className="num"
+      style={marge < 0 ? { color: 'var(--dgr)', fontWeight: 600 } : undefined}
+      title={`Kostprijs ${eur(kost)} per stuk bij ${regel.qty} ${regel.eenheid}`}
+    >
+      {marge}%
     </td>
   )
 }

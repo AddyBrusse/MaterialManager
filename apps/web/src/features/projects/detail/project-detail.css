@@ -642,6 +642,27 @@
   color: inherit;
   padding: 1px 4px;
 }
+.pdv2-cel-tekst {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  padding: 1px 4px;
+}
+.pdv2-cel-tekst::placeholder {
+  color: var(--text3);
+  opacity: 0.7;
+}
+.pdv2-cel-tekst:hover:not(:disabled) {
+  border-color: var(--border);
+}
+.pdv2-cel-tekst:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg2);
+}
 .pdv2-cel-getal:hover {
   border-color: var(--border);
 }

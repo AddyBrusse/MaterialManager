@@ -23,6 +23,7 @@ const bron: Offerte = {
   // niet die van de array.
   regels: [regel('b', 2, 5, 58.75), regel('a', 1, 10, 46.2)],
   notities: 'Levering in twee delen',
+  externeRef: 'RFQ-VLM-2026-0412',
   geldigTot: '2026-10-01',
   verzondenOp: '2026-09-01T08:00:00.000Z',
   geaccepteerdOp: '2026-09-03T08:00:00.000Z',
@@ -33,6 +34,11 @@ const bron: Offerte = {
 const nieuw = { id: 'OFF-2026-031', documentNr: 'OFF-2026-014', versie: 2, regelIds: ['n1', 'n2'], nu: NU }
 
 describe('kopieerOfferte', () => {
+  // Een staffel van 10 beantwoordt dezelfde RFQ als die van 5.
+  it('neemt de externe referentie mee', () => {
+    expect(kopieerOfferte(bron, nieuw).externeRef).toBe('RFQ-VLM-2026-0412')
+  })
+
   it('neemt de inhoud mee: regels, aantallen, prijzen, bewerkingen en notities', () => {
     const k = kopieerOfferte(bron, nieuw)
     expect(k.regels.map(r => [r.naam, r.qty, r.verkoopprijs, r.bewerkingen])).toEqual([

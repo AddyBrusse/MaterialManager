@@ -261,6 +261,7 @@ export const projectsApi = {
           status: 'concept',
           regels: [],
           notities: '',
+          externeRef: null,
           geldigTot: null,
           verzondenOp: null,
           geaccepteerdOp: null,
@@ -271,6 +272,22 @@ export const projectsApi = {
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes`, {
       method: 'POST', body: JSON.stringify({ id, vanOfferteId, regelIds }),
     }), bron ? 'Offerte kopiëren mislukt' : 'Nieuwe offerte aanmaken mislukt')
+    return updated
+  },
+
+  /** Velden van een versie zelf — nu alleen de externe referentie. */
+  updateOfferte(projectId: string, offerteId: string, patch: { externeRef: string | null }): Project {
+    const externeRef = patch.externeRef?.trim() || null
+    const updated = updateCache(projectId, p => ({
+      ...p,
+      updatedAt: now(),
+      offertes: p.offertes.map(o =>
+        o.id === offerteId ? { ...o, externeRef, updatedAt: now() } : o,
+      ),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}`, {
+      method: 'PATCH', body: JSON.stringify({ externeRef }),
+    }), 'Referentie opslaan mislukt')
     return updated
   },
 

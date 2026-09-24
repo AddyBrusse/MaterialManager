@@ -267,6 +267,7 @@ router.post(
           status: 'concept',
           regels: [],
           notities: '',
+          externeRef: null,
           geldigTot: null,
           verzondenOp: null,
           geaccepteerdOp: null,
@@ -277,6 +278,36 @@ router.post(
       return { ...p, offertes: [...p.offertes, off], updatedAt: now() }
     })
     res.status(201).json({ data: updated })
+  }),
+)
+
+// Velden van een versie zelf, los van haar regels. Nu alleen de externe
+// referentie; die mag ook na het versturen nog, want het is onze eigen
+// boekhouding van waar de versie op antwoordde, niet iets wat de klant kreeg.
+const UpdateOfferteSchema = z.object({
+  externeRef: z.string().max(200).nullable().optional(),
+})
+
+router.patch(
+  '/:id/offertes/:offId',
+  asyncHandler(async (req, res) => {
+    const body = UpdateOfferteSchema.parse(req.body ?? {})
+    const updated = await withProject(req.params.id, (p) => {
+      const off = p.offertes.find(o => o.id === req.params.offId)
+      if (!off) throw new AppError(404, 'NOT_FOUND', 'Offerte niet gevonden')
+      // Leeg is geen referentie: "" opslaan zou een versie tonen met een
+      // referentie die niets zegt, en elders `?? '—'` omzeilen.
+      const externeRef =
+        body.externeRef === undefined ? off.externeRef : body.externeRef?.trim() || null
+      return {
+        ...p,
+        updatedAt: now(),
+        offertes: p.offertes.map(o =>
+          o.id === off.id ? { ...o, externeRef, updatedAt: now() } : o,
+        ),
+      }
+    })
+    res.json({ data: updated })
   }),
 )
 

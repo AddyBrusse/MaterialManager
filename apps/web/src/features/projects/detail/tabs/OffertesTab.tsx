@@ -5,6 +5,7 @@ import { ArtikelPickerModal } from '../../../../components/projecten/ArtikelPick
 import { PrijzenBijwerkenModal } from '../../../../components/projecten/PrijzenBijwerkenModal'
 import type { Bijwerking } from '../../../../components/projecten/prijs-bijwerken'
 import { Card } from '../components/Card'
+import { CelTekst } from '../components/CelTekst'
 import { datum, eur } from '../lib/format'
 import { geaccepteerdeOfferte } from '../lib/status'
 import { OfferteRegels } from './OfferteRegels'
@@ -34,15 +35,13 @@ function statusPill(o: Offerte) {
 function toelichting(o: Offerte, erIsGeaccepteerd: boolean): string {
   switch (o.status) {
     case 'geaccepteerd':
-      return 'de geldende versie — hierop draait de productie'
+      return 'geldend — hierop draait de productie'
     case 'verzonden':
-      return erIsGeaccepteerd
-        ? 'verstuurd, maar een andere versie is geaccepteerd'
-        : 'verstuurd — wacht op antwoord van de klant'
+      return erIsGeaccepteerd ? 'verstuurd, een andere is geaccepteerd' : 'verstuurd — wacht op de klant'
     case 'vervallen':
-      return 'vervallen versie, alleen ter vergelijking'
+      return 'vervallen, ter vergelijking'
     default:
-      return 'concept — nog niet verstuurd, hier kun je nog wijzigen'
+      return 'concept — nog te wijzigen'
   }
 }
 
@@ -51,6 +50,7 @@ interface Props {
   geblokkeerd: boolean
   onNieuweVersie: () => void
   onKopieer: (offerteId: string) => void
+  onReferentie: (offerteId: string, ref: string) => void
   onVerzend: (offerteId: string) => void
   onAccepteer: (offerteId: string) => void
   onGewijzigd: () => void
@@ -65,6 +65,7 @@ export function OffertesTab({
   geblokkeerd,
   onNieuweVersie,
   onKopieer,
+  onReferentie,
   onVerzend,
   onAccepteer,
   onGewijzigd,
@@ -131,6 +132,7 @@ export function OffertesTab({
           <tr>
             <th style={{ width: 54 }}>v.</th>
             <th style={{ width: 118 }}>Nummer</th>
+            <th style={{ width: 170 }}>Referentie</th>
             <th style={{ width: 120 }}>Status</th>
             <th>Wat het is</th>
             <th style={{ width: 92 }}>Verzonden</th>
@@ -173,6 +175,18 @@ export function OffertesTab({
                       een kopie ervan staan hier onder hetzelfde nummer. */}
                   <td className="mono" title={o.documentNr !== o.id ? `intern ${o.id}` : undefined}>
                     {o.documentNr}
+                  </td>
+                  {/* Waar deze versie antwoord op geeft. Ook na het versturen
+                      nog in te vullen: het is onze eigen boekhouding, niet iets
+                      wat de klant kreeg — en een RFQ-nummer vind je soms pas
+                      later terug in de mail. */}
+                  <td>
+                    <CelTekst
+                      waarde={o.externeRef}
+                      placeholder="RFQ of mail…"
+                      uit={geblokkeerd}
+                      onKlaar={(ref) => onReferentie(o.id, ref)}
+                    />
                   </td>
                   <td>
                     <span className={`pdv2-pill ${pill.kleur}`}>{pill.tekst}</span>
@@ -224,7 +238,7 @@ export function OffertesTab({
 
                 {uit && (
                   <tr className="pdv2-kind-rij">
-                    <td colSpan={9}>
+                    <td colSpan={10}>
                       <OfferteRegels
                         offerte={o}
                         projectId={project.id}

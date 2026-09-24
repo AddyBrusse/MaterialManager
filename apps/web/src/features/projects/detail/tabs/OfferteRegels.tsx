@@ -2,7 +2,7 @@ import { IconRefresh, IconTrash } from '@tabler/icons-react'
 import type { Offerte } from '@stockmanager/shared'
 import { articlesApi } from '../../../../api/articles'
 import { eur, getal } from '../lib/format'
-import { ArtikelCel, TekeningCel, VoorbeeldCel } from './OfferteRegelCellen'
+import { ArtikelCel, MargeCel, TekeningCel, VoorbeeldCel } from './OfferteRegelCellen'
 
 /**
  * Een getal dat je in de tabel zelf aanpast. Opslaan gebeurt bij het verlaten
@@ -101,6 +101,9 @@ export function OfferteRegels({
             <th className="num" style={{ width: 96 }}>
               Prijs/st
             </th>
+            <th className="num" style={{ width: 64 }} title="Opslag op de kostprijs bij dit aantal">
+              Marge
+            </th>
             <th className="num" style={{ width: 104 }}>
               Totaal
             </th>
@@ -146,6 +149,7 @@ export function OfferteRegels({
                   eur(r.verkoopprijs)
                 )}
               </td>
+              <MargeCel artikel={artikel} regel={r} />
               <td className="num">{eur(r.totaal)}</td>
               {bewerkbaar && (
                 <td>
@@ -165,13 +169,13 @@ export function OfferteRegels({
           })}
           {offerte.regels.length === 0 && (
             <tr>
-              <td colSpan={bewerkbaar ? 8 : 7} className="pdv2-empty">
+              <td colSpan={bewerkbaar ? 9 : 8} className="pdv2-empty">
                 Nog geen regels. Een offerte zonder regels valt niet te versturen.
               </td>
             </tr>
           )}
           <tr className="totaal">
-            <td colSpan={6}>Offertetotaal excl. btw</td>
+            <td colSpan={7}>Offertetotaal excl. btw</td>
             <td className="num">{eur(totaal)}</td>
             {bewerkbaar && <td />}
           </tr>
