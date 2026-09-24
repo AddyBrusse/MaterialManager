@@ -264,7 +264,12 @@
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
-  background: var(--bg3);
+  /* Wit, net als de balk van de hoofdnavigatie (`.gt-bar` = --bg-2). De
+     actieve tab is dan het énige vlak in de kleur van de inhoud eronder, en
+     dat is precies wat hem eraan vast laat zitten. Andersom — een donkere
+     balk met een lichte tab — keert dat contrast om en leest de balk als een
+     eigen blok. */
+  background: var(--bg2);
   border-bottom: 1px solid var(--border);
   padding: 7px var(--gutter) 0;
   flex: none;
@@ -292,12 +297,14 @@
   color: var(--text);
 }
 /* Actief: in de kleur van de inhoud eronder, en 1 px eroverheen zodat de
-   onderrand van de balk onder deze tab wegvalt. */
+   onderrand van de balk onder deze tab wegvalt. Geen rand: het kleurverschil
+   met de witte balk zegt genoeg, en een lijn eromheen maakt er weer een los
+   blokje van in plaats van een uitsparing. */
 .pdv2-tab.active {
   background: var(--bg);
   color: var(--text);
   font-weight: 600;
-  border-color: var(--border);
+  border-color: transparent;
   margin-bottom: -1px;
 }
 .pdv2-tab-lbl {
