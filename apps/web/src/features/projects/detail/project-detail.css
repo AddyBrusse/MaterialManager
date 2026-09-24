@@ -558,8 +558,65 @@
 .pdv2-tbl tbody tr:hover {
   background: var(--alt);
 }
-.pdv2-tbl tr.gekozen td {
-  box-shadow: inset 0 0 0 1px var(--accent);
+/* Uitklapknop in de eerste kolom: het pijltje en het versienummer zijn samen
+   één trefvlak, zodat je niet op een pijltje van 13 px hoeft te mikken. */
+.pdv2-uitklap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 5px 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text2);
+  cursor: pointer;
+}
+.pdv2-uitklap:hover {
+  color: var(--text);
+}
+
+/* De regels van een versie, als kinderen eronder. Geen kader en geen lijnen:
+   de inspringing doet het werk, zodat je ziet dat deze regels bij de versie
+   erbóven horen en niet bij de versie eronder. */
+.pdv2-kind-rij > td {
+  padding: 0 0 8px 0 !important;
+  background: var(--alt);
+}
+.pdv2-kind {
+  padding-left: 34px;
+  padding-right: 10px;
+}
+.pdv2-kind-acties {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 7px 0 3px;
+}
+.pdv2-kind .pdv2-tbl th {
+  background: transparent;
+}
+
+/* Inline te bewerken getal in een cel. Ziet eruit als tekst tot je erin klikt:
+   een tabel vol invoervakken leest als een formulier, en dit is een overzicht
+   waarin je af en toe iets bijstelt. */
+.pdv2-cel-getal {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font: inherit;
+  font-family: var(--mono);
+  text-align: right;
+  color: inherit;
+  padding: 1px 4px;
+}
+.pdv2-cel-getal:hover {
+  border-color: var(--border);
+}
+.pdv2-cel-getal:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg2);
 }
 .pdv2-tbl tr.geaccepteerd td {
   background: var(--ok-soft);
