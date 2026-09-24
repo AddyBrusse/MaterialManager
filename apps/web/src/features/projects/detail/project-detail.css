@@ -32,6 +32,7 @@
   --dgr-soft: rgba(184, 39, 12, 0.1);
   --rail: rgba(15, 17, 22, 0.13);
   --alt: rgba(15, 17, 22, 0.022);
+  --alt-licht: rgba(15, 17, 22, 0.011);
   /* Iets sterker dan --border: de rand om de actieve tab moet te zién zijn,
      niet te vermoeden. */
   --border-strong-pdv2: rgba(15, 17, 22, 0.16);
@@ -65,6 +66,7 @@
   --dgr-soft: rgba(242, 112, 90, 0.14);
   --rail: rgba(236, 237, 240, 0.18);
   --alt: rgba(236, 237, 240, 0.03);
+  --alt-licht: rgba(236, 237, 240, 0.015);
   --border-strong-pdv2: rgba(236, 237, 240, 0.26);
 }
 
@@ -580,7 +582,9 @@
    erbóven horen en niet bij de versie eronder. */
 .pdv2-kind-rij > td {
   padding: 0 0 8px 0 !important;
-  background: var(--alt);
+  /* Half zo donker als --alt: net genoeg om de regels als één blok onder hun
+     versie te laten lezen, zonder dat het een grijs vlak wordt. */
+  background: var(--alt-licht);
 }
 .pdv2-kind {
   padding-left: 34px;
