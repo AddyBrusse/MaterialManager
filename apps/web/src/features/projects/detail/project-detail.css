@@ -32,6 +32,9 @@
   --dgr-soft: rgba(184, 39, 12, 0.1);
   --rail: rgba(15, 17, 22, 0.13);
   --alt: rgba(15, 17, 22, 0.022);
+  /* Iets sterker dan --border: de rand om de actieve tab moet te zién zijn,
+     niet te vermoeden. */
+  --border-strong-pdv2: rgba(15, 17, 22, 0.16);
 
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
   --sans: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
@@ -62,6 +65,7 @@
   --dgr-soft: rgba(242, 112, 90, 0.14);
   --rail: rgba(236, 237, 240, 0.18);
   --alt: rgba(236, 237, 240, 0.03);
+  --border-strong-pdv2: rgba(236, 237, 240, 0.26);
 }
 
 /* ── Regio-indeling (§3) ──────────────────────────────────────────────────── */
@@ -92,7 +96,10 @@
 
 .pdv2-head {
   position: relative;
-  background: var(--bg2);
+  /* Dezelfde kleur als de actieve tab van de hoofdnavigatie erboven. Stond de
+     kop op wit, dan opende een grijze tab een witte pagina en hing die tab er
+     los boven in plaats van eraan vast. */
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
   padding: 10px var(--gutter) 0;
   flex: none;
@@ -297,14 +304,15 @@
   color: var(--text);
 }
 /* Actief: in de kleur van de inhoud eronder, en 1 px eroverheen zodat de
-   onderrand van de balk onder deze tab wegvalt. Geen rand: het kleurverschil
-   met de witte balk zegt genoeg, en een lijn eromheen maakt er weer een los
-   blokje van in plaats van een uitsparing. */
+   onderrand van de balk onder deze tab wegvalt.
+   De rand loopt over boven, links en rechts — niet onder. Zo is de tab
+   omlijnd én open naar de pagina toe: hij leest als het lipje van de map die
+   eronder openligt, en je ziet in één blik welke tab actief is. */
 .pdv2-tab.active {
   background: var(--bg);
   color: var(--text);
   font-weight: 600;
-  border-color: transparent;
+  border-color: var(--border-strong-pdv2);
   margin-bottom: -1px;
 }
 .pdv2-tab-lbl {
