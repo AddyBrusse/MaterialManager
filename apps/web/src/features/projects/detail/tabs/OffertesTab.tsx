@@ -227,6 +227,7 @@ export function OffertesTab({
                     <td colSpan={9}>
                       <OfferteRegels
                         offerte={o}
+                        projectId={project.id}
                         bewerkbaar={o.status === 'concept' && !geblokkeerd}
                         onToevoegen={() => setPicker(o.id)}
                         onPrijzen={() => setPrijzen(o.id)}

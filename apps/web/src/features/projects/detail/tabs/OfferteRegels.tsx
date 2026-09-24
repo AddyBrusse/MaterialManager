@@ -1,6 +1,8 @@
 import { IconRefresh, IconTrash } from '@tabler/icons-react'
 import type { Offerte } from '@stockmanager/shared'
+import { articlesApi } from '../../../../api/articles'
 import { eur, getal } from '../lib/format'
+import { ArtikelCel, TekeningCel, VoorbeeldCel } from './OfferteRegelCellen'
 
 /**
  * Een getal dat je in de tabel zelf aanpast. Opslaan gebeurt bij het verlaten
@@ -38,6 +40,7 @@ function CelGetal({
 
 interface Props {
   offerte: Offerte
+  projectId: string
   bewerkbaar: boolean
   onToevoegen: () => void
   onPrijzen: () => void
@@ -54,6 +57,7 @@ interface Props {
  */
 export function OfferteRegels({
   offerte,
+  projectId,
   bewerkbaar,
   onToevoegen,
   onPrijzen,
@@ -87,7 +91,9 @@ export function OfferteRegels({
       <table className="pdv2-tbl">
         <thead>
           <tr>
+            <th style={{ width: 88 }}>Voorbeeld</th>
             <th>Artikel</th>
+            <th style={{ width: 130 }}>Tekening</th>
             <th>Bewerkingen</th>
             <th className="num" style={{ width: 70 }}>
               Aantal
@@ -102,12 +108,13 @@ export function OfferteRegels({
           </tr>
         </thead>
         <tbody>
-          {offerte.regels.map((r) => (
+          {offerte.regels.map((r) => {
+            const artikel = r.artikelId ? articlesApi.get(r.artikelId) : null
+            return (
             <tr key={r.id}>
-              <td>
-                <span style={{ fontWeight: 600 }}>{r.naam}</span>
-                {r.omschrijving && <span className="sub">{r.omschrijving}</span>}
-              </td>
+              <VoorbeeldCel artikel={artikel} />
+              <ArtikelCel regel={r} projectId={projectId} />
+              <TekeningCel artikel={artikel} />
               <td>
                 {r.bewerkingen.length === 0
                   ? '—'
@@ -154,16 +161,17 @@ export function OfferteRegels({
                 </td>
               )}
             </tr>
-          ))}
+            )
+          })}
           {offerte.regels.length === 0 && (
             <tr>
-              <td colSpan={bewerkbaar ? 6 : 5} className="pdv2-empty">
+              <td colSpan={bewerkbaar ? 8 : 7} className="pdv2-empty">
                 Nog geen regels. Een offerte zonder regels valt niet te versturen.
               </td>
             </tr>
           )}
           <tr className="totaal">
-            <td colSpan={4}>Offertetotaal excl. btw</td>
+            <td colSpan={6}>Offertetotaal excl. btw</td>
             <td className="num">{eur(totaal)}</td>
             {bewerkbaar && <td />}
           </tr>

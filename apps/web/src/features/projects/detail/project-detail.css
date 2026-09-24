@@ -611,6 +611,23 @@
   background: transparent;
 }
 
+/* Een link in de subregel (het artikelnummer): accentkleur zoals elke andere
+   link op deze pagina, onderstreept pas bij hover. */
+.pdv2-tbl .sub a {
+  color: var(--accent-tx);
+  text-decoration: none;
+}
+.pdv2-tbl .sub a:hover {
+  text-decoration: underline;
+}
+
+/* Voorbeeldcel: de thumbnail bepaalt de rijhoogte, dus hier geen extra
+   verticale ruimte erbovenop. */
+.pdv2-tbl td.pdv2-voorbeeld {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
 /* Inline te bewerken getal in een cel. Ziet eruit als tekst tot je erin klikt:
    een tabel vol invoervakken leest als een formulier, en dit is een overzicht
    waarin je af en toe iets bijstelt. */
