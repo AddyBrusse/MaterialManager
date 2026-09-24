@@ -81,6 +81,9 @@ export type TabId =
   | 'productie'
   | 'nacalculatie'
   | 'documenten'
+  | 'financieel'
+  | 'reserveringen'
+  | 'aandacht'
 
 export interface GeldVM {
   offertetotaal: number | null

@@ -38,7 +38,6 @@
 
   /* §2.3 — buitenmarge; krimpt in de popout (§10) */
   --gutter: 20px;
-  --rail-w: 304px;
 }
 
 [data-theme='dark'] .pdv2,
@@ -244,38 +243,70 @@
 
 /* ── Tabbalk (§3.3) ───────────────────────────────────────────────────────── */
 
+/* ── Tabbalk (§3.3) ───────────────────────────────────────────────────────────
+ *
+ * Dezelfde vorm als de hoofdnavigatie (`.gt-tab` in styles/tokens.css): de
+ * actieve tab is uitgesneden in de achtergrond van de inhoud eronder en
+ * overlapt de scheidingslijn, zodat hij er letterlijk aan vastzit. Twee
+ * verschillende tabvormen op één scherm laten de binnenste als een vreemd
+ * systeem lezen.
+ *
+ * Geen icoon voor de naam: de stand staat in de kleur van de indicatie rechts.
+ */
+
 .pdv2-tabs {
   display: flex;
-  align-items: stretch;
-  height: 38px;
-  background: var(--bg2);
+  align-items: flex-end;
+  gap: 2px;
+  /* Negen tabs passen op een normaal venster net; ze afbreken naar een tweede
+     rij breekt ook de verbinding tussen de actieve tab en de inhoud eronder.
+     Wordt het écht te smal, dan schuift de balk zijwaarts. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--bg3);
   border-bottom: 1px solid var(--border);
-  padding: 0 var(--gutter);
+  padding: 7px var(--gutter) 0;
   flex: none;
 }
 .pdv2-tab {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 38px;
-  padding: 0 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
+  gap: 7px;
+  height: 32px;
+  padding: 0 9px;
+  flex: none;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--text2);
+  font-size: 12px;
+  color: var(--text3);
   cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 .pdv2-tab:hover {
-  color: var(--text);
   background: var(--alt);
+  color: var(--text);
 }
+/* Actief: in de kleur van de inhoud eronder, en 1 px eroverheen zodat de
+   onderrand van de balk onder deze tab wegvalt. */
 .pdv2-tab.active {
-  color: var(--accent-tx);
-  border-bottom-color: var(--accent);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 600;
+  border-color: var(--border);
+  margin-bottom: -1px;
 }
+.pdv2-tab-lbl {
+  white-space: nowrap;
+}
+.pdv2-tabs::-webkit-scrollbar {
+  display: none;
+}
+
 .pdv2-badge {
   font-family: var(--mono);
   font-size: 10.5px;
@@ -301,28 +332,41 @@
   background: var(--accent-soft);
   color: var(--accent-tx);
 }
+/* Wachten is geen aandacht: er is niets te doen tot er buiten dit scherm iets
+   gebeurt. Vandaar amber tekst zonder gevulde achtergrond — zichtbaar, maar
+   het schreeuwt niet zoals .warn. */
+.pdv2-badge.wacht {
+  background: transparent;
+  border: 1px solid var(--warn-soft);
+  color: var(--warn);
+}
 
 /* ── Inhoudsgebied (§3.4) ─────────────────────────────────────────────────── */
 
 .pdv2-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--rail-w);
-  gap: 12px;
+  display: flex;
   padding: 12px var(--gutter);
-  align-items: start;
   overflow: hidden;
   flex: 1;
   min-height: 0;
 }
-.pdv2-main,
-.pdv2-rail {
+.pdv2-main {
+  flex: 1;
+  min-width: 0;
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
 }
-.pdv2-main > * + *,
-.pdv2-rail > * + * {
+.pdv2-main > * + * {
   margin-top: 10px;
+}
+
+/* Twee kaarten naast elkaar, en onder elkaar zodra dat niet meer past. */
+.pdv2-twee {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 10px;
+  align-items: start;
 }
 
 /* ── Kaarten ──────────────────────────────────────────────────────────────── */
@@ -738,7 +782,6 @@
 @media (max-width: 1200px) {
   .pdv2 {
     --gutter: 16px;
-    --rail-w: 264px;
   }
   .pdv2-facets {
     grid-template-columns: repeat(3, minmax(0, 1fr));
