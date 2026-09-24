@@ -22,10 +22,9 @@ import { OpdrachtTab } from './tabs/OpdrachtTab'
 import { ProductieTab } from './tabs/ProductieTab'
 import { NacalculatieTab } from './tabs/NacalculatieTab'
 import { DocumentenTab } from './tabs/DocumentenTab'
-import { AandachtBox } from './sidebar/AandachtBox'
-import { GeldBox } from './sidebar/GeldBox'
-import { ReserveringenBox } from './sidebar/ReserveringenBox'
-import { TodoBox } from './sidebar/TodoBox'
+import { FinancieelTab } from './tabs/FinancieelTab'
+import { ReserveringenTab } from './tabs/ReserveringenTab'
+import { AandachtTab } from './tabs/AandachtTab'
 
 import { berekenVoortgang } from '@stockmanager/shared'
 import { useProjectActies } from './useProjectActies'
@@ -52,18 +51,10 @@ const TAB_IDS: TabId[] = [
   'productie',
   'nacalculatie',
   'documenten',
+  'financieel',
+  'reserveringen',
+  'aandacht',
 ]
-
-/** Per gebruiker onthouden, niet per project (§3.1). */
-const KOP_KEY = 'pdv2_kop_ingeklapt'
-
-function leesKop(): boolean {
-  try {
-    return localStorage.getItem(KOP_KEY) === '1'
-  } catch {
-    return false
-  }
-}
 
 function leesTab(waarde: string | null, status: string | undefined): TabId {
   if (waarde && (TAB_IDS as string[]).includes(waarde)) return waarde as TabId
@@ -156,7 +147,11 @@ export function ProjectDetailPage() {
   // badge, de FactBox Geld en het tabblad niet elk apart die vergissing maken.
   const nacalc = nacalcRuw && nacalcRuw.orders.length > 0 ? nacalcRuw : null
 
-  const [kopIngeklapt, setKopIngeklapt] = useState(leesKop)
+  // Altijd uitgeklapt bij het openen van een project. Dit stond eerder in
+  // localStorage, en dan begon een project ingeklapt omdat je wéken eerder een
+  // keer ruimte nodig had op een ander project. Inklappen geldt nu zolang je op
+  // deze pagina bent.
+  const [kopIngeklapt, setKopIngeklapt] = useState(false)
   const acties = useProjectActies(project, (t) => kiesTab(t as TabId))
 
   const relatie = useMemo(() => {
@@ -183,15 +178,7 @@ export function ProjectDetailPage() {
   }
 
   function toggleKop() {
-    setKopIngeklapt((v) => {
-      const nieuw = !v
-      try {
-        localStorage.setItem(KOP_KEY, nieuw ? '1' : '0')
-      } catch {
-        /* privémodus: dan onthouden we het gewoon niet */
-      }
-      return nieuw
-    })
+    setKopIngeklapt((v) => !v)
   }
 
   function nogNiet(wat: string) {
@@ -211,12 +198,8 @@ export function ProjectDetailPage() {
   // is. Drie keer apart rekenen levert drie antwoorden op.
   const voortgang = berekenVoortgang(project)
   const facetten = bouwFacetten(project, relatie, nacalc)
-  const badges = bouwTabBadges(project, nacalc)
-  const tabStanden = bouwTabStanden({
-    project,
-    nacalc,
-    openTodos: projectTodos.filter((t) => !t.done).length,
-  })
+  const reserveringVMs = bouwReserveringen(reserveringen)
+  const todoVMs = bouwTodos(projectTodos)
   const primair = primaireActie(project, voortgang)
   const terug = terugActie(project)
   const slot = bouwSlot(holderName, isReadOnly, holderIdle, saveState)
@@ -225,6 +208,23 @@ export function ProjectDetailPage() {
     todos: projectTodos,
     nacalculatieAfwijkingPct: nacalc?.verschilPct ?? null,
     opslagMislukt: saveState === 'error',
+  })
+  const badges = bouwTabBadges(project, nacalc, {
+    reserveringen: reserveringVMs.length,
+    aandacht: aandacht.length,
+  })
+  const tabStanden = bouwTabStanden({
+    project,
+    nacalc,
+    openTodos: projectTodos.filter((t) => !t.done).length,
+    reserveringen: {
+      totaal: reserveringVMs.length,
+      wacht: reserveringVMs.filter((r) => r.wacht).length,
+    },
+    aandacht: {
+      totaal: aandacht.length,
+      rood: aandacht.filter((a) => a.ernst === 'rood').length,
+    },
   })
 
   return (
@@ -293,6 +293,9 @@ export function ProjectDetailPage() {
             />
           )}
           {tab === 'nacalculatie' && <NacalculatieTab nacalc={nacalc} />}
+          {tab === 'financieel' && <FinancieelTab geld={bouwGeld(project, nacalc)} />}
+          {tab === 'reserveringen' && <ReserveringenTab items={reserveringVMs} />}
+          {tab === 'aandacht' && <AandachtTab aandacht={aandacht} todos={todoVMs} />}
           {tab === 'documenten' && (
             <DocumentenTab
               project={project}
@@ -309,13 +312,6 @@ export function ProjectDetailPage() {
             />
           )}
         </div>
-
-        <aside className="pdv2-rail">
-          <AandachtBox items={aandacht} />
-          <GeldBox geld={bouwGeld(project, nacalc)} />
-          <ReserveringenBox items={bouwReserveringen(reserveringen)} />
-          <TodoBox items={bouwTodos(projectTodos)} />
-        </aside>
       </div>
 
       <FooterBar

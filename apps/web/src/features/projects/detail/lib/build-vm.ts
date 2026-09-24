@@ -176,9 +176,17 @@ export function bouwSamenvatting(p: Project, relatie: Relatie | null): string {
   return delen.join(' · ')
 }
 
+/**
+ * Het getal rechts van elke tabnaam.
+ *
+ * Alleen de tékst: de kleur komt sinds de herstyling van de tabbalk uit
+ * `bouwTabStanden`. Twee bronnen voor één kleur leverde tabs op die groen
+ * kleurden terwijl hun stand amber was.
+ */
 export function bouwTabBadges(
   p: Project,
   nacalc: ProjectNacalculatie | null,
+  extra: { reserveringen: number; aandacht: number },
 ): Record<TabId, TabBadge | null> {
   const { gereed, totaal } = stapTelling(p.productieOrders)
   const acc = geaccepteerdeOfferte(p)
@@ -222,6 +230,9 @@ export function bouwTabBadges(
             kleur: afw !== null && Math.abs(afw) >= 15 ? 'dgr' : 'warn',
           },
     documenten: { tekst: `${documenten}/4` },
+    financieel: { tekst: eur(offerteTotaal(p)) },
+    reserveringen: { tekst: extra.reserveringen === 0 ? 'geen' : `${extra.reserveringen}` },
+    aandacht: { tekst: extra.aandacht === 0 ? 'geen' : `${extra.aandacht}` },
   }
 }
 

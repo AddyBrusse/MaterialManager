@@ -1179,3 +1179,38 @@ en verdween een omgeboekte klus stilletjes weer.
 
 De kop van de terminal noemt de gekoppelde machine, niet de accountnaam: die
 twee kunnen uiteenlopen en het is de machine die het tarief bepaalt.
+
+## 2026-09-24 — De projectdetailpagina: tabs in plaats van een zijkolom
+
+**De zijkolom is weg.** Geld, Aandacht, Openstaande todo's en Reserveringen
+stonden als vaste kaarten naast de inhoud. Drie van de vier verdwenen uit
+zichzelf zodra ze leeg waren, en dat is precies wat een vaste kolom niet kan
+dragen: op een vers project stond er een lege strook van 304 px naast een tabel
+die de ruimte goed had kunnen gebruiken, en op een druk project zat de inhoud
+in tweederde van het scherm geperst terwijl rechts vier kaarten om aandacht
+vroegen die geen van alle de hoofdzaak waren.
+
+Alle vier zijn nu tabs. Wat verdween-als-leeg werd, is een lege staat geworden:
+een tab die je opent en die niets toont is een mislukking, dus zegt hij nu dat
+er niets is. De inhoud heeft de volle breedte; kaarten die niet over 1400 px
+uitgerekt horen te worden (Geld, Reserveringen) houden hun eigen maximum.
+
+**Eén bron voor de kleur op de tab.** De balk droeg een statusicoon vóór de
+naam én een badge erachter met een eigen kleur. Dat waren twee bronnen voor
+hetzelfde oordeel, en ze konden elkaar tegenspreken — een tab met een groene
+badge naast een amber icoon. Het icoon is weg; `bouwTabStanden` bepaalt de
+kleur van de indicatie rechts van de naam, `bouwTabBadges` alleen nog de tekst.
+Grijs bestaat nog niet, blauw loopt, groen gereed, amber vraagt aandacht, en
+amber-omlijnd wacht op iets buiten dit scherm.
+
+**De tabbalk heeft de vorm van de hoofdnavigatie** (`.gt-tab`): actieve tab
+uitgesneden in de achtergrond van de inhoud, 1 px over de scheidingslijn heen.
+Twee verschillende tabvormen op één scherm laten de binnenste als een tweede,
+vreemd systeem lezen. Negen tabs passen op een normaal venster; wordt het
+smaller, dan schuift de balk zijwaarts in plaats van af te breken naar een
+tweede rij — die tweede rij verbreekt de verbinding met de inhoud eronder.
+
+**De kop staat weer altijd open.** Het inklappen werd onthouden in
+`localStorage`, per browser en niet per project. Gevolg: een project begon
+ingeklapt omdat je weken eerder op een ánder project een keer ruimte nodig had,
+zonder dat iets dat verklaarde. Inklappen geldt nu zolang je op de pagina bent.
