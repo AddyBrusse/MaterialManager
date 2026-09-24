@@ -262,6 +262,7 @@ export function ProjectDetailPage() {
               project={project}
               geblokkeerd={geblokkeerd}
               onNieuweVersie={acties.nieuweOfferteVersie}
+              onKopieer={acties.kopieerOfferte}
               onVerzend={acties.verzendOfferte}
               onAccepteer={acties.accepteerOfferte}
               onGewijzigd={acties.ververs}

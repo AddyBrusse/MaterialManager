@@ -5,7 +5,7 @@ import type {
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
 } from '@stockmanager/shared'
-import { berekenVoortgang, basisRegels } from '@stockmanager/shared'
+import { berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie } from '@stockmanager/shared'
 import { notifications } from '@mantine/notifications'
 import { apiFetch } from './client'
 
@@ -227,7 +227,11 @@ export const projectsApi = {
 
   // ── Offerte operations ─────────────────────────────────────────────────────
 
-  addOfferte(projectId: string): Project {
+  /**
+   * Nieuwe offerteversie. Met `vanOfferteId` een kopie van die versie — zie
+   * `kopieerOfferte` in de gedeelde kern voor wat er meegaat — anders leeg.
+   */
+  addOfferte(projectId: string, vanOfferteId?: string): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
     const id = nextLocalDocId('OFF')
@@ -235,24 +239,38 @@ export const projectsApi = {
     // Hier stond eerder alleen `id`, waardoor v2 een ander nummer kreeg dan v1
     // terwijl `versie` wél doortelde: twee tellingen die iets anders zeiden.
     const eerste = p.offertes[0]
-    const off: Offerte = {
-      id,
-      documentNr: eerste ? eerste.documentNr : id,
-      projectId,
-      versie: p.offertes.length + 1,
-      status: 'concept',
-      regels: [],
-      notities: '',
-      geldigTot: null,
-      verzondenOp: null,
-      geaccepteerdOp: null,
-      createdAt: now(),
-      updatedAt: now(),
-    }
+    const documentNr = eerste ? eerste.documentNr : id
+    const versie = volgendeVersie(p.offertes)
+
+    const bron = vanOfferteId ? p.offertes.find(o => o.id === vanOfferteId) : undefined
+    if (vanOfferteId && !bron) throw new Error('Te kopiëren offerteversie niet gevonden')
+    // De regel-id's maken we hier en sturen ze mee, zodat een aanpassing direct
+    // na het kopiëren dezelfde regel raakt als de server straks kent.
+    const regelIds = bron
+      ? bron.regels.map((_, i) => `regel_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`)
+      : undefined
+
+    const off: Offerte = bron
+      // Een kopie herziet déze versie en draagt dus haar nummer — zie de API.
+      ? kopieerOfferte(bron, { id, documentNr: bron.documentNr, versie, regelIds, nu: now() })
+      : {
+          id,
+          documentNr,
+          projectId,
+          versie,
+          status: 'concept',
+          regels: [],
+          notities: '',
+          geldigTot: null,
+          verzondenOp: null,
+          geaccepteerdOp: null,
+          createdAt: now(),
+          updatedAt: now(),
+        }
     const updated = updateCache(projectId, p => ({ ...p, offertes: [...p.offertes, off], updatedAt: now() }))
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes`, {
-      method: 'POST', body: JSON.stringify({ id }),
-    }), 'Nieuwe offerte aanmaken mislukt')
+      method: 'POST', body: JSON.stringify({ id, vanOfferteId, regelIds }),
+    }), bron ? 'Offerte kopiëren mislukt' : 'Nieuwe offerte aanmaken mislukt')
     return updated
   },
 

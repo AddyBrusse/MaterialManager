@@ -1,5 +1,5 @@
-import { Fragment, useState } from 'react'
-import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { IconChevronDown, IconChevronRight, IconCopy } from '@tabler/icons-react'
 import type { Offerte, Project } from '@stockmanager/shared'
 import { ArtikelPickerModal } from '../../../../components/projecten/ArtikelPickerModal'
 import { PrijzenBijwerkenModal } from '../../../../components/projecten/PrijzenBijwerkenModal'
@@ -50,6 +50,7 @@ interface Props {
   project: Project
   geblokkeerd: boolean
   onNieuweVersie: () => void
+  onKopieer: (offerteId: string) => void
   onVerzend: (offerteId: string) => void
   onAccepteer: (offerteId: string) => void
   onGewijzigd: () => void
@@ -63,6 +64,7 @@ export function OffertesTab({
   project,
   geblokkeerd,
   onNieuweVersie,
+  onKopieer,
   onVerzend,
   onAccepteer,
   onGewijzigd,
@@ -77,6 +79,14 @@ export function OffertesTab({
   // tegelijk open: twee regeltabellen onder elkaar met dezelfde kolommen zijn
   // niet meer uit elkaar te houden.
   const [open, setOpen] = useState<string | null>(acc?.id ?? versies[0]?.id ?? null)
+  // Komt er een versie bij — leeg of gekopieerd — dan klapt die open. Wie net
+  // op "Kopieer" drukte wil de nieuwe versie bewerken, niet eerst zoeken waar
+  // hij gebleven is.
+  const aantal = useRef(versies.length)
+  useEffect(() => {
+    if (versies.length > aantal.current && versies[0]) setOpen(versies[0].id)
+    aantal.current = versies.length
+  }, [versies])
   const [picker, setPicker] = useState<string | null>(null)
   const [prijzen, setPrijzen] = useState<string | null>(null)
 
@@ -129,7 +139,7 @@ export function OffertesTab({
             <th className="num" style={{ width: 104 }}>
               Totaal
             </th>
-            <th style={{ width: 118 }} />
+            <th style={{ width: 196 }} />
           </tr>
         </thead>
         <tbody>
@@ -158,7 +168,12 @@ export function OffertesTab({
                       <span className="mono">{o.versie}</span>
                     </button>
                   </td>
-                  <td className="mono">{o.id}</td>
+                  {/* Het nummer dat de klant kent, niet de sleutel: een herziening
+                      draagt het nummer van de versie die ze herziet, dus v4 en
+                      een kopie ervan staan hier onder hetzelfde nummer. */}
+                  <td className="mono" title={o.documentNr !== o.id ? `intern ${o.id}` : undefined}>
+                    {o.documentNr}
+                  </td>
                   <td>
                     <span className={`pdv2-pill ${pill.kleur}`}>{pill.tekst}</span>
                   </td>
@@ -167,7 +182,7 @@ export function OffertesTab({
                   <td className="mono">{datum(o.geaccepteerdOp)}</td>
                   <td className="mono">{datum(o.geldigTot)}</td>
                   <td className="num">{eur(o.regels.reduce((s, r) => s + r.totaal, 0))}</td>
-                  <td>
+                  <td className="pdv2-acties">
                     {/* Vooruit is per versie een keuze die alleen een mens maakt:
                         wélke versie gaat de deur uit, wélke accepteert de klant. */}
                     {o.status === 'concept' && (
@@ -191,6 +206,19 @@ export function OffertesTab({
                         Accepteren
                       </button>
                     )}
+                    {/* Elke versie is een basis, ook een vervallen of een
+                        geaccepteerde: een staffel van 10 begint vaak als
+                        kopie van die van 5. */}
+                    <button
+                      type="button"
+                      className="pdv2-btn s"
+                      disabled={geblokkeerd}
+                      title={`Nieuwe versie maken op basis van v${o.versie}`}
+                      onClick={() => onKopieer(o.id)}
+                    >
+                      <IconCopy size={12} />
+                      Kopieer
+                    </button>
                   </td>
                 </tr>
 

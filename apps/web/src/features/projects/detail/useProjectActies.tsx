@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import type { Project } from '@stockmanager/shared'
-import { laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
+import { laatsteFactuur, laatstePaklijst, volgendeVersie } from '@stockmanager/shared'
 import { projectsApi } from '../../../api/projects'
 import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
@@ -42,6 +42,7 @@ export interface ProjectActies {
   annuleer: () => void
   terug: () => void
   nieuweOfferteVersie: () => void
+  kopieerOfferte: (offerteId: string) => void
   verzendOfferte: (offerteId: string) => void
   accepteerOfferte: (offerteId: string) => void
   maakOpdracht: () => void
@@ -101,6 +102,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     annuleer: () => {},
     terug: () => {},
     nieuweOfferteVersie: () => {},
+    kopieerOfferte: () => {},
     verzendOfferte: () => {},
     accepteerOfferte: () => {},
     maakOpdracht: () => {},
@@ -247,6 +249,13 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     terug,
     nieuweOfferteVersie: () =>
       doe('Nieuwe offerteversie aangemaakt', () => projectsApi.addOfferte(id)),
+    kopieerOfferte: (offerteId) => {
+      const bron = project.offertes.find((o) => o.id === offerteId)
+      doe(
+        `v${volgendeVersie(project.offertes)} gemaakt op basis van v${bron?.versie ?? '?'}`,
+        () => projectsApi.addOfferte(id, offerteId),
+      )
+    },
     verzendOfferte: (offerteId) =>
       doe(`${offerteId} verstuurd`, () => projectsApi.verzendOfferte(id, offerteId)),
     accepteerOfferte: (offerteId) =>

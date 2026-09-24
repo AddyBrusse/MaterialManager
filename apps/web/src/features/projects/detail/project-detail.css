@@ -560,6 +560,17 @@
 .pdv2-tbl tbody tr:hover {
   background: var(--alt);
 }
+/* Actieknoppen van een versie op één regel, rechts uitgelijnd: Kopieer staat
+   altijd op dezelfde plek, of er nu een Versturen of Accepteren naast staat
+   of niet. */
+.pdv2-tbl td.pdv2-acties {
+  text-align: right;
+  white-space: nowrap;
+}
+.pdv2-tbl td.pdv2-acties .pdv2-btn + .pdv2-btn {
+  margin-left: 5px;
+}
+
 /* Uitklapknop in de eerste kolom: het pijltje en het versienummer zijn samen
    één trefvlak, zodat je niet op een pijltje van 13 px hoeft te mikken. */
 .pdv2-uitklap {

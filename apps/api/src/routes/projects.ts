@@ -6,7 +6,7 @@ import {
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
-  berekenVoortgang, basisRegels,
+  berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
@@ -223,7 +223,15 @@ router.post(
 
 // ── Offerte operations ─────────────────────────────────────────────────────────
 
-const CreateOfferteSchema = z.object({ id: z.string().optional() })
+const CreateOfferteSchema = z.object({
+  id: z.string().optional(),
+  // Op basis van een bestaande versie: die wordt gekopieerd, anders begint de
+  // nieuwe versie leeg. Zie `kopieerOfferte` voor wat er meegaat.
+  vanOfferteId: z.string().optional(),
+  // De regel-id's die de browser al in zijn cache gebruikt, in de volgorde van
+  // de bron — zodat een bewerking direct na het kopiëren de goede regel raakt.
+  regelIds: z.array(z.string()).optional(),
+})
 
 router.post(
   '/:id/offertes',
@@ -236,19 +244,35 @@ router.post(
       // van, geen tweede offerte. Alleen de allereerste versie geeft een nieuw
       // nummer uit. Het id moet wel per versie verschillen — dat is de sleutel.
       const eerste = p.offertes[0]
-      const off: Offerte = {
-        id,
-        documentNr: eerste ? eerste.documentNr : id,
-        projectId: p.id,
-        versie: p.offertes.length + 1,
-        status: 'concept',
-        regels: [],
-        notities: '',
-        geldigTot: null,
-        verzondenOp: null,
-        geaccepteerdOp: null,
-        createdAt: now(),
-        updatedAt: now(),
+      const documentNr = eerste ? eerste.documentNr : id
+      const versie = volgendeVersie(p.offertes)
+
+      let off: Offerte
+      if (body.vanOfferteId) {
+        const bron = p.offertes.find(o => o.id === body.vanOfferteId)
+        if (!bron) throw new AppError(404, 'NOT_FOUND', 'Te kopiëren offerteversie niet gevonden')
+        // Een kopie herziet déze versie, dus draagt hij haar nummer. Bij een
+        // project van ná de nummer-migratie is dat hetzelfde als dat van v1;
+        // bij een ouder project, waar elke versie haar eigen nummer hield, is
+        // het het nummer dat de klant van deze versie kent.
+        off = kopieerOfferte(bron, {
+          id, documentNr: bron.documentNr, versie, regelIds: body.regelIds, nu: now(),
+        })
+      } else {
+        off = {
+          id,
+          documentNr,
+          projectId: p.id,
+          versie,
+          status: 'concept',
+          regels: [],
+          notities: '',
+          geldigTot: null,
+          verzondenOp: null,
+          geaccepteerdOp: null,
+          createdAt: now(),
+          updatedAt: now(),
+        }
       }
       return { ...p, offertes: [...p.offertes, off], updatedAt: now() }
     })
