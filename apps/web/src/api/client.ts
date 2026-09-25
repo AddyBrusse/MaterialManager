@@ -35,6 +35,31 @@ export async function apiUpload<T>(path: string, file: File): Promise<{ data: T 
   return json as { data: T }
 }
 
+/**
+ * Een mislukt verzoek, met alles wat een melding nodig heeft om te zeggen wát
+ * er misging en wáár (zie `utils/fout-melding.ts` en de afspraak in CLAUDE.md).
+ *
+ * Een subklasse van Error, zodat bestaande code die `e.message` toont blijft
+ * werken — die krijgt dezelfde tekst als voorheen.
+ */
+export class ApiFout extends Error {
+  constructor(
+    /** Wat de server zei, of een eigen uitleg als hij niets zei. */
+    public readonly uitleg: string,
+    /** De code uit `{ error: { code } }`, of GEEN_VERBINDING / TIMEOUT. */
+    public readonly code: string,
+    /** HTTP-status; 0 als het verzoek de server nooit bereikte. */
+    public readonly status: number,
+    /** Methode en pad, bijvoorbeeld "POST /projects/PRJ-1/offertes". */
+    public readonly verzoek: string,
+    /** De technische reden die de server meestuurde, als die er is. */
+    public readonly reden?: string,
+  ) {
+    super(reden ? `${uitleg} — ${reden}` : uitleg)
+    this.name = 'ApiFout'
+  }
+}
+
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -48,10 +73,22 @@ export async function apiFetch<T>(
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 3000)
+  const verzoek = `${(options.method ?? 'GET').toUpperCase()} ${path}`
 
   let res: Response
   try {
     res = await fetch(`/api${path}`, { ...options, headers, signal: controller.signal })
+  } catch (e) {
+    // Het verzoek bereikte de server niet, of kwam niet op tijd terug. Twee
+    // verschillende situaties met een verschillende oplossing, dus ook twee
+    // verschillende meldingen.
+    if (controller.signal.aborted) {
+      throw new ApiFout('De server antwoordde niet binnen 3 seconden', 'TIMEOUT', 0, verzoek)
+    }
+    throw new ApiFout(
+      'De server is niet bereikbaar — draait de API, en is het netwerk in orde?',
+      'GEEN_VERBINDING', 0, verzoek, e instanceof Error ? e.message : undefined,
+    )
   } finally {
     clearTimeout(timer)
   }
@@ -60,15 +97,29 @@ export async function apiFetch<T>(
   // throws "Unexpected end of JSON input", which used to turn every successful
   // DELETE into a rejected promise.
   const raw = await res.text()
-  const json = raw ? JSON.parse(raw) : null
+  let json: any = null
+  try {
+    json = raw ? JSON.parse(raw) : null
+  } catch {
+    // Geen JSON terug — bijvoorbeeld een HTML-foutpagina van een proxy. Dan
+    // is dát de fout, niet een onleesbare "Unexpected token <".
+    if (!res.ok) throw new ApiFout(`De server gaf een onverwacht antwoord (HTTP ${res.status})`, 'ONLEESBAAR', res.status, verzoek)
+    throw new ApiFout('De server gaf een onleesbaar antwoord', 'ONLEESBAAR', res.status, verzoek)
+  }
 
   if (!res.ok) {
     // De server stuurt bij een 500 in ontwikkeling de echte reden mee; die
     // hoort in de melding, anders staat er alleen "Interne serverfout" en
     // begint het zoeken opnieuw.
-    const reden = json?.error?.details?.reden
-    const msg = [json?.error?.message ?? `HTTP ${res.status}`, reden].filter(Boolean).join(' — ')
-    throw new Error(msg)
+    throw new ApiFout(
+      json?.error?.message ?? `HTTP ${res.status}`,
+      json?.error?.code ?? `HTTP_${res.status}`,
+      res.status,
+      verzoek,
+      // Een validatiefout zegt in de melding zelf al welk veld (de server
+      // vertaalt dat, zie lib/zod-nl.ts); hier alleen de technische reden.
+      json?.error?.details?.reden,
+    )
   }
 
   return (json ?? { data: undefined }) as { data: T }

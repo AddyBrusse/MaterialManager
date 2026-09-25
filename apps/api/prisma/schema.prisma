@@ -480,6 +480,8 @@ model Offerte {
   versie         Int
   status         String   @default("concept")
   notities       String   @default("")
+  /// Waar deze versie antwoord op geeft (RFQ-nummer, "mail 12-09"). Vrije tekst.
+  externeRef     String?  @map("externe_ref")
   geldigTot      String?  @map("geldig_tot")
   verzondenOp    String?  @map("verzonden_op")
   geaccepteerdOp String?  @map("geaccepteerd_op")

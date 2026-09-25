@@ -32,6 +32,7 @@
   --dgr-soft: rgba(184, 39, 12, 0.1);
   --rail: rgba(15, 17, 22, 0.13);
   --alt: rgba(15, 17, 22, 0.022);
+  --alt-licht: rgba(15, 17, 22, 0.011);
   /* Iets sterker dan --border: de rand om de actieve tab moet te zién zijn,
      niet te vermoeden. */
   --border-strong-pdv2: rgba(15, 17, 22, 0.16);
@@ -65,6 +66,7 @@
   --dgr-soft: rgba(242, 112, 90, 0.14);
   --rail: rgba(236, 237, 240, 0.18);
   --alt: rgba(236, 237, 240, 0.03);
+  --alt-licht: rgba(236, 237, 240, 0.015);
   --border-strong-pdv2: rgba(236, 237, 240, 0.26);
 }
 
@@ -558,8 +560,116 @@
 .pdv2-tbl tbody tr:hover {
   background: var(--alt);
 }
-.pdv2-tbl tr.gekozen td {
-  box-shadow: inset 0 0 0 1px var(--accent);
+/* Actieknoppen van een versie op één regel, rechts uitgelijnd: Kopieer staat
+   altijd op dezelfde plek, of er nu een Versturen of Accepteren naast staat
+   of niet. */
+.pdv2-tbl td.pdv2-acties {
+  text-align: right;
+  white-space: nowrap;
+}
+.pdv2-tbl td.pdv2-acties .pdv2-btn + .pdv2-btn {
+  margin-left: 5px;
+}
+
+/* Uitklapknop in de eerste kolom: het pijltje en het versienummer zijn samen
+   één trefvlak, zodat je niet op een pijltje van 13 px hoeft te mikken. */
+.pdv2-uitklap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 5px 2px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text2);
+  cursor: pointer;
+}
+.pdv2-uitklap:hover {
+  color: var(--text);
+}
+
+/* De regels van een versie, als kinderen eronder. Geen kader en geen lijnen:
+   de inspringing doet het werk, zodat je ziet dat deze regels bij de versie
+   erbóven horen en niet bij de versie eronder. */
+.pdv2-kind-rij > td {
+  padding: 0 0 8px 0 !important;
+  /* Half zo donker als --alt: net genoeg om de regels als één blok onder hun
+     versie te laten lezen, zonder dat het een grijs vlak wordt. */
+  background: var(--alt-licht);
+}
+.pdv2-kind {
+  padding-left: 34px;
+  padding-right: 10px;
+}
+.pdv2-kind-acties {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 7px 0 3px;
+}
+.pdv2-kind .pdv2-tbl th {
+  background: transparent;
+}
+
+/* Een link in de subregel (het artikelnummer): accentkleur zoals elke andere
+   link op deze pagina, onderstreept pas bij hover. */
+.pdv2-tbl .sub a {
+  color: var(--accent-tx);
+  text-decoration: none;
+}
+.pdv2-tbl .sub a:hover {
+  text-decoration: underline;
+}
+
+/* Voorbeeldcel: de thumbnail bepaalt de rijhoogte, dus hier geen extra
+   verticale ruimte erbovenop. */
+.pdv2-tbl td.pdv2-voorbeeld {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+/* Inline te bewerken getal in een cel. Ziet eruit als tekst tot je erin klikt:
+   een tabel vol invoervakken leest als een formulier, en dit is een overzicht
+   waarin je af en toe iets bijstelt. */
+.pdv2-cel-getal {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font: inherit;
+  font-family: var(--mono);
+  text-align: right;
+  color: inherit;
+  padding: 1px 4px;
+}
+.pdv2-cel-tekst {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  padding: 1px 4px;
+}
+.pdv2-cel-tekst::placeholder {
+  color: var(--text3);
+  opacity: 0.7;
+}
+.pdv2-cel-tekst:hover:not(:disabled) {
+  border-color: var(--border);
+}
+.pdv2-cel-tekst:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg2);
+}
+.pdv2-cel-getal:hover {
+  border-color: var(--border);
+}
+.pdv2-cel-getal:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg2);
 }
 .pdv2-tbl tr.geaccepteerd td {
   background: var(--ok-soft);
@@ -702,6 +812,7 @@
   margin-bottom: 3px;
 }
 .pdv2-veld input,
+.pdv2-veld select,
 .pdv2-veld textarea {
   width: 100%;
   height: 26px;
@@ -817,3 +928,106 @@
     padding-left: 12px;
   }
 }
+
+/* ── Bevestigen en kopiëren naar een nieuw project ─────────────────────────── */
+.pdv2-btn.gevaar {
+  background: var(--dgr);
+  border-color: var(--dgr);
+  color: #fff;
+}
+.pdv2-btn.gevaar:hover:not(:disabled) {
+  background: var(--dgr);
+  filter: brightness(1.08);
+}
+.pdv2-btn.stil {
+  color: var(--text2);
+}
+.pdv2-modal-achter {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 300;
+}
+.pdv2-modal {
+  width: 440px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg2);
+}
+.pdv2-modal-tekst {
+  font-size: 12px;
+  color: var(--text2);
+  line-height: 1.5;
+}
+.pdv2-modal-tekst p {
+  margin: 0 0 8px;
+}
+.pdv2-modal-tekst strong {
+  color: var(--text);
+}
+.pdv2-modal-knoppen {
+  display: flex;
+  gap: 7px;
+  justify-content: flex-end;
+  padding: 0 10px 10px;
+}
+.pdv2-modal .pdv2-veld + .pdv2-veld {
+  margin-top: 9px;
+}
+.pdv2-modal .pdv2-veld .hint {
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: var(--text3);
+}
+
+/* Kopieer met een pijltje voor "naar nieuw project": twee knoppen die als één
+   lezen, zodat het gewone kopiëren één klik blijft. */
+.pdv2-splits {
+  position: relative;
+  display: inline-flex;
+}
+.pdv2-splits > .pdv2-btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.pdv2-splits > .pdv2-btn + .pdv2-btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: none;
+  padding: 0 5px;
+}
+.pdv2-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 3px);
+  z-index: 20;
+  min-width: 220px;
+  padding: 3px;
+  border: 1px solid var(--border2);
+  border-radius: 4px;
+  background: var(--bg2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+.pdv2-menu button {
+  display: block;
+  width: 100%;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 3px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.pdv2-menu button:hover {
+  background: var(--bg3);
+}
+.pdv2-menu button small {
+  display: block;
+  color: var(--text3);
+  font-size: 10.5px;
+}
+

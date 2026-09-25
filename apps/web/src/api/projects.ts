@@ -5,9 +5,10 @@ import type {
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
 } from '@stockmanager/shared'
-import { berekenVoortgang, basisRegels } from '@stockmanager/shared'
-import { notifications } from '@mantine/notifications'
-import { apiFetch } from './client'
+import { berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken } from '@stockmanager/shared'
+import { apiFetch, ApiFout } from './client'
+import { meldFout } from '../utils/fout-melding-toon'
+import type { LaadFout } from '../utils/fout-melding'
 
 // Bedragen worden op twee plekken berekend (hier optimistisch, op de server
 // definitief). Zelfde afronding, anders springt het bedrag zodra het antwoord
@@ -67,14 +68,21 @@ function seedSequenceCounters(projects: Project[]): void {
   }
 }
 
-export async function initProjects(): Promise<void> {
+export async function initProjects(): Promise<LaadFout | null> {
   try {
     const { data } = await apiFetch<Project[]>('/projects')
     cache = data
     saveLocal(data)
     seedSequenceCounters(data)
-  } catch {
+    return null
+  } catch (fout) {
     cache = loadLocal()
+    // Dit viel eerder stil terug op de kopie in de browser. Op 2026-09-25
+    // werkte iemand daardoor op een kopie zonder het te weten: de database
+    // liep achter, het laden faalde, en elke knop gaf daarna "mislukt" zonder
+    // dat iets zei dát het scherm niet van de server kwam. Gemeld wordt het in
+    // useInitAppData, samen met de andere lijsten.
+    return { wat: 'projecten', aantalLokaal: cache.length, fout }
   }
 }
 
@@ -86,6 +94,11 @@ function updateCache(id: string, fn: (p: Project) => Project): Project {
   let updated!: Project
   cache = cache.map(p => {
     if (p.id !== id) return p
+    // Hoe het project eruitzag vóór deze reeks wijzigingen. Nodig als de
+    // opslag mislukt én de server ook niet te lezen is: dan is dit het enige
+    // waar we eerlijk naar terug kunnen. Zonder dit stond een mislukte kopie
+    // ook na herladen nog in beeld — hij zat al in de bewaarde browserkopie.
+    if ((saveInflight[id] ?? 0) === 0) vorigeStand[id] = p
     updated = fn(p)
     return updated
   })
@@ -104,7 +117,9 @@ function updateCache(id: string, fn: (p: Project) => Project): Project {
 function syncProject(
   projectId: string,
   promise: Promise<{ data: Project }>,
-  failMessage: string,
+  /** De handeling in gewone taal, bv. "Offerte versturen". De melding zet er
+   *  zelf "mislukt" achter. */
+  actie: string,
 ): void {
   // Start of a fresh save batch for this project → clear any prior error.
   if ((saveInflight[projectId] ?? 0) === 0) saveErrored[projectId] = false
@@ -112,17 +127,69 @@ function syncProject(
   setSaveState(projectId, 'saving')
   promise
     .then(r => { cache = cache.map(p => p.id === projectId ? r.data : p); saveLocal(cache) })
-    .catch(() => {
+    .catch(async (fout: unknown) => {
       saveErrored[projectId] = true
-      notifications.show({ color: 'red', message: `${failMessage} — wijziging is niet opgeslagen op de server.` })
+      // De wijziging stond al op het scherm (optimistisch). Nu het niet gelukt
+      // is, halen we op wat er wérkelijk op de server staat — anders toont het
+      // scherm iets wat niet bestaat, tot iemand herlaadt. Dat terughalen
+      // bepaalt ook wat we eerlijk over het gevolg kunnen zeggen.
+      const onzeker = fout instanceof ApiFout && fout.code === 'TIMEOUT'
+      let gevolg: string
+      try {
+        const r = await apiFetch<Project>(`/projects/${projectId}`)
+        cache = cache.map(p => p.id === projectId ? r.data : p)
+        saveLocal(cache)
+        gevolg = onzeker
+          // Na een time-out kan de server het alsnog verwerkt hebben. Dan is
+          // "niets opgeslagen" niet waar — we weten het niet.
+          ? 'Onbekend of het is opgeslagen: de server antwoordde niet op tijd. '
+            + 'Het scherm toont nu wat er op de server staat — kijk of je wijziging erbij staat.'
+          : 'Niets opgeslagen. Het scherm is teruggezet naar wat er op de server staat; '
+            + 'doe het opnieuw als de oorzaak is opgelost.'
+      } catch {
+        const vorig = vorigeStand[projectId]
+        if (vorig) {
+          cache = cache.map(p => p.id === projectId ? vorig : p)
+          saveLocal(cache)
+          gevolg = 'Niets opgeslagen, en de server was ook niet te lezen. Het scherm is teruggezet '
+            + 'naar hoe het was vóór deze handeling — dat is de kopie uit deze browser, die '
+            + 'verouderd kan zijn.'
+        } else {
+          gevolg = 'Niets opgeslagen op de server, en de server was ook niet te lezen. Het scherm '
+            + 'kan je wijziging nog tonen terwijl die nergens is opgeslagen.'
+        }
+      }
+      meldFout({ actie, fout, gevolg })
     })
     .finally(() => {
       saveInflight[projectId] = Math.max(0, (saveInflight[projectId] ?? 1) - 1)
       if (saveInflight[projectId] === 0) {
+        delete vorigeStand[projectId]
         setSaveState(projectId, saveErrored[projectId] ? 'error' : 'saved')
+        const wachtenden = opslagWachters[projectId] ?? []
+        opslagWachters[projectId] = []
+        wachtenden.forEach(w => w(!saveErrored[projectId]))
       }
     })
 }
+
+/**
+ * Wacht tot alles wat voor dit project onderweg is, bij de server is aangekomen.
+ * `true` als dat gelukt is, `false` als er iets mislukte (daar is dan al een
+ * foutmelding voor getoond).
+ *
+ * Bestaat voor de groene melding: die hoort pas te verschijnen als de server
+ * het bevestigd heeft, niet op het moment dat de knop ingedrukt wordt. Anders
+ * stond er "v7 gemaakt" en direct daaronder "mislukt".
+ */
+export function wachtOpOpslag(projectId: string): Promise<boolean> {
+  if ((saveInflight[projectId] ?? 0) === 0) return Promise.resolve(!saveErrored[projectId])
+  return new Promise(resolve => {
+    ;(opslagWachters[projectId] ??= []).push(resolve)
+  })
+}
+const opslagWachters: Record<string, ((gelukt: boolean) => void)[]> = {}
+const vorigeStand: Record<string, Project | undefined> = {}
 
 // ── Autosave state (per project) ────────────────────────────────────────────
 // Every mutation runs through syncProject, so this reflects "is anything for
@@ -207,27 +274,36 @@ export const projectsApi = {
     }
     cache = [...cache, p]
     saveLocal(cache)
-    syncProject(id, apiFetch<Project>('/projects', { method: 'POST', body: JSON.stringify({ ...body, id }) }), `Project ${id} aanmaken mislukt`)
+    syncProject(id, apiFetch<Project>('/projects', { method: 'POST', body: JSON.stringify({ ...body, id }) }), `Project ${id} aanmaken`)
     return p
   },
 
   update(id: string, patch: UpdateProject): Project {
     const updated = updateCache(id, p => ({ ...p, ...patch, updatedAt: now() }))
-    syncProject(id, apiFetch<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }), `Project ${id} bijwerken mislukt`)
+    syncProject(id, apiFetch<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }), `Project ${id} bijwerken`)
     return updated
   },
 
   remove(id: string): void {
     cache = cache.filter(p => p.id !== id)
     saveLocal(cache)
-    apiFetch<void>(`/projects/${id}`, { method: 'DELETE' }).catch(() => {
-      notifications.show({ color: 'red', message: `Project ${id} verwijderen mislukt op de server.` })
+    apiFetch<void>(`/projects/${id}`, { method: 'DELETE' }).catch((fout: unknown) => {
+      meldFout({
+        actie: `Project ${id} verwijderen`,
+        fout,
+        gevolg: 'Het project is alleen uit de lijst in deze browser gehaald; op de server bestaat '
+          + 'het nog. Herlaad de pagina, dan staat het er weer.',
+      })
     })
   },
 
   // ── Offerte operations ─────────────────────────────────────────────────────
 
-  addOfferte(projectId: string): Project {
+  /**
+   * Nieuwe offerteversie. Met `vanOfferteId` een kopie van die versie — zie
+   * `kopieerOfferte` in de gedeelde kern voor wat er meegaat — anders leeg.
+   */
+  addOfferte(projectId: string, vanOfferteId?: string): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
     const id = nextLocalDocId('OFF')
@@ -235,24 +311,105 @@ export const projectsApi = {
     // Hier stond eerder alleen `id`, waardoor v2 een ander nummer kreeg dan v1
     // terwijl `versie` wél doortelde: twee tellingen die iets anders zeiden.
     const eerste = p.offertes[0]
-    const off: Offerte = {
-      id,
-      documentNr: eerste ? eerste.documentNr : id,
-      projectId,
-      versie: p.offertes.length + 1,
-      status: 'concept',
-      regels: [],
-      notities: '',
-      geldigTot: null,
-      verzondenOp: null,
-      geaccepteerdOp: null,
-      createdAt: now(),
-      updatedAt: now(),
-    }
+    const documentNr = eerste ? eerste.documentNr : id
+    const versie = volgendeVersie(p.offertes)
+
+    const bron = vanOfferteId ? p.offertes.find(o => o.id === vanOfferteId) : undefined
+    if (vanOfferteId && !bron) throw new Error('Te kopiëren offerteversie niet gevonden')
+    // De regel-id's maken we hier en sturen ze mee, zodat een aanpassing direct
+    // na het kopiëren dezelfde regel raakt als de server straks kent.
+    const regelIds = bron
+      ? bron.regels.map((_, i) => `regel_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`)
+      : undefined
+
+    const off: Offerte = bron
+      // Een kopie herziet déze versie en draagt dus haar nummer — zie de API.
+      ? kopieerOfferte(bron, { id, documentNr: bron.documentNr, versie, regelIds, nu: now() })
+      : {
+          id,
+          documentNr,
+          projectId,
+          versie,
+          status: 'concept',
+          regels: [],
+          notities: '',
+          externeRef: null,
+          geldigTot: null,
+          verzondenOp: null,
+          geaccepteerdOp: null,
+          createdAt: now(),
+          updatedAt: now(),
+        }
     const updated = updateCache(projectId, p => ({ ...p, offertes: [...p.offertes, off], updatedAt: now() }))
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes`, {
-      method: 'POST', body: JSON.stringify({ id }),
-    }), 'Nieuwe offerte aanmaken mislukt')
+      method: 'POST', body: JSON.stringify({ id, vanOfferteId, regelIds }),
+    }), bron ? 'Offerte kopiëren' : 'Nieuwe offerte aanmaken')
+    return updated
+  },
+
+  /** Een concept weg. Alleen een concept — zie `waaromNietVerwijderen`. */
+  verwijderOfferte(projectId: string, offerteId: string): Project {
+    const updated = updateCache(projectId, p => projectNaIntrekken({
+      ...p,
+      updatedAt: now(),
+      offertes: p.offertes.filter(o => o.id !== offerteId),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}`, {
+      method: 'DELETE',
+    }), 'Offerte verwijderen')
+    return updated
+  },
+
+  /** Een verstuurde versie die niet meer geldt: vervallen, maar zichtbaar. */
+  trekOfferteIn(projectId: string, offerteId: string): Project {
+    const updated = updateCache(projectId, p => projectNaIntrekken({
+      ...p,
+      updatedAt: now(),
+      offertes: p.offertes.map(o =>
+        o.id === offerteId ? { ...o, status: 'vervallen' as OfferteStatus, updatedAt: now() } : o,
+      ),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/intrek`, {
+      method: 'POST',
+    }), 'Offerte intrekken')
+    return updated
+  },
+
+  /**
+   * Een offerte als begin van een nieuw project. Niet optimistisch, anders dan
+   * de rest hier: het projectnummer komt van de server, en naar een project
+   * navigeren dat misschien niet ontstaat is erger dan een halve seconde
+   * wachten. Gooit een `ApiFout`; de aanroeper meldt die.
+   */
+  async naarNieuwProject(
+    projectId: string,
+    offerteId: string,
+    body: { naam: string; relatieId: string | null; contactId: string | null; externeRef: string | null },
+  ): Promise<Project> {
+    const { data } = await apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/naar-project`, {
+      method: 'POST', body: JSON.stringify(body),
+    })
+    cache = [...cache.filter(p => p.id !== data.id), data]
+    saveLocal(cache)
+    // De server koos PRJ- en OFF-nummer; zonder dit geeft "Nieuw project" in
+    // deze browser straks hetzelfde nummer nog eens uit.
+    seedSequenceCounters(cache)
+    return data
+  },
+
+  /** Velden van een versie zelf — nu alleen de externe referentie. */
+  updateOfferte(projectId: string, offerteId: string, patch: { externeRef: string | null }): Project {
+    const externeRef = patch.externeRef?.trim() || null
+    const updated = updateCache(projectId, p => ({
+      ...p,
+      updatedAt: now(),
+      offertes: p.offertes.map(o =>
+        o.id === offerteId ? { ...o, externeRef, updatedAt: now() } : o,
+      ),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}`, {
+      method: 'PATCH', body: JSON.stringify({ externeRef }),
+    }), 'Referentie opslaan')
     return updated
   },
 
@@ -295,7 +452,7 @@ export const projectsApi = {
     })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels`, {
       method: 'POST', body: JSON.stringify({ ...data, id }),
-    }), `Artikel "${data.naam}" toevoegen mislukt`)
+    }), `Artikel "${data.naam}" toevoegen`)
     return updated
   },
 
@@ -324,7 +481,7 @@ export const projectsApi = {
     }))
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels/${regelId}`, {
       method: 'PATCH', body: JSON.stringify(patch),
-    }), 'Regel bijwerken mislukt')
+    }), 'Regel bijwerken')
     return updated
   },
 
@@ -337,10 +494,9 @@ export const projectsApi = {
           : { ...o, regels: o.regels.filter(r => r.id !== regelId), updatedAt: now() },
       ),
     }))
-    apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels/${regelId}`, { method: 'DELETE' })
-      .catch(() => {
-        notifications.show({ color: 'red', message: 'Regel verwijderen mislukt op de server.' })
-      })
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/regels/${regelId}`, {
+      method: 'DELETE',
+    }), 'Regel verwijderen')
     return updated
   },
 
@@ -355,7 +511,7 @@ export const projectsApi = {
           : o,
       ),
     }))
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/verzend`, { method: 'POST' }), 'Offerte versturen mislukt')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/verzend`, { method: 'POST' }), 'Offerte versturen')
     return updated
   },
 
@@ -427,7 +583,7 @@ export const projectsApi = {
 
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/accepteer`, {
       method: 'POST', body: JSON.stringify({ userName }),
-    }), 'Offerte accepteren mislukt')
+    }), 'Offerte accepteren')
 
     return updated
   },
@@ -451,7 +607,7 @@ export const projectsApi = {
     })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/check`, {
       method: 'POST', body: JSON.stringify({ userName }),
-    }), 'Stap afvinken mislukt')
+    }), 'Stap afvinken')
     return updated
   },
 
@@ -494,7 +650,7 @@ export const projectsApi = {
       })
       return { ...p, productieOrders: orders, updatedAt: now() }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/uncheck`, { method: 'POST' }), 'Stap terugzetten mislukt')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/uncheck`, { method: 'POST' }), 'Stap terugzetten')
     return updated
   },
 
@@ -531,7 +687,7 @@ export const projectsApi = {
     if (hasQueuePosition) body.queuePosition = queuePosition
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/plan`, {
       method: 'PATCH', body: JSON.stringify(body),
-    }), 'Stap inplannen mislukt')
+    }), 'Stap inplannen')
     return updated
   },
 
@@ -549,7 +705,7 @@ export const projectsApi = {
     }))
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/hold`, {
       method: 'PATCH', body: JSON.stringify({ notBefore }),
-    }), 'Hold instellen mislukt')
+    }), 'Hold instellen')
     return updated
   },
 
@@ -582,7 +738,7 @@ export const projectsApi = {
         method: 'POST',
         body: JSON.stringify(aantal === undefined ? {} : { aantal }),
       }),
-      'Order gereed melden mislukt',
+      'Order gereed melden',
     )
     return updated
   },
@@ -632,7 +788,7 @@ export const projectsApi = {
       apiFetch<Project>(`/projects/${projectId}/paklijst`, {
         method: 'POST', body: JSON.stringify({ regels: keuze }),
       }),
-      'Paklijst aanmaken mislukt',
+      'Paklijst aanmaken',
     )
     return updated
   },
@@ -652,7 +808,7 @@ export const projectsApi = {
     syncProject(
       projectId,
       apiFetch<Project>(`/projects/${projectId}/paklijst/${paklijstId}/verzend`, { method: 'POST' }),
-      'Paklijst versturen mislukt',
+      'Paklijst versturen',
     )
     return updated
   },
@@ -720,7 +876,7 @@ export const projectsApi = {
       apiFetch<Project>(`/projects/${projectId}/factuur`, {
         method: 'POST', body: JSON.stringify({ btwPct, regels: keuze }),
       }),
-      'Factuur aanmaken mislukt',
+      'Factuur aanmaken',
     )
     return updated
   },
@@ -736,7 +892,7 @@ export const projectsApi = {
     syncProject(
       projectId,
       apiFetch<Project>(`/projects/${projectId}/factuur/${factuurId}/verzend`, { method: 'POST' }),
-      'Factuur versturen mislukt',
+      'Factuur versturen',
     )
     return updated
   },
@@ -807,7 +963,7 @@ export const projectsApi = {
       apiFetch<Project>(`/projects/${projectId}/credit`, {
         method: 'POST', body: JSON.stringify({ factuurId, regels: keuze, notities }),
       }),
-      'Creditfactuur aanmaken mislukt',
+      'Creditfactuur aanmaken',
     )
     return updated
   },
@@ -837,7 +993,7 @@ export const projectsApi = {
         updatedAt: now(),
       }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/bevestigd`, { method: 'POST' }), 'Terugkeren naar offerte mislukt')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/bevestigd`, { method: 'POST' }), 'Terugkeren naar offerte')
     return updated
   },
 
@@ -852,7 +1008,7 @@ export const projectsApi = {
       })),
       updatedAt: now(),
     }))
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/productie`, { method: 'POST' }), 'Terugkeren naar bevestigd mislukt')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/productie`, { method: 'POST' }), 'Terugkeren naar bevestigd')
     return updated
   },
 
@@ -869,7 +1025,7 @@ export const projectsApi = {
         updatedAt: now(),
       }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/paklijst`, { method: 'POST' }), 'Terugkeren naar productie mislukt')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/paklijst`, { method: 'POST' }), 'Terugkeren naar productie')
     return updated
   },
 
@@ -883,7 +1039,7 @@ export const projectsApi = {
         updatedAt: now(),
       }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/verzonden`, { method: 'POST' }), 'Terugkeren naar paklijst mislukt')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/verzonden`, { method: 'POST' }), 'Terugkeren naar paklijst')
     return updated
   },
 
@@ -903,7 +1059,7 @@ export const projectsApi = {
         updatedAt: now(),
       }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/gefactureerd`, { method: 'POST' }), 'Terugkeren naar verzonden mislukt')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/gefactureerd`, { method: 'POST' }), 'Terugkeren naar verzonden')
     return updated
   },
 
@@ -925,7 +1081,7 @@ export const projectsApi = {
         method: 'POST',
         body: JSON.stringify({ status, reden }),
       }),
-      status === 'on_hold' ? 'On hold zetten mislukt' : 'Annuleren mislukt',
+      status === 'on_hold' ? 'On hold zetten' : 'Annuleren',
     )
     return updated
   },
@@ -941,7 +1097,7 @@ export const projectsApi = {
     syncProject(
       projectId,
       apiFetch<Project>(`/projects/${projectId}/status/hervat`, { method: 'POST' }),
-      'Hervatten mislukt',
+      'Hervatten',
     )
     return updated
   },
@@ -955,7 +1111,7 @@ export const projectsApi = {
     })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/opdrachtbevestiging`, {
       method: 'PATCH', body: JSON.stringify(patch),
-    }), 'Opdrachtbevestiging bijwerken mislukt')
+    }), 'Opdrachtbevestiging bijwerken')
     return updated
   },
 
@@ -968,7 +1124,7 @@ export const projectsApi = {
         opdrachtbevestiging: { ...p.opdrachtbevestiging, status: 'verzonden' as OBStatus, verzondenOp: now(), updatedAt: now() },
       }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/opdrachtbevestiging/verzend`, { method: 'POST' }), 'Opdrachtbevestiging versturen mislukt')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/opdrachtbevestiging/verzend`, { method: 'POST' }), 'Opdrachtbevestiging versturen')
     return updated
   },
 }

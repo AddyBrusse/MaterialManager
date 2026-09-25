@@ -1,6 +1,7 @@
 // Articles = make-to-stock manufactured products (recipe + routing), MES-bound.
 
 import { apiFetch, apiUpload } from './client'
+import type { LaadFout } from '../utils/fout-melding'
 
 const LS_KEY = 'sm_articles'
 
@@ -159,13 +160,16 @@ function saveLocal(data: Article[]): void {
 
 let cache: Article[] = loadLocal()
 
-export async function initArticles(): Promise<void> {
+export async function initArticles(): Promise<LaadFout | null> {
   try {
     const { data } = await apiFetch<Article[]>('/articles')
     cache = data
     saveLocal(data)
-  } catch {
+    return null
+  } catch (fout) {
     cache = loadLocal()
+    // Niet stil: zie initProjects. Gemeld in useInitAppData.
+    return { wat: 'artikelen', aantalLokaal: cache.length, fout }
   }
 }
 

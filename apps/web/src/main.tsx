@@ -24,7 +24,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           primaire knop in de footer. Een toast dekt hem dan af en de volgende
           klik komt niet aan tot hij wegvalt — gemeten: de knop was enabled en
           niets mis, maar de klik landde op de melding. Rechtsboven zit niets. */}
-      <Notifications position="top-right" />
+      {/* Mantine kapt een melding standaard af op 200 px. Een foutmelding in
+          drie delen (wat, waar, gevolg) is vaak hoger, en dan viel juist de
+          titel en "Wat" buiten beeld — gemeten 2026-09-25. */}
+      <Notifications position="top-right" notificationMaxHeight={520} />
       <QueryClientProvider client={queryClient}>
         <App />
       </QueryClientProvider>

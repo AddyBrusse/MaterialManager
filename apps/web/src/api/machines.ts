@@ -1,4 +1,5 @@
 import type { Machine, CreateMachine, UpdateMachine } from '@stockmanager/shared'
+import type { LaadFout } from '../utils/fout-melding'
 import { apiFetch } from './client'
 
 export type { Machine }
@@ -30,13 +31,16 @@ function saveLocal(data: Machine[]): void {
 
 let cache: Machine[] = loadLocal()
 
-export async function initMachines(): Promise<void> {
+export async function initMachines(): Promise<LaadFout | null> {
   try {
     const { data } = await apiFetch<Machine[]>('/machines')
     cache = data
     saveLocal(data)
-  } catch {
+    return null
+  } catch (fout) {
     cache = loadLocal()
+    // Niet stil: zie initProjects. Gemeld in useInitAppData.
+    return { wat: 'machines', aantalLokaal: cache.length, fout }
   }
 }
 

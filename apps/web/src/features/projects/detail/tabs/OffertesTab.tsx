@@ -1,12 +1,17 @@
-import { useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
 import type { Offerte, Project } from '@stockmanager/shared'
 import { ArtikelPickerModal } from '../../../../components/projecten/ArtikelPickerModal'
 import { PrijzenBijwerkenModal } from '../../../../components/projecten/PrijzenBijwerkenModal'
 import type { Bijwerking } from '../../../../components/projecten/prijs-bijwerken'
 import { Card } from '../components/Card'
-import { IconRefresh, IconTrash } from '@tabler/icons-react'
-import { datum, eur, getal } from '../lib/format'
+import { CelTekst } from '../components/CelTekst'
+import { datum, eur } from '../lib/format'
 import { geaccepteerdeOfferte } from '../lib/status'
+import { OfferteRegels } from './OfferteRegels'
+import { OfferteActies } from './OfferteActies'
+import { NaarProjectModal, type NaarProjectKeuze } from './NaarProjectModal'
+import { WegBevestiging } from './WegBevestiging'
 
 function statusPill(o: Offerte) {
   switch (o.status) {
@@ -22,224 +27,85 @@ function statusPill(o: Offerte) {
 }
 
 /**
- * Een getal dat je in de tabel zelf aanpast. Opslaan gebeurt bij het verlaten
- * van het veld, niet bij elke toetsaanslag: anders gaat er per cijfer een
- * verzoek naar de server en telt een half ingetypt getal als de nieuwe waarde.
+ * Wat deze versie betekent, in één regel.
+ *
+ * Dit stond er eerder als "geldend of vervallen", waarbij geldend de
+ * geaccepteerde versie was en al het andere vervallen heette. Een concept dat
+ * nog niet verstuurd was kreeg dan "vervallen versie, alleen ter vergelijking"
+ * te lezen terwijl je er juist in zat te typen. De status van de offerte zegt
+ * het gewoon zelf.
  */
-function CelGetal({
-  waarde,
-  decimalen = 0,
-  onKlaar,
-}: {
-  waarde: number
-  decimalen?: number
-  onKlaar: (n: number) => void
-}) {
-  const toon = waarde.toLocaleString('nl-NL', {
-    minimumFractionDigits: decimalen,
-    maximumFractionDigits: decimalen,
-  })
-  return (
-    <input
-      defaultValue={toon}
-      key={toon}
-      inputMode="decimal"
-      style={{
-        width: '100%',
-        border: '1px solid transparent',
-        borderRadius: 3,
-        background: 'transparent',
-        font: 'inherit',
-        fontFamily: 'var(--mono)',
-        textAlign: 'right',
-        color: 'inherit',
-        padding: '1px 4px',
-      }}
-      onFocus={(e) => {
-        e.currentTarget.style.borderColor = 'var(--border2)'
-        e.currentTarget.style.background = 'var(--bg2)'
-        e.currentTarget.select()
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.borderColor = 'transparent'
-        e.currentTarget.style.background = 'transparent'
-        const n = Number(e.currentTarget.value.replace(/\./g, '').replace(',', '.'))
-        if (Number.isFinite(n) && n >= 0 && n !== waarde) onKlaar(n)
-        else e.currentTarget.value = toon
-      }}
-    />
-  )
+function toelichting(o: Offerte, erIsGeaccepteerd: boolean): string {
+  switch (o.status) {
+    case 'geaccepteerd':
+      return 'geldend — hierop draait de productie'
+    case 'verzonden':
+      return erIsGeaccepteerd ? 'verstuurd, een andere is geaccepteerd' : 'verstuurd — wacht op de klant'
+    case 'vervallen':
+      return 'vervallen, ter vergelijking'
+    default:
+      return 'concept — nog te wijzigen'
+  }
 }
 
-function RegelsPaneel({
-  offerte,
-  geldend,
-  bewerkbaar,
-  onToevoegen,
-  onPrijzen,
-  onRegel,
-  onVerwijder,
-}: {
-  offerte: Offerte
-  geldend: boolean
-  bewerkbaar: boolean
-  onToevoegen: () => void
-  onPrijzen: () => void
-  onRegel: (regelId: string, patch: { qty?: number; verkoopprijs?: number }) => void
-  onVerwijder: (regelId: string) => void
-}) {
-  const totaal = offerte.regels.reduce((s, r) => s + r.totaal, 0)
-  const pill = statusPill(offerte)
-
-  return (
-    <div style={{ background: 'var(--alt)', borderTop: '1px solid var(--border)' }}>
-      <div className="pdv2-card-head" style={{ borderBottom: '1px solid var(--border)' }}>
-        <h2>REGELS — {offerte.id}</h2>
-        <span className={`pdv2-pill ${pill.kleur}`}>{pill.tekst}</span>
-        <span className="pdv2-count">
-          {geldend
-            ? 'dit is de geldende versie — hierop draait de productie'
-            : 'vervallen versie, alleen ter vergelijking'}
-        </span>
-        {bewerkbaar && (
-          <>
-            <span className="pdv2-spacer" />
-            {/* Prijzen komen uit de artikelcalculatie, maar een regel kan ook
-                met de hand zijn ingevuld — vandaar een knop met een overzicht
-                vooraf in plaats van stilzwijgend overschrijven. */}
-            <button
-              type="button"
-              className="pdv2-btn s"
-              onClick={onPrijzen}
-              disabled={offerte.regels.length === 0}
-            >
-              <IconRefresh size={12} />
-              Prijzen bijwerken
-            </button>
-            <button type="button" className="pdv2-btn s primair" onClick={onToevoegen}>
-              Artikelen toevoegen
-            </button>
-          </>
-        )}
-      </div>
-      <table className="pdv2-tbl">
-        <thead>
-          <tr>
-            <th>Artikel</th>
-            <th>Bewerkingen</th>
-            <th className="num" style={{ width: 70 }}>
-              Aantal
-            </th>
-            <th className="num" style={{ width: 96 }}>
-              Prijs/st
-            </th>
-            <th className="num" style={{ width: 104 }}>
-              Totaal
-            </th>
-            {bewerkbaar && <th style={{ width: 34 }} />}
-          </tr>
-        </thead>
-        <tbody>
-          {offerte.regels.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <span style={{ fontWeight: 600 }}>{r.naam}</span>
-                {r.omschrijving && <span className="sub">{r.omschrijving}</span>}
-              </td>
-              <td>
-                {r.bewerkingen.length === 0
-                  ? '—'
-                  : r.bewerkingen.map((b) => (
-                      <span className="pdv2-chip" key={b}>
-                        {b}
-                      </span>
-                    ))}
-              </td>
-              <td className="num">
-                {/* Alleen een concept mag nog veranderen: een verstuurde versie
-                    is de deur uit en een geaccepteerde draagt de productie. */}
-                {bewerkbaar ? (
-                  <CelGetal waarde={r.qty} onKlaar={(qty) => onRegel(r.id, { qty })} />
-                ) : (
-                  <>
-                    {getal(r.qty)} {r.eenheid}
-                  </>
-                )}
-              </td>
-              <td className="num">
-                {bewerkbaar ? (
-                  <CelGetal
-                    waarde={r.verkoopprijs}
-                    decimalen={2}
-                    onKlaar={(verkoopprijs) => onRegel(r.id, { verkoopprijs })}
-                  />
-                ) : (
-                  eur(r.verkoopprijs)
-                )}
-              </td>
-              <td className="num">{eur(r.totaal)}</td>
-              {bewerkbaar && (
-                <td>
-                  <button
-                    type="button"
-                    className="pdv2-btn s"
-                    title="Regel verwijderen"
-                    aria-label={`Regel ${r.naam} verwijderen`}
-                    onClick={() => onVerwijder(r.id)}
-                  >
-                    <IconTrash size={12} />
-                  </button>
-                </td>
-              )}
-            </tr>
-          ))}
-          {offerte.regels.length === 0 && (
-            <tr>
-              <td colSpan={bewerkbaar ? 6 : 5} className="pdv2-empty">
-                Nog geen regels. Een offerte zonder regels valt niet te versturen.
-              </td>
-            </tr>
-          )}
-          <tr className="totaal">
-            <td colSpan={4}>Offertetotaal excl. btw</td>
-            <td className="num">{eur(totaal)}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-/** §5.2 — versietabel plus het regelspaneel van de gekozen versie. */
-export function OffertesTab({
-  project,
-  geblokkeerd,
-  onNieuweVersie,
-  onVerzend,
-  onAccepteer,
-  onGewijzigd,
-  onRegel,
-  onVerwijderRegel,
-  onPrijzen,
-}: {
+interface Props {
   project: Project
   geblokkeerd: boolean
   onNieuweVersie: () => void
+  onKopieer: (offerteId: string) => void
+  onReferentie: (offerteId: string, ref: string) => void
   onVerzend: (offerteId: string) => void
   onAccepteer: (offerteId: string) => void
   onGewijzigd: () => void
   onRegel: (offerteId: string, regelId: string, patch: { qty?: number; verkoopprijs?: number }) => void
   onVerwijderRegel: (offerteId: string, regelId: string) => void
   onPrijzen: (offerteId: string, gekozen: Bijwerking[]) => void
-}) {
+  onVerwijder: (offerteId: string) => void
+  onIntrekken: (offerteId: string) => void
+  onNaarProject: (offerteId: string, keuze: NaarProjectKeuze) => Promise<boolean>
+}
+
+/** §5.2 — de versies, elk met zijn eigen regels eronder. */
+export function OffertesTab({
+  project,
+  geblokkeerd,
+  onNieuweVersie,
+  onKopieer,
+  onReferentie,
+  onVerzend,
+  onAccepteer,
+  onGewijzigd,
+  onRegel,
+  onVerwijderRegel,
+  onPrijzen,
+  onVerwijder,
+  onIntrekken,
+  onNaarProject,
+}: Props) {
   const versies = [...project.offertes].sort((a, b) => b.versie - a.versie)
   const acc = geaccepteerdeOfferte(project)
-  // Standaard de geaccepteerde versie, anders de hoogste — dat is de versie
-  // waar iemand die dit scherm opent naar op zoek is.
-  const [gekozen, setGekozen] = useState<string | null>(acc?.id ?? versies[0]?.id ?? null)
-  const actief = versies.find((v) => v.id === gekozen) ?? versies[0] ?? null
-  const [picker, setPicker] = useState(false)
-  const [prijzen, setPrijzen] = useState(false)
+  // Standaard de geaccepteerde versie open, anders de hoogste — dat is de
+  // versie waar iemand die dit scherm opent naar op zoek is. Eén versie
+  // tegelijk open: twee regeltabellen onder elkaar met dezelfde kolommen zijn
+  // niet meer uit elkaar te houden.
+  const [open, setOpen] = useState<string | null>(acc?.id ?? versies[0]?.id ?? null)
+  // Komt er een versie bij — leeg of gekopieerd — dan klapt die open. Wie net
+  // op "Kopieer" drukte wil de nieuwe versie bewerken, niet eerst zoeken waar
+  // hij gebleven is.
+  const aantal = useRef(versies.length)
+  useEffect(() => {
+    if (versies.length > aantal.current && versies[0]) setOpen(versies[0].id)
+    aantal.current = versies.length
+  }, [versies])
+  const [picker, setPicker] = useState<string | null>(null)
+  const [prijzen, setPrijzen] = useState<string | null>(null)
+  const [bevestig, setBevestig] = useState<{ soort: 'verwijderen' | 'intrekken'; id: string } | null>(null)
+  const [naarProject, setNaarProject] = useState<string | null>(null)
+
+  const pickerOfferte = versies.find((v) => v.id === picker) ?? null
+  const prijzenOfferte = versies.find((v) => v.id === prijzen) ?? null
+  const bevestigOfferte = versies.find((v) => v.id === bevestig?.id) ?? null
+  const naarProjectOfferte = versies.find((v) => v.id === naarProject) ?? null
 
   if (versies.length === 0) {
     return (
@@ -269,12 +135,7 @@ export function OffertesTab({
       teller={`${versies.length} versies · ${acc ? 1 : 0} geaccepteerd`}
       plat
       acties={
-        <button
-          type="button"
-          className="pdv2-btn s"
-          onClick={onNieuweVersie}
-          disabled={geblokkeerd}
-        >
+        <button type="button" className="pdv2-btn s" onClick={onNieuweVersie} disabled={geblokkeerd}>
           Nieuwe versie
         </button>
       }
@@ -282,110 +143,151 @@ export function OffertesTab({
       <table className="pdv2-tbl">
         <thead>
           <tr>
-            <th style={{ width: 34 }}>v.</th>
+            <th style={{ width: 54 }}>v.</th>
             <th style={{ width: 118 }}>Nummer</th>
-            <th>Status</th>
+            <th style={{ width: 170 }}>Referentie</th>
+            <th style={{ width: 120 }}>Status</th>
+            <th>Wat het is</th>
             <th style={{ width: 92 }}>Verzonden</th>
             <th style={{ width: 100 }}>Geaccepteerd</th>
             <th style={{ width: 92 }}>Geldig tot</th>
             <th className="num" style={{ width: 104 }}>
               Totaal
             </th>
-            <th style={{ width: 150 }} />
+            <th style={{ width: 196 }} />
           </tr>
         </thead>
         <tbody>
           {versies.map((o) => {
             const pill = statusPill(o)
-            const klassen = [
-              o.status === 'geaccepteerd' ? 'geaccepteerd' : '',
-              o.status === 'vervallen' ? 'vervallen' : '',
-              o.id === actief?.id ? 'gekozen' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')
+            const uit = open === o.id
             return (
-              <tr key={o.id} className={klassen}>
-                <td className="mono">{o.versie}</td>
-                <td>
-                  <button type="button" className="pdv2-link" onClick={() => setGekozen(o.id)}>
-                    {o.id}
-                  </button>
-                </td>
-                <td>
-                  <span className={`pdv2-pill ${pill.kleur}`}>{pill.tekst}</span>
-                </td>
-                <td className="mono">{datum(o.verzondenOp)}</td>
-                <td className="mono">{datum(o.geaccepteerdOp)}</td>
-                <td className="mono">{datum(o.geldigTot)}</td>
-                <td className="num">{eur(o.regels.reduce((s, r) => s + r.totaal, 0))}</td>
-                <td>
-                  {/* Vooruit is per versie een keuze die alleen een mens maakt:
-                      wélke versie gaat de deur uit, wélke accepteert de klant. */}
-                  {o.status === 'concept' && (
+              <Fragment key={o.id}>
+                <tr
+                  className={[
+                    o.status === 'geaccepteerd' ? 'geaccepteerd' : '',
+                    o.status === 'vervallen' ? 'vervallen' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <td>
                     <button
                       type="button"
-                      className="pdv2-btn s"
-                      disabled={geblokkeerd || o.regels.length === 0}
-                      title={o.regels.length === 0 ? 'Deze versie heeft nog geen regels' : undefined}
-                      onClick={() => onVerzend(o.id)}
+                      className="pdv2-uitklap"
+                      aria-expanded={uit}
+                      aria-label={`Regels van ${o.id} ${uit ? 'verbergen' : 'tonen'}`}
+                      onClick={() => setOpen(uit ? null : o.id)}
                     >
-                      Versturen
+                      {uit ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}
+                      <span className="mono">{o.versie}</span>
                     </button>
-                  )}
-                  {o.status === 'verzonden' && !acc && (
-                    <button
-                      type="button"
-                      className="pdv2-btn s primair"
-                      disabled={geblokkeerd}
-                      onClick={() => onAccepteer(o.id)}
-                    >
-                      Accepteren
-                    </button>
-                  )}
-                </td>
-              </tr>
+                  </td>
+                  {/* Het nummer dat de klant kent, niet de sleutel: een herziening
+                      draagt het nummer van de versie die ze herziet, dus v4 en
+                      een kopie ervan staan hier onder hetzelfde nummer. */}
+                  <td className="mono" title={o.documentNr !== o.id ? `intern ${o.id}` : undefined}>
+                    {o.documentNr}
+                  </td>
+                  {/* Waar deze versie antwoord op geeft. Ook na het versturen
+                      nog in te vullen: het is onze eigen boekhouding, niet iets
+                      wat de klant kreeg — en een RFQ-nummer vind je soms pas
+                      later terug in de mail. */}
+                  <td>
+                    <CelTekst
+                      waarde={o.externeRef}
+                      placeholder="RFQ of mail…"
+                      uit={geblokkeerd}
+                      max={200}
+                      onKlaar={(ref) => onReferentie(o.id, ref)}
+                    />
+                  </td>
+                  <td>
+                    <span className={`pdv2-pill ${pill.kleur}`}>{pill.tekst}</span>
+                  </td>
+                  <td style={{ color: 'var(--text3)' }}>{toelichting(o, Boolean(acc))}</td>
+                  <td className="mono">{datum(o.verzondenOp)}</td>
+                  <td className="mono">{datum(o.geaccepteerdOp)}</td>
+                  <td className="mono">{datum(o.geldigTot)}</td>
+                  <td className="num">{eur(o.regels.reduce((s, r) => s + r.totaal, 0))}</td>
+                  <OfferteActies
+                    offerte={o}
+                    erIsGeaccepteerd={Boolean(acc)}
+                    geblokkeerd={geblokkeerd}
+                    onVerzend={() => onVerzend(o.id)}
+                    onAccepteer={() => onAccepteer(o.id)}
+                    onKopieer={() => onKopieer(o.id)}
+                    onNaarProject={() => setNaarProject(o.id)}
+                    onIntrekken={() => setBevestig({ soort: 'intrekken', id: o.id })}
+                    onVerwijder={() => setBevestig({ soort: 'verwijderen', id: o.id })}
+                  />
+                </tr>
+
+                {uit && (
+                  <tr className="pdv2-kind-rij">
+                    <td colSpan={10}>
+                      <OfferteRegels
+                        offerte={o}
+                        projectId={project.id}
+                        bewerkbaar={o.status === 'concept' && !geblokkeerd}
+                        onToevoegen={() => setPicker(o.id)}
+                        onPrijzen={() => setPrijzen(o.id)}
+                        onRegel={(regelId, patch) => onRegel(o.id, regelId, patch)}
+                        onVerwijder={(regelId) => onVerwijderRegel(o.id, regelId)}
+                      />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
             )
           })}
         </tbody>
       </table>
 
-      {actief && (
-        <RegelsPaneel
-          offerte={actief}
-          geldend={actief.id === (acc?.id ?? versies[0].id)}
-          bewerkbaar={actief.status === 'concept' && !geblokkeerd}
-          onToevoegen={() => setPicker(true)}
-          onPrijzen={() => setPrijzen(true)}
-          onRegel={(regelId, patch) => onRegel(actief.id, regelId, patch)}
-          onVerwijder={(regelId) => onVerwijderRegel(actief.id, regelId)}
+      {/* Dezelfde kiezer als op het oude scherm: artikelen zoeken, marge en
+          verkoopprijs afstemmen, in één keer wegschrijven. */}
+      {pickerOfferte && (
+        <ArtikelPickerModal
+          opened
+          projectId={project.id}
+          offerteId={pickerOfferte.id}
+          relatieId={project.relatieId}
+          onClose={() => setPicker(null)}
+          onAdded={onGewijzigd}
         />
       )}
 
-      {/* Dezelfde kiezer als op het oude scherm: artikelen zoeken, marge en
-          verkoopprijs afstemmen, in één keer wegschrijven. Alleen een
-          concept-offerte mag nog veranderen — een verstuurde versie is de deur
-          uit. */}
-      {actief && (
-        <PrijzenBijwerkenModal
-          opened={prijzen}
-          offerte={actief}
-          onClose={() => setPrijzen(false)}
-          onBijwerken={(gekozen) => {
-            setPrijzen(false)
-            onPrijzen(actief.id, gekozen)
+      {bevestig && bevestigOfferte && (
+        <WegBevestiging
+          soort={bevestig.soort}
+          offerte={bevestigOfferte}
+          onSluit={() => setBevestig(null)}
+          onBevestig={() => {
+            setBevestig(null)
+            if (bevestig.soort === 'verwijderen') onVerwijder(bevestigOfferte.id)
+            else onIntrekken(bevestigOfferte.id)
           }}
         />
       )}
 
-      {actief && (
-        <ArtikelPickerModal
-          opened={picker}
-          projectId={project.id}
-          offerteId={actief.id}
-          relatieId={project.relatieId}
-          onClose={() => setPicker(false)}
-          onAdded={onGewijzigd}
+      {naarProjectOfferte && (
+        <NaarProjectModal
+          project={project}
+          offerte={naarProjectOfferte}
+          onSluit={() => setNaarProject(null)}
+          onMaak={(keuze) => onNaarProject(naarProjectOfferte.id, keuze)}
+        />
+      )}
+
+      {prijzenOfferte && (
+        <PrijzenBijwerkenModal
+          opened
+          offerte={prijzenOfferte}
+          onClose={() => setPrijzen(null)}
+          onBijwerken={(gekozen) => {
+            setPrijzen(null)
+            onPrijzen(prijzenOfferte.id, gekozen)
+          }}
         />
       )}
     </Card>

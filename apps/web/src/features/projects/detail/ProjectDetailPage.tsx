@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
@@ -154,6 +154,16 @@ export function ProjectDetailPage() {
   const [kopIngeklapt, setKopIngeklapt] = useState(false)
   const acties = useProjectActies(project, (t) => kiesTab(t as TabId))
 
+  // Mislukt een opslag, dan zet syncProject het project terug naar wat er op
+  // de server staat. Opnieuw lezen maakt dat zichtbaar — ook voor wijzigingen
+  // die niet via een actie met eigen melding lopen (een cel in de regeltabel,
+  // de referentie, de artikelkiezer). Anders bleef de mislukte wijziging op het
+  // scherm staan tot iemand herlaadde.
+  useEffect(() => {
+    if (saveState === 'error') acties.ververs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saveState])
+
   const relatie = useMemo(() => {
     if (!project?.relatieId) return null
     return relatiesApi.listSync().find((r) => r.id === project.relatieId) ?? null
@@ -262,12 +272,17 @@ export function ProjectDetailPage() {
               project={project}
               geblokkeerd={geblokkeerd}
               onNieuweVersie={acties.nieuweOfferteVersie}
+              onKopieer={acties.kopieerOfferte}
+              onReferentie={acties.zetReferentie}
               onVerzend={acties.verzendOfferte}
               onAccepteer={acties.accepteerOfferte}
               onGewijzigd={acties.ververs}
               onRegel={acties.bewerkRegel}
               onVerwijderRegel={acties.verwijderRegel}
               onPrijzen={acties.werkPrijzenBij}
+              onVerwijder={acties.verwijderOfferte}
+              onIntrekken={acties.trekOfferteIn}
+              onNaarProject={acties.naarNieuwProject}
             />
           )}
           {tab === 'opdracht' && (

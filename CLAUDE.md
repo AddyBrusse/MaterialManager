@@ -65,6 +65,51 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - File naming: kebab-case files, PascalCase React components
 - Log any non-obvious architectural choice in `decisions/90-decisions-log.md`
 
+## Foutmeldingen: wat, waar, gevolg
+
+Afgesproken 2026-09-25. **Elke fout die een gebruiker kan tegenkomen krijgt een
+melding met drie delen**, en nooit alleen "mislukt":
+
+- **Wat** ging er mis — in de woorden van de server als die iets zei
+- **Waar** — de handeling in gewone taal, met het verzoek erbij
+  (`Offerte versturen · POST /projects/…/verzend → 500 MIGRATIE_ONTBREEKT`)
+- **Gevolg** — wat er wél en níet is gebeurd. Is er iets opgeslagen, klopt het
+  scherm nog, moet je het opnieuw doen?
+
+Hoe:
+
+- `meldFout({ actie, fout, gevolg })` uit `apps/web/src/utils/fout-melding-toon.tsx`.
+  De tekst zelf komt uit `foutTekst` in `utils/fout-melding.ts` (getest)
+- `apiFetch` gooit een `ApiFout` (`api/client.ts`) met code, status, verzoek en
+  de reden van de server — ook bij een time-out of een onbereikbare server
+- **Nooit een lege `catch {}`** rond iets wat de gebruiker in gang zette.
+  Terugvallen op een browserkopie mag, maar dan mét melding: stil terugvallen
+  liet iemand op 2026-09-25 werken op een kopie zonder het te weten
+- **Een optimistische wijziging die mislukt, gaat van het scherm af.**
+  `syncProject` haalt dan op wat er op de server staat; is die ook niet te lezen,
+  dan terug naar de stand van vóór de handeling
+- **Groen pas als de server het bevestigd heeft** (`wachtOpOpslag`). Anders staat
+  er "gelukt" en direct daaronder "mislukt"
+- Het **gevolg** schrijf je bij de aanroep: alleen daar weet je wat er half of
+  niet gebeurd is. Bij een time-out is dat "onbekend", niet "niets opgeslagen"
+- **"Wat" is een zin voor de gebruiker, geen dump.** De technische reden
+  (Prisma, Engelse parserfout) staat apart als `technisch`, klein onder de
+  melding. Validatiefouten vertaalt de server per veld (`apps/api/src/lib/zod-nl.ts`:
+  "Externe referentie is te lang: maximaal 200 tekens") — een nieuw veld krijgt
+  daar zijn schermnaam
+- **Kan iets niet, zeg dan wat er eerst moet.** Voorwaarden staan in
+  `packages/shared/calc/offerte-voorwaarden.ts` (`waaromNiet…` → zin of `null`).
+  Het scherm vraagt het vóór de handeling (`eis(...)` gooit een `Weigering`,
+  oranje melding, er gaat niets naar de server); de server vraagt het nog eens
+  en antwoordt `409 VOORWAARDE` met dezelfde zin. Geen grijze knop zonder
+  uitleg: een knop die niet kan, zegt bij klikken waarom
+
+Nog niet omgezet (stand 2026-09-25): de rode meldingen in de componenten buiten
+de projectpagina — `components/{articles,materiaal,raw-materials,settings}/`,
+`components/projecten/Mail*`, `hooks/use{ArticleAttachmentUpload,Nacalculatie,Reserveringen,Tijdregistratie,UserPreference}.ts`,
+`routes/desktop/{Instellingen,Todos,Voorraad}Page.tsx`. Die tonen wel iets,
+maar niet alle drie de delen. Wie daar iets aanraakt, zet het om.
+
 ## Na een squash-merge: branch eerst gelijktrekken
 
 PR's worden **squash**-gemerged. Master krijgt dus één nieuwe commit met de
@@ -138,8 +183,16 @@ Gebruik daarom de projectscripts vanaf de hoofdmap:
 
 ```
 npm run db:status     # welke migraties staan er nog open
-npm run db:deploy     # openstaande migraties toepassen
+npm run db:deploy     # openstaande migraties toepassen + prisma generate
 ```
+
+`db:deploy` draait daarna ook `prisma generate`, en `npm run dev` doet dat bij
+het starten. `migrate deploy` alleen bouwt de Prisma-client niet opnieuw op: dan
+heeft de database de kolom wel, maar de server kent hem niet, en elke schrijfactie
+faalt met "Unknown argument `externeRef`" (2026-09-25). De API meldt dat nu als
+`CLIENT_VEROUDERD`, met het veld erbij. Op Windows moet de server daarvoor
+**gestopt** zijn: een draaiende server houdt het Prisma-bestand vast, en dan faalt
+`generate` met `EPERM`.
 
 Beide laden `.env.development` via `dotenv -e`, net als `npm run dev`.
 `npm run db:deploy -w apps/api` (zonder `:dev`) is de kale variant voor de NAS,
@@ -148,7 +201,9 @@ waar `DATABASE_URL` gewoon in de omgeving staat.
 **Waarom dit ertoe doet:** loopt de code voor op de database, dan geeft de API
 sinds 2026-09-14 geen "Interne serverfout" meer maar noemt hij de ontbrekende
 migratie bij naam — met dit commando erbij. Dat werkt alleen als het commando
-klopt.
+klopt. Sinds 2026-09-25 ook bij een ontbrekende kolom of tabel zoals Prisma die
+zelf meldt (`P2022`/`P2021`); daarvóór viel precies dat geval nog door naar
+"Interne serverfout".
 
 ## De app bereiken vanaf een andere pc
 

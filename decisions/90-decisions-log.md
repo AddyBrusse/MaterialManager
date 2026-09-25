@@ -1214,3 +1214,98 @@ tweede rij — die tweede rij verbreekt de verbinding met de inhoud eronder.
 `localStorage`, per browser en niet per project. Gevolg: een project begon
 ingeklapt omdat je weken eerder op een ánder project een keer ruimte nodig had,
 zonder dat iets dat verklaarde. Inklappen geldt nu zolang je op de pagina bent.
+
+## 2026-09-25 — Foutmeldingen zeggen wat, waar en wat er gebeurd is
+
+**Aanleiding.** Na het bijtrekken van een branch met een nieuwe kolom
+(`offertes.externe_ref`) zonder `npm run db:deploy` faalde elke schrijfactie op
+een project. Het scherm zei "mislukt". De API wist precies wat er ontbrak —
+Prisma meldde `P2022` met de kolomnaam — maar dat kwam op drie plekken niet
+door: de migratieherkenning keek alleen naar Postgres-codes in de fouttekst,
+`syncProject` gooide de fout van de server weg, en het laden bij het opstarten
+viel met een lege `catch {}` stil terug op de browserkopie. Er werd dus
+gewerkt op een kopie zonder dat iets dat zei.
+
+**Afspraak.** Elke fout krijgt een melding in drie delen: wat, waar, gevolg.
+Zie `CLAUDE.md` voor hoe.
+
+**Het gevolg-deel is het moeilijkste en het belangrijkste.** Het vraagt dat het
+scherm ook klopt ná de fout. Daarom:
+
+- *Terugzetten naar de server, niet naar de vorige stand.* Na een mislukte
+  opslag leest `syncProject` het project opnieuw. De vorige stand in de browser
+  kan zelf al verouderd zijn; de server is de waarheid. Alleen als de server
+  ook niet te lezen is, valt hij terug op de stand van vóór de handeling — en
+  zegt dat erbij.
+- *Een time-out is "onbekend", geen "mislukt".* Na 3 seconden kan de server
+  het nog verwerkt hebben. De melding zegt dat, en het opnieuw lezen laat zien
+  wat er werkelijk staat.
+- *Groen wacht op de server.* De succesmelding kwam op het moment van klikken.
+  Nu pas na bevestiging (`wachtOpOpslag`), anders stond er "gelukt" boven
+  "mislukt".
+- *Laadfouten worden gebundeld.* Valt de server weg, dan falen zes lijsten
+  tegelijk met dezelfde oorzaak. Eén melding die ze opsomt, niet zes.
+- *Foutmeldingen blijven staan tot ze weggeklikt worden.* De gevolg-regel
+  moet gelezen zijn voordat iemand verder werkt; na vier seconden weg is
+  niet gelezen.
+
+**Niet in één keer omgezet.** Het mechanisme staat, en de projectpagina en het
+laden bij het opstarten gebruiken het. De rode meldingen in ~19 andere
+componenten tonen wel iets maar nog niet alle drie de delen; de lijst staat in
+`CLAUDE.md`. Wie daar iets wijzigt, zet het om — liever dan één grote PR die
+overal tegelijk aan zit.
+
+## 2026-09-25 — Een melding zegt wat er eerst moet, in gewone taal
+
+**Aanleiding.** Accepteren gaf op een werk-pc "Interne serverfout" met een
+Prisma-dump ("Unknown argument `externeRef`"). De gebruiker vroeg: maak het een
+melding waaraan je ziet of je iets vergeten bent in te vullen, of wat er anders
+misgaat — voor alle fouten.
+
+**Besloten.**
+- *Weigeren is geen storing.* Wat niet mag (versturen zonder regels, een regel
+  zonder aantal, accepteren terwijl een andere versie al geaccepteerd is, regels
+  wijzigen op een verstuurde versie) staat als `waaromNiet…` in
+  `packages/shared/calc/offerte-voorwaarden.ts`. Het scherm vraagt het vóór de
+  handeling en toont een oranje melding; de server vraagt het nog eens
+  (`409 VOORWAARDE`, zelfde zin) voor een tweede tabblad of een collega.
+  Vóór dit controleerde de server niets: versturen van een versie die niet
+  bestond gaf "gelukt".
+- *Een knop die niet kan, zegt bij klikken waarom* — Versturen op een lege
+  versie was grijs, zonder uitleg.
+- *Validatie per veld in het Nederlands* (`lib/zod-nl.ts`), met de naam van het
+  veld zoals op het scherm.
+- *De technische reden apart* van "Wat", klein eronder. Mantine kapte meldingen
+  af op 200 px; nu 520 px, anders viel juist de titel weg.
+- *Verouderde Prisma-client* krijgt een eigen code (`CLIENT_VEROUDERD`), en
+  `db:deploy` en `dev` draaien `prisma generate`.
+
+**Later dezelfde dag beslist:** Versturen eist een externe referentie (zie
+het besluit hieronder).
+
+## 2026-09-25 — Offertes verwijderen, intrekken en kopiëren naar een nieuw project
+
+**Besloten.**
+- *Weg op twee manieren, afhankelijk van wie de versie gezien heeft.* Een
+  concept wordt verwijderd (na een bevestiging die versie, regels en bedrag
+  noemt). Een verstuurde versie wordt **ingetrokken**: status vervallen, maar
+  zichtbaar — de klant heeft hem, en wat de klant kreeg moet terug te vinden
+  zijn. Een geaccepteerde versie kan geen van beide: daar hangen
+  opdrachtbevestiging, productieorders, prijshistorie en facturen aan.
+  Regels in `waaromNietVerwijderen` / `waaromNietIntrekken`.
+- *Is er na intrekken geen verstuurde versie meer, dan gaat een project van
+  "offerte" terug naar "concept"* (`projectNaIntrekken`) — er ligt dan niets
+  meer bij de klant.
+- *Versturen eist een externe referentie.* Een verstuurde versie zegt altijd
+  waar ze antwoord op geeft; bij een telefonische aanvraag is "tel. 12-09" ook
+  een referentie.
+- *Kopiëren naar een nieuw project* vervangt de geplande "herhaalorder als nieuw
+  project". Klant, contact, naam en referentie zijn te kiezen; het nieuwe
+  project krijgt v1 met een **eigen** offertenummer (voor de klant een nieuwe
+  offerte, geen herziening), de regels tegen dezelfde prijzen, en géén
+  levertijd, klantreferentie of notities — die horen bij een bestelling. Project
+  en offerte ontstaan in één transactie op de server
+  (`POST /projects/:id/offertes/:offId/naar-project`), niet optimistisch: het
+  projectnummer komt van de server, en navigeren naar een project dat misschien
+  niet ontstaat is erger dan even wachten.
+

@@ -7,12 +7,12 @@
   ],
   "scripts": {
     "postinstall": "npm run build -w packages/shared && npm run db:generate -w apps/api",
-    "dev": "npm run build -w packages/shared && concurrently -n shared,api,web -c gray,cyan,magenta \"npm run dev -w packages/shared\" \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+    "dev": "npm run build -w packages/shared && npm run db:generate -w apps/api && concurrently -n shared,api,web -c gray,cyan,magenta \"npm run dev -w packages/shared\" \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
     "dev:api": "npm run build -w packages/shared && npm run dev -w apps/api",
     "dev:web": "npm run build -w packages/shared && npm run dev -w apps/web",
     "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w apps/web",
     "db:migrate": "npm run db:migrate -w apps/api",
-    "db:deploy": "npm run db:deploy:dev -w apps/api",
+    "db:deploy": "npm run db:deploy:dev -w apps/api && npm run db:generate -w apps/api",
     "db:status": "npm run db:status -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
     "test": "npm run test -w apps/api && npm run test -w apps/web"

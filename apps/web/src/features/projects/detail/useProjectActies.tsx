@@ -1,12 +1,21 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { notifications } from '@mantine/notifications'
 import type { Project } from '@stockmanager/shared'
-import { laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
-import { projectsApi } from '../../../api/projects'
+import {
+  laatsteFactuur, laatstePaklijst, volgendeVersie,
+  waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
+  waaromNietVerwijderen, waaromNietIntrekken,
+} from '@stockmanager/shared'
+import { projectsApi, wachtOpOpslag } from '../../../api/projects'
+import { meldFout } from '../../../utils/fout-melding-toon'
+import { eis } from '../../../utils/fout-melding'
 import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
+import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
+import { ApiFout } from '../../../api/client'
 
 /**
  * Alles wat dit scherm schrijft, op één plek.
@@ -42,6 +51,8 @@ export interface ProjectActies {
   annuleer: () => void
   terug: () => void
   nieuweOfferteVersie: () => void
+  kopieerOfferte: (offerteId: string) => void
+  zetReferentie: (offerteId: string, ref: string) => void
   verzendOfferte: (offerteId: string) => void
   accepteerOfferte: (offerteId: string) => void
   maakOpdracht: () => void
@@ -60,10 +71,15 @@ export interface ProjectActies {
   ) => void
   verwijderRegel: (offerteId: string, regelId: string) => void
   werkPrijzenBij: (offerteId: string, gekozen: Bijwerking[]) => void
+  verwijderOfferte: (offerteId: string) => void
+  trekOfferteIn: (offerteId: string) => void
+  /** `false` als het mislukte; de melding is dan al getoond. */
+  naarNieuwProject: (offerteId: string, keuze: NaarProjectKeuze) => Promise<boolean>
 }
 
 export function useProjectActies(project: Project | undefined, naarTab: (t: string) => void): ProjectActies {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const gebruiker = useUserStore((s) => s.user)
   const [vraag, setVraag] = useState<Vraag | null>(null)
 
@@ -74,23 +90,39 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     qc.invalidateQueries({ queryKey: ['nacalculatie', 'project', project.id] })
   }, [qc, project])
 
-  /** Voert uit, meldt het resultaat, en ververst. Een fout uit de API-wrapper
-   *  komt als melding binnen in plaats van als lege pagina. */
+  /**
+   * Voert uit, ververst, en meldt het resultaat — pas als de server het
+   * bevestigd heeft. De groene melding verscheen eerder op het moment van
+   * klikken, en dan stond er "v7 gemaakt" terwijl de server er nog niets van
+   * wist; ging het daarna mis, dan stonden groen en rood onder elkaar.
+   *
+   * Twee soorten fout, elk met een melding volgens de afspraak (wat, waar,
+   * gevolg — zie CLAUDE.md):
+   *  - in de browser, vóór er iets verstuurd is (fn gooit): hier gemeld;
+   *  - op de server: gemeld door syncProject, dat ook het scherm terugzet.
+   */
   const doe = useCallback(
-    (wat: string, fn: () => void) => {
+    (actie: string, gelukt: string, fn: () => void) => {
+      if (!project) return
       try {
         fn()
-        notifications.show({ color: 'green', message: wat })
-        ververs()
-      } catch (e) {
-        notifications.show({
-          color: 'red',
-          title: 'Mislukt',
-          message: e instanceof Error ? e.message : String(e),
+      } catch (fout) {
+        meldFout({
+          actie,
+          fout,
+          gevolg: 'Er is niets gewijzigd — niet op de server en niet op je scherm.',
         })
+        return
       }
+      ververs()
+      wachtOpOpslag(project.id).then((ok) => {
+        // Ook bij een fout opnieuw lezen: syncProject heeft het scherm dan
+        // teruggezet naar de server, en dat moet ook zichtbaar worden.
+        ververs()
+        if (ok) notifications.show({ color: 'green', message: gelukt })
+      })
     },
-    [ververs],
+    [project, ververs],
   )
 
   const leeg: ProjectActies = {
@@ -101,6 +133,8 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     annuleer: () => {},
     terug: () => {},
     nieuweOfferteVersie: () => {},
+    kopieerOfferte: () => {},
+    zetReferentie: () => {},
     verzendOfferte: () => {},
     accepteerOfferte: () => {},
     maakOpdracht: () => {},
@@ -115,11 +149,19 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     bewerkRegel: () => {},
     verwijderRegel: () => {},
     werkPrijzenBij: () => {},
+    verwijderOfferte: () => {},
+    trekOfferteIn: () => {},
+    naarNieuwProject: async () => false,
   }
   if (!project) return leeg
 
   const id = project.id
   const naam = gebruiker?.name ?? 'onbekend'
+  /** "v2" zoals in de tabel — het interne id zegt de gebruiker niets. */
+  const versieVan = (offerteId: string) => {
+    const o = project.offertes.find((x) => x.id === offerteId)
+    return o ? `v${o.versie}` : offerteId
+  }
 
   const stop = (status: 'on_hold' | 'geannuleerd') =>
     setVraag({
@@ -132,7 +174,10 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
       knop: status === 'on_hold' ? 'On hold zetten' : 'Annuleren',
       klaar: (reden) => {
         setVraag(null)
-        doe(status === 'on_hold' ? 'Project staat on hold' : 'Project geannuleerd', () =>
+        doe(
+          status === 'on_hold' ? 'Project on hold zetten' : 'Project annuleren',
+          status === 'on_hold' ? 'Project staat on hold' : 'Project geannuleerd',
+          () =>
           projectsApi.stopProject(id, status, reden),
         )
       },
@@ -155,7 +200,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
       klaar: (w) => {
         setVraag(null)
         const aantal = Number(w.replace(',', '.'))
-        doe(`${aantal} ${order.eenheid} gereedgemeld op ${order.id}`, () =>
+        doe(`Gereedmelden op ${order.id}`, `${aantal} ${order.eenheid} gereedgemeld op ${order.id}`, () =>
           projectsApi.markOrderGereed(id, orderId, aantal),
         )
       },
@@ -173,7 +218,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     }
     const fn = naar[project.status]
     if (!fn) return
-    doe('Eén fase teruggedraaid', fn)
+    doe('Fase terugdraaien', 'Eén fase teruggedraaid', fn)
   }
 
   /**
@@ -186,11 +231,12 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     switch (project.status) {
       case 'concept': {
         const concept = project.offertes.find((o) => o.status === 'concept')
-        if (!concept) return doe('Nieuwe offerte aangemaakt', () => projectsApi.addOfferte(id))
+        if (!concept) return doe('Nieuwe offerte aanmaken', 'Nieuwe offerte aangemaakt', () => projectsApi.addOfferte(id))
         if (concept.regels.length === 0) return naarTab('offertes')
-        return doe(`${concept.id} verstuurd`, () =>
-          projectsApi.verzendOfferte(id, concept.id),
-        )
+        return doe(`Offerte v${concept.versie} versturen`, `Offerte v${concept.versie} verstuurd`, () => {
+          eis(waaromNietVersturen(concept))
+          projectsApi.verzendOfferte(id, concept.id)
+        })
       }
       case 'offerte':
         return naarTab('offertes')
@@ -201,18 +247,18 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         // een order uit te pikken.
         return naarTab('productie')
       case 'productie':
-        return doe('Paklijst aangemaakt van wat klaarligt', () => projectsApi.createPaklijst(id))
+        return doe('Paklijst aanmaken', 'Paklijst aangemaakt van wat klaarligt', () => projectsApi.createPaklijst(id))
       case 'paklijst': {
         const pl = laatstePaklijst(project)
         if (!pl) return
-        return doe(`${pl.id} verzonden`, () => projectsApi.verzendPaklijst(id, pl.id))
+        return doe(`${pl.id} versturen`, `${pl.id} verzonden`, () => projectsApi.verzendPaklijst(id, pl.id))
       }
       case 'verzonden':
-        return doe('Factuur aangemaakt over het geleverde', () => projectsApi.createFactuur(id))
+        return doe('Factuur aanmaken', 'Factuur aangemaakt over het geleverde', () => projectsApi.createFactuur(id))
       case 'gefactureerd': {
         const f = laatsteFactuur(project)
         if (f && !f.verzondenOp) {
-          return doe(`${f.id} verstuurd`, () => projectsApi.verzendFactuur(id, f.id))
+          return doe(`${f.id} versturen`, `${f.id} verstuurd`, () => projectsApi.verzendFactuur(id, f.id))
         }
         return notifications.show({
           color: 'blue',
@@ -221,7 +267,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
       }
       case 'on_hold':
       case 'geannuleerd':
-        return doe('Project hervat', () => projectsApi.hervatProject(id))
+        return doe('Project hervatten', 'Project hervat', () => projectsApi.hervatProject(id))
     }
   }
 
@@ -246,56 +292,136 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     annuleer: () => stop('geannuleerd'),
     terug,
     nieuweOfferteVersie: () =>
-      doe('Nieuwe offerteversie aangemaakt', () => projectsApi.addOfferte(id)),
-    verzendOfferte: (offerteId) =>
-      doe(`${offerteId} verstuurd`, () => projectsApi.verzendOfferte(id, offerteId)),
-    accepteerOfferte: (offerteId) =>
-      doe(`${offerteId} geaccepteerd — opdracht en productieorders aangemaakt`, () =>
-        projectsApi.accepteerOfferte(id, offerteId, naam),
-      ),
+      doe('Nieuwe offerteversie aanmaken', 'Nieuwe offerteversie aangemaakt', () => projectsApi.addOfferte(id)),
+    // Stil, net als een regel bewerken: een groene melding bij elk ingevuld
+    // veld is ruis. Fout gaat wel de deur uit — dat meldt syncProject zelf.
+    zetReferentie: (offerteId, ref) => {
+      projectsApi.updateOfferte(id, offerteId, { externeRef: ref })
+      ververs()
+    },
+    kopieerOfferte: (offerteId) => {
+      const bron = project.offertes.find((o) => o.id === offerteId)
+      doe(
+        `v${bron?.versie ?? '?'} kopiëren`,
+        `v${volgendeVersie(project.offertes)} gemaakt op basis van v${bron?.versie ?? '?'}`,
+        () => projectsApi.addOfferte(id, offerteId),
+      )
+    },
+    // Eerst de voorwaarde uit `offerte-voorwaarden`, dezelfde die de server
+    // controleert: zo verschijnt er niets op het scherm dat daarna weer terug
+    // moet, en staat er in de melding wát er eerst moet gebeuren.
+    verzendOfferte: (offerteId) => {
+      const o = project.offertes.find((x) => x.id === offerteId)
+      doe(`Offerte ${versieVan(offerteId)} versturen`, `Offerte ${versieVan(offerteId)} verstuurd`, () => {
+        eis(waaromNietVersturen(o))
+        projectsApi.verzendOfferte(id, offerteId)
+      })
+    },
+    accepteerOfferte: (offerteId) => {
+      const o = project.offertes.find((x) => x.id === offerteId)
+      doe(
+        `Offerte ${versieVan(offerteId)} accepteren`,
+        `Offerte ${versieVan(offerteId)} geaccepteerd — opdracht en productieorders aangemaakt`,
+        () => {
+          eis(waaromNietAccepteren(o, project.offertes))
+          projectsApi.accepteerOfferte(id, offerteId, naam)
+        },
+      )
+    },
     maakOpdracht: () => naarTab('offertes'),
-    verzendOB: () => doe('Opdrachtbevestiging verstuurd', () => projectsApi.verzendOB(id)),
+    verzendOB: () => doe('Opdrachtbevestiging versturen', 'Opdrachtbevestiging verstuurd', () => projectsApi.verzendOB(id)),
     stapCheck: (orderId, stapId, gereed) =>
-      doe(gereed ? 'Stap gereedgemeld' : 'Gereedmelding ingetrokken', () =>
+      doe(
+        gereed ? 'Stap gereedmelden' : 'Gereedmelding intrekken',
+        gereed ? 'Stap gereedgemeld' : 'Gereedmelding ingetrokken',
+        () =>
         gereed
           ? projectsApi.checkOffStap(id, orderId, stapId, naam)
           : projectsApi.uncheckStap(id, orderId, stapId),
       ),
     meldStuksGereed,
-    maakPaklijst: () => doe('Paklijst aangemaakt', () => projectsApi.createPaklijst(id)),
+    maakPaklijst: () => doe('Paklijst aanmaken', 'Paklijst aangemaakt', () => projectsApi.createPaklijst(id)),
     verzendPaklijst: (paklijstId) =>
-      doe(`${paklijstId} verzonden`, () => projectsApi.verzendPaklijst(id, paklijstId)),
-    maakFactuur: () => doe('Factuur aangemaakt', () => projectsApi.createFactuur(id)),
+      doe(`${paklijstId} versturen`, `${paklijstId} verzonden`, () => projectsApi.verzendPaklijst(id, paklijstId)),
+    maakFactuur: () => doe('Factuur aanmaken', 'Factuur aangemaakt', () => projectsApi.createFactuur(id)),
     verzendFactuur: (factuurId) =>
-      doe(`${factuurId} verstuurd`, () => projectsApi.verzendFactuur(id, factuurId)),
+      doe(`${factuurId} versturen`, `${factuurId} verstuurd`, () => projectsApi.verzendFactuur(id, factuurId)),
     crediteer: (factuurId) =>
-      doe(`Creditnota op ${factuurId} aangemaakt`, () => projectsApi.createCredit(id, factuurId)),
+      doe(`Creditnota op ${factuurId} maken`, `Creditnota op ${factuurId} aangemaakt`, () => projectsApi.createCredit(id, factuurId)),
     // Regels aanpassen gebeurt cel voor cel. Daar hoort geen groene melding bij:
     // die zou bij het invullen van een offerte om de paar seconden verschijnen.
     // Fout gaat wel de deur uit, want dan staat er iets anders op het scherm dan
     // in de database.
     bewerkRegel: (offerteId, regelId, patch) => {
       try {
+        eis(waaromNietWijzigen(project.offertes.find((x) => x.id === offerteId)))
         projectsApi.updateOfferteRegel(id, offerteId, regelId, patch)
         ververs()
-      } catch (e) {
-        notifications.show({
-          color: 'red',
-          title: 'Regel bijwerken mislukt',
-          message: e instanceof Error ? e.message : String(e),
+      } catch (fout) {
+        meldFout({
+          actie: `Regel in ${versieVan(offerteId)} bijwerken`,
+          fout,
+          gevolg: 'Er is niets gewijzigd — niet op de server en niet op je scherm.',
         })
       }
     },
     verwijderRegel: (offerteId, regelId) =>
-      doe('Regel verwijderd', () => projectsApi.removeOfferteRegel(id, offerteId, regelId)),
+      doe(`Regel uit ${versieVan(offerteId)} verwijderen`, 'Regel verwijderd', () => {
+        eis(waaromNietWijzigen(project.offertes.find((x) => x.id === offerteId)))
+        projectsApi.removeOfferteRegel(id, offerteId, regelId)
+      }),
+    verwijderOfferte: (offerteId) => {
+      const label = versieVan(offerteId)
+      doe(`Offerte ${label} verwijderen`, `Offerte ${label} verwijderd`, () => {
+        eis(waaromNietVerwijderen(project.offertes.find((x) => x.id === offerteId)))
+        projectsApi.verwijderOfferte(id, offerteId)
+      })
+    },
+    trekOfferteIn: (offerteId) => {
+      const label = versieVan(offerteId)
+      doe(`Offerte ${label} intrekken`, `Offerte ${label} ingetrokken — hij staat nu als vervallen`, () => {
+        eis(waaromNietIntrekken(project.offertes.find((x) => x.id === offerteId)))
+        projectsApi.trekOfferteIn(id, offerteId)
+      })
+    },
+    // Niet via `doe`: dit wacht wél op de server, want het nieuwe projectnummer
+    // komt daarvandaan en pas dan valt er iets te openen.
+    naarNieuwProject: async (offerteId, keuze) => {
+      const label = versieVan(offerteId)
+      try {
+        const nieuw = await projectsApi.naarNieuwProject(id, offerteId, keuze)
+        qc.invalidateQueries({ queryKey: ['projects'] })
+        notifications.show({
+          color: 'green',
+          autoClose: 8000,
+          title: `${nieuw.id} aangemaakt op basis van ${label}`,
+          message: 'De prijzen komen uit het bronproject. Controleer ze met "Prijzen bijwerken" '
+            + 'als de calculatie sindsdien veranderd is.',
+        })
+        navigate(`/projecten/${nieuw.id}?tab=offertes`)
+        return true
+      } catch (fout) {
+        meldFout({
+          actie: `Offerte ${label} naar nieuw project kopiëren`,
+          fout,
+          gevolg: fout instanceof ApiFout && fout.code === 'TIMEOUT'
+            ? 'Onbekend of het project is aangemaakt: de server antwoordde niet op tijd. '
+              + 'Kijk in de projectlijst voor je het opnieuw probeert, anders staat het er twee keer.'
+            : 'Er is geen nieuw project aangemaakt. Dit project is niet veranderd.',
+        })
+        return false
+      }
+    },
     // `bewerkingen` gaat mee met de prijs en niet los: ze komen uit dezelfde
     // calculatie, en de productiestappen worden er straks uit gemaakt. Alleen de
     // prijs verversen zou een regel opleveren met het bedrag van het nieuwe
     // recept en de stappen van het oude.
     werkPrijzenBij: (offerteId, gekozen) =>
       doe(
+        'Prijzen bijwerken',
         `${gekozen.length} regel${gekozen.length === 1 ? '' : 's'} bijgewerkt uit de calculaties`,
         () => {
+          eis(waaromNietWijzigen(project.offertes.find((x) => x.id === offerteId)))
           for (const b of gekozen) {
             projectsApi.updateOfferteRegel(id, offerteId, b.regelId, {
               verkoopprijs: b.nieuweVerkoopprijs,

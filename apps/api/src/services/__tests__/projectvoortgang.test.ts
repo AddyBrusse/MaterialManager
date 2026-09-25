@@ -67,7 +67,7 @@ function offerte(
 ) {
   return {
     id, documentNr: 'OFF-2026-014', projectId: 'PRJ-1', versie, status, regels,
-    notities: '', geldigTot: null, verzondenOp: null, geaccepteerdOp: null,
+    notities: '', externeRef: null, geldigTot: null, verzondenOp: null, geaccepteerdOp: null,
     createdAt: NU, updatedAt: NU,
   }
 }

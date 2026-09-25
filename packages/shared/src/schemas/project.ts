@@ -92,6 +92,12 @@ export const OfferteSchema = z.object({
   status: z.enum(OFFERTE_STATUSES),
   regels: z.array(OfferteRegelSchema),
   notities: z.string(),
+  // Waar deze versie antwoord op geeft: een RFQ-nummer van de klant, of "mail
+  // J. Prins 12-09". Per versie en niet per project, want een herziening
+  // beantwoordt vaak een nieuwe vraag; staffels op dezelfde RFQ delen hem.
+  // Vrije tekst: klanten nummeren hun aanvragen op hun eigen manier, en een
+  // mail heeft geen nummer.
+  externeRef: z.string().nullable().default(null),
   geldigTot: z.string().nullable(),
   verzondenOp: z.string().nullable(),
   geaccepteerdOp: z.string().nullable(),

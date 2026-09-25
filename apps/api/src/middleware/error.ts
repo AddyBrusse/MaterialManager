@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express'
 import { ZodError } from 'zod'
 import { config } from '../config'
+import { zodMeldingNl, zodVeldenNl } from '../lib/zod-nl'
 
 export function errorMiddleware(
   err: unknown,
@@ -10,7 +11,13 @@ export function errorMiddleware(
 ): void {
   if (err instanceof ZodError) {
     res.status(400).json({
-      error: { code: 'VALIDATION', message: 'Validatiefout', details: err.flatten() },
+      // De melding zelf is leesbaar (welk veld, wat er mis is); `velden` en de
+      // Zod-vorm staan erbij voor wie een formulier per veld wil markeren.
+      error: {
+        code: 'VALIDATION',
+        message: zodMeldingNl(err),
+        details: { ...err.flatten(), velden: zodVeldenNl(err) },
+      },
     })
     return
   }
@@ -34,9 +41,17 @@ export function errorMiddleware(
   const status = (err as { status?: number; statusCode?: number } | null)?.status
     ?? (err as { statusCode?: number } | null)?.statusCode
   if (typeof status === 'number' && status >= 400 && status < 500) {
-    const code = (err as { type?: string }).type === 'entity.too.large' ? 'PAYLOAD_TOO_LARGE' : 'BAD_REQUEST'
+    const type = (err as { type?: string }).type
+    const code = type === 'entity.too.large' ? 'PAYLOAD_TOO_LARGE' : 'BAD_REQUEST'
+    // body-parser meldt in het Engels ("Unexpected token } in JSON…"); die
+    // tekst gaat mee als reden, de melding zelf zegt het in gewone taal.
+    const message = type === 'entity.too.large'
+      ? 'Het verzoek is te groot voor de server. Er is niets opgeslagen.'
+      : type === 'entity.parse.failed'
+        ? 'De server kon de meegestuurde gegevens niet lezen. Er is niets opgeslagen.'
+        : (err as Error).message || 'Ongeldig verzoek'
     res.status(status).json({
-      error: { code, message: (err as Error).message || 'Ongeldig verzoek' },
+      error: { code, message, details: { reden: (err as Error).message } },
     })
     return
   }
@@ -47,7 +62,7 @@ export function errorMiddleware(
   // de NAS mee: hem inslikken kostte een ronde zoeken toen het aanmaken van een
   // terminal-account op 2026-09-14 alleen "Aanmaken mislukt" opleverde, terwijl
   // Postgres gewoon zei: invalid input value for enum "Role": "terminal".
-  const pg = postgresFout(err)
+  const pg = postgresFout(err) ?? prismaSchemaFout(err)
   if (pg && MIGRATIE_CODES.has(pg.code)) {
     console.error(err)
     res.status(500).json({
@@ -65,6 +80,26 @@ export function errorMiddleware(
     return
   }
 
+  // De code kent een veld dat de gegenereerde Prisma-client niet kent: het
+  // schema is bijgewerkt, maar `prisma generate` is niet gedraaid. De database
+  // kan dan al helemaal kloppen — `migrate deploy` genereert de client niet.
+  // Zo gebeurd op 2026-09-25: "Unknown argument `externeRef`" bij accepteren,
+  // en het scherm zei "Interne serverfout" met een Prisma-dump erachter.
+  const onbekend = verouderdeClient(err)
+  if (onbekend) {
+    console.error(err)
+    res.status(500).json({
+      error: {
+        code: 'CLIENT_VEROUDERD',
+        message: 'De server is niet opnieuw opgebouwd na een update: hij kent het veld '
+          + `"${onbekend}" nog niet. Er is niets opgeslagen. Stop de server (npm run dev), `
+          + 'draai npm run db:deploy en start hem opnieuw.',
+        details: { reden: err instanceof Error ? err.message : String(err) },
+      },
+    })
+    return
+  }
+
   console.error(err)
   // In ontwikkeling de echte reden meesturen. "Interne serverfout" in het scherm
   // en een stack in een terminal die niemand openheeft staan, betekent dat een
@@ -74,7 +109,7 @@ export function errorMiddleware(
   res.status(500).json({
     error: {
       code: 'INTERNAL',
-      message: 'Interne serverfout',
+      message: 'Onverwachte fout op de server. Geef de technische details door aan wie de app beheert.',
       ...(config.isDev && { details: { reden: err instanceof Error ? err.message : String(err) } }),
     },
   })
@@ -87,7 +122,39 @@ export function errorMiddleware(
  *   42703 — kolom bestaat niet
  * Alle drie wijzen op een migratie die nog niet gedraaid is.
  */
-const MIGRATIE_CODES = new Set(['22P02', '42P01', '42703'])
+const MIGRATIE_CODES = new Set(['22P02', '42P01', '42703', 'P2021', 'P2022'])
+
+/**
+ * Dezelfde situatie, maar zoals Prisma hem zelf meldt: niet als Postgres-code
+ * in de tekst, maar als eigen foutcode op het object.
+ *   P2021 — tabel bestaat niet
+ *   P2022 — kolom bestaat niet
+ *
+ * Zonder dit viel een ontbrekende kolom door naar "Interne serverfout". Zo
+ * gebeurd op 2026-09-25: na het bijtrekken van de branch met
+ * `offertes.externe_ref` faalde elke schrijfactie op een project — kopiëren,
+ * versturen, een regel toevoegen — en het scherm zei alleen "mislukt". Prisma
+ * wist precies welke kolom er ontbrak; de melding zei het niet.
+ */
+function prismaSchemaFout(err: unknown): { code: string; message: string } | null {
+  const e = err as { code?: unknown; meta?: { column?: unknown; table?: unknown }; message?: unknown } | null
+  if (!e || (e.code !== 'P2021' && e.code !== 'P2022')) return null
+  const wat = e.code === 'P2022'
+    ? `kolom ${String(e.meta?.column ?? '?')} bestaat niet in de database`
+    : `tabel ${String(e.meta?.table ?? '?')} bestaat niet in de database`
+  return { code: e.code, message: wat }
+}
+
+/**
+ * Een PrismaClientValidationError die een veld niet kent. Op naam herkend in
+ * plaats van met `instanceof`, zodat de test geen Prisma-client nodig heeft.
+ * Alleen "Unknown argument/field": een ontbrekend verplicht veld is meestal
+ * een fout in onze code, geen verouderde client, en hoort bij INTERNAL.
+ */
+function verouderdeClient(err: unknown): string | null {
+  if (!(err instanceof Error) || err.name !== 'PrismaClientValidationError') return null
+  return err.message.match(/Unknown (?:argument|field) `([^`]+)`/)?.[1] ?? null
+}
 
 /**
  * Prisma pakt de Postgres-fout in een ConnectorError; de code staat alleen in
