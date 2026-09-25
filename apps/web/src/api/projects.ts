@@ -5,7 +5,7 @@ import type {
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
 } from '@stockmanager/shared'
-import { berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie } from '@stockmanager/shared'
+import { berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken } from '@stockmanager/shared'
 import { apiFetch, ApiFout } from './client'
 import { meldFout } from '../utils/fout-melding-toon'
 import type { LaadFout } from '../utils/fout-melding'
@@ -345,6 +345,56 @@ export const projectsApi = {
       method: 'POST', body: JSON.stringify({ id, vanOfferteId, regelIds }),
     }), bron ? 'Offerte kopiëren' : 'Nieuwe offerte aanmaken')
     return updated
+  },
+
+  /** Een concept weg. Alleen een concept — zie `waaromNietVerwijderen`. */
+  verwijderOfferte(projectId: string, offerteId: string): Project {
+    const updated = updateCache(projectId, p => projectNaIntrekken({
+      ...p,
+      updatedAt: now(),
+      offertes: p.offertes.filter(o => o.id !== offerteId),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}`, {
+      method: 'DELETE',
+    }), 'Offerte verwijderen')
+    return updated
+  },
+
+  /** Een verstuurde versie die niet meer geldt: vervallen, maar zichtbaar. */
+  trekOfferteIn(projectId: string, offerteId: string): Project {
+    const updated = updateCache(projectId, p => projectNaIntrekken({
+      ...p,
+      updatedAt: now(),
+      offertes: p.offertes.map(o =>
+        o.id === offerteId ? { ...o, status: 'vervallen' as OfferteStatus, updatedAt: now() } : o,
+      ),
+    }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/intrek`, {
+      method: 'POST',
+    }), 'Offerte intrekken')
+    return updated
+  },
+
+  /**
+   * Een offerte als begin van een nieuw project. Niet optimistisch, anders dan
+   * de rest hier: het projectnummer komt van de server, en naar een project
+   * navigeren dat misschien niet ontstaat is erger dan een halve seconde
+   * wachten. Gooit een `ApiFout`; de aanroeper meldt die.
+   */
+  async naarNieuwProject(
+    projectId: string,
+    offerteId: string,
+    body: { naam: string; relatieId: string | null; contactId: string | null; externeRef: string | null },
+  ): Promise<Project> {
+    const { data } = await apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/naar-project`, {
+      method: 'POST', body: JSON.stringify(body),
+    })
+    cache = [...cache.filter(p => p.id !== data.id), data]
+    saveLocal(cache)
+    // De server koos PRJ- en OFF-nummer; zonder dit geeft "Nieuw project" in
+    // deze browser straks hetzelfde nummer nog eens uit.
+    seedSequenceCounters(cache)
+    return data
   },
 
   /** Velden van een versie zelf — nu alleen de externe referentie. */

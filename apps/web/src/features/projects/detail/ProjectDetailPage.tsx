@@ -280,6 +280,9 @@ export function ProjectDetailPage() {
               onRegel={acties.bewerkRegel}
               onVerwijderRegel={acties.verwijderRegel}
               onPrijzen={acties.werkPrijzenBij}
+              onVerwijder={acties.verwijderOfferte}
+              onIntrekken={acties.trekOfferteIn}
+              onNaarProject={acties.naarNieuwProject}
             />
           )}
           {tab === 'opdracht' && (

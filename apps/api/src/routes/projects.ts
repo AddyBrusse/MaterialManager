@@ -5,6 +5,7 @@ import {
   CreateProjectSchema, UpdateProjectSchema, ProjectStatusStopSchema,
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
+  waaromNietVerwijderen, waaromNietIntrekken, projectNaIntrekken,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
   berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie,
@@ -452,6 +453,93 @@ router.post(
       }
     })
     res.json({ data: updated })
+  }),
+)
+
+router.delete(
+  '/:id/offertes/:offId',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      eis(waaromNietVerwijderen(p.offertes.find(o => o.id === req.params.offId)))
+      // De regels gaan mee via onDelete: Cascade; er hangt verder niets aan
+      // een concept (orders, prijshistorie en todo's ontstaan bij accepteren).
+      return projectNaIntrekken({
+        ...p,
+        updatedAt: now(),
+        offertes: p.offertes.filter(o => o.id !== req.params.offId),
+      })
+    })
+    res.json({ data: updated })
+  }),
+)
+
+router.post(
+  '/:id/offertes/:offId/intrek',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      eis(waaromNietIntrekken(p.offertes.find(o => o.id === req.params.offId)))
+      return projectNaIntrekken({
+        ...p,
+        updatedAt: now(),
+        offertes: p.offertes.map(o =>
+          o.id === req.params.offId ? { ...o, status: 'vervallen' as OfferteStatus, updatedAt: now() } : o,
+        ),
+      })
+    })
+    res.json({ data: updated })
+  }),
+)
+
+// Een offerte als begin van een nieuw project: een herhaalorder, of dezelfde
+// onderdelen voor een andere klant. Project en offerte in één transactie —
+// anders blijft er bij een fout een leeg project achter dat niemand bedoelde.
+const NaarProjectSchema = z.object({
+  naam: z.string().trim().min(1),
+  relatieId: z.string().nullable(),
+  contactId: z.string().nullable(),
+  externeRef: z.string().max(200).nullable(),
+  regelIds: z.array(z.string()).optional(),
+})
+
+router.post(
+  '/:id/offertes/:offId/naar-project',
+  asyncHandler(async (req, res) => {
+    const body = NaarProjectSchema.parse(req.body)
+    const bronProject = await getProject(req.params.id)
+    const bron = bronProject.offertes.find(o => o.id === req.params.offId)
+    if (!bron) {
+      throw new AppError(404, 'NOT_FOUND', 'Kan niet kopiëren: deze offerteversie bestaat niet (meer). Ververs de pagina.')
+    }
+    const nieuw = await prisma.$transaction(async (tx) => {
+      const projectId = await nextDocId(tx, 'PRJ')
+      const row = await tx.project.create({
+        data: {
+          id: projectId,
+          naam: body.naam,
+          relatieId: body.relatieId,
+          contactId: body.contactId,
+          // Niet mee: klantreferentie en levertijd horen bij déze bestelling,
+          // notities bij dít project.
+          klantRef: null,
+          levertijdDatum: null,
+          notities: '',
+        },
+        include: PROJECT_INCLUDE,
+      })
+      // Een nieuw nummer: voor de klant is dit een nieuwe offerte, geen
+      // herziening van die uit het andere project.
+      const offId = await nextDocId(tx, 'OFF')
+      const off = {
+        ...kopieerOfferte(bron, {
+          id: offId, documentNr: offId, versie: 1, regelIds: body.regelIds, nu: now(), projectId,
+        }),
+        externeRef: body.externeRef?.trim() || null,
+        notities: '',
+      }
+      await persist(tx, { ...serialize(row), offertes: [off] })
+      return serialize(await tx.project.findUniqueOrThrow({ where: { id: projectId }, include: PROJECT_INCLUDE }))
+    })
+    res.status(201).json({ data: nieuw })
   }),
 )
 

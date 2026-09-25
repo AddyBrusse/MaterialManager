@@ -1280,7 +1280,32 @@ misgaat — voor alle fouten.
 - *Verouderde Prisma-client* krijgt een eigen code (`CLIENT_VEROUDERD`), en
   `db:deploy` en `dev` draaien `prisma generate`.
 
-**Nog open.** Of Versturen een externe referentie moet eisen: er gaat nog geen
-mail uit (Versturen zet alleen de datum), en niet elke aanvraag heeft een
-RFQ-nummer. Niet ingebouwd tot dat beslist is.
+**Later dezelfde dag beslist:** Versturen eist een externe referentie (zie
+het besluit hieronder).
+
+## 2026-09-25 — Offertes verwijderen, intrekken en kopiëren naar een nieuw project
+
+**Besloten.**
+- *Weg op twee manieren, afhankelijk van wie de versie gezien heeft.* Een
+  concept wordt verwijderd (na een bevestiging die versie, regels en bedrag
+  noemt). Een verstuurde versie wordt **ingetrokken**: status vervallen, maar
+  zichtbaar — de klant heeft hem, en wat de klant kreeg moet terug te vinden
+  zijn. Een geaccepteerde versie kan geen van beide: daar hangen
+  opdrachtbevestiging, productieorders, prijshistorie en facturen aan.
+  Regels in `waaromNietVerwijderen` / `waaromNietIntrekken`.
+- *Is er na intrekken geen verstuurde versie meer, dan gaat een project van
+  "offerte" terug naar "concept"* (`projectNaIntrekken`) — er ligt dan niets
+  meer bij de klant.
+- *Versturen eist een externe referentie.* Een verstuurde versie zegt altijd
+  waar ze antwoord op geeft; bij een telefonische aanvraag is "tel. 12-09" ook
+  een referentie.
+- *Kopiëren naar een nieuw project* vervangt de geplande "herhaalorder als nieuw
+  project". Klant, contact, naam en referentie zijn te kiezen; het nieuwe
+  project krijgt v1 met een **eigen** offertenummer (voor de klant een nieuwe
+  offerte, geen herziening), de regels tegen dezelfde prijzen, en géén
+  levertijd, klantreferentie of notities — die horen bij een bestelling. Project
+  en offerte ontstaan in één transactie op de server
+  (`POST /projects/:id/offertes/:offId/naar-project`), niet optimistisch: het
+  projectnummer komt van de server, en navigeren naar een project dat misschien
+  niet ontstaat is erger dan even wachten.
 

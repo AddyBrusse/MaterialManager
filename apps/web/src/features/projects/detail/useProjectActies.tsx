@@ -1,10 +1,12 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { notifications } from '@mantine/notifications'
 import type { Project } from '@stockmanager/shared'
 import {
   laatsteFactuur, laatstePaklijst, volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
+  waaromNietVerwijderen, waaromNietIntrekken,
 } from '@stockmanager/shared'
 import { projectsApi, wachtOpOpslag } from '../../../api/projects'
 import { meldFout } from '../../../utils/fout-melding-toon'
@@ -12,6 +14,8 @@ import { eis } from '../../../utils/fout-melding'
 import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
+import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
+import { ApiFout } from '../../../api/client'
 
 /**
  * Alles wat dit scherm schrijft, op één plek.
@@ -67,10 +71,15 @@ export interface ProjectActies {
   ) => void
   verwijderRegel: (offerteId: string, regelId: string) => void
   werkPrijzenBij: (offerteId: string, gekozen: Bijwerking[]) => void
+  verwijderOfferte: (offerteId: string) => void
+  trekOfferteIn: (offerteId: string) => void
+  /** `false` als het mislukte; de melding is dan al getoond. */
+  naarNieuwProject: (offerteId: string, keuze: NaarProjectKeuze) => Promise<boolean>
 }
 
 export function useProjectActies(project: Project | undefined, naarTab: (t: string) => void): ProjectActies {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const gebruiker = useUserStore((s) => s.user)
   const [vraag, setVraag] = useState<Vraag | null>(null)
 
@@ -140,6 +149,9 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     bewerkRegel: () => {},
     verwijderRegel: () => {},
     werkPrijzenBij: () => {},
+    verwijderOfferte: () => {},
+    trekOfferteIn: () => {},
+    naarNieuwProject: async () => false,
   }
   if (!project) return leeg
 
@@ -358,6 +370,48 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         eis(waaromNietWijzigen(project.offertes.find((x) => x.id === offerteId)))
         projectsApi.removeOfferteRegel(id, offerteId, regelId)
       }),
+    verwijderOfferte: (offerteId) => {
+      const label = versieVan(offerteId)
+      doe(`Offerte ${label} verwijderen`, `Offerte ${label} verwijderd`, () => {
+        eis(waaromNietVerwijderen(project.offertes.find((x) => x.id === offerteId)))
+        projectsApi.verwijderOfferte(id, offerteId)
+      })
+    },
+    trekOfferteIn: (offerteId) => {
+      const label = versieVan(offerteId)
+      doe(`Offerte ${label} intrekken`, `Offerte ${label} ingetrokken — hij staat nu als vervallen`, () => {
+        eis(waaromNietIntrekken(project.offertes.find((x) => x.id === offerteId)))
+        projectsApi.trekOfferteIn(id, offerteId)
+      })
+    },
+    // Niet via `doe`: dit wacht wél op de server, want het nieuwe projectnummer
+    // komt daarvandaan en pas dan valt er iets te openen.
+    naarNieuwProject: async (offerteId, keuze) => {
+      const label = versieVan(offerteId)
+      try {
+        const nieuw = await projectsApi.naarNieuwProject(id, offerteId, keuze)
+        qc.invalidateQueries({ queryKey: ['projects'] })
+        notifications.show({
+          color: 'green',
+          autoClose: 8000,
+          title: `${nieuw.id} aangemaakt op basis van ${label}`,
+          message: 'De prijzen komen uit het bronproject. Controleer ze met "Prijzen bijwerken" '
+            + 'als de calculatie sindsdien veranderd is.',
+        })
+        navigate(`/projecten/${nieuw.id}?tab=offertes`)
+        return true
+      } catch (fout) {
+        meldFout({
+          actie: `Offerte ${label} naar nieuw project kopiëren`,
+          fout,
+          gevolg: fout instanceof ApiFout && fout.code === 'TIMEOUT'
+            ? 'Onbekend of het project is aangemaakt: de server antwoordde niet op tijd. '
+              + 'Kijk in de projectlijst voor je het opnieuw probeert, anders staat het er twee keer.'
+            : 'Er is geen nieuw project aangemaakt. Dit project is niet veranderd.',
+        })
+        return false
+      }
+    },
     // `bewerkingen` gaat mee met de prijs en niet los: ze komen uit dezelfde
     // calculatie, en de productiestappen worden er straks uit gemaakt. Alleen de
     // prijs verversen zou een regel opleveren met het bedrag van het nieuwe

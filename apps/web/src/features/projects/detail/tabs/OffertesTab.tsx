@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { IconChevronDown, IconChevronRight, IconCopy } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
 import type { Offerte, Project } from '@stockmanager/shared'
 import { ArtikelPickerModal } from '../../../../components/projecten/ArtikelPickerModal'
 import { PrijzenBijwerkenModal } from '../../../../components/projecten/PrijzenBijwerkenModal'
@@ -9,6 +9,9 @@ import { CelTekst } from '../components/CelTekst'
 import { datum, eur } from '../lib/format'
 import { geaccepteerdeOfferte } from '../lib/status'
 import { OfferteRegels } from './OfferteRegels'
+import { OfferteActies } from './OfferteActies'
+import { NaarProjectModal, type NaarProjectKeuze } from './NaarProjectModal'
+import { WegBevestiging } from './WegBevestiging'
 
 function statusPill(o: Offerte) {
   switch (o.status) {
@@ -57,6 +60,9 @@ interface Props {
   onRegel: (offerteId: string, regelId: string, patch: { qty?: number; verkoopprijs?: number }) => void
   onVerwijderRegel: (offerteId: string, regelId: string) => void
   onPrijzen: (offerteId: string, gekozen: Bijwerking[]) => void
+  onVerwijder: (offerteId: string) => void
+  onIntrekken: (offerteId: string) => void
+  onNaarProject: (offerteId: string, keuze: NaarProjectKeuze) => Promise<boolean>
 }
 
 /** §5.2 — de versies, elk met zijn eigen regels eronder. */
@@ -72,6 +78,9 @@ export function OffertesTab({
   onRegel,
   onVerwijderRegel,
   onPrijzen,
+  onVerwijder,
+  onIntrekken,
+  onNaarProject,
 }: Props) {
   const versies = [...project.offertes].sort((a, b) => b.versie - a.versie)
   const acc = geaccepteerdeOfferte(project)
@@ -90,9 +99,13 @@ export function OffertesTab({
   }, [versies])
   const [picker, setPicker] = useState<string | null>(null)
   const [prijzen, setPrijzen] = useState<string | null>(null)
+  const [bevestig, setBevestig] = useState<{ soort: 'verwijderen' | 'intrekken'; id: string } | null>(null)
+  const [naarProject, setNaarProject] = useState<string | null>(null)
 
   const pickerOfferte = versies.find((v) => v.id === picker) ?? null
   const prijzenOfferte = versies.find((v) => v.id === prijzen) ?? null
+  const bevestigOfferte = versies.find((v) => v.id === bevestig?.id) ?? null
+  const naarProjectOfferte = versies.find((v) => v.id === naarProject) ?? null
 
   if (versies.length === 0) {
     return (
@@ -197,46 +210,17 @@ export function OffertesTab({
                   <td className="mono">{datum(o.geaccepteerdOp)}</td>
                   <td className="mono">{datum(o.geldigTot)}</td>
                   <td className="num">{eur(o.regels.reduce((s, r) => s + r.totaal, 0))}</td>
-                  <td className="pdv2-acties">
-                    {/* Vooruit is per versie een keuze die alleen een mens maakt:
-                        wélke versie gaat de deur uit, wélke accepteert de klant. */}
-                    {o.status === 'concept' && (
-                      <button
-                        type="button"
-                        className="pdv2-btn s"
-                        // Niet uitgeschakeld bij een lege versie: een grijze
-                        // knop zegt niet wáárom. Klikken geeft een melding die
-                        // zegt wat er eerst moet (zie offerte-voorwaarden).
-                        disabled={geblokkeerd}
-                        onClick={() => onVerzend(o.id)}
-                      >
-                        Versturen
-                      </button>
-                    )}
-                    {o.status === 'verzonden' && !acc && (
-                      <button
-                        type="button"
-                        className="pdv2-btn s primair"
-                        disabled={geblokkeerd}
-                        onClick={() => onAccepteer(o.id)}
-                      >
-                        Accepteren
-                      </button>
-                    )}
-                    {/* Elke versie is een basis, ook een vervallen of een
-                        geaccepteerde: een staffel van 10 begint vaak als
-                        kopie van die van 5. */}
-                    <button
-                      type="button"
-                      className="pdv2-btn s"
-                      disabled={geblokkeerd}
-                      title={`Nieuwe versie maken op basis van v${o.versie}`}
-                      onClick={() => onKopieer(o.id)}
-                    >
-                      <IconCopy size={12} />
-                      Kopieer
-                    </button>
-                  </td>
+                  <OfferteActies
+                    offerte={o}
+                    erIsGeaccepteerd={Boolean(acc)}
+                    geblokkeerd={geblokkeerd}
+                    onVerzend={() => onVerzend(o.id)}
+                    onAccepteer={() => onAccepteer(o.id)}
+                    onKopieer={() => onKopieer(o.id)}
+                    onNaarProject={() => setNaarProject(o.id)}
+                    onIntrekken={() => setBevestig({ soort: 'intrekken', id: o.id })}
+                    onVerwijder={() => setBevestig({ soort: 'verwijderen', id: o.id })}
+                  />
                 </tr>
 
                 {uit && (
@@ -270,6 +254,28 @@ export function OffertesTab({
           relatieId={project.relatieId}
           onClose={() => setPicker(null)}
           onAdded={onGewijzigd}
+        />
+      )}
+
+      {bevestig && bevestigOfferte && (
+        <WegBevestiging
+          soort={bevestig.soort}
+          offerte={bevestigOfferte}
+          onSluit={() => setBevestig(null)}
+          onBevestig={() => {
+            setBevestig(null)
+            if (bevestig.soort === 'verwijderen') onVerwijder(bevestigOfferte.id)
+            else onIntrekken(bevestigOfferte.id)
+          }}
+        />
+      )}
+
+      {naarProjectOfferte && (
+        <NaarProjectModal
+          project={project}
+          offerte={naarProjectOfferte}
+          onSluit={() => setNaarProject(null)}
+          onMaak={(keuze) => onNaarProject(naarProjectOfferte.id, keuze)}
         />
       )}
 

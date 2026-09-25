@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
+  waaromNietVerwijderen, waaromNietIntrekken,
   type Offerte, type OfferteRegel,
 } from '@stockmanager/shared'
 
@@ -20,8 +21,21 @@ function versie(v: number, status: Offerte['status'], regels: OfferteRegel[]): O
 }
 
 describe('waaromNietVersturen', () => {
-  it('mag een concept met regels', () => {
-    expect(waaromNietVersturen(versie(1, 'concept', [regel('As', 5)]))).toBeNull()
+  it('mag een concept met regels en een referentie', () => {
+    expect(waaromNietVersturen({ ...versie(1, 'concept', [regel('As', 5)]), externeRef: 'RFQ-0412' })).toBeNull()
+  })
+
+  // Afgesproken 2026-09-25: wat de deur uit gaat, zegt waar het op antwoordt.
+  it('eist een externe referentie', () => {
+    const zonder = versie(1, 'concept', [regel('As', 5)])
+    expect(waaromNietVersturen(zonder)).toContain('zonder een externe referentie')
+    expect(waaromNietVersturen({ ...zonder, externeRef: '   ' })).toContain('zonder een externe referentie')
+  })
+
+  // Eerst wat er aan de inhoud ontbreekt: een referentie invullen bij een lege
+  // versie helpt niemand verder.
+  it('noemt eerst ontbrekende regels, dan de referentie', () => {
+    expect(waaromNietVersturen(versie(1, 'concept', []))).toContain('geen regels')
   })
 
   it('zegt dat er geen regels in staan', () => {
@@ -70,3 +84,33 @@ describe('waaromNietWijzigen', () => {
     expect(waaromNietWijzigen(versie(1, 'verzonden', []))).toContain('Maak een kopie')
   })
 })
+
+describe('waaromNietVerwijderen', () => {
+  it('mag een concept', () => {
+    expect(waaromNietVerwijderen(versie(3, 'concept', [regel('As', 5)]))).toBeNull()
+  })
+
+  it('verwijst een verstuurde versie naar intrekken', () => {
+    expect(waaromNietVerwijderen(versie(2, 'verzonden', []))).toContain('Trek hem in')
+  })
+
+  it('weigert een geaccepteerde versie: daar draait de opdracht op', () => {
+    expect(waaromNietVerwijderen(versie(4, 'geaccepteerd', []))).toContain('hierop draait de opdracht')
+  })
+})
+
+describe('waaromNietIntrekken', () => {
+  it('mag een verstuurde versie', () => {
+    expect(waaromNietIntrekken(versie(2, 'verzonden', []))).toBeNull()
+  })
+
+  it('verwijst een concept naar verwijderen', () => {
+    expect(waaromNietIntrekken(versie(1, 'concept', []))).toContain('Verwijder hem')
+  })
+
+  it('weigert een geaccepteerde en een al vervallen versie', () => {
+    expect(waaromNietIntrekken(versie(4, 'geaccepteerd', []))).toContain('hierop draait de opdracht')
+    expect(waaromNietIntrekken(versie(1, 'vervallen', []))).toContain('al vervallen')
+  })
+})
+

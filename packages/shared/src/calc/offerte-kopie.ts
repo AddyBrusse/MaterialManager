@@ -36,6 +36,8 @@ export function kopieerOfferte(
     versie: number
     regelIds?: string[]
     nu: string
+    /** Alleen bij kopiëren naar een ánder project; standaard dat van de bron. */
+    projectId?: string
   },
 ): Offerte {
   const regels = [...bron.regels]
@@ -50,7 +52,7 @@ export function kopieerOfferte(
   return {
     id: nieuw.id,
     documentNr: nieuw.documentNr,
-    projectId: bron.projectId,
+    projectId: nieuw.projectId ?? bron.projectId,
     versie: nieuw.versie,
     status: 'concept',
     regels,
