@@ -40,6 +40,27 @@ describe('errorMiddleware', () => {
     expect((res.body as any).error.code).toBe('VALIDATION')
   })
 
+  it('zegt in gewone taal welk veld er mis is', () => {
+    let fout: ZodError
+    try {
+      z.object({ externeRef: z.string().max(200), qty: z.number() }).parse({ externeRef: 'x'.repeat(201) })
+    } catch (e) { fout = e as ZodError }
+    const body = stuur(fout!).body as any
+    expect(body.error.message).toBe(
+      'Niet goed ingevuld: Externe referentie is te lang: maximaal 200 tekens; Aantal is niet ingevuld.',
+    )
+    expect(body.error.details.velden).toHaveLength(2)
+  })
+
+  it('vertaalt onleesbare JSON van body-parser', () => {
+    const err = Object.assign(new Error('Unexpected token } in JSON at position 9'), {
+      status: 400, type: 'entity.parse.failed',
+    })
+    const body = stuur(err).body as any
+    expect(body.error.message).toContain('kon de meegestuurde gegevens niet lezen')
+    expect(body.error.details.reden).toContain('Unexpected token')
+  })
+
   it('geeft een AppError met zijn eigen status en boodschap', () => {
     const res = stuur(new AppError(409, 'IN_USE', 'Hangt aan een project'))
     expect(res.code).toBe(409)
@@ -60,7 +81,7 @@ describe('errorMiddleware', () => {
     const res = stuur(new Error('interne details die niemand aangaan'))
     expect(res.code).toBe(500)
     expect((res.body as any).error.details).toBeUndefined()
-    expect((res.body as any).error.message).toBe('Interne serverfout')
+    expect((res.body as any).error.message).toContain('Onverwachte fout op de server')
   })
 })
 
@@ -139,5 +160,35 @@ ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(Postgr
     alsOntwikkeling(false)
     const res = stuur(new Error('PostgresError { code: "22P02", message: "x" }'))
     expect((res.body as any).error.code).toBe('MIGRATIE_ONTBREEKT')
+  })
+})
+
+describe('errorMiddleware: Prisma-client niet opnieuw gegenereerd', () => {
+  /**
+   * De melding van 2026-09-25 op de werk-pc, ingekort maar met de regel die
+   * telt letterlijk: de migratie was gedraaid, `prisma generate` niet, en
+   * accepteren gaf "Interne serverfout" met deze dump erachter.
+   */
+  const ECHTE_FOUT = 'Invalid `tx.offerte.upsert()` invocation in\n'
+    + 'C:\\ClaudeProjects\\StockManager\\apps\\api\\src\\services\\project-store.ts:257:22\n\n'
+    + '→ 257 await tx.offerte.upsert({\n'
+    + 'Unknown argument `externeRef`. Available options are marked with ?.'
+
+  function validatieFout(tekst: string) {
+    return Object.assign(new Error(tekst), { name: 'PrismaClientValidationError' })
+  }
+
+  it('noemt het onbekende veld en wat je moet doen', () => {
+    alsOntwikkeling(false)
+    const body = stuur(validatieFout(ECHTE_FOUT)).body as any
+    expect(body.error.code).toBe('CLIENT_VEROUDERD')
+    expect(body.error.message).toContain('"externeRef"')
+    expect(body.error.message).toContain('npm run db:deploy')
+    expect(body.error.message).toContain('Er is niets opgeslagen')
+  })
+
+  it('laat een andere validatiefout van Prisma een interne fout', () => {
+    const body = stuur(validatieFout('Argument `naam` is missing.')).body as any
+    expect(body.error.code).toBe('INTERNAL')
   })
 })

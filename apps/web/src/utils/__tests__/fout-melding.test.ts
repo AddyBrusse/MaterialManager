@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ApiFout } from '../../api/client'
-import { foutTekst, laadGevolg } from '../fout-melding'
+import { foutTekst, laadGevolg, Weigering } from '../fout-melding'
 
 // Het geval dat deze melding opleverde: versturen op een database waar de
 // migratie van offertes.externe_ref nog niet gedraaid was. Vóór deze melding
@@ -14,10 +14,31 @@ const migratieFout = new ApiFout(
 )
 
 describe('foutTekst', () => {
-  it('zegt wat er misging in de woorden van de server, met de reden', () => {
+  it('zegt wat er misging in de woorden van de server; de reden apart', () => {
     const t = foutTekst({ actie: 'OFF-2026-037 versturen', fout: migratieFout, gevolg: 'Niets opgeslagen.' })
     expect(t.wat).toContain('npm run db:deploy')
-    expect(t.wat).toContain('offertes.externe_ref')
+    // Een Prisma-dump in "Wat" leest niemand; hij staat ingeklapt eronder.
+    expect(t.wat).not.toContain('offertes.externe_ref')
+    expect(t.technisch).toContain('offertes.externe_ref')
+    expect(t.weigering).toBe(false)
+  })
+
+  it('maakt van een voorwaarde een weigering, geen storing', () => {
+    const t = foutTekst({
+      actie: 'v2 versturen',
+      fout: new Weigering('Kan offerte niet versturen: er staan nog geen regels in. Voeg eerst artikelen toe.'),
+      gevolg: 'Er is niets verstuurd.',
+    })
+    expect(t.titel).toBe('v2 versturen kan niet')
+    expect(t.wat).toContain('nog geen regels')
+    expect(t.weigering).toBe(true)
+  })
+
+  it('behandelt een weigering van de server net zo', () => {
+    const fout = new ApiFout('Kan v1 niet accepteren: v2 is al geaccepteerd.', 'VOORWAARDE', 409, 'POST /x')
+    const t = foutTekst({ actie: 'v1 accepteren', fout, gevolg: '' })
+    expect(t.titel).toBe('v1 accepteren kan niet')
+    expect(t.weigering).toBe(true)
   })
 
   it('zegt waar: de handeling, het verzoek en de status', () => {

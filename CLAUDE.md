@@ -92,6 +92,17 @@ Hoe:
   er "gelukt" en direct daaronder "mislukt"
 - Het **gevolg** schrijf je bij de aanroep: alleen daar weet je wat er half of
   niet gebeurd is. Bij een time-out is dat "onbekend", niet "niets opgeslagen"
+- **"Wat" is een zin voor de gebruiker, geen dump.** De technische reden
+  (Prisma, Engelse parserfout) staat apart als `technisch`, klein onder de
+  melding. Validatiefouten vertaalt de server per veld (`apps/api/src/lib/zod-nl.ts`:
+  "Externe referentie is te lang: maximaal 200 tekens") — een nieuw veld krijgt
+  daar zijn schermnaam
+- **Kan iets niet, zeg dan wat er eerst moet.** Voorwaarden staan in
+  `packages/shared/calc/offerte-voorwaarden.ts` (`waaromNiet…` → zin of `null`).
+  Het scherm vraagt het vóór de handeling (`eis(...)` gooit een `Weigering`,
+  oranje melding, er gaat niets naar de server); de server vraagt het nog eens
+  en antwoordt `409 VOORWAARDE` met dezelfde zin. Geen grijze knop zonder
+  uitleg: een knop die niet kan, zegt bij klikken waarom
 
 Nog niet omgezet (stand 2026-09-25): de rode meldingen in de componenten buiten
 de projectpagina — `components/{articles,materiaal,raw-materials,settings}/`,
@@ -172,8 +183,16 @@ Gebruik daarom de projectscripts vanaf de hoofdmap:
 
 ```
 npm run db:status     # welke migraties staan er nog open
-npm run db:deploy     # openstaande migraties toepassen
+npm run db:deploy     # openstaande migraties toepassen + prisma generate
 ```
+
+`db:deploy` draait daarna ook `prisma generate`, en `npm run dev` doet dat bij
+het starten. `migrate deploy` alleen bouwt de Prisma-client niet opnieuw op: dan
+heeft de database de kolom wel, maar de server kent hem niet, en elke schrijfactie
+faalt met "Unknown argument `externeRef`" (2026-09-25). De API meldt dat nu als
+`CLIENT_VEROUDERD`, met het veld erbij. Op Windows moet de server daarvoor
+**gestopt** zijn: een draaiende server houdt het Prisma-bestand vast, en dan faalt
+`generate` met `EPERM`.
 
 Beide laden `.env.development` via `dotenv -e`, net als `npm run dev`.
 `npm run db:deploy -w apps/api` (zonder `:dev`) is de kale variant voor de NAS,

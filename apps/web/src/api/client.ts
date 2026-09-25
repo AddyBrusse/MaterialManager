@@ -60,20 +60,6 @@ export class ApiFout extends Error {
   }
 }
 
-/**
- * Bij een validatiefout zegt de server alleen "Validatiefout"; wélk veld en
- * waarom staat in `details.fieldErrors` (Zod's flatten()). Zonder dit zei de
- * melding niet wat er mis was.
- */
-function veldFouten(details: unknown): string | undefined {
-  const velden = (details as { fieldErrors?: Record<string, string[]> } | null)?.fieldErrors
-  if (!velden) return undefined
-  const delen = Object.entries(velden)
-    .filter(([, m]) => m?.length)
-    .map(([veld, m]) => `${veld}: ${m.join(', ')}`)
-  return delen.length ? delen.join('; ') : undefined
-}
-
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
@@ -130,7 +116,9 @@ export async function apiFetch<T>(
       json?.error?.code ?? `HTTP_${res.status}`,
       res.status,
       verzoek,
-      json?.error?.details?.reden ?? veldFouten(json?.error?.details),
+      // Een validatiefout zegt in de melding zelf al welk veld (de server
+      // vertaalt dat, zie lib/zod-nl.ts); hier alleen de technische reden.
+      json?.error?.details?.reden,
     )
   }
 

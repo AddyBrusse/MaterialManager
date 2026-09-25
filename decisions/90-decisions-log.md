@@ -1254,3 +1254,33 @@ laden bij het opstarten gebruiken het. De rode meldingen in ~19 andere
 componenten tonen wel iets maar nog niet alle drie de delen; de lijst staat in
 `CLAUDE.md`. Wie daar iets wijzigt, zet het om — liever dan één grote PR die
 overal tegelijk aan zit.
+
+## 2026-09-25 — Een melding zegt wat er eerst moet, in gewone taal
+
+**Aanleiding.** Accepteren gaf op een werk-pc "Interne serverfout" met een
+Prisma-dump ("Unknown argument `externeRef`"). De gebruiker vroeg: maak het een
+melding waaraan je ziet of je iets vergeten bent in te vullen, of wat er anders
+misgaat — voor alle fouten.
+
+**Besloten.**
+- *Weigeren is geen storing.* Wat niet mag (versturen zonder regels, een regel
+  zonder aantal, accepteren terwijl een andere versie al geaccepteerd is, regels
+  wijzigen op een verstuurde versie) staat als `waaromNiet…` in
+  `packages/shared/calc/offerte-voorwaarden.ts`. Het scherm vraagt het vóór de
+  handeling en toont een oranje melding; de server vraagt het nog eens
+  (`409 VOORWAARDE`, zelfde zin) voor een tweede tabblad of een collega.
+  Vóór dit controleerde de server niets: versturen van een versie die niet
+  bestond gaf "gelukt".
+- *Een knop die niet kan, zegt bij klikken waarom* — Versturen op een lege
+  versie was grijs, zonder uitleg.
+- *Validatie per veld in het Nederlands* (`lib/zod-nl.ts`), met de naam van het
+  veld zoals op het scherm.
+- *De technische reden apart* van "Wat", klein eronder. Mantine kapte meldingen
+  af op 200 px; nu 520 px, anders viel juist de titel weg.
+- *Verouderde Prisma-client* krijgt een eigen code (`CLIENT_VEROUDERD`), en
+  `db:deploy` en `dev` draaien `prisma generate`.
+
+**Nog open.** Of Versturen een externe referentie moet eisen: er gaat nog geen
+mail uit (Versturen zet alleen de datum), en niet elke aanvraag heeft een
+RFQ-nummer. Niet ingebouwd tot dat beslist is.
+

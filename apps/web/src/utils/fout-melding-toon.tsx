@@ -13,7 +13,7 @@ export function meldFout(p: { actie: string; fout: unknown; gevolg: string }): v
   // De volledige fout ook in de console, voor wie hem doorgeeft of zoekt.
   console.error(`[${t.titel}]`, p.fout)
   notifications.show({
-    color: 'red',
+    color: t.weigering ? 'orange' : 'red',
     title: t.titel,
     autoClose: false,
     message: (
@@ -24,6 +24,23 @@ export function meldFout(p: { actie: string; fout: unknown; gevolg: string }): v
         <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{t.waar}</span>
         <strong>Gevolg</strong>
         <span>{t.gevolg}</span>
+        {t.technisch && (
+          // Klein en dicht: de zin hierboven is voor de gebruiker, dit is voor
+          // wie de fout doorgeeft of oplost. Lage vaste hoogte met eigen
+          // scrollbalk, zodat een Prisma-dump de melding niet uitrekt;
+          // selecteerbaar om te kopiëren.
+          <>
+            <span style={{ color: 'var(--mantine-color-dimmed)' }}>Technisch</span>
+            <pre
+              style={{
+                margin: 0, maxHeight: 44, overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--mantine-color-dimmed)', userSelect: 'text',
+              }}
+            >
+              {t.technisch}
+            </pre>
+          </>
+        )}
       </div>
     ),
   })

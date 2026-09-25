@@ -4,6 +4,7 @@ import { prisma } from '../db/client'
 import {
   CreateProjectSchema, UpdateProjectSchema, ProjectStatusStopSchema,
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
+  waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
   berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie,
@@ -67,6 +68,20 @@ async function nextDocId(db: Db, prefix: DocPrefix): Promise<string> {
   )
 }
 
+/** Een voorwaarde uit `offerte-voorwaarden` die niet klopt → 409 met die zin. */
+function eis(reden: string | null): void {
+  if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+}
+
+/** De naam van een offerteregel zoals op het scherm, voor in een melding. */
+function regelNaam(p: Project, offerteRegelId: string): string {
+  for (const o of p.offertes) {
+    const r = o.regels.find(x => x.id === offerteRegelId)
+    if (r) return `"${r.naam}"`
+  }
+  return offerteRegelId
+}
+
 // Every mutation below goes through this helper: it locks the project row
 // (SELECT ... FOR UPDATE) inside a transaction, hands the current state to
 // `mutate`, and persists whatever it returns — all on the same connection.
@@ -84,7 +99,7 @@ async function withProject(
     const locked = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM projects WHERE id = ${id} FOR UPDATE
     `
-    if (locked.length === 0) throw new AppError(404, 'NOT_FOUND', 'Project niet gevonden')
+    if (locked.length === 0) throw new AppError(404, 'NOT_FOUND', 'Dit project bestaat niet (meer). Ververs de pagina of ga terug naar de lijst.')
     const row = await tx.project.findUniqueOrThrow({ where: { id }, include: PROJECT_INCLUDE })
     const current = serialize(row)
     const next = await mutate(current, tx)
@@ -96,7 +111,7 @@ async function withProject(
 
 async function getProject(id: string): Promise<Project> {
   const row = await prisma.project.findUnique({ where: { id }, include: PROJECT_INCLUDE })
-  if (!row) throw new AppError(404, 'NOT_FOUND', 'Project niet gevonden')
+  if (!row) throw new AppError(404, 'NOT_FOUND', 'Dit project bestaat niet (meer). Ververs de pagina of ga terug naar de lijst.')
   return serialize(row)
 }
 
@@ -164,7 +179,7 @@ router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
     await prisma.project.delete({ where: { id: req.params.id } }).catch(() => {
-      throw new AppError(404, 'NOT_FOUND', 'Project niet gevonden')
+      throw new AppError(404, 'NOT_FOUND', 'Dit project bestaat niet (meer). Ververs de pagina of ga terug naar de lijst.')
     })
     res.status(204).end()
   }),
@@ -184,7 +199,7 @@ router.post(
     const { status, reden } = ProjectStatusStopSchema.parse(req.body)
     const updated = await withProject(req.params.id, (p) => {
       if (p.status === status) {
-        throw new AppError(400, 'BAD_REQUEST', `Project staat al op ${status}`)
+        throw new AppError(409, 'VOORWAARDE', `Het project staat al op "${status}". Er is niets veranderd.`)
       }
       return {
         ...p,
@@ -207,7 +222,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       if (p.status !== 'on_hold' && p.status !== 'geannuleerd') {
-        throw new AppError(400, 'BAD_REQUEST', 'Project ligt niet stil')
+        throw new AppError(409, 'VOORWAARDE', 'Kan het project niet hervatten: het staat niet stil.')
       }
       return {
         ...p,
@@ -250,7 +265,7 @@ router.post(
       let off: Offerte
       if (body.vanOfferteId) {
         const bron = p.offertes.find(o => o.id === body.vanOfferteId)
-        if (!bron) throw new AppError(404, 'NOT_FOUND', 'Te kopiëren offerteversie niet gevonden')
+        if (!bron) throw new AppError(404, 'NOT_FOUND', 'Kan niet kopiëren: deze offerteversie bestaat niet (meer). Ververs de pagina.')
         // Een kopie herziet déze versie, dus draagt hij haar nummer. Bij een
         // project van ná de nummer-migratie is dat hetzelfde als dat van v1;
         // bij een ouder project, waar elke versie haar eigen nummer hield, is
@@ -294,7 +309,7 @@ router.patch(
     const body = UpdateOfferteSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, (p) => {
       const off = p.offertes.find(o => o.id === req.params.offId)
-      if (!off) throw new AppError(404, 'NOT_FOUND', 'Offerte niet gevonden')
+      if (!off) throw new AppError(404, 'NOT_FOUND', 'Deze offerteversie bestaat niet (meer). Ververs de pagina.')
       // Leeg is geen referentie: "" opslaan zou een versie tonen met een
       // referentie die niets zegt, en elders `?? '—'` omzeilen.
       const externeRef =
@@ -328,7 +343,8 @@ router.post(
     const body = AddRegelSchema.parse(req.body)
     const updated = await withProject(req.params.id, (p) => {
       const off = p.offertes.find(o => o.id === req.params.offId)
-      if (!off) throw new AppError(404, 'NOT_FOUND', 'Offerte niet gevonden')
+      eis(waaromNietWijzigen(off))
+      if (!off) throw new AppError(404, 'NOT_FOUND', 'Deze offerteversie bestaat niet (meer). Ververs de pagina.')
       const regel: OfferteRegel = {
         id: body.id ?? `regel_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         sortOrder: off.regels.length + 1,
@@ -373,7 +389,13 @@ router.patch(
   '/:id/offertes/:offId/regels/:regelId',
   asyncHandler(async (req, res) => {
     const patch = UpdateRegelSchema.parse(req.body)
-    const updated = await withProject(req.params.id, (p) => ({
+    const updated = await withProject(req.params.id, (p) => {
+      const off = p.offertes.find(o => o.id === req.params.offId)
+      eis(waaromNietWijzigen(off))
+      if (!off?.regels.some(r => r.id === req.params.regelId)) {
+        throw new AppError(404, 'NOT_FOUND', 'Deze regel bestaat niet (meer) in de offerte. Ververs de pagina.')
+      }
+      return {
       ...p,
       updatedAt: now(),
       offertes: p.offertes.map(o => {
@@ -389,7 +411,8 @@ router.patch(
           }),
         }
       }),
-    }))
+      }
+    })
     res.json({ data: updated })
   }),
 )
@@ -397,14 +420,17 @@ router.patch(
 router.delete(
   '/:id/offertes/:offId/regels/:regelId',
   asyncHandler(async (req, res) => {
-    const updated = await withProject(req.params.id, (p) => ({
-      ...p,
-      updatedAt: now(),
-      offertes: p.offertes.map(o =>
-        o.id !== req.params.offId ? o
-          : { ...o, regels: o.regels.filter(r => r.id !== req.params.regelId), updatedAt: now() },
-      ),
-    }))
+    const updated = await withProject(req.params.id, (p) => {
+      eis(waaromNietWijzigen(p.offertes.find(o => o.id === req.params.offId)))
+      return {
+        ...p,
+        updatedAt: now(),
+        offertes: p.offertes.map(o =>
+          o.id !== req.params.offId ? o
+            : { ...o, regels: o.regels.filter(r => r.id !== req.params.regelId), updatedAt: now() },
+        ),
+      }
+    })
     res.json({ data: updated })
   }),
 )
@@ -412,7 +438,9 @@ router.delete(
 router.post(
   '/:id/offertes/:offId/verzend',
   asyncHandler(async (req, res) => {
-    const updated = await withProject(req.params.id, (p) => ({
+    const updated = await withProject(req.params.id, (p) => {
+      eis(waaromNietVersturen(p.offertes.find(o => o.id === req.params.offId)))
+      return {
       ...p,
       status: p.status === 'concept' ? 'offerte' : p.status,
       updatedAt: now(),
@@ -421,7 +449,8 @@ router.post(
           ? { ...o, status: 'verzonden' as OfferteStatus, verzondenOp: now(), updatedAt: now() }
           : o,
       ),
-    }))
+      }
+    })
     res.json({ data: updated })
   }),
 )
@@ -436,7 +465,8 @@ router.post(
 
     const updated = await withProject(req.params.id, async (p, tx) => {
       const acceptedOfferte = p.offertes.find(o => o.id === req.params.offId)
-      if (!acceptedOfferte) throw new AppError(404, 'NOT_FOUND', 'Offerte niet gevonden')
+      eis(waaromNietAccepteren(acceptedOfferte, p.offertes))
+      if (!acceptedOfferte) throw new AppError(404, 'NOT_FOUND', 'Deze offerteversie bestaat niet (meer). Ververs de pagina.')
 
       // Prijshistorie: dit is het moment waarop er echt iets verkocht is, en de
       // enige plek in de code waar een order ontstaat. Wat de klant betaalt komt
@@ -537,7 +567,7 @@ router.patch(
   asyncHandler(async (req, res) => {
     const patch = z.object({ notities: z.string().optional(), levertijdDatum: z.string().nullable().optional() }).parse(req.body)
     const updated = await withProject(req.params.id, (p) => {
-      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', 'Geen opdrachtbevestiging')
+      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', 'Er is nog geen opdrachtbevestiging. Die ontstaat bij het accepteren van een offerte.')
       return {
         ...p,
         updatedAt: now(),
@@ -552,7 +582,7 @@ router.post(
   '/:id/opdrachtbevestiging/verzend',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
-      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', 'Geen opdrachtbevestiging')
+      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', 'Er is nog geen opdrachtbevestiging. Die ontstaat bij het accepteren van een offerte.')
       return {
         ...p,
         updatedAt: now(),
@@ -702,12 +732,12 @@ router.post(
     const { aantal } = OrderGereedSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, (p) => {
       const order = p.productieOrders.find(o => o.id === req.params.orderId)
-      if (!order) throw new AppError(404, 'NOT_FOUND', 'Order bestaat niet')
+      if (!order) throw new AppError(404, 'NOT_FOUND', 'Deze productieorder bestaat niet (meer). Ververs de pagina.')
       const gereed = aantal ?? order.qty
       if (gereed > order.qty) {
         throw new AppError(
-          400, 'BAD_REQUEST',
-          `Meer gereedgemeld (${gereed}) dan besteld (${order.qty})`,
+          409, 'VOORWAARDE',
+          `Kan niet gereedmelden: ${gereed} stuks is meer dan de ${order.qty} die besteld zijn. Vul hoogstens ${order.qty} in.`,
         )
       }
       const productieOrders = p.productieOrders.map(o =>
@@ -757,15 +787,15 @@ router.post(
         .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.klaar }))
 
       if (gevraagd.length === 0) {
-        throw new AppError(400, 'BAD_REQUEST', 'Er ligt niets klaar om te leveren')
+        throw new AppError(409, 'VOORWAARDE', 'Kan geen paklijst maken: er ligt nog niets klaar om te leveren. Meld eerst stuks gereed op de Productie-tab.')
       }
 
       for (const g of gevraagd) {
         const klaar = klaarPerRegel.get(g.offerteRegelId) ?? 0
         if (g.qty > klaar) {
           throw new AppError(
-            400, 'BAD_REQUEST',
-            `Regel ${g.offerteRegelId}: ${g.qty} gevraagd, maar er liggen er ${klaar} klaar`,
+            409, 'VOORWAARDE',
+            `Kan geen paklijst maken: voor regel ${regelNaam(p, g.offerteRegelId)} staan er ${g.qty} op de paklijst, maar er liggen er maar ${klaar} klaar.`,
           )
         }
       }
@@ -808,7 +838,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       const pl = p.paklijsten.find(x => x.id === req.params.paklijstId)
-      if (!pl) throw new AppError(404, 'NOT_FOUND', 'Geen paklijst')
+      if (!pl) throw new AppError(404, 'NOT_FOUND', 'Deze paklijst bestaat niet (meer). Ververs de pagina.')
       const paklijsten = p.paklijsten.map(x =>
         x.id === pl.id ? { ...x, verzondenOp: now() } : x,
       )
@@ -847,7 +877,7 @@ router.post(
     const { btwPct = 21, regels: gevraagd } = CreateFactuurSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, async (p, tx) => {
       const accepted = p.offertes.find(o => o.status === 'geaccepteerd')
-      if (!accepted) throw new AppError(400, 'BAD_REQUEST', 'Geen geaccepteerde offerte')
+      if (!accepted) throw new AppError(409, 'VOORWAARDE', 'Kan niet factureren: er is nog geen geaccepteerde offerte.')
 
       const voortgang = berekenVoortgang(p)
       const openPerRegel = new Map(voortgang.regels.map(r => [r.offerteRegelId, r.teFactureren]))
@@ -857,14 +887,14 @@ router.post(
         .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.teFactureren }))
 
       if (keuze.length === 0) {
-        throw new AppError(400, 'BAD_REQUEST', 'Er staat niets open om te factureren')
+        throw new AppError(409, 'VOORWAARDE', 'Kan geen factuur maken: alles wat geleverd is, is al gefactureerd.')
       }
       for (const g of keuze) {
         const open = openPerRegel.get(g.offerteRegelId) ?? 0
         if (g.qty > open) {
           throw new AppError(
-            400, 'BAD_REQUEST',
-            `Regel ${g.offerteRegelId}: ${g.qty} gevraagd, maar er staat ${open} open`,
+            409, 'VOORWAARDE',
+            `Kan geen factuur maken: voor regel ${regelNaam(p, g.offerteRegelId)} worden er ${g.qty} gefactureerd, maar er staan er maar ${open} open.`,
           )
         }
       }
@@ -933,9 +963,9 @@ router.post(
     const body = CreateCreditSchema.parse(req.body)
     const updated = await withProject(req.params.id, async (p, tx) => {
       const bron = p.facturen.find(f => f.id === body.factuurId)
-      if (!bron) throw new AppError(404, 'NOT_FOUND', 'Factuur bestaat niet')
+      if (!bron) throw new AppError(404, 'NOT_FOUND', 'Deze factuur bestaat niet (meer). Ververs de pagina.')
       if (bron.soort === 'credit') {
-        throw new AppError(400, 'BAD_REQUEST', 'Een creditfactuur crediteren kan niet')
+        throw new AppError(409, 'VOORWAARDE', 'Een creditfactuur kun je niet crediteren. Maak zo nodig een nieuwe factuur.')
       }
 
       // Wat er van deze factuur nog te crediteren valt: de gefactureerde
@@ -954,14 +984,14 @@ router.post(
         .filter(r => r.qty > 0)
 
       if (keuze.length === 0) {
-        throw new AppError(400, 'BAD_REQUEST', 'Deze factuur is al volledig gecrediteerd')
+        throw new AppError(409, 'VOORWAARDE', 'Kan niet crediteren: deze factuur is al volledig gecrediteerd.')
       }
       for (const g of keuze) {
         const open = openPerRegel.get(g.offerteRegelId) ?? 0
         if (g.qty > open) {
           throw new AppError(
-            400, 'BAD_REQUEST',
-            `Regel ${g.offerteRegelId}: ${g.qty} gevraagd, maar er valt ${open} te crediteren`,
+            409, 'VOORWAARDE',
+            `Kan niet crediteren: voor regel ${regelNaam(p, g.offerteRegelId)} worden er ${g.qty} gecrediteerd, maar er valt er maar ${open} te crediteren.`,
           )
         }
       }
@@ -1005,7 +1035,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       const f = p.facturen.find(x => x.id === req.params.factuurId)
-      if (!f) throw new AppError(404, 'NOT_FOUND', 'Geen factuur')
+      if (!f) throw new AppError(404, 'NOT_FOUND', 'Deze factuur bestaat niet (meer). Ververs de pagina.')
       const facturen = p.facturen.map(x =>
         x.id === f.id ? { ...x, verzondenOp: now() } : x,
       )
@@ -1027,11 +1057,11 @@ router.post(
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       if (!['bevestigd', 'productie'].includes(p.status)) {
-        throw new AppError(400, 'BAD_REQUEST', 'Project is niet in bevestigd of productie status')
+        throw new AppError(409, 'VOORWAARDE', 'Kan niet terug naar de offertefase: het project is niet bevestigd en niet in productie.')
       }
       const hasWork = p.productieOrders.some(o => o.stappen.some(s => s.gereedOp))
       if (hasWork) {
-        throw new AppError(409, 'CONFLICT', 'Kan niet terugkeren: er zijn al productie stappen afgevinkt')
+        throw new AppError(409, 'VOORWAARDE', 'Kan niet terug naar de offertefase: er zijn al productiestappen gereedgemeld. Trek die gereedmeldingen eerst in op de Productie-tab.')
       }
       // Revert accepted offerte → concept/verzonden, lift vervallen offertes back to concept
       const offertes = p.offertes.map(o => {
@@ -1063,10 +1093,10 @@ router.post(
   '/:id/revert/productie',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
-      if (p.status !== 'productie') throw new AppError(400, 'BAD_REQUEST', 'Project is niet in productie status')
+      if (p.status !== 'productie') throw new AppError(409, 'VOORWAARDE', 'Kan niet terug: het project is niet in productie.')
       const hasGereed = p.productieOrders.some(o => o.status === 'gereed')
       if (hasGereed) {
-        throw new AppError(409, 'CONFLICT', 'Kan niet terugkeren: er zijn al orders gereedgemeld')
+        throw new AppError(409, 'VOORWAARDE', 'Kan niet terug: er zijn al orders gereedgemeld. Trek die gereedmeldingen eerst in op de Productie-tab.')
       }
       const productieOrders = p.productieOrders.map(o => ({
         ...o,
@@ -1088,9 +1118,9 @@ router.post(
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       const laatste = p.paklijsten[p.paklijsten.length - 1]
-      if (!laatste) throw new AppError(400, 'BAD_REQUEST', 'Er is geen pakbon om terug te nemen')
+      if (!laatste) throw new AppError(409, 'VOORWAARDE', 'Kan niet terug: er is geen paklijst om in te trekken.')
       if (laatste.verzondenOp) {
-        throw new AppError(409, 'CONFLICT', 'Kan niet terugkeren: pakbon is al verzonden')
+        throw new AppError(409, 'VOORWAARDE', 'Kan niet terug: de paklijst is al verzonden, de goederen zijn de deur uit.')
       }
       const paklijsten = p.paklijsten.filter(x => x.id !== laatste.id)
       return {
@@ -1110,7 +1140,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       const laatste = [...p.paklijsten].reverse().find(x => x.verzondenOp)
-      if (!laatste) throw new AppError(400, 'BAD_REQUEST', 'Er is geen verzonden pakbon')
+      if (!laatste) throw new AppError(409, 'VOORWAARDE', 'Kan niet terug: er is geen verzonden paklijst.')
       const paklijsten = p.paklijsten.map(x =>
         x.id === laatste.id ? { ...x, verzondenOp: null } : x,
       )
@@ -1128,15 +1158,15 @@ router.post(
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       const laatste = [...p.facturen].reverse().find(f => f.soort === 'factuur')
-      if (!laatste) throw new AppError(400, 'BAD_REQUEST', 'Er is geen factuur')
+      if (!laatste) throw new AppError(409, 'VOORWAARDE', 'Kan niet terug: er is geen factuur.')
       if (laatste.verzondenOp) {
         throw new AppError(
-          409, 'CONFLICT',
-          'Factuur is al verstuurd — maak een creditfactuur in plaats van hem te verwijderen',
+          409, 'VOORWAARDE',
+          'Kan de factuur niet intrekken: hij is al verstuurd. Maak een creditfactuur in plaats daarvan.',
         )
       }
       if (p.facturen.some(f => f.crediteertFactuurId === laatste.id)) {
-        throw new AppError(409, 'CONFLICT', 'Er hangt een creditfactuur aan deze factuur')
+        throw new AppError(409, 'VOORWAARDE', 'Kan de factuur niet intrekken: er hangt al een creditfactuur aan.')
       }
       return {
         ...p,

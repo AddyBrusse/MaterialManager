@@ -18,19 +18,62 @@ export interface FoutTekst {
   wat: string
   waar: string
   gevolg: string
+  /**
+   * De technische reden (een Prisma-dump, een Engelse parserfout), als die er
+   * is. Hoort niet in "Wat": daar moet een zin staan die de gebruiker kan lezen.
+   * Het scherm toont hem ingeklapt, voor wie hem doorgeeft.
+   */
+  technisch?: string
+  /**
+   * Geen storing maar een weigering: de handeling kan zo niet, en de melding
+   * zegt wat er eerst moet (een regel toevoegen, eerst versturen). Oranje in
+   * plaats van rood, want er is niets kapot.
+   */
+  weigering: boolean
+}
+
+/**
+ * Een handeling die niet mag — een regel uit `offerte-voorwaarden`, vóór er
+ * iets naar de server gaat. De tekst is de melding zelf.
+ */
+export class Weigering extends Error {
+  constructor(reden: string) {
+    super(reden)
+    this.name = 'Weigering'
+  }
+}
+
+/** Gooit een `Weigering` als er een reden is; anders gebeurt er niets. */
+export function eis(reden: string | null): void {
+  if (reden) throw new Weigering(reden)
 }
 
 export function foutTekst(p: { actie: string; fout: unknown; gevolg: string }): FoutTekst {
   const { actie, fout, gevolg } = p
-  if (fout instanceof ApiFout) {
+  if (fout instanceof Weigering) {
     return {
-      titel: `${actie} mislukt`,
-      wat: fout.reden ? `${fout.uitleg} (${fout.reden})` : fout.uitleg,
+      titel: `${actie} kan niet`,
+      wat: fout.message,
+      waar: `${actie} · gecontroleerd voordat er iets naar de server ging`,
+      gevolg,
+      weigering: true,
+    }
+  }
+  if (fout instanceof ApiFout) {
+    // De server weigerde om dezelfde reden (een ander tabblad of een collega
+    // was je voor): ook dan is het een weigering, geen storing.
+    const weigering = fout.code === 'VOORWAARDE' || fout.code === 'VALIDATION'
+    return {
+      titel: weigering ? `${actie} kan niet` : `${actie} mislukt`,
+      wat: fout.uitleg,
       waar: `${actie} · ${fout.verzoek}${fout.status ? ` → ${fout.status} ${fout.code}` : ` → ${fout.code}`}`,
       gevolg,
+      technisch: fout.reden,
+      weigering,
     }
   }
   return {
+    weigering: false,
     titel: `${actie} mislukt`,
     // Geen serverfout maar iets in de browser zelf — een fout in onze code,
     // of een wijziging op een project dat er niet meer is.

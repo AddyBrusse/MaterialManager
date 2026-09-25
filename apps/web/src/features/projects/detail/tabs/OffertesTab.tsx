@@ -204,8 +204,10 @@ export function OffertesTab({
                       <button
                         type="button"
                         className="pdv2-btn s"
-                        disabled={geblokkeerd || o.regels.length === 0}
-                        title={o.regels.length === 0 ? 'Deze versie heeft nog geen regels' : undefined}
+                        // Niet uitgeschakeld bij een lege versie: een grijze
+                        // knop zegt niet wáárom. Klikken geeft een melding die
+                        // zegt wat er eerst moet (zie offerte-voorwaarden).
+                        disabled={geblokkeerd}
                         onClick={() => onVerzend(o.id)}
                       >
                         Versturen

@@ -2,9 +2,13 @@ import { useCallback, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import type { Project } from '@stockmanager/shared'
-import { laatsteFactuur, laatstePaklijst, volgendeVersie } from '@stockmanager/shared'
+import {
+  laatsteFactuur, laatstePaklijst, volgendeVersie,
+  waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
+} from '@stockmanager/shared'
 import { projectsApi, wachtOpOpslag } from '../../../api/projects'
 import { meldFout } from '../../../utils/fout-melding-toon'
+import { eis } from '../../../utils/fout-melding'
 import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
@@ -141,6 +145,11 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
 
   const id = project.id
   const naam = gebruiker?.name ?? 'onbekend'
+  /** "v2" zoals in de tabel — het interne id zegt de gebruiker niets. */
+  const versieVan = (offerteId: string) => {
+    const o = project.offertes.find((x) => x.id === offerteId)
+    return o ? `v${o.versie}` : offerteId
+  }
 
   const stop = (status: 'on_hold' | 'geannuleerd') =>
     setVraag({
@@ -212,9 +221,10 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         const concept = project.offertes.find((o) => o.status === 'concept')
         if (!concept) return doe('Nieuwe offerte aanmaken', 'Nieuwe offerte aangemaakt', () => projectsApi.addOfferte(id))
         if (concept.regels.length === 0) return naarTab('offertes')
-        return doe(`${concept.id} versturen`, `${concept.id} verstuurd`, () =>
-          projectsApi.verzendOfferte(id, concept.id),
-        )
+        return doe(`Offerte v${concept.versie} versturen`, `Offerte v${concept.versie} verstuurd`, () => {
+          eis(waaromNietVersturen(concept))
+          projectsApi.verzendOfferte(id, concept.id)
+        })
       }
       case 'offerte':
         return naarTab('offertes')
@@ -285,12 +295,27 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         () => projectsApi.addOfferte(id, offerteId),
       )
     },
-    verzendOfferte: (offerteId) =>
-      doe(`${offerteId} versturen`, `${offerteId} verstuurd`, () => projectsApi.verzendOfferte(id, offerteId)),
-    accepteerOfferte: (offerteId) =>
-      doe(`${offerteId} accepteren`, `${offerteId} geaccepteerd — opdracht en productieorders aangemaakt`, () =>
-        projectsApi.accepteerOfferte(id, offerteId, naam),
-      ),
+    // Eerst de voorwaarde uit `offerte-voorwaarden`, dezelfde die de server
+    // controleert: zo verschijnt er niets op het scherm dat daarna weer terug
+    // moet, en staat er in de melding wát er eerst moet gebeuren.
+    verzendOfferte: (offerteId) => {
+      const o = project.offertes.find((x) => x.id === offerteId)
+      doe(`Offerte ${versieVan(offerteId)} versturen`, `Offerte ${versieVan(offerteId)} verstuurd`, () => {
+        eis(waaromNietVersturen(o))
+        projectsApi.verzendOfferte(id, offerteId)
+      })
+    },
+    accepteerOfferte: (offerteId) => {
+      const o = project.offertes.find((x) => x.id === offerteId)
+      doe(
+        `Offerte ${versieVan(offerteId)} accepteren`,
+        `Offerte ${versieVan(offerteId)} geaccepteerd — opdracht en productieorders aangemaakt`,
+        () => {
+          eis(waaromNietAccepteren(o, project.offertes))
+          projectsApi.accepteerOfferte(id, offerteId, naam)
+        },
+      )
+    },
     maakOpdracht: () => naarTab('offertes'),
     verzendOB: () => doe('Opdrachtbevestiging versturen', 'Opdrachtbevestiging verstuurd', () => projectsApi.verzendOB(id)),
     stapCheck: (orderId, stapId, gereed) =>
@@ -317,18 +342,22 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     // in de database.
     bewerkRegel: (offerteId, regelId, patch) => {
       try {
+        eis(waaromNietWijzigen(project.offertes.find((x) => x.id === offerteId)))
         projectsApi.updateOfferteRegel(id, offerteId, regelId, patch)
         ververs()
       } catch (fout) {
         meldFout({
-          actie: 'Regel bijwerken',
+          actie: `Regel in ${versieVan(offerteId)} bijwerken`,
           fout,
           gevolg: 'Er is niets gewijzigd — niet op de server en niet op je scherm.',
         })
       }
     },
     verwijderRegel: (offerteId, regelId) =>
-      doe('Regel verwijderen', 'Regel verwijderd', () => projectsApi.removeOfferteRegel(id, offerteId, regelId)),
+      doe(`Regel uit ${versieVan(offerteId)} verwijderen`, 'Regel verwijderd', () => {
+        eis(waaromNietWijzigen(project.offertes.find((x) => x.id === offerteId)))
+        projectsApi.removeOfferteRegel(id, offerteId, regelId)
+      }),
     // `bewerkingen` gaat mee met de prijs en niet los: ze komen uit dezelfde
     // calculatie, en de productiestappen worden er straks uit gemaakt. Alleen de
     // prijs verversen zou een regel opleveren met het bedrag van het nieuwe
@@ -338,6 +367,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         'Prijzen bijwerken',
         `${gekozen.length} regel${gekozen.length === 1 ? '' : 's'} bijgewerkt uit de calculaties`,
         () => {
+          eis(waaromNietWijzigen(project.offertes.find((x) => x.id === offerteId)))
           for (const b of gekozen) {
             projectsApi.updateOfferteRegel(id, offerteId, b.regelId, {
               verkoopprijs: b.nieuweVerkoopprijs,
