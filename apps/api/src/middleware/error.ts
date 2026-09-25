@@ -47,7 +47,7 @@ export function errorMiddleware(
   // de NAS mee: hem inslikken kostte een ronde zoeken toen het aanmaken van een
   // terminal-account op 2026-09-14 alleen "Aanmaken mislukt" opleverde, terwijl
   // Postgres gewoon zei: invalid input value for enum "Role": "terminal".
-  const pg = postgresFout(err)
+  const pg = postgresFout(err) ?? prismaSchemaFout(err)
   if (pg && MIGRATIE_CODES.has(pg.code)) {
     console.error(err)
     res.status(500).json({
@@ -87,7 +87,28 @@ export function errorMiddleware(
  *   42703 — kolom bestaat niet
  * Alle drie wijzen op een migratie die nog niet gedraaid is.
  */
-const MIGRATIE_CODES = new Set(['22P02', '42P01', '42703'])
+const MIGRATIE_CODES = new Set(['22P02', '42P01', '42703', 'P2021', 'P2022'])
+
+/**
+ * Dezelfde situatie, maar zoals Prisma hem zelf meldt: niet als Postgres-code
+ * in de tekst, maar als eigen foutcode op het object.
+ *   P2021 — tabel bestaat niet
+ *   P2022 — kolom bestaat niet
+ *
+ * Zonder dit viel een ontbrekende kolom door naar "Interne serverfout". Zo
+ * gebeurd op 2026-09-25: na het bijtrekken van de branch met
+ * `offertes.externe_ref` faalde elke schrijfactie op een project — kopiëren,
+ * versturen, een regel toevoegen — en het scherm zei alleen "mislukt". Prisma
+ * wist precies welke kolom er ontbrak; de melding zei het niet.
+ */
+function prismaSchemaFout(err: unknown): { code: string; message: string } | null {
+  const e = err as { code?: unknown; meta?: { column?: unknown; table?: unknown }; message?: unknown } | null
+  if (!e || (e.code !== 'P2021' && e.code !== 'P2022')) return null
+  const wat = e.code === 'P2022'
+    ? `kolom ${String(e.meta?.column ?? '?')} bestaat niet in de database`
+    : `tabel ${String(e.meta?.table ?? '?')} bestaat niet in de database`
+  return { code: e.code, message: wat }
+}
 
 /**
  * Prisma pakt de Postgres-fout in een ConnectorError; de code staat alleen in

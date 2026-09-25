@@ -1,4 +1,5 @@
 import type { Grade } from '@stockmanager/shared'
+import type { LaadFout } from '../utils/fout-melding'
 import { apiFetch } from './client'
 
 export const MOCK_GRADES: Grade[] = [
@@ -31,13 +32,16 @@ let mockGrades: Grade[] = loadStore()
 // hardcoded seed above — list() fetches the real DB rows but never writes
 // them back into mockGrades. Called from AppLayout's startup effect,
 // mirroring initMachines()/initArticles() etc.
-export async function initGrades(): Promise<void> {
+export async function initGrades(): Promise<LaadFout | null> {
   try {
     const { data } = await apiFetch<Grade[]>('/grades')
     mockGrades = data
     saveStore(data)
-  } catch {
+    return null
+  } catch (fout) {
     mockGrades = loadStore()
+    // Niet stil: zie initProjects. Gemeld in useInitAppData.
+    return { wat: 'materiaalsoorten', aantalLokaal: mockGrades.length, fout }
   }
 }
 

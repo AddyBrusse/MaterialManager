@@ -285,7 +285,7 @@ router.post(
 // referentie; die mag ook na het versturen nog, want het is onze eigen
 // boekhouding van waar de versie op antwoordde, niet iets wat de klant kreeg.
 const UpdateOfferteSchema = z.object({
-  externeRef: z.string().max(200).nullable().optional(),
+  externeRef: z.string().max(200, 'maximaal 200 tekens').nullable().optional(),
 })
 
 router.patch(

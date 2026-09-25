@@ -169,6 +169,13 @@ export function renderStepThumbnail(url: string, sizePx: number = PREVIEW_SIZE_S
       return dataUrl
     } finally {
       renderer.dispose()
+      // dispose() ruimt geometrie en texturen op, maar geeft de WebGL-context
+      // zelf níet vrij — die blijft leven tot de garbage collector langskomt.
+      // Browsers staan er ~16 tegelijk toe; een offerte uit een mail-import
+      // met tientallen STEP-bestanden gaf daardoor een reeks "Too many active
+      // WebGL contexts. Oldest context will be lost" — en de oudste die
+      // verdwijnt kan de live 3D-viewer van de hover zijn.
+      renderer.forceContextLoss()
     }
   })()
   stepThumbCache.set(key, promise)

@@ -251,6 +251,10 @@ export function StepViewer({ url }: StepViewerProps) {
         material.dispose()
         edgeMaterial.dispose()
         renderer?.dispose()
+        // Zie renderStepThumbnail: dispose() laat de WebGL-context zelf leven.
+        // Deze viewer opent bij elke hover op een voorbeeld, dus zonder dit
+        // bleef er per hover een context achter.
+        renderer?.forceContextLoss()
         if (renderer?.domElement.parentElement === container) container.removeChild(renderer.domElement)
       }
     }).catch(err => {

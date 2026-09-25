@@ -1,4 +1,5 @@
 import type { Profile } from '@stockmanager/shared'
+import type { LaadFout } from '../utils/fout-melding'
 import { apiFetch } from './client'
 
 export const MOCK_PROFILES: Profile[] = [
@@ -57,13 +58,16 @@ let mockProfiles: Profile[] = loadStore()
 // hardcoded seed above — list() fetches the real DB rows but never writes
 // them back into mockProfiles. Called from AppLayout's startup effect,
 // mirroring initMachines()/initArticles() etc.
-export async function initProfiles(): Promise<void> {
+export async function initProfiles(): Promise<LaadFout | null> {
   try {
     const { data } = await apiFetch<Profile[]>('/profiles')
     mockProfiles = data
     saveStore(data)
-  } catch {
+    return null
+  } catch (fout) {
     mockProfiles = loadStore()
+    // Niet stil: zie initProjects. Gemeld in useInitAppData.
+    return { wat: 'profielen', aantalLokaal: mockProfiles.length, fout }
   }
 }
 

@@ -97,6 +97,36 @@ ConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(Postgr
     }
   })
 
+  /**
+   * Hoe Prisma een ontbrekende kolom meldt: niet als Postgres-code in de
+   * tekst, maar als eigen code op het foutobject. Tekst en velden overgenomen
+   * uit de echte fout van 2026-09-25 (offertes.externe_ref, migratie niet
+   * gedraaid) — daar viel hij door naar "Interne serverfout".
+   */
+  it('herkent de eigen code van Prisma voor een ontbrekende kolom', () => {
+    alsOntwikkeling(false)
+    const fout = Object.assign(
+      new Error(
+        'Invalid `prisma.project.findUniqueOrThrow()` invocation:\n\n\n'
+        + 'The column `offertes.externe_ref` does not exist in the current database.',
+      ),
+      { code: 'P2022', clientVersion: '5.22.0', meta: { modelName: 'Project', column: 'offertes.externe_ref' } },
+    )
+    const res = stuur(fout)
+    const body = res.body as any
+    expect(body.error.code).toBe('MIGRATIE_ONTBREEKT')
+    expect(body.error.message).toContain('npm run db:deploy')
+    expect(body.error.details.reden).toContain('offertes.externe_ref')
+  })
+
+  it('herkent een ontbrekende tabel via Prisma net zo', () => {
+    alsOntwikkeling(false)
+    const fout = Object.assign(new Error('The table `public.x` does not exist'), {
+      code: 'P2021', meta: { table: 'public.x' },
+    })
+    expect((stuur(fout).body as any).error.details.reden).toContain('public.x')
+  })
+
   it('laat een gewone fout gewoon een interne fout blijven', () => {
     alsOntwikkeling(false)
     const res = stuur(new Error('kapot'))

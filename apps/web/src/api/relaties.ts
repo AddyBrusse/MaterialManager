@@ -1,4 +1,5 @@
 import type { Relatie, CreateRelatie, UpdateRelatie } from '@stockmanager/shared'
+import type { LaadFout } from '../utils/fout-melding'
 import { apiFetch } from './client'
 
 export type { Relatie, RelatieContact } from '@stockmanager/shared'
@@ -82,13 +83,16 @@ function saveLocal(data: Relatie[]): void {
 
 let cache: Relatie[] = loadLocal()
 
-export async function initRelaties(): Promise<void> {
+export async function initRelaties(): Promise<LaadFout | null> {
   try {
     const { data } = await apiFetch<Relatie[]>('/relaties')
     cache = data
     saveLocal(data)
-  } catch {
+    return null
+  } catch (fout) {
     cache = loadLocal()
+    // Niet stil: zie initProjects. Gemeld in useInitAppData.
+    return { wat: 'relaties', aantalLokaal: cache.length, fout }
   }
 }
 

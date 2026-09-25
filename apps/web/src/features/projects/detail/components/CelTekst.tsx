@@ -9,11 +9,14 @@ export function CelTekst({
   waarde,
   placeholder,
   uit,
+  max,
   onKlaar,
 }: {
   waarde: string | null
   placeholder: string
   uit?: boolean
+  /** Zelfde grens als de server, zodat je er niet pas na het opslaan achter komt. */
+  max?: number
   onKlaar: (tekst: string) => void
 }) {
   const toon = waarde ?? ''
@@ -23,6 +26,7 @@ export function CelTekst({
       defaultValue={toon}
       placeholder={placeholder}
       disabled={uit}
+      maxLength={max}
       className="pdv2-cel-tekst"
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.currentTarget.blur()

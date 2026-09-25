@@ -185,6 +185,7 @@ export function OffertesTab({
                       waarde={o.externeRef}
                       placeholder="RFQ of mail…"
                       uit={geblokkeerd}
+                      max={200}
                       onKlaar={(ref) => onReferentie(o.id, ref)}
                     />
                   </td>
