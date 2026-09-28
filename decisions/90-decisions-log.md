@@ -1359,3 +1359,37 @@ hetzelfde venster), een directe opdracht zonder offerte (onder water een meteen
 geaccepteerde versie), de opdracht altijd aanpassen volgens het principe
 hierboven, en terugdraaien dat netjes opruimt.
 
+## 2026-09-28 — De opdracht maken, aanpassen en terugdraaien (Opdracht-tab B)
+
+**Besloten en gebouwd:**
+- **Accepteren vraagt de opdrachtreferentie**, in hetzelfde venster — op de
+  Offertes-tab én op de lege Opdracht-tab, die de verstuurde versies toont met
+  een knop Accepteren.
+- **Directe opdracht zonder offerte**: onder water een offerteversie met
+  `direct = true` die van concept rechtstreeks naar geaccepteerd mag. Hij wordt
+  nooit verstuurd (`waaromNietVersturen` weigert), en na acceptatie is zijn
+  externe referentie die van de opdracht. Zo blijven productie, nacalculatie,
+  pakbon en factuur werken zonder een tweede soort regel.
+- **De opdracht is altijd aan te passen** (`wijzigOpdracht` in shared, route
+  `POST /projects/:id/opdracht/wijzig`): aantal, prijs, regel erbij, regel weg.
+  - Meer stuks: bij de lopende order; is alles al gereed, dan een **nieuwe
+    order** voor het verschil — een gereedgemelde order openbreken zou zijn
+    afgevinkte stappen weggooien.
+  - Minder stuks: van het lopende werk af, nooit onder wat er gemaakt is; is er
+    niets meer te doen, dan stopt de order bij het gemaakte aantal.
+  - Regel weg: zonder voortgang gaat de order mee weg, anders krijgt hij de
+    nieuwe status **`gestopt`**: zichtbaar op de Productie-tab, niet meer in de
+    wachtrij, planning of terminal.
+  - Is er al gemaakt, geleverd of gefactureerd, dan eerst een zin met wat er
+    gebeurd is en een bevestiging (`waarschuwingBijWijziging`); anders meteen.
+  - Elke wijziging in `wijzigingen` op de opdrachtbevestiging. De offerte
+    verandert niet mee.
+  - Kop, Financieel en nacalculatie rekenen met de **opdracht**, niet meer met
+    de offerte (nacalculatie: `ob_regels` eerst, offerteregel als terugval).
+- **Terugdraaien naar de offertefase** ruimt de materiaal-todo's en de
+  prijshistorie van de acceptatie op, en zet alleen versies terug die **door de
+  acceptatie** vervielen (`vervallenDoor`). Ingetrokken versies blijven vervallen.
+  Het blijft geweigerd zodra er productie gereedgemeld is — nu ook bij
+  gereedgemelde stuks zonder afgevinkte stap, wat eerder doorglipte. De melding
+  wijst naar het aanpassen van de opdracht, waar het gemaakte werk blijft staan.
+

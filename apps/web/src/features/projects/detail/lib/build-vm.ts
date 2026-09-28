@@ -34,6 +34,9 @@ export function statusLabel(s: Project['status']): string {
 }
 
 export function offerteTotaal(p: Project): number | null {
+  // Na acceptatie telt de opdracht: die is sinds 2026-09-28 aan te passen
+  // (aantal, prijs, regels), en de offerte blijft staan als wat aangeboden werd.
+  if (p.opdrachtbevestiging) return p.opdrachtbevestiging.regels.reduce((som, r) => som + r.totaal, 0)
   const o = geldendeOfferte(p)
   if (!o) return null
   return o.regels.reduce((som, r) => som + r.totaal, 0)
@@ -102,9 +105,11 @@ export function bouwFacetten(
           : undefined,
     },
     {
-      label: 'Offertetotaal',
+      label: p.opdrachtbevestiging ? 'Opdrachtwaarde' : 'Offertetotaal',
       waarde: totaalBedrag === null ? '—' : eur(totaalBedrag),
-      sub: geldend
+      sub: p.opdrachtbevestiging
+        ? `${p.opdrachtbevestiging.id}${p.opdrachtbevestiging.wijzigingen?.length ? ' · aangepast na acceptatie' : ''}`
+        : geldend
         ? `${geldend.id}${acc ? ` · v${acc.versie} geaccepteerd` : ` · v${geldend.versie}`}`
         : 'nog geen offerte',
     },

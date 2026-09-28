@@ -292,10 +292,19 @@ export function ProjectDetailPage() {
               todos={projectTodos}
               reserveringen={reserveringen}
               geblokkeerd={geblokkeerd}
-              onAanmaken={acties.maakOpdracht}
+              geenOpdracht={{
+                onAccepteer: acties.accepteerOfferte,
+                onDirect: acties.maakDirecteOpdracht,
+                onAnnuleerDirect: acties.verwijderOfferte,
+                onRegel: acties.bewerkRegel,
+                onVerwijderRegel: acties.verwijderRegel,
+                onPrijzen: acties.werkPrijzenBij,
+                onGewijzigd: acties.ververs,
+              }}
               onVerstuurd={acties.verzendOB}
               onZetOB={acties.zetOB}
               onNaarTab={kiesTab}
+              onWijzig={acties.wijzigOpdracht}
             />
           )}
           {tab === 'productie' && (

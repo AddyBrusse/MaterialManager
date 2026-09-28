@@ -36,7 +36,7 @@ export function OfferteActies({
 }: Props) {
   return (
     <td className="pdv2-acties">
-      {o.status === 'concept' && (
+      {o.status === 'concept' && !o.direct && (
         <button
           type="button"
           className="pdv2-btn s"

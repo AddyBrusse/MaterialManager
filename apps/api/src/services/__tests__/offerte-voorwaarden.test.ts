@@ -15,7 +15,7 @@ function regel(naam: string, qty: number): OfferteRegel {
 function versie(v: number, status: Offerte['status'], regels: OfferteRegel[]): Offerte {
   return {
     id: `off${v}`, documentNr: 'OFF-2026-014', projectId: 'PRJ', versie: v, status, regels,
-    notities: '', externeRef: null, geldigTot: null, verzondenOp: null, geaccepteerdOp: null,
+    notities: '', externeRef: null, direct: false, vervallenDoor: null, geldigTot: null, verzondenOp: null, geaccepteerdOp: null,
     createdAt: '2026-09-25T09:00:00.000Z', updatedAt: '2026-09-25T09:00:00.000Z',
   }
 }

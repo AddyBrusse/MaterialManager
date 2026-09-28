@@ -6,7 +6,7 @@ import {
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
   waaromNietVerwijderen, waaromNietIntrekken, projectNaIntrekken,
-  waaromNietVersturenOB, obInhoud,
+  waaromNietVersturenOB, obInhoud, wijzigOpdracht,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
   berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie,
@@ -73,6 +73,36 @@ async function nextDocId(db: Db, prefix: DocPrefix): Promise<string> {
 /** Een voorwaarde uit `offerte-voorwaarden` die niet klopt → 409 met die zin. */
 function eis(reden: string | null): void {
   if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+}
+
+/**
+ * Een productieorder voor een regel: de bewerkingen worden de stappen. Het id
+ * vult de aanroeper in — bij accepteren meteen, bij een wijziging achteraf
+ * (zie de wijzig-route), zodat er geen nummer verloren gaat aan een order die
+ * uiteindelijk niet nodig bleek.
+ */
+function orderVoorRegel(p: Project, regel: OfferteRegel, qty: number, id: string): ProductieOrder {
+  return {
+    id,
+    projectId: p.id,
+    offerteRegelId: regel.id,
+    artikelId: regel.artikelId,
+    artikelNaam: regel.naam,
+    qty,
+    eenheid: regel.eenheid,
+    aantalGereed: 0,
+    stappen: regel.bewerkingen.map((naam, i) => ({
+      id: `stap_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
+      volgorde: i + 1,
+      naam,
+      machine: naam,
+      gereedOp: null,
+      gereedDoor: null,
+    })),
+    status: 'gepland' as const,
+    createdAt: now(),
+    updatedAt: now(),
+  }
 }
 
 /** De naam van een offerteregel zoals op het scherm, voor in een melding. */
@@ -248,6 +278,8 @@ const CreateOfferteSchema = z.object({
   // De regel-id's die de browser al in zijn cache gebruikt, in de volgorde van
   // de bron — zodat een bewerking direct na het kopiëren de goede regel raakt.
   regelIds: z.array(z.string()).optional(),
+  /** Een directe opdracht in voorbereiding: wordt geaccepteerd zonder versturen. */
+  direct: z.boolean().optional(),
 })
 
 router.post(
@@ -285,6 +317,8 @@ router.post(
           regels: [],
           notities: '',
           externeRef: null,
+          direct: body.direct ?? false,
+          vervallenDoor: null,
           geldigTot: null,
           verzondenOp: null,
           geaccepteerdOp: null,
@@ -483,7 +517,9 @@ router.post(
         ...p,
         updatedAt: now(),
         offertes: p.offertes.map(o =>
-          o.id === req.params.offId ? { ...o, status: 'vervallen' as OfferteStatus, updatedAt: now() } : o,
+          o.id === req.params.offId
+            ? { ...o, status: 'vervallen' as OfferteStatus, vervallenDoor: 'intrekken' as const, updatedAt: now() }
+            : o,
         ),
       })
     })
@@ -544,16 +580,20 @@ router.post(
   }),
 )
 
-const AccepteerSchema = z.object({ userName: z.string() })
+const AccepteerSchema = z.object({
+  userName: z.string(),
+  /** Waarmee de klant opdracht gaf — gevraagd in het accepteer-venster. */
+  opdrachtRef: z.string().max(200).nullable().optional(),
+})
 
 router.post(
   '/:id/offertes/:offId/accepteer',
   asyncHandler(async (req, res) => {
-    const { userName } = AccepteerSchema.parse(req.body)
-    void userName
+    const { opdrachtRef } = AccepteerSchema.parse(req.body)
+    const offId = req.params.offId
 
     const updated = await withProject(req.params.id, async (p, tx) => {
-      const acceptedOfferte = p.offertes.find(o => o.id === req.params.offId)
+      const acceptedOfferte = p.offertes.find(o => o.id === offId)
       eis(waaromNietAccepteren(acceptedOfferte, p.offertes))
       if (!acceptedOfferte) throw new AppError(404, 'NOT_FOUND', 'Deze offerteversie bestaat niet (meer). Ververs de pagina.')
 
@@ -588,46 +628,24 @@ router.post(
 
       const newOrders: ProductieOrder[] = []
       for (const regel of acceptedOfferte.regels) {
-        const stappen: ProductieStap[] = regel.bewerkingen.length > 0
-          ? regel.bewerkingen.map((naam, i) => ({
-              id: `stap_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 5)}`,
-              volgorde: i + 1,
-              naam,
-              machine: naam,
-              gereedOp: null,
-              gereedDoor: null,
-            }))
-          : []
-        newOrders.push({
-          id: await nextDocId(tx, 'PROD'),
-          projectId: p.id,
-          offerteRegelId: regel.id,
-          artikelId: regel.artikelId,
-          artikelNaam: regel.naam,
-          qty: regel.qty,
-          eenheid: regel.eenheid,
-          aantalGereed: 0,
-          stappen,
-          status: 'gepland' as const,
-          createdAt: now(),
-          updatedAt: now(),
-        })
+        newOrders.push(orderVoorRegel(p, regel, regel.qty, await nextDocId(tx, 'PROD')))
       }
 
       // Auto-create opdrachtbevestiging from the accepted offerte's regels
       const ob: Opdrachtbevestiging = {
         id: await nextDocId(tx, 'OB'),
         projectId: p.id,
-        offerteId: req.params.offId,
+        offerteId: offId,
         regels: acceptedOfferte.regels,
         levertijdDatum: p.levertijdDatum,
         notities: '',
-        // Vooringevuld met de referentie van het project (afgesproken
-        // 2026-09-28): vaak is dat al het inkoopnummer, en anders pas je hem aan.
-        opdrachtRef: p.klantRef?.trim() || null,
+        // Wat in het accepteer-venster is ingevuld; anders de referentie van het
+        // project (afgesproken 2026-09-28): vaak is dat al het inkoopnummer.
+        opdrachtRef: opdrachtRef?.trim() || p.klantRef?.trim() || null,
         status: 'concept',
         verzondenOp: null,
         verzendingen: [],
+        wijzigingen: [],
         createdAt: now(),
         updatedAt: now(),
       }
@@ -638,11 +656,19 @@ router.post(
         updatedAt: now(),
         opdrachtbevestiging: ob,
         offertes: p.offertes.map(o => {
-          if (o.id === req.params.offId) {
-            return { ...o, status: 'geaccepteerd' as OfferteStatus, geaccepteerdOp: now(), updatedAt: now() }
+          if (o.id === offId) {
+            return {
+              ...o,
+              status: 'geaccepteerd' as OfferteStatus,
+              geaccepteerdOp: now(),
+              // Een directe opdracht is nooit als offerte verstuurd; zijn
+              // referentie is die van de opdracht.
+              externeRef: o.externeRef ?? (o.direct ? opdrachtRef?.trim() || null : null),
+              updatedAt: now(),
+            }
           }
-          if (o.status !== 'geaccepteerd') {
-            return { ...o, status: 'vervallen' as OfferteStatus, updatedAt: now() }
+          if (o.status !== 'geaccepteerd' && o.status !== 'vervallen') {
+            return { ...o, status: 'vervallen' as OfferteStatus, vervallenDoor: 'acceptatie' as const, updatedAt: now() }
           }
           return o
         }),
@@ -722,6 +748,83 @@ router.post(
   }),
 )
 
+// ── Opdracht aanpassen ────────────────────────────────────────────────────────
+// Na acceptatie blijft de opdracht aan te passen — ook als de productie al
+// loopt (besloten 2026-09-28). De logica staat in `wijzigOpdracht` (shared); hier
+// alleen wat de database nodig heeft: nummers voor nieuwe orders, todo's voor
+// het materiaal, en het logboek.
+
+const RegelErbijSchema = z.object({
+  artikelId: z.string().nullable(),
+  naam: z.string().min(1),
+  omschrijving: z.string(),
+  qty: z.number().positive(),
+  eenheid: z.string(),
+  verkoopprijs: z.number().nonnegative(),
+  bewerkingen: z.array(z.string()),
+})
+
+const WijzigOpdrachtSchema = z.discriminatedUnion('soort', [
+  z.object({ soort: z.literal('aantal'), regelId: z.string(), qty: z.number().positive() }),
+  z.object({ soort: z.literal('prijs'), regelId: z.string(), verkoopprijs: z.number().nonnegative() }),
+  z.object({ soort: z.literal('weg'), regelId: z.string() }),
+  z.object({ soort: z.literal('erbij'), regels: z.array(RegelErbijSchema).min(1) }),
+])
+
+router.post(
+  '/:id/opdracht/wijzig',
+  asyncHandler(async (req, res) => {
+    const w = WijzigOpdrachtSchema.parse(req.body)
+    const updated = await withProject(req.params.id, async (p, tx) => {
+      if (!p.opdrachtbevestiging) throw new AppError(409, 'VOORWAARDE', 'Er is nog geen opdracht om aan te passen.')
+      if (w.soort !== 'erbij' && !p.opdrachtbevestiging.regels.some(r => r.id === w.regelId)) {
+        throw new AppError(404, 'NOT_FOUND', 'Deze regel staat niet (meer) in de opdracht. Ververs de pagina.')
+      }
+      let teller = 0
+      const { project: next, tekst } = wijzigOpdracht(p, w, {
+        nu: now(),
+        nieuwRegelId: () => `regel_${Date.now()}_${teller++}_${Math.random().toString(36).slice(2, 6)}`,
+        nieuweOrder: (regel, qty) => orderVoorRegel(p, regel, qty, `NIEUW-${teller++}`),
+      })
+
+      // Pas nu nummers uitgeven: alleen voor orders die er echt komen.
+      const orders: ProductieOrder[] = []
+      for (const o of next.productieOrders) {
+        orders.push(o.id.startsWith('NIEUW-') ? { ...o, id: await nextDocId(tx, 'PROD') } : o)
+      }
+
+      if (w.soort === 'erbij') {
+        const oud = new Set(p.opdrachtbevestiging.regels.map(r => r.id))
+        await todosBijOpdracht(tx, {
+          projectId: p.id,
+          projectNaam: p.naam,
+          regels: next.opdrachtbevestiging!.regels.filter(r => !oud.has(r.id))
+            .map(r => ({ id: r.id, artikelId: r.artikelId, naam: r.naam, qty: r.qty })),
+          door: req.user.id,
+        })
+      }
+      if (w.soort === 'weg') {
+        // Materiaal kiezen voor een regel die er niet meer is, hoeft niet meer.
+        // Reserveringen blijven staan: vrijgeven gaat alleen via Reserveringen.
+        await tx.todo.deleteMany({
+          where: { projectId: p.id, offerteRegelId: w.regelId, done: false, soort: 'materiaal_selecteren' },
+        })
+      }
+
+      const ob = next.opdrachtbevestiging!
+      return {
+        ...next,
+        productieOrders: orders,
+        opdrachtbevestiging: {
+          ...ob,
+          wijzigingen: [...(ob.wijzigingen ?? []), { op: now(), door: req.user.name, tekst }],
+        },
+      }
+    })
+    res.json({ data: updated })
+  }),
+)
+
 // ── Productie order operations ─────────────────────────────────────────────────
 
 const CheckStapSchema = z.object({
@@ -751,7 +854,8 @@ router.post(
         )
         const allDone = stappen.every(s => s.gereedOp)
         const anyDone = stappen.some(s => s.gereedOp)
-        const status: ProductieOrder['status'] = allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
+        // Een gestopte order blijft gestopt: afvinken maakt hem niet weer lopend.
+        const status: ProductieOrder['status'] = o.status === 'gestopt' ? 'gestopt' : allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
         return { ...o, stappen, status, updatedAt: now() }
       })
       const status = p.status === 'bevestigd' ? 'productie' : p.status
@@ -772,7 +876,8 @@ router.post(
         )
         const allDone = stappen.every(s => s.gereedOp)
         const anyDone = stappen.some(s => s.gereedOp)
-        const status: ProductieOrder['status'] = allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
+        // Een gestopte order blijft gestopt: afvinken maakt hem niet weer lopend.
+        const status: ProductieOrder['status'] = o.status === 'gestopt' ? 'gestopt' : allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
         return { ...o, stappen, status, updatedAt: now() }
       })
       return { ...p, productieOrders, updatedAt: now() }
@@ -869,7 +974,7 @@ router.post(
           ? {
               ...o,
               aantalGereed: gereed,
-              status: (gereed >= o.qty ? 'gereed' : 'in_productie') as ProductieOrder['status'],
+              status: (o.status === 'gestopt' ? 'gestopt' : gereed >= o.qty ? 'gereed' : 'in_productie') as ProductieOrder['status'],
               updatedAt: now(),
             }
           : o,
@@ -1179,21 +1284,46 @@ router.post(
 router.post(
   '/:id/revert/bevestigd',
   asyncHandler(async (req, res) => {
-    const updated = await withProject(req.params.id, (p) => {
+    const updated = await withProject(req.params.id, async (p, tx) => {
       if (!['bevestigd', 'productie'].includes(p.status)) {
         throw new AppError(409, 'VOORWAARDE', 'Kan niet terug naar de offertefase: het project is niet bevestigd en niet in productie.')
       }
-      const hasWork = p.productieOrders.some(o => o.stappen.some(s => s.gereedOp))
+      // Blijft een weigering, ook na het principe van 2026-09-28: terugdraaien
+      // gooit de productieorders weg, en daarmee de afgevinkte stappen en de
+      // uren die erop geklokt zijn. Wat de klant wil veranderen kan in de
+      // opdracht zelf — daar blijft het gemaakte werk staan.
+      // Ook gereedgemelde stuks tellen: die kunnen er zijn zonder afgevinkte
+      // stap (gereedmelden vanaf kantoor). Vóór 2026-09-28 keek dit alleen naar
+      // stappen, en ging een order met 12 gemaakte stuks gewoon weg.
+      const hasWork = p.productieOrders.some(o => o.aantalGereed > 0 || o.stappen.some(s => s.gereedOp))
       if (hasWork) {
-        throw new AppError(409, 'VOORWAARDE', 'Kan niet terug naar de offertefase: er zijn al productiestappen gereedgemeld. Trek die gereedmeldingen eerst in op de Productie-tab.')
+        throw new AppError(409, 'VOORWAARDE', 'Kan niet terug naar de offertefase: er is al productie gereedgemeld '
+          + '(stappen of stuks), en terugdraaien zou dat werk en de geklokte uren weggooien. Pas de opdracht zelf aan '
+          + 'op de Opdracht-tab (aantal, prijs, regels erbij of eraf) — het gemaakte werk blijft dan staan.')
       }
-      // Revert accepted offerte → concept/verzonden, lift vervallen offertes back to concept
+      const acc = p.offertes.find(o => o.status === 'geaccepteerd')
+
+      // Opruimen wat het accepteren maakte, buiten de opdracht zelf: de todo's
+      // voor het materiaal en de prijshistorie. Anders wijzen die naar een
+      // opdracht die er niet meer is, en telt de grafiek een verkoop die niet
+      // doorging. Reserveringen blijven: vrijgeven gaat via Reserveringen.
+      await tx.todo.deleteMany({ where: { projectId: p.id, soort: 'materiaal_selecteren', done: false } })
+      if (acc) await tx.artikelPrijsSnapshot.deleteMany({ where: { offerteId: acc.id, bron: 'order' } })
+
       const offertes = p.offertes.map(o => {
         if (o.status === 'geaccepteerd') {
           return { ...o, status: (o.verzondenOp ? 'verzonden' : 'concept') as OfferteStatus, geaccepteerdOp: null, updatedAt: now() }
         }
-        if (o.status === 'vervallen') {
-          return { ...o, status: 'concept' as OfferteStatus, updatedAt: now() }
+        // Alleen wat door het accepteren verviel komt terug — niet wat iemand
+        // bewust introk. Vóór 2026-09-28 zette dit élke vervallen versie terug
+        // op concept, ook ingetrokken versies die al bij de klant lagen.
+        if (o.status === 'vervallen' && o.vervallenDoor === 'acceptatie') {
+          return {
+            ...o,
+            status: (o.verzondenOp ? 'verzonden' : 'concept') as OfferteStatus,
+            vervallenDoor: null,
+            updatedAt: now(),
+          }
         }
         return o
       })

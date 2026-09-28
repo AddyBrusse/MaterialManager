@@ -67,7 +67,7 @@ function offerte(
 ) {
   return {
     id, documentNr: 'OFF-2026-014', projectId: 'PRJ-1', versie, status, regels,
-    notities: '', externeRef: null, geldigTot: null, verzondenOp: null, geaccepteerdOp: null,
+    notities: '', externeRef: null, direct: false, vervallenDoor: null, geldigTot: null, verzondenOp: null, geaccepteerdOp: null,
     createdAt: NU, updatedAt: NU,
   }
 }
@@ -165,7 +165,7 @@ describe('basisRegels', () => {
       opdrachtbevestiging: {
         id: 'OB-1', projectId: 'PRJ-1', offerteId: 'OFF-1', regels: [obRegel],
         levertijdDatum: null, notities: '', opdrachtRef: null, status: 'verzonden', verzondenOp: NU,
-        verzendingen: [], createdAt: NU, updatedAt: NU,
+        verzendingen: [], wijzigingen: [], createdAt: NU, updatedAt: NU,
       },
     })
     expect(basisRegels(p).map(r => r.id)).toEqual(['OB-R'])

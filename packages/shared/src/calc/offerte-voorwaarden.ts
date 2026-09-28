@@ -38,6 +38,9 @@ export function waaromNietVersturen(o: Offerte | undefined): string | null {
   if (o.status !== 'concept') {
     return `Kan v${o.versie} niet versturen: deze versie is ${STATUS_WOORD[o.status]}. Maak een kopie om een nieuwe versie te versturen.`
   }
+  if (o.direct) {
+    return `v${o.versie} is een directe opdracht: die wordt niet als offerte verstuurd. Gebruik "Opdracht maken" op de Opdracht-tab.`
+  }
   const regels = regelProbleem(o, 'versturen')
   if (regels) return regels
   // Afgesproken 2026-09-25: een verstuurde versie zegt altijd waar ze antwoord
@@ -57,7 +60,10 @@ export function waaromNietAccepteren(o: Offerte | undefined, alle: Offerte[]): s
   if (al) {
     return `Kan v${o.versie} niet accepteren: v${al.versie} is al geaccepteerd. Er kan maar één versie de opdracht zijn.`
   }
-  if (o.status !== 'verzonden') {
+  // Een directe opdracht gaat nooit als offerte de deur uit: de klant gaf al
+  // opdracht. Die mag dus rechtstreeks van concept naar geaccepteerd.
+  const magVanConcept = o.direct && o.status === 'concept'
+  if (o.status !== 'verzonden' && !magVanConcept) {
     return o.status === 'concept'
       ? `Kan v${o.versie} niet accepteren: deze versie is nog niet verstuurd. Verstuur hem eerst.`
       : `Kan v${o.versie} niet accepteren: deze versie is ${STATUS_WOORD[o.status]}.`

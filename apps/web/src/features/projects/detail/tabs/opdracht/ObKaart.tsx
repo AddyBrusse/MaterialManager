@@ -130,6 +130,19 @@ export function ObKaart({ project: p, geblokkeerd, onOpenen, onPdf, onVersturen,
         </div>
       )}
 
+      {(ob.wijzigingen ?? []).length > 0 && (
+        <div className="pdv2-log">
+          <span>
+            <strong>Aangepast na acceptatie</strong> — wijkt af van {offerteLabel(p)}:
+          </span>
+          {ob.wijzigingen.map((w, i) => (
+            <span key={`${w.op}-${i}`}>
+              {datum(w.op)} {w.door}: {w.tekst}
+            </span>
+          ))}
+        </div>
+      )}
+
       {log.length > 0 && (
         <div className="pdv2-log">
           {log.map((v, i) => (

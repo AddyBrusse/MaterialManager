@@ -7,9 +7,9 @@
 // tabellen kent.
 import type { Prisma } from '@prisma/client'
 import { AppError } from '../middleware/error'
-import { ObVerzendingSchema } from '@stockmanager/shared'
+import { ObVerzendingSchema, ObWijzigingSchema } from '@stockmanager/shared'
 import type {
-  Project, Offerte, OfferteRegel, OfferteStatus, Opdrachtbevestiging, OBStatus, ObVerzending,
+  Project, Offerte, OfferteRegel, OfferteStatus, Opdrachtbevestiging, OBStatus, ObVerzending, ObWijziging,
   ProductieOrder, ProductieOrderStatus, ProductieStap, Paklijst, Factuur,
 } from '@stockmanager/shared'
 
@@ -44,6 +44,14 @@ function leesVerzendingen(json: Prisma.JsonValue): ObVerzending[] {
   if (!Array.isArray(json)) return []
   return json.flatMap(x => {
     const r = ObVerzendingSchema.safeParse(x)
+    return r.success ? [r.data] : []
+  })
+}
+
+function leesWijzigingen(json: Prisma.JsonValue): ObWijziging[] {
+  if (!Array.isArray(json)) return []
+  return json.flatMap(x => {
+    const r = ObWijzigingSchema.safeParse(x)
     return r.success ? [r.data] : []
   })
 }
@@ -84,6 +92,8 @@ export function serialize(row: ProjectRow): Project {
       regels: o.regels.map(leesRegel),
       notities: o.notities,
       externeRef: o.externeRef,
+      direct: o.direct,
+      vervallenDoor: (o.vervallenDoor as Offerte['vervallenDoor']) ?? null,
       geldigTot: o.geldigTot,
       verzondenOp: o.verzondenOp,
       geaccepteerdOp: o.geaccepteerdOp,
@@ -104,6 +114,7 @@ export function serialize(row: ProjectRow): Project {
           status: row.opdrachtbevestiging.status as OBStatus,
           verzondenOp: row.opdrachtbevestiging.verzondenOp,
           verzendingen: leesVerzendingen(row.opdrachtbevestiging.verzendingen),
+          wijzigingen: leesWijzigingen(row.opdrachtbevestiging.wijzigingen),
           createdAt: row.opdrachtbevestiging.createdAt.toISOString(),
           updatedAt: row.opdrachtbevestiging.updatedAt.toISOString(),
         } satisfies Opdrachtbevestiging)
@@ -267,6 +278,8 @@ export async function persist(tx: Db, next: Project): Promise<void> {
       status: o.status,
       notities: o.notities,
       externeRef: o.externeRef ?? null,
+      direct: o.direct ?? false,
+      vervallenDoor: o.vervallenDoor ?? null,
       geldigTot: o.geldigTot,
       verzondenOp: o.verzondenOp,
       geaccepteerdOp: o.geaccepteerdOp,
@@ -316,6 +329,7 @@ export async function persist(tx: Db, next: Project): Promise<void> {
       status: ob.status,
       verzondenOp: ob.verzondenOp,
       verzendingen: (ob.verzendingen ?? []) as unknown as Prisma.InputJsonValue,
+      wijzigingen: (ob.wijzigingen ?? []) as unknown as Prisma.InputJsonValue,
       updatedAt: d(ob.updatedAt),
     }
     await tx.opdrachtbevestiging.upsert({
