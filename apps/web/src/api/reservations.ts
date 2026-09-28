@@ -29,6 +29,8 @@ export interface ZaagReservation {
   // werk dat geen project is (voorraad, intern).
   projectId: string | null
   artikelId: string | null
+  /** Voor welke orderregel; leeg bij oude of handmatige reserveringen. */
+  offerteRegelId?: string | null
   barId: string
   barCode: string
   barLocation: string

@@ -7,8 +7,9 @@
 // tabellen kent.
 import type { Prisma } from '@prisma/client'
 import { AppError } from '../middleware/error'
+import { ObVerzendingSchema } from '@stockmanager/shared'
 import type {
-  Project, Offerte, OfferteRegel, OfferteStatus, Opdrachtbevestiging, OBStatus,
+  Project, Offerte, OfferteRegel, OfferteStatus, Opdrachtbevestiging, OBStatus, ObVerzending,
   ProductieOrder, ProductieOrderStatus, ProductieStap, Paklijst, Factuur,
 } from '@stockmanager/shared'
 
@@ -32,6 +33,19 @@ type RegelRow = {
   id: string; sortOrder: number; artikelId: string | null; naam: string
   omschrijving: string; qty: number; eenheid: string; verkoopprijs: number
   totaal: number; bewerkingen: string[]
+}
+
+/**
+ * Het verzendlogboek staat als JSON in de database. Een rij die niet klopt
+ * (handmatig bewerkt, oude vorm) wordt overgeslagen in plaats van de hele
+ * projectpagina te laten falen — het logboek is informatie, geen boekhouding.
+ */
+function leesVerzendingen(json: Prisma.JsonValue): ObVerzending[] {
+  if (!Array.isArray(json)) return []
+  return json.flatMap(x => {
+    const r = ObVerzendingSchema.safeParse(x)
+    return r.success ? [r.data] : []
+  })
 }
 
 function leesRegel(r: RegelRow): OfferteRegel {
@@ -82,10 +96,14 @@ export function serialize(row: ProjectRow): Project {
           projectId: row.opdrachtbevestiging.projectId,
           offerteId: row.opdrachtbevestiging.offerteId,
           regels: row.opdrachtbevestiging.regels.map(leesRegel),
-          levertijdDatum: row.opdrachtbevestiging.levertijdDatum,
+          // Eén levertijd: die van het project (besloten 2026-09-28). De kolom
+          // op de opdrachtbevestiging wordt meegeschreven maar niet gelezen.
+          levertijdDatum: row.levertijdDatum,
           notities: row.opdrachtbevestiging.notities,
+          opdrachtRef: row.opdrachtbevestiging.opdrachtRef,
           status: row.opdrachtbevestiging.status as OBStatus,
           verzondenOp: row.opdrachtbevestiging.verzondenOp,
+          verzendingen: leesVerzendingen(row.opdrachtbevestiging.verzendingen),
           createdAt: row.opdrachtbevestiging.createdAt.toISOString(),
           updatedAt: row.opdrachtbevestiging.updatedAt.toISOString(),
         } satisfies Opdrachtbevestiging)
@@ -292,10 +310,12 @@ export async function persist(tx: Db, next: Project): Promise<void> {
     })
     const velden = {
       offerteId: ob.offerteId,
-      levertijdDatum: ob.levertijdDatum,
+      levertijdDatum: next.levertijdDatum,
       notities: ob.notities,
+      opdrachtRef: ob.opdrachtRef ?? null,
       status: ob.status,
       verzondenOp: ob.verzondenOp,
+      verzendingen: (ob.verzendingen ?? []) as unknown as Prisma.InputJsonValue,
       updatedAt: d(ob.updatedAt),
     }
     await tx.opdrachtbevestiging.upsert({

@@ -6,7 +6,7 @@ import type { Project } from '@stockmanager/shared'
 import {
   laatsteFactuur, laatstePaklijst, volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
-  waaromNietVerwijderen, waaromNietIntrekken,
+  waaromNietVerwijderen, waaromNietIntrekken, waaromNietVersturenOB,
 } from '@stockmanager/shared'
 import { projectsApi, wachtOpOpslag } from '../../../api/projects'
 import { meldFout } from '../../../utils/fout-melding-toon'
@@ -56,7 +56,10 @@ export interface ProjectActies {
   verzendOfferte: (offerteId: string) => void
   accepteerOfferte: (offerteId: string) => void
   maakOpdracht: () => void
-  verzendOB: () => void
+  /** Vastleggen dat de opdrachtbevestiging verstuurd is — na "Ja, verstuurd". */
+  verzendOB: (naar: string | null) => void
+  /** Opdrachtreferentie, opmerking of levertijd op de opdrachtbevestiging. */
+  zetOB: (patch: { notities?: string; opdrachtRef?: string | null; levertijdDatum?: string | null }) => void
   stapCheck: (orderId: string, stapId: string, gereed: boolean) => void
   meldStuksGereed: (orderId: string) => void
   maakPaklijst: () => void
@@ -139,6 +142,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     accepteerOfferte: () => {},
     maakOpdracht: () => {},
     verzendOB: () => {},
+    zetOB: () => {},
     stapCheck: () => {},
     meldStuksGereed: () => {},
     maakPaklijst: () => {},
@@ -329,7 +333,29 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
       )
     },
     maakOpdracht: () => naarTab('offertes'),
-    verzendOB: () => doe('Opdrachtbevestiging versturen', 'Opdrachtbevestiging verstuurd', () => projectsApi.verzendOB(id)),
+    verzendOB: (naar) =>
+      doe(
+        `Opdrachtbevestiging ${project.opdrachtbevestiging?.id ?? ''} versturen`,
+        'Opdrachtbevestiging vastgelegd als verstuurd',
+        () => {
+          eis(waaromNietVersturenOB(project))
+          projectsApi.verzendOB(id, naar, naam)
+        },
+      ),
+    // Stil, zoals de referentie van een offerte: een groene melding per
+    // ingevuld veld is ruis. Een fout meldt syncProject zelf.
+    zetOB: (patch) => {
+      try {
+        projectsApi.updateOB(id, patch)
+        ververs()
+      } catch (fout) {
+        meldFout({
+          actie: 'Opdrachtbevestiging bijwerken',
+          fout,
+          gevolg: 'Er is niets gewijzigd — niet op de server en niet op je scherm.',
+        })
+      }
+    },
     stapCheck: (orderId, stapId, gereed) =>
       doe(
         gereed ? 'Stap gereedmelden' : 'Gereedmelding intrekken',

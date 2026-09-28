@@ -41,7 +41,7 @@ export function toNum(v: unknown): number {
 }
 
 function serialize(r: {
-  id: string; calculatieNr: string; projectId: string | null; artikelId: string | null; barId: string; barCode: string; barLocation: string; barVorm: string
+  id: string; calculatieNr: string; projectId: string | null; artikelId: string | null; offerteRegelId: string | null; barId: string; barCode: string; barLocation: string; barVorm: string
   pieces: number; productLen: unknown; sawLength: unknown; fysiekeLengte: unknown; materiaal: string
   diameter: unknown; werkstukLengte: unknown; steekbreedte: unknown; vlakToeslag: unknown; machine: string
   priority: number | null; rush: boolean; status: string; restLengteMm: unknown; completedAt: Date | null; createdAt: Date
@@ -51,6 +51,7 @@ function serialize(r: {
     calculatieNr: r.calculatieNr,
     projectId: r.projectId,
     artikelId: r.artikelId,
+    offerteRegelId: r.offerteRegelId,
     barId: r.barId,
     barCode: r.barCode,
     barLocation: r.barLocation,
@@ -399,6 +400,8 @@ const BevestigSchema = PlanSchemaIn.extend({
   })).min(1),
   /** De todo die hiermee afgerond wordt. */
   todoId: z.string().optional(),
+  /** De orderregel waar dit materiaal voor is. */
+  offerteRegelId: z.string().optional(),
   /** Tekort waarvoor een bestel-todo moet komen. */
   tekort: z.object({ stuks: z.number().int().positive(), mm: z.number().positive() }).optional(),
 })
@@ -465,6 +468,7 @@ router.post(
             calculatieNr: body.calculatieNr,
             projectId: body.projectId,
             artikelId: body.artikelId,
+            offerteRegelId: body.offerteRegelId ?? null,
             barId: staaf.id,
             barCode: staaf.code,
             barLocation: '',

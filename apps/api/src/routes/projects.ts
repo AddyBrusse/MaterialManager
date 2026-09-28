@@ -6,6 +6,7 @@ import {
   type Project, type Offerte, type OfferteRegel, type OfferteStatus,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
   waaromNietVerwijderen, waaromNietIntrekken, projectNaIntrekken,
+  waaromNietVersturenOB, obInhoud,
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
   berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie,
@@ -621,8 +622,12 @@ router.post(
         regels: acceptedOfferte.regels,
         levertijdDatum: p.levertijdDatum,
         notities: '',
+        // Vooringevuld met de referentie van het project (afgesproken
+        // 2026-09-28): vaak is dat al het inkoopnummer, en anders pas je hem aan.
+        opdrachtRef: p.klantRef?.trim() || null,
         status: 'concept',
         verzondenOp: null,
+        verzendingen: [],
         createdAt: now(),
         updatedAt: now(),
       }
@@ -650,35 +655,66 @@ router.post(
 
 // ── Opdrachtbevestiging operations ────────────────────────────────────────────
 
+// Wat er op de opdrachtbevestiging aan te passen is. De levertijd is die van
+// het project (één datum, besloten 2026-09-28): wie hem hier wijzigt, wijzigt
+// hem voor de kop van de pagina, de planning en de pdf tegelijk.
+const UpdateObSchema = z.object({
+  notities: z.string().max(2000).optional(),
+  opdrachtRef: z.string().max(200).nullable().optional(),
+  levertijdDatum: z.string().nullable().optional(),
+})
+
+const GEEN_OB = 'Er is nog geen opdrachtbevestiging. Die ontstaat bij het accepteren van een offerte.'
+
 router.patch(
   '/:id/opdrachtbevestiging',
   asyncHandler(async (req, res) => {
-    const patch = z.object({ notities: z.string().optional(), levertijdDatum: z.string().nullable().optional() }).parse(req.body)
+    const patch = UpdateObSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, (p) => {
-      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', 'Er is nog geen opdrachtbevestiging. Die ontstaat bij het accepteren van een offerte.')
+      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', GEEN_OB)
+      const ob = p.opdrachtbevestiging
       return {
         ...p,
+        levertijdDatum: patch.levertijdDatum === undefined ? p.levertijdDatum : patch.levertijdDatum,
         updatedAt: now(),
-        opdrachtbevestiging: { ...p.opdrachtbevestiging, ...patch, updatedAt: now() },
+        opdrachtbevestiging: {
+          ...ob,
+          notities: patch.notities ?? ob.notities,
+          opdrachtRef: patch.opdrachtRef === undefined ? ob.opdrachtRef : patch.opdrachtRef?.trim() || null,
+          updatedAt: now(),
+        },
       }
     })
     res.json({ data: updated })
   }),
 )
 
+// Versturen gebeurt in Outlook; de app zet de mail klaar en vraagt daarna of
+// hij echt verstuurd is. Pas dán komt deze aanroep — met wat de klant kreeg,
+// zodat de kaart later kan zeggen wat er sindsdien veranderd is.
+const VerzendObSchema = z.object({ naar: z.string().max(320).nullable().optional() })
+
 router.post(
   '/:id/opdrachtbevestiging/verzend',
   asyncHandler(async (req, res) => {
+    const { naar } = VerzendObSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, (p) => {
-      if (!p.opdrachtbevestiging) throw new AppError(404, 'NOT_FOUND', 'Er is nog geen opdrachtbevestiging. Die ontstaat bij het accepteren van een offerte.')
+      eis(waaromNietVersturenOB(p))
+      const ob = p.opdrachtbevestiging!
+      const nu = now()
       return {
         ...p,
-        updatedAt: now(),
+        updatedAt: nu,
         opdrachtbevestiging: {
-          ...p.opdrachtbevestiging,
+          ...ob,
           status: 'verzonden' as OBStatus,
-          verzondenOp: now(),
-          updatedAt: now(),
+          // De eerste datum blijft staan; elke volgende keer staat in het log.
+          verzondenOp: ob.verzondenOp ?? nu,
+          verzendingen: [
+            ...(ob.verzendingen ?? []),
+            { op: nu, door: req.user.name, naar: naar?.trim() || null, inhoud: obInhoud(p)! },
+          ],
+          updatedAt: nu,
         },
       }
     })

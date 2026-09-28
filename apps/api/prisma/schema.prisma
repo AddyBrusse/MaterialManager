@@ -526,8 +526,12 @@ model Opdrachtbevestiging {
   offerteId      String   @map("offerte_id")
   levertijdDatum String?  @map("levertijd_datum")
   notities       String   @default("")
+  /// Waarmee de klant opdracht gaf (inkoopnummer, mail, appje). Vrije tekst.
+  opdrachtRef    String?  @map("opdracht_ref")
   status         String   @default("concept")
   verzondenOp    String?  @map("verzonden_op")
+  /// Elke keer verstuurd, met wat de klant toen kreeg — zie ObVerzendingSchema.
+  verzendingen   Json     @default("[]")
   createdAt      DateTime @map("created_at")
   updatedAt      DateTime @map("updated_at")
 
@@ -758,6 +762,9 @@ model ZaagReservering {
   // 2026-09-09 en de beslissing in decisions/90-decisions-log.md.
   projectId      String?   @map("project_id")
   artikelId      String?   @map("artikel_id")
+  /// Voor welke orderregel. Zonder dit is materiaal alleen per artikel te
+  /// vinden, en tonen twee regels met hetzelfde artikel dezelfde staaf.
+  offerteRegelId String?   @map("offerte_regel_id")
   barId          String    @map("bar_id")
   barCode        String    @map("bar_code")
   barLocation    String    @map("bar_location")
@@ -786,6 +793,7 @@ model ZaagReservering {
 
   @@index([projectId])
   @@index([artikelId])
+  @@index([offerteRegelId])
   // "Wat ligt er vast op deze staaf" filtert altijd op staaf én status.
   @@index([barId, status])
   @@map("zaag_reserveringen")

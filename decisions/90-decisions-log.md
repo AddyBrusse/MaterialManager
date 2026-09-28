@@ -1309,3 +1309,53 @@ het besluit hieronder).
   projectnummer komt van de server, en navigeren naar een project dat misschien
   niet ontstaat is erger dan even wachten.
 
+## 2026-09-28 — Wijzigen mag altijd; de app zegt wat er al gebeurd is
+
+**Aanleiding.** In het huidige pakket loopt het vast zodra er iets moet
+veranderen: een prijs op een factuur aanpassen als de pakbon er al is, of een
+pakbon aanpassen die gemaakt werd terwijl de productie nog liep (en de klant een
+deel alvast wil). "Ik moet gewoon regels kunnen verwijderen en een nieuwe pakbon
+kunnen printen. Maximale flexibiliteit in zo min mogelijk clicks."
+
+**Besloten — geldt voor elke volgende pagina.**
+- **De app blokkeert geen wijziging, maar laat zien wat er al gebeurd is en legt
+  vast wat er veranderde.** Niet "kan niet, draai eerst terug", maar: *"Er zijn
+  al 12 van de 20 stuks gemaakt. Aantal toch naar 10? De 2 extra blijven als
+  overschot."* — met Ja/Annuleren, en een regel in het logboek.
+- **Uitzondering: een verstuurde factuur wordt niet gewijzigd.** Correctie gaat
+  via een creditfactuur of een nieuwe factuur (bevestigd door de gebruiker). De
+  app doet dat in één handeling.
+- Een regel die weg moet terwijl er al aan gewerkt is, wordt **gestopt**, niet
+  gewist: de gemaakte stuks blijven zichtbaar.
+
+## 2026-09-28 — De Opdracht-tab: document, referentie, één levertijd
+
+**Besloten** (punt voor punt met de gebruiker doorgenomen):
+- **Versturen via Outlook zonder Graph.** De Microsoft 365-koppeling is niet
+  vrijgegeven door de beheerder. De app maakt een `.eml` met de pdf erin en
+  `X-Unsent: 1`; het klassieke Outlook opent dat als nieuwe mail. De app kan het
+  versturen niet zien, dus vraagt hij daarna *"Heb je hem verstuurd?"* en legt pas
+  bij Ja vast. Terugval: een lege `mailto:` zonder bijlage. **Nog te bevestigen
+  op de werk-pc** — hier is geen Outlook.
+- **Openen** toont de pdf in een eigen venster (geen modal: de app blijft
+  bruikbaar), hergebruikt voor het volgende document; ook bedoeld voor de offerte.
+- **Verzendlogboek** op de opdrachtbevestiging (`verzendingen`, JSON): wie, wanneer,
+  naar welk adres, en wat de klant toen kreeg. Wijkt de huidige stand af, dan zegt
+  de kaart wat de klant nog heeft. De eerste verzenddatum blijft staan.
+- **Opdrachtreferentie** — waarmee de klant opdracht gaf: inkoopnummer, mail,
+  appje ("maken!"). Vrije tekst, **verplicht bij versturen**, bij accepteren
+  vooringevuld met de referentie van het project.
+- **Eén levertijd**: die van het project. De kolom op de opdrachtbevestiging wordt
+  bij lezen uit het project gevuld, zodat pdf en kop nooit verschillen.
+- **Materiaal in vier standen** (nog kiezen · gereserveerd · gezaagd · geen) en
+  **per regel**: reserveringen dragen voortaan `offerteRegelId`. Een afgeboekte
+  staaf telde eerder als "nog niets". Kiezen kan vanaf de tab; vrijgeven alleen
+  via Reserveringen, omdat de zaagplanning erop kan rekenen.
+- **Prijs, regeltotaal en opdrachtwaarde** in de regeltabel; voorbeeld en tekening
+  per regel zoals op de Offertes-tab.
+
+**Volgt in PR B:** de lege tab (accepteren vanaf hier, met de referentie in
+hetzelfde venster), een directe opdracht zonder offerte (onder water een meteen
+geaccepteerde versie), de opdracht altijd aanpassen volgens het principe
+hierboven, en terugdraaien dat netjes opruimt.
+

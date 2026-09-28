@@ -24,6 +24,8 @@ export interface MateriaalSelectieProps {
   aantal: number
   /** Wordt afgevinkt als het plan bevestigd is. */
   todoId?: string
+  /** De orderregel waar het materiaal voor is — komt op de reservering. */
+  offerteRegelId?: string
   calculatieNr: string
   onClose: () => void
 }
@@ -55,6 +57,7 @@ export function MateriaalSelectieModal(props: MateriaalSelectieProps) {
           barId: r.barId, laderstangen: r.laderstangen, stuks: r.stuks, verbruikMm: r.verbruikMm,
         })),
         todoId: props.todoId,
+        offerteRegelId: props.offerteRegelId,
         tekort: plan.tekort > 0 ? { stuks: plan.tekort, mm: plan.tekortMm } : undefined,
       })
     },

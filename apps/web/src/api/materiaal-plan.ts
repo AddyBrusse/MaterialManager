@@ -38,6 +38,7 @@ export interface BevestigVraag extends PlanVraag {
   machine: string
   regels: { barId: string; laderstangen: number; stuks: number; verbruikMm: number }[]
   todoId?: string
+  offerteRegelId?: string
   tekort?: { stuks: number; mm: number }
 }
 

@@ -164,8 +164,8 @@ describe('basisRegels', () => {
       offertes: [offerte('OFF-1', 1, 'geaccepteerd', [regel('R1', 99, 1)])],
       opdrachtbevestiging: {
         id: 'OB-1', projectId: 'PRJ-1', offerteId: 'OFF-1', regels: [obRegel],
-        levertijdDatum: null, notities: '', status: 'verzonden', verzondenOp: NU,
-        createdAt: NU, updatedAt: NU,
+        levertijdDatum: null, notities: '', opdrachtRef: null, status: 'verzonden', verzondenOp: NU,
+        verzendingen: [], createdAt: NU, updatedAt: NU,
       },
     })
     expect(basisRegels(p).map(r => r.id)).toEqual(['OB-R'])
