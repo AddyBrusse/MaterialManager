@@ -33,6 +33,7 @@ export function MateriaalSelectieVanTodo({ todo, onClose }: { todo: Todo; onClos
       artikelId: todo.artikelId,
       artikelNaam: regel.naam,
       aantal: regel.qty,
+      offerteRegelId: regel.id,
       calculatieNr: project.opdrachtbevestiging?.id ?? project.id,
     }
   }, [todo])
@@ -55,6 +56,7 @@ export function MateriaalSelectieVanTodo({ todo, onClose }: { todo: Todo; onClos
       aantal={gevonden.aantal}
       calculatieNr={gevonden.calculatieNr}
       todoId={todo.id}
+      offerteRegelId={gevonden.offerteRegelId}
       onClose={onClose}
     />
   )

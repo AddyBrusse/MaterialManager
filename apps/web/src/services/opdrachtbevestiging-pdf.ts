@@ -133,7 +133,10 @@ export interface OBPdfProject {
   naam: string
   klantNaam?: string
   contactNaam?: string
-  klantRef: string | null
+  /** De levertijd van het project — er is er één (besloten 2026-09-28). */
+  levertijdDatum: string | null
+  /** "OFF-2026-026 v4": het nummer dat de klant van de offerte kent. */
+  offerteLabel?: string
 }
 
 export function buildOpdrachtbevestigingPdf(project: OBPdfProject, ob: Opdrachtbevestiging): jsPDF {
@@ -199,9 +202,12 @@ export function buildOpdrachtbevestigingPdf(project: OBPdfProject, ob: Opdrachtb
     ['Bevestiging nr.', ob.id],
     ['Datum',           formatDatum(ob.createdAt)],
     ['Project',         `${project.id} — ${project.naam}`],
-    ['Levertijd',       formatDatum(ob.levertijdDatum)],
+    ['Levertijd',       formatDatum(project.levertijdDatum)],
   ]
-  if (project.klantRef) meta.push(['Ref. klant', project.klantRef])
+  // Waarmee de klant opdracht gaf — inkoopnummer, mail of appje. Hoort op de
+  // bevestiging: hun administratie zoekt op dát nummer, niet op het onze.
+  if (ob.opdrachtRef) meta.push(['Uw opdracht', ob.opdrachtRef])
+  if (project.offerteLabel) meta.push(['Onze offerte', project.offerteLabel])
 
   let my = startY
   doc.setFontSize(8)
@@ -270,7 +276,7 @@ export function buildOpdrachtbevestigingPdf(project: OBPdfProject, ob: Opdrachtb
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
     setColor(doc, C.muted, 'text')
-    txt(doc, 'OPMERKINGEN', MARGIN, y)
+    txt(doc, 'OPMERKING', MARGIN, y)
     y += 12
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)

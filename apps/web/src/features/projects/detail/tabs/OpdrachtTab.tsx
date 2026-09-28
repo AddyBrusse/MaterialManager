@@ -1,10 +1,12 @@
-import type { Project, ProjectVoortgang, Todo } from '@stockmanager/shared'
+import { useState } from 'react'
+import type { OfferteRegel, Project, ProjectVoortgang, Todo } from '@stockmanager/shared'
 import type { ZaagReservation } from '../../../../api/reservations'
-import { houdtVast } from '../../../../api/reservations'
+import { MateriaalSelectieModal } from '../../../../components/materiaal/MateriaalSelectieModal'
 import { Card } from '../components/Card'
-import { VoortgangBalk, voortgangTekst } from '../components/VoortgangBalk'
-import { datum, getal } from '../lib/format'
 import { geaccepteerdeOfferte } from '../lib/status'
+import { ObKaart } from './opdracht/ObKaart'
+import { ObRegels } from './opdracht/ObRegels'
+import { useObDocument } from './opdracht/useObDocument'
 
 interface Props {
   project: Project
@@ -13,30 +15,24 @@ interface Props {
   reserveringen: ZaagReservation[]
   geblokkeerd: boolean
   onAanmaken: () => void
-  onOpenen: () => void
-  onOpnieuwVersturen: () => void
-  onNaarOrder: (orderId: string) => void
+  onVerstuurd: (naar: string | null) => void
+  onZetOB: (patch: { notities?: string; opdrachtRef?: string | null; levertijdDatum?: string | null }) => void
+  onNaarTab: (tab: 'offertes' | 'productie' | 'reserveringen') => void
 }
 
-const BRON_START =
-  'Aantallen en prijzen zijn een bevroren kopie van '
-const BRON_EIND =
-  ' — een nieuwe offerteversie verandert deze opdracht niet meer. Per regel ontstond één ' +
-  'productieorder; de bewerkingen uit de offerteregel werden de stappen.'
-
 /**
- * §5.3 — de tab bestaat altijd, ook leeg.
- *
- * De tweede kaart is de belangrijkste tabel van dit scherm: hier wordt de
- * offerte werk. Per regel zie je welk materiaal eraan hangt, of een mens dat
- * bevestigd heeft, en welke productieorder eruit ontstond.
+ * §5.3 — de opdracht: het document dat de klant krijgt, en de regels die werk
+ * worden. De tab bestaat altijd, ook leeg.
  */
 export function OpdrachtTab(props: Props) {
-  const { project: p, voortgang, todos, reserveringen, geblokkeerd } = props
+  const { project: p, geblokkeerd } = props
+  const [kies, setKies] = useState<OfferteRegel | null>(null)
+  const doc = useObDocument(p, props.onVerstuurd)
   const ob = p.opdrachtbevestiging
-  const acc = geaccepteerdeOfferte(p)
 
   if (!ob) {
+    // De lege staat komt in PR B (accepteren vanaf hier, directe opdracht).
+    const acc = geaccepteerdeOfferte(p)
     return (
       <Card
         titel="Opdrachtbevestiging"
@@ -59,161 +55,44 @@ export function OpdrachtTab(props: Props) {
     )
   }
 
+  // Een openstaande todo voor deze regel wordt afgevinkt als het materiaal
+  // gekozen is; zonder todo (al afgevinkt, of een regel van later) kan het ook.
+  const todoVan = (regelId: string) =>
+    props.todos.find((t) => !t.done && t.soort === 'materiaal_selecteren' && t.offerteRegelId === regelId)
+
   return (
     <>
-      <Card
-        titel="Opdrachtbevestiging"
-        teller={`${ob.id} · bevroren kopie van ${ob.offerteId}${
-          ob.verzondenOp ? ` · verzonden ${datum(ob.verzondenOp)}` : ''
-        }`}
-        acties={
-          <>
-            <span className={`pdv2-pill ${ob.verzondenOp ? 'ok' : ''}`}>
-              {ob.verzondenOp ? 'Verzonden' : 'Concept'}
-            </span>
-            <button type="button" className="pdv2-btn s" onClick={props.onOpenen}>
-              Openen
-            </button>
-            <button
-              type="button"
-              className="pdv2-btn s"
-              onClick={props.onOpnieuwVersturen}
-              disabled={geblokkeerd}
-            >
-              Opnieuw versturen
-            </button>
-          </>
-        }
-      >
-        <div className="pdv2-grid3">
-          <Veld label="Nummer" waarde={ob.id} mono />
-          <Veld label="Uit offerte" waarde={ob.offerteId} mono />
-          <Veld label="Toegezegde levertijd" waarde={datum(ob.levertijdDatum)} mono />
-          <Veld label="Ondertekend door klant" waarde={p.klantRef ?? '—'} />
-        </div>
-      </Card>
-
-      <Card titel="Regels en wat eruit ontstaat" plat bron={BRON_START + ob.offerteId + BRON_EIND}>
-        <table className="pdv2-tbl">
-          <thead>
-            <tr>
-              <th>Artikel</th>
-              <th className="num" style={{ width: 66 }}>
-                Besteld
-              </th>
-              <th style={{ width: 168 }}>Voortgang</th>
-              <th style={{ width: 200 }}>Materiaal</th>
-              <th>Bewerkingen → stappen</th>
-              <th style={{ width: 120 }}>Productieorder</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ob.regels.map((r) => {
-              const order = p.productieOrders.find((o) => o.offerteRegelId === r.id) ?? null
-              const openTodo = todos.find(
-                (t) => !t.done && t.soort === 'materiaal_selecteren' && t.offerteRegelId === r.id,
-              )
-              const res = reserveringen.filter(
-                (x) => x.artikelId && x.artikelId === r.artikelId && houdtVast(x),
-              )
-              // Drie toestanden, geen twee: een regel zonder reservering én
-              // zonder openstaande todo is niet "todo open" — er ligt gewoon
-              // nog niets. Dat amber zetten maakt het signaal betekenisloos
-              // zodra het overal staat.
-              const materiaalStand: 'bevestigd' | 'todo' | 'leeg' = openTodo
-                ? 'todo'
-                : res.length > 0
-                  ? 'bevestigd'
-                  : 'leeg'
-              // De voortgang komt uit de gedeelde rekenkern, niet uit een
-              // eigen telling hier: web en API moeten hetzelfde zeggen over
-              // wat "geleverd" betekent.
-              const v = voortgang.regels.find((x) => x.offerteRegelId === r.id) ?? null
-
-              return (
-                <tr key={r.id}>
-                  <td>
-                    <span style={{ fontWeight: 600 }}>{r.naam}</span>
-                    {r.omschrijving && <span className="sub">{r.omschrijving}</span>}
-                  </td>
-                  <td className="num">
-                    {getal(r.qty)} {r.eenheid}
-                  </td>
-                  <td>
-                    {v ? (
-                      <>
-                        <VoortgangBalk regel={v} breedte={148} />
-                        <span className="sub">{voortgangTekst(v)}</span>
-                      </>
-                    ) : (
-                      <span className="sub">geen voortgang bekend</span>
-                    )}
-                  </td>
-                  <td>
-                    <span
-                      className={`pdv2-pill ${
-                        materiaalStand === 'bevestigd'
-                          ? 'ok'
-                          : materiaalStand === 'todo'
-                            ? 'warn'
-                            : ''
-                      }`}
-                    >
-                      {materiaalStand === 'bevestigd'
-                        ? 'Bevestigd'
-                        : materiaalStand === 'todo'
-                          ? 'Todo open'
-                          : 'Nog niets'}
-                    </span>
-                    <div style={{ marginTop: 2 }}>{res[0]?.materiaal ?? '—'}</div>
-                    <span className="sub">
-                      {materiaalStand === 'bevestigd'
-                        ? `${((res[0].sawLength * res[0].pieces) / 1000)
-                            .toFixed(2)
-                            .replace('.', ',')} m gereserveerd · staaf ${res[0].barCode}`
-                        : materiaalStand === 'todo'
-                          ? 'voorstel uit de calculatie — nog niet door een mens bevestigd'
-                          : 'nog geen materiaal gekozen voor deze regel'}
-                    </span>
-                  </td>
-                  <td>
-                    {r.bewerkingen.map((b) => (
-                      <span className="pdv2-chip" key={b}>
-                        {b}
-                      </span>
-                    ))}
-                    <span className="sub">
-                      {order ? `${order.stappen.length} stappen aangemaakt` : 'geen order'}
-                    </span>
-                  </td>
-                  <td>
-                    {order ? (
-                      <button
-                        type="button"
-                        className="pdv2-link"
-                        onClick={() => props.onNaarOrder(order.id)}
-                      >
-                        {order.id}
-                      </button>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </Card>
+      <ObKaart
+        project={p}
+        geblokkeerd={geblokkeerd}
+        onOpenen={doc.openen}
+        onPdf={doc.downloaden}
+        onVersturen={doc.klaarzetten}
+        onZet={props.onZetOB}
+        onNaarOffertes={() => props.onNaarTab('offertes')}
+      />
+      <ObRegels
+        project={p}
+        voortgang={props.voortgang}
+        reserveringen={props.reserveringen}
+        geblokkeerd={geblokkeerd}
+        onKiesMateriaal={setKies}
+        onNaarReserveringen={() => props.onNaarTab('reserveringen')}
+        onNaarOrder={() => props.onNaarTab('productie')}
+      />
+      {doc.dialoog}
+      {kies && kies.artikelId && (
+        <MateriaalSelectieModal
+          projectId={p.id}
+          artikelId={kies.artikelId}
+          artikelNaam={kies.naam}
+          aantal={kies.qty}
+          calculatieNr={ob.id}
+          todoId={todoVan(kies.id)?.id}
+          offerteRegelId={kies.id}
+          onClose={() => setKies(null)}
+        />
+      )}
     </>
-  )
-}
-
-function Veld({ label, waarde, mono }: { label: string; waarde: string; mono?: boolean }) {
-  return (
-    <div className="pdv2-veld">
-      <label>{label}</label>
-      <input readOnly value={waarde} className={mono ? 'mono' : undefined} />
-    </div>
   )
 }

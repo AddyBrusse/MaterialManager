@@ -5,6 +5,8 @@ interface Props {
   /** Wat er gaat gebeuren, en wat níet — vóór iemand op de knop drukt. */
   children: ReactNode
   knop: string
+  /** Tekst van de knop die sluit zonder iets te doen. */
+  annuleer?: string
   /** Rood in plaats van blauw: het is niet terug te draaien. */
   gevaar?: boolean
   onBevestig: () => void
@@ -18,7 +20,7 @@ interface Props {
  * die de klant raken (een verstuurde versie intrekken). De tekst noemt wat er
  * weggaat — versie, regels, bedrag — zodat niemand de verkeerde rij bevestigt.
  */
-export function BevestigModal({ titel, children, knop, gevaar, onBevestig, onSluit }: Props) {
+export function BevestigModal({ titel, children, knop, annuleer = 'Annuleren', gevaar, onBevestig, onSluit }: Props) {
   return (
     <div
       role="dialog"
@@ -35,7 +37,7 @@ export function BevestigModal({ titel, children, knop, gevaar, onBevestig, onSlu
         <div className="pdv2-card-body pdv2-modal-tekst">{children}</div>
         <div className="pdv2-modal-knoppen">
           <button type="button" className="pdv2-btn" onClick={onSluit} autoFocus>
-            Annuleren
+            {annuleer}
           </button>
           <button
             type="button"

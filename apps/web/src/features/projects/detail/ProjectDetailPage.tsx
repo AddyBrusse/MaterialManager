@@ -293,9 +293,9 @@ export function ProjectDetailPage() {
               reserveringen={reserveringen}
               geblokkeerd={geblokkeerd}
               onAanmaken={acties.maakOpdracht}
-              onOpenen={() => kiesTab('documenten')}
-              onOpnieuwVersturen={acties.verzendOB}
-              onNaarOrder={() => kiesTab('productie')}
+              onVerstuurd={acties.verzendOB}
+              onZetOB={acties.zetOB}
+              onNaarTab={kiesTab}
             />
           )}
           {tab === 'productie' && (

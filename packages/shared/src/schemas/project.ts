@@ -173,15 +173,56 @@ export type Factuur = z.infer<typeof FactuurSchema>
 export const OB_STATUSES = ['concept', 'verzonden'] as const
 export type OBStatus = typeof OB_STATUSES[number]
 
+/**
+ * Wat de klant kreeg bij één verzending. Bewaard zodat de kaart kan zeggen wat
+ * er sindsdien veranderd is ("klant heeft nog levertijd 06-10") — de opdracht
+ * zelf is na versturen nog steeds aan te passen.
+ */
+export const ObInhoudSchema = z.object({
+  levertijd: z.string().nullable(),
+  opdrachtRef: z.string().nullable(),
+  notities: z.string(),
+  regels: z.array(z.object({
+    id: z.string(),
+    naam: z.string(),
+    qty: z.number(),
+    verkoopprijs: z.number(),
+  })),
+})
+export type ObInhoud = z.infer<typeof ObInhoudSchema>
+
+export const ObVerzendingSchema = z.object({
+  op: z.string(),
+  /** Naam van wie hem verstuurde. */
+  door: z.string(),
+  /** Het adres waar de mail naartoe klaargezet werd, als dat bekend was. */
+  naar: z.string().nullable(),
+  inhoud: ObInhoudSchema,
+})
+export type ObVerzending = z.infer<typeof ObVerzendingSchema>
+
 export const OpdrachtbevestigingSchema = z.object({
   id: z.string(),              // OB-YYYY-NNN
   projectId: z.string(),
   offerteId: z.string(),
   regels: z.array(OfferteRegelSchema),   // frozen snapshot from accepted offerte
+  /**
+   * Gelijk aan de levertijd van het project — sinds 2026-09-28 is er één
+   * levertijd. De server vult dit bij lezen uit het project, zodat pdf en
+   * scherm nooit een andere datum tonen dan de kop van de pagina.
+   */
   levertijdDatum: z.string().nullable(),
+  /** Komt als "Opmerking" op de pdf voor de klant. */
   notities: z.string(),
+  /**
+   * Waarmee de klant opdracht gaf: inkoopnummer, of "WhatsApp J. Prins 12-09".
+   * Verplicht bij versturen.
+   */
+  opdrachtRef: z.string().nullable().default(null),
   status: z.enum(OB_STATUSES),
+  /** De eerste keer verstuurd. Latere keren staan in `verzendingen`. */
   verzondenOp: z.string().nullable(),
+  verzendingen: z.array(ObVerzendingSchema).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

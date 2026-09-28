@@ -5,7 +5,7 @@ import type {
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
 } from '@stockmanager/shared'
-import { berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken } from '@stockmanager/shared'
+import { berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken, obInhoud } from '@stockmanager/shared'
 import { apiFetch, ApiFout } from './client'
 import { meldFout } from '../utils/fout-melding-toon'
 import type { LaadFout } from '../utils/fout-melding'
@@ -562,8 +562,11 @@ export const projectsApi = {
       regels: acceptedOfferte.regels,
       levertijdDatum: p?.levertijdDatum ?? null,
       notities: '',
+      // Zoals de server: vooringevuld met de referentie van het project.
+      opdrachtRef: p?.klantRef?.trim() || null,
       status: 'concept' as OBStatus,
       verzondenOp: null,
+      verzendingen: [],
       createdAt: now(),
       updatedAt: now(),
     } : null
@@ -1104,10 +1107,30 @@ export const projectsApi = {
 
   // ── Opdrachtbevestiging ───────────────────────────────────────────────────
 
-  updateOB(projectId: string, patch: { notities?: string; levertijdDatum?: string | null }): Project {
+  /**
+   * Velden van de opdrachtbevestiging. De levertijd is die van het project —
+   * wie hem hier zet, zet hem voor de hele pagina (één datum, 2026-09-28).
+   */
+  updateOB(
+    projectId: string,
+    patch: { notities?: string; opdrachtRef?: string | null; levertijdDatum?: string | null },
+  ): Project {
     const updated = updateCache(projectId, p => {
-      if (!p.opdrachtbevestiging) throw new Error('Geen opdrachtbevestiging')
-      return { ...p, updatedAt: now(), opdrachtbevestiging: { ...p.opdrachtbevestiging, ...patch, updatedAt: now() } }
+      if (!p.opdrachtbevestiging) throw new Error('Er is nog geen opdrachtbevestiging op dit project.')
+      const ob = p.opdrachtbevestiging
+      const levertijdDatum = patch.levertijdDatum === undefined ? p.levertijdDatum : patch.levertijdDatum
+      return {
+        ...p,
+        levertijdDatum,
+        updatedAt: now(),
+        opdrachtbevestiging: {
+          ...ob,
+          levertijdDatum,
+          notities: patch.notities ?? ob.notities,
+          opdrachtRef: patch.opdrachtRef === undefined ? ob.opdrachtRef : patch.opdrachtRef?.trim() || null,
+          updatedAt: now(),
+        },
+      }
     })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/opdrachtbevestiging`, {
       method: 'PATCH', body: JSON.stringify(patch),
@@ -1115,16 +1138,31 @@ export const projectsApi = {
     return updated
   },
 
-  verzendOB(projectId: string): Project {
+  /**
+   * Vastleggen dát hij verstuurd is — pas nadat de gebruiker in Outlook op
+   * Verzenden drukte en dat hier bevestigde. Legt een regel in het logboek met
+   * wat de klant kreeg.
+   */
+  verzendOB(projectId: string, naar: string | null, door: string): Project {
     const updated = updateCache(projectId, p => {
-      if (!p.opdrachtbevestiging) throw new Error('Geen opdrachtbevestiging')
+      if (!p.opdrachtbevestiging) throw new Error('Er is nog geen opdrachtbevestiging op dit project.')
+      const ob = p.opdrachtbevestiging
+      const nu = now()
       return {
         ...p,
-        updatedAt: now(),
-        opdrachtbevestiging: { ...p.opdrachtbevestiging, status: 'verzonden' as OBStatus, verzondenOp: now(), updatedAt: now() },
+        updatedAt: nu,
+        opdrachtbevestiging: {
+          ...ob,
+          status: 'verzonden' as OBStatus,
+          verzondenOp: ob.verzondenOp ?? nu,
+          verzendingen: [...(ob.verzendingen ?? []), { op: nu, door, naar, inhoud: obInhoud(p)! }],
+          updatedAt: nu,
+        },
       }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/opdrachtbevestiging/verzend`, { method: 'POST' }), 'Opdrachtbevestiging versturen')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/opdrachtbevestiging/verzend`, {
+      method: 'POST', body: JSON.stringify({ naar }),
+    }), 'Opdrachtbevestiging versturen')
     return updated
   },
 }
