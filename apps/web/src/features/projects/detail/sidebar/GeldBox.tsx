@@ -6,7 +6,7 @@ import { kleurClass } from '../lib/nacalculatie'
 /** FactBox *Geld* (§6.2) — waarden kleuren volgens dezelfde drempels als §5.5. */
 export function GeldBox({ geld }: { geld: GeldVM }) {
   const rijen: { label: string; waarde: string; kleur?: string }[] = [
-    { label: 'Offertetotaal', waarde: eur(geld.offertetotaal) },
+    { label: 'Verkoopwaarde', waarde: eur(geld.offertetotaal) },
     { label: 'Kostprijs calculatie', waarde: eur(geld.kostprijsCalculatie) },
     { label: 'Kostprijs werkelijk', waarde: eur(geld.kostprijsWerkelijk) },
     { label: 'Verschil', waarde: eur(geld.verschil), kleur: kleurClass(geld.verschilPct) },

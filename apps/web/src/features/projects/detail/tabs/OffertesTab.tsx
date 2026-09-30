@@ -38,13 +38,13 @@ function statusPill(o: Offerte) {
 function toelichting(o: Offerte, erIsGeaccepteerd: boolean): string {
   switch (o.status) {
     case 'geaccepteerd':
-      return 'geldend — hierop draait de productie'
+      return o.direct ? 'directe opdracht — hierop draait de productie' : 'geldend — hierop draait de productie'
     case 'verzonden':
       return erIsGeaccepteerd ? 'verstuurd, een andere is geaccepteerd' : 'verstuurd — wacht op de klant'
     case 'vervallen':
       return 'vervallen, ter vergelijking'
     default:
-      return 'concept — nog te wijzigen'
+      return o.direct ? 'directe opdracht — af te maken op de Opdracht-tab' : 'concept — nog te wijzigen'
   }
 }
 

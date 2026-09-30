@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { notifications } from '@mantine/notifications'
-import type { Project } from '@stockmanager/shared'
+import type { OpdrachtWijziging, Project } from '@stockmanager/shared'
 import {
   laatsteFactuur, laatstePaklijst, volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
@@ -14,6 +14,7 @@ import { eis } from '../../../utils/fout-melding'
 import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
+import { AccepteerVenster } from './components/AccepteerVenster'
 import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
 import { ApiFout } from '../../../api/client'
 
@@ -56,6 +57,10 @@ export interface ProjectActies {
   verzendOfferte: (offerteId: string) => void
   accepteerOfferte: (offerteId: string) => void
   maakOpdracht: () => void
+  /** De opdracht aanpassen; `false` als het mislukte (de melding is dan al getoond). */
+  wijzigOpdracht: (w: OpdrachtWijziging) => Promise<boolean>
+  /** Een concept voor een directe opdracht, zonder offerte. */
+  maakDirecteOpdracht: () => void
   /** Vastleggen dat de opdrachtbevestiging verstuurd is — na "Ja, verstuurd". */
   verzendOB: (naar: string | null) => void
   /** Opdrachtreferentie, opmerking of levertijd op de opdrachtbevestiging. */
@@ -85,6 +90,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
   const navigate = useNavigate()
   const gebruiker = useUserStore((s) => s.user)
   const [vraag, setVraag] = useState<Vraag | null>(null)
+  const [teAccepteren, setTeAccepteren] = useState<string | null>(null)
 
   const ververs = useCallback(() => {
     if (!project) return
@@ -141,6 +147,8 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     verzendOfferte: () => {},
     accepteerOfferte: () => {},
     maakOpdracht: () => {},
+    wijzigOpdracht: async () => false,
+    maakDirecteOpdracht: () => {},
     verzendOB: () => {},
     zetOB: () => {},
     stapCheck: () => {},
@@ -236,6 +244,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
       case 'concept': {
         const concept = project.offertes.find((o) => o.status === 'concept')
         if (!concept) return doe('Nieuwe offerte aanmaken', 'Nieuwe offerte aangemaakt', () => projectsApi.addOfferte(id))
+        if (concept.direct) return naarTab('opdracht')
         if (concept.regels.length === 0) return naarTab('offertes')
         return doe(`Offerte v${concept.versie} versturen`, `Offerte v${concept.versie} verstuurd`, () => {
           eis(waaromNietVersturen(concept))
@@ -275,8 +284,31 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     }
   }
 
+  const accepteerNu = (offerteId: string, opdrachtRef: string | null) => {
+    const o = project.offertes.find((x) => x.id === offerteId)
+    setTeAccepteren(null)
+    doe(
+      o?.direct ? 'Opdracht maken' : `Offerte ${versieVan(offerteId)} accepteren`,
+      o?.direct
+        ? 'Opdracht gemaakt — productieorders en materiaal-todo\'s staan klaar'
+        : `Offerte ${versieVan(offerteId)} geaccepteerd — opdracht en productieorders aangemaakt`,
+      () => {
+        eis(waaromNietAccepteren(o, project.offertes))
+        projectsApi.accepteerOfferte(id, offerteId, naam, opdrachtRef)
+      },
+    )
+  }
+  const accOfferte = teAccepteren ? project.offertes.find((x) => x.id === teAccepteren) : undefined
+
   return {
-    dialoog: vraag ? (
+    dialoog: accOfferte ? (
+      <AccepteerVenster
+        offerte={accOfferte}
+        start={project.klantRef ?? ''}
+        onAccepteer={(ref) => accepteerNu(accOfferte.id, ref)}
+        onSluit={() => setTeAccepteren(null)}
+      />
+    ) : vraag ? (
       <InvoerModal
         titel={vraag.titel}
         uitleg={vraag.uitleg}
@@ -321,18 +353,55 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         projectsApi.verzendOfferte(id, offerteId)
       })
     },
+    // Eerst het venster met de opdrachtreferentie; de handeling zelf gebeurt
+    // bij bevestigen (`accepteerNu`). De voorwaarde wordt vóór het openen al
+    // gecontroleerd, zodat er geen venster verschijnt voor iets wat niet kan.
     accepteerOfferte: (offerteId) => {
       const o = project.offertes.find((x) => x.id === offerteId)
-      doe(
-        `Offerte ${versieVan(offerteId)} accepteren`,
-        `Offerte ${versieVan(offerteId)} geaccepteerd — opdracht en productieorders aangemaakt`,
-        () => {
-          eis(waaromNietAccepteren(o, project.offertes))
-          projectsApi.accepteerOfferte(id, offerteId, naam)
-        },
-      )
+      const reden = waaromNietAccepteren(o, project.offertes)
+      if (reden) {
+        doe(`Offerte ${versieVan(offerteId)} accepteren`, '', () => eis(reden))
+        return
+      }
+      setTeAccepteren(offerteId)
     },
     maakOpdracht: () => naarTab('offertes'),
+    // Niet via `doe`: de server rekent uit wat er met de productieorders
+    // gebeurt, dus hier wachten we op zijn antwoord in plaats van het scherm
+    // vooruit te laten lopen.
+    wijzigOpdracht: async (w) => {
+      const regel = w.soort === 'erbij' ? null : project.opdrachtbevestiging?.regels.find((r) => r.id === w.regelId)
+      const actie =
+        w.soort === 'erbij' ? 'Regel toevoegen aan de opdracht'
+        : w.soort === 'weg' ? `"${regel?.naam ?? ''}" van de opdracht halen`
+        : w.soort === 'aantal' ? `Aantal van "${regel?.naam ?? ''}" wijzigen`
+        : `Prijs van "${regel?.naam ?? ''}" wijzigen`
+      try {
+        await projectsApi.wijzigOpdracht(id, w)
+        ververs()
+        qc.invalidateQueries({ queryKey: ['todos'] })
+        if (w.soort === 'erbij' || w.soort === 'weg') {
+          notifications.show({ color: 'green', message: w.soort === 'erbij' ? 'Toegevoegd aan de opdracht, met productieorder' : 'Van de opdracht gehaald' })
+        }
+        return true
+      } catch (fout) {
+        ververs()
+        meldFout({
+          actie,
+          fout,
+          gevolg: fout instanceof ApiFout && fout.code === 'TIMEOUT'
+            ? 'Onbekend of de wijziging is opgeslagen: de server antwoordde niet op tijd. Ververs de pagina voor je het opnieuw doet.'
+            : 'Er is niets gewijzigd aan de opdracht of de productieorders.',
+        })
+        return false
+      }
+    },
+    maakDirecteOpdracht: () =>
+      doe('Directe opdracht beginnen', 'Directe opdracht begonnen — voeg de bestelde artikelen toe', () => {
+        const al = project.offertes.find((o) => o.direct && o.status === 'concept')
+        if (al) return
+        projectsApi.addOfferte(id, undefined, { direct: true })
+      }),
     verzendOB: (naar) =>
       doe(
         `Opdrachtbevestiging ${project.opdrachtbevestiging?.id ?? ''} versturen`,

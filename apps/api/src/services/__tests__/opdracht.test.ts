@@ -9,7 +9,7 @@ function project(ob: Partial<NonNullable<Project['opdrachtbevestiging']>> | null
     createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',
     opdrachtbevestiging: ob && {
       id: 'OB-1', projectId: 'PRJ-1', offerteId: 'OFF-1', levertijdDatum: '2026-10-06', notities: '',
-      opdrachtRef: 'INK-88421', status: 'concept', verzondenOp: null, verzendingen: [],
+      opdrachtRef: 'INK-88421', status: 'concept', verzondenOp: null, verzendingen: [], wijzigingen: [],
       createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',
       regels: [{
         id: 'r1', sortOrder: 1, artikelId: 'ART-1', naam: 'Afstandsbus', omschrijving: '',

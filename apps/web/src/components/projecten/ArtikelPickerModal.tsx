@@ -1,3 +1,4 @@
+import type { NieuweRegel } from '@stockmanager/shared'
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -35,6 +36,13 @@ interface Props {
   relatieId: string | null
   onClose: () => void
   onAdded: () => void
+  /**
+   * In plaats van toevoegen aan de offerte: de regels teruggeven, bijvoorbeeld
+   * om ze aan een lopende opdracht toe te voegen. Dan meldt de aanroeper zelf.
+   */
+  onVoegToe?: (regels: NieuweRegel[]) => void
+  /** Kop van het venster; standaard "Artikelen toevoegen aan offerte". */
+  titel?: string
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -49,7 +57,7 @@ const LinkIcon = () => (
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, onClose, onAdded }: Props) {
+export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, onClose, onAdded, onVoegToe, titel }: Props) {
   const navigate  = useNavigate()
   const qc        = useQueryClient()
   const articles  = articlesApi.list()
@@ -158,6 +166,19 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
 
   function handleAdd() {
     if (staged.length === 0) return
+    if (onVoegToe) {
+      onVoegToe(staged.map(item => ({
+        artikelId: item.artikelId,
+        naam: item.naam,
+        omschrijving: [item.tekening, item.rev ? `rev ${item.rev}` : ''].filter(Boolean).join(' '),
+        qty: item.qty,
+        eenheid: 'st.',
+        verkoopprijs: item.verkoopprijs,
+        bewerkingen: item.machines,
+      })))
+      onClose()
+      return
+    }
     for (const item of staged) {
       projectsApi.addOfferteRegel(projectId, offerteId, {
         artikelId: item.artikelId,
@@ -199,8 +220,8 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
           <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M7 9h10M7 13h6M7 17h4" />
         </svg>
         <div>
-          <div className="ap-hd-title">Artikelen toevoegen aan offerte</div>
-          <div className="ap-hd-sub">{offerteId}</div>
+          <div className="ap-hd-title">{titel ?? 'Artikelen toevoegen aan offerte'}</div>
+          {!onVoegToe && <div className="ap-hd-sub">{offerteId}</div>}
         </div>
         <button className="st-icon-btn" style={{ marginLeft: 'auto' }} onClick={onClose}>×</button>
       </div>
@@ -429,7 +450,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
         <div style={{ flex: 1 }} />
         <button className="st-btn ghost sm" onClick={onClose}>Annuleren</button>
         <button className="st-btn primary" onClick={handleAdd} disabled={staged.length === 0}>
-          <IconCheck size={14} />Toevoegen aan offerte
+          <IconCheck size={14} />{onVoegToe ? "Toevoegen aan opdracht" : "Toevoegen aan offerte"}
         </button>
       </div>
     </Modal>

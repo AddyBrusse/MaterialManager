@@ -11,7 +11,10 @@ export type ProjectStatus = typeof PROJECT_STATUSES[number]
 export const OFFERTE_STATUSES = ['concept', 'verzonden', 'geaccepteerd', 'vervallen'] as const
 export type OfferteStatus = typeof OFFERTE_STATUSES[number]
 
-export const PRODUCTIE_ORDER_STATUSES = ['gepland', 'in_productie', 'gereed'] as const
+// `gestopt`: de regel is uit de opdracht gehaald terwijl er al aan gewerkt
+// was (besloten 2026-09-28). De order blijft zichtbaar met wat er gemaakt is,
+// maar staat niet meer in de wachtrij van de werkvloer.
+export const PRODUCTIE_ORDER_STATUSES = ['gepland', 'in_productie', 'gereed', 'gestopt'] as const
 export type ProductieOrderStatus = typeof PRODUCTIE_ORDER_STATUSES[number]
 
 // ── Productie stap ────────────────────────────────────────────────────────────
@@ -98,6 +101,18 @@ export const OfferteSchema = z.object({
   // Vrije tekst: klanten nummeren hun aanvragen op hun eigen manier, en een
   // mail heeft geen nummer.
   externeRef: z.string().nullable().default(null),
+  /**
+   * Een directe opdracht: er is geen offerte verstuurd, de klant gaf meteen
+   * opdracht. Onder water gewoon een offerteversie, zodat productie,
+   * nacalculatie, pakbon en factuur werken zoals altijd (besloten 2026-09-28).
+   */
+  direct: z.boolean().default(false),
+  /**
+   * Waarom een versie vervallen is. Terugdraaien naar de offertefase zet alleen
+   * versies terug die door het accepteren vervielen — niet wat iemand bewust
+   * introk. Leeg bij versies van vóór 2026-09-28.
+   */
+  vervallenDoor: z.enum(['acceptatie', 'intrekken']).nullable().default(null),
   geldigTot: z.string().nullable(),
   verzondenOp: z.string().nullable(),
   geaccepteerdOp: z.string().nullable(),
@@ -201,6 +216,13 @@ export const ObVerzendingSchema = z.object({
 })
 export type ObVerzending = z.infer<typeof ObVerzendingSchema>
 
+export const ObWijzigingSchema = z.object({
+  op: z.string(),
+  door: z.string(),
+  tekst: z.string(),
+})
+export type ObWijziging = z.infer<typeof ObWijzigingSchema>
+
 export const OpdrachtbevestigingSchema = z.object({
   id: z.string(),              // OB-YYYY-NNN
   projectId: z.string(),
@@ -223,6 +245,8 @@ export const OpdrachtbevestigingSchema = z.object({
   /** De eerste keer verstuurd. Latere keren staan in `verzendingen`. */
   verzondenOp: z.string().nullable(),
   verzendingen: z.array(ObVerzendingSchema).default([]),
+  /** Wat er na het accepteren aan de opdracht veranderd is, in gewone zinnen. */
+  wijzigingen: z.array(ObWijzigingSchema).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

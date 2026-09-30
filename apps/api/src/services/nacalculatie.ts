@@ -194,11 +194,16 @@ async function bouwVoorOrder(db: Db, order: OrderRij): Promise<OrderNacalculatie
   const geschat = await geschatVoorArtikel(db, order.artikelId, order.qty)
   if (!geschat) return null
 
-  const [tarieven, registraties, regel] = await Promise.all([
+  // De opdracht gaat voor de offerte: sinds 2026-09-28 zijn aantal en prijs
+  // op de opdracht aan te passen, en een regel die er later bijkwam staat
+  // alleen daar. De offerteregel blijft de terugval voor oudere orders.
+  const [tarieven, registraties, obRegel, offerteRegel] = await Promise.all([
     tarievenLaden(db),
     db.tijdRegistratie.findMany({ where: { orderId: order.id } }),
+    db.obRegel.findUnique({ where: { id: order.offerteRegelId } }),
     db.offerteRegel.findUnique({ where: { id: order.offerteRegelId } }),
   ])
+  const regel = obRegel ?? offerteRegel
   const uren = telUren(registraties, tarieven)
   const materiaal = await materiaalWerkelijk(db, {
     projectId: order.projectId, artikelId: order.artikelId,

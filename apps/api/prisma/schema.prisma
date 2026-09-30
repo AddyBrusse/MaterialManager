@@ -482,6 +482,10 @@ model Offerte {
   notities       String   @default("")
   /// Waar deze versie antwoord op geeft (RFQ-nummer, "mail 12-09"). Vrije tekst.
   externeRef     String?  @map("externe_ref")
+  /// Directe opdracht: meteen geaccepteerd, nooit als offerte verstuurd.
+  direct         Boolean  @default(false)
+  /// 'acceptatie' | 'intrekken' — waarom de versie vervallen is.
+  vervallenDoor  String?  @map("vervallen_door")
   geldigTot      String?  @map("geldig_tot")
   verzondenOp    String?  @map("verzonden_op")
   geaccepteerdOp String?  @map("geaccepteerd_op")
@@ -532,6 +536,8 @@ model Opdrachtbevestiging {
   verzondenOp    String?  @map("verzonden_op")
   /// Elke keer verstuurd, met wat de klant toen kreeg — zie ObVerzendingSchema.
   verzendingen   Json     @default("[]")
+  /// Wijzigingen na acceptatie — zie ObWijzigingSchema.
+  wijzigingen    Json     @default("[]")
   createdAt      DateTime @map("created_at")
   updatedAt      DateTime @map("updated_at")
 

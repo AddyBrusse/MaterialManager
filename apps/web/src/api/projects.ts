@@ -4,6 +4,7 @@ import type {
   ProductieOrder,
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
+  OpdrachtWijziging,
 } from '@stockmanager/shared'
 import { berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken, obInhoud } from '@stockmanager/shared'
 import { apiFetch, ApiFout } from './client'
@@ -303,7 +304,7 @@ export const projectsApi = {
    * Nieuwe offerteversie. Met `vanOfferteId` een kopie van die versie — zie
    * `kopieerOfferte` in de gedeelde kern voor wat er meegaat — anders leeg.
    */
-  addOfferte(projectId: string, vanOfferteId?: string): Project {
+  addOfferte(projectId: string, vanOfferteId?: string, opts: { direct?: boolean } = {}): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
     const id = nextLocalDocId('OFF')
@@ -334,6 +335,8 @@ export const projectsApi = {
           regels: [],
           notities: '',
           externeRef: null,
+          direct: opts.direct ?? false,
+          vervallenDoor: null,
           geldigTot: null,
           verzondenOp: null,
           geaccepteerdOp: null,
@@ -342,7 +345,7 @@ export const projectsApi = {
         }
     const updated = updateCache(projectId, p => ({ ...p, offertes: [...p.offertes, off], updatedAt: now() }))
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes`, {
-      method: 'POST', body: JSON.stringify({ id, vanOfferteId, regelIds }),
+      method: 'POST', body: JSON.stringify({ id, vanOfferteId, regelIds, direct: opts.direct }),
     }), bron ? 'Offerte kopiëren' : 'Nieuwe offerte aanmaken')
     return updated
   },
@@ -366,13 +369,30 @@ export const projectsApi = {
       ...p,
       updatedAt: now(),
       offertes: p.offertes.map(o =>
-        o.id === offerteId ? { ...o, status: 'vervallen' as OfferteStatus, updatedAt: now() } : o,
+        o.id === offerteId
+          ? { ...o, status: 'vervallen' as OfferteStatus, vervallenDoor: 'intrekken' as const, updatedAt: now() }
+          : o,
       ),
     }))
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/intrek`, {
       method: 'POST',
     }), 'Offerte intrekken')
     return updated
+  },
+
+  /**
+   * De opdracht aanpassen na acceptatie. Niet optimistisch: een wijziging kan
+   * productieorders maken, stoppen of weghalen, en dat rekent de server uit.
+   * Gooit een `ApiFout`; de aanroeper meldt die.
+   */
+  async wijzigOpdracht(projectId: string, w: OpdrachtWijziging): Promise<Project> {
+    const { data } = await apiFetch<Project>(`/projects/${projectId}/opdracht/wijzig`, {
+      method: 'POST', body: JSON.stringify(w),
+    })
+    cache = cache.map(p => (p.id === data.id ? data : p))
+    saveLocal(cache)
+    seedSequenceCounters(cache)
+    return data
   },
 
   /**
@@ -515,7 +535,7 @@ export const projectsApi = {
     return updated
   },
 
-  accepteerOfferte(projectId: string, offerteId: string, userName: string): Project {
+  accepteerOfferte(projectId: string, offerteId: string, userName: string, opdrachtRef: string | null = null): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
     const acceptedOfferte = p.offertes.find(o => o.id === offerteId)
@@ -562,11 +582,12 @@ export const projectsApi = {
       regels: acceptedOfferte.regels,
       levertijdDatum: p?.levertijdDatum ?? null,
       notities: '',
-      // Zoals de server: vooringevuld met de referentie van het project.
-      opdrachtRef: p?.klantRef?.trim() || null,
+      // Zoals de server: wat in het venster staat, anders die van het project.
+      opdrachtRef: opdrachtRef?.trim() || p?.klantRef?.trim() || null,
       status: 'concept' as OBStatus,
       verzondenOp: null,
       verzendingen: [],
+      wijzigingen: [],
       createdAt: now(),
       updatedAt: now(),
     } : null
@@ -577,15 +598,25 @@ export const projectsApi = {
       updatedAt: now(),
       opdrachtbevestiging: ob,
       offertes: p.offertes.map(o => {
-        if (o.id === offerteId) return { ...o, status: 'geaccepteerd' as OfferteStatus, geaccepteerdOp: now(), updatedAt: now() }
-        if (o.status !== 'geaccepteerd') return { ...o, status: 'vervallen' as OfferteStatus, updatedAt: now() }
+        if (o.id === offerteId) {
+          return {
+            ...o,
+            status: 'geaccepteerd' as OfferteStatus,
+            geaccepteerdOp: now(),
+            externeRef: o.externeRef ?? (o.direct ? opdrachtRef?.trim() || null : null),
+            updatedAt: now(),
+          }
+        }
+        if (o.status !== 'geaccepteerd' && o.status !== 'vervallen') {
+          return { ...o, status: 'vervallen' as OfferteStatus, vervallenDoor: 'acceptatie' as const, updatedAt: now() }
+        }
         return o
       }),
       productieOrders: [...p.productieOrders, ...newOrders],
     }))
 
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes/${offerteId}/accepteer`, {
-      method: 'POST', body: JSON.stringify({ userName }),
+      method: 'POST', body: JSON.stringify({ userName, opdrachtRef }),
     }), 'Offerte accepteren')
 
     return updated
@@ -602,7 +633,8 @@ export const projectsApi = {
         )
         const allDone = stappen.every(s => s.gereedOp)
         const anyDone = stappen.some(s => s.gereedOp)
-        const status: ProductieOrder['status'] = allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
+        // Een gestopte order blijft gestopt: afvinken maakt hem niet weer lopend.
+        const status: ProductieOrder['status'] = o.status === 'gestopt' ? 'gestopt' : allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
         return { ...o, stappen, status, updatedAt: now() }
       })
       const status = p.status === 'bevestigd' ? 'productie' : p.status
@@ -648,7 +680,8 @@ export const projectsApi = {
         )
         const allDone = stappen.every(s => s.gereedOp)
         const anyDone = stappen.some(s => s.gereedOp)
-        const status: ProductieOrder['status'] = allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
+        // Een gestopte order blijft gestopt: afvinken maakt hem niet weer lopend.
+        const status: ProductieOrder['status'] = o.status === 'gestopt' ? 'gestopt' : allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
         return { ...o, stappen, status, updatedAt: now() }
       })
       return { ...p, productieOrders: orders, updatedAt: now() }
@@ -728,7 +761,7 @@ export const projectsApi = {
         return {
           ...o,
           aantalGereed: gereed,
-          status: (gereed >= o.qty ? 'gereed' : 'in_productie') as ProductieOrder['status'],
+          status: (o.status === 'gestopt' ? 'gestopt' : gereed >= o.qty ? 'gereed' : 'in_productie') as ProductieOrder['status'],
           updatedAt: now(),
         }
       }),
@@ -982,8 +1015,9 @@ export const projectsApi = {
       const offertes = p.offertes.map(o => {
         if (o.status === 'geaccepteerd')
           return { ...o, status: (o.verzondenOp ? 'verzonden' : 'concept') as OfferteStatus, geaccepteerdOp: null, updatedAt: now() }
-        if (o.status === 'vervallen')
-          return { ...o, status: 'concept' as OfferteStatus, updatedAt: now() }
+        // Zoals de server: alleen wat door het accepteren verviel, komt terug.
+        if (o.status === 'vervallen' && o.vervallenDoor === 'acceptatie')
+          return { ...o, status: (o.verzondenOp ? 'verzonden' : 'concept') as OfferteStatus, vervallenDoor: null, updatedAt: now() }
         return o
       })
       const hasVerzonden = offertes.some(o => o.status === 'verzonden')
@@ -1189,7 +1223,7 @@ export function getProjectSubtotaal(p: Project): number {
 }
 
 export function allOrdersGereed(p: Project): boolean {
-  return p.productieOrders.length > 0 && p.productieOrders.every(o => o.status === 'gereed')
+  return p.productieOrders.length > 0 && p.productieOrders.every(o => o.status === 'gereed' || o.status === 'gestopt')
 }
 
 export function formatBedrag(n: number): string {

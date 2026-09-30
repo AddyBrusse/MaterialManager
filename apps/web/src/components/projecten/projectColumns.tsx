@@ -313,14 +313,14 @@ export const PROJECT_COLUMNS: ProjectColumn[] = [
     sortValue: p => {
       const total = p.productieOrders?.length ?? 0
       if (total === 0) return null
-      const done = p.productieOrders.filter(o => o.status === 'gereed').length
+      const done = p.productieOrders.filter(o => o.status === 'gereed' || o.status === 'gestopt').length
       return (done / total) * 10_000 + Math.min(done, 9_999)
     },
     searchText: () => '',
     render: p => {
       const total = p.productieOrders?.length ?? 0
       if (total === 0) return muted
-      const done = p.productieOrders.filter(o => o.status === 'gereed').length
+      const done = p.productieOrders.filter(o => o.status === 'gereed' || o.status === 'gestopt').length
       return (
         <span className={done === total ? 'cell-mono' : 'cell-mono cell-muted'}
               style={done === total ? { color: 'var(--success)' } : undefined}>
