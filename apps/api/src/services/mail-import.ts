@@ -19,7 +19,7 @@ import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
 import { bereidVoor, leesMail, metZipInhoud } from './mail-lezen'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
-import { aiEnabled, aiExtract, aiFoutTekst, buildLines, type AttachmentBuffers } from './ai-extract'
+import { aiEnabled, aiExtract, aiFoutTekst, apiReden, buildLines, type AttachmentBuffers } from './ai-extract'
 import { leidendDocument } from './attachment-kind'
 import { buildRapport, scoreLines } from './certainty'
 
@@ -310,8 +310,12 @@ export async function buildCandidates(
       }),
     }
   } catch (err) {
+    // De technische reden in het API-venster: het reviewscherm toont alleen de zin.
+    console.warn(`mail-import: uitlezen mislukt (${document ?? 'geen document'}):`, apiReden(err))
+    // Niet "opnieuw slepen": dat leest alleen opnieuw zolang er niets over de mail
+    // besloten is (zie ingestMsgBuffer). "Opnieuw uitlezen" werkt altijd.
     return zonderRegels(
-      `Er is niets uitgelezen: ${aiFoutTekst(err)}. Probeer de mail opnieuw te slepen, ` +
+      `Er is niets uitgelezen: ${aiFoutTekst(err)}. Klik op "Opnieuw uitlezen" als dat opgelost is, ` +
         'of voeg de regels handmatig toe.'
     )
   }

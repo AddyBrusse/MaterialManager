@@ -3,6 +3,8 @@ import { Modal, Select } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconPlus } from '@tabler/icons-react'
 import { mailImportsApi } from '../../api/mail-imports'
+import { ApiFout } from '../../api/client'
+import { meldFout } from '../../utils/fout-melding-toon'
 import { MailRegelsTable } from './MailRegelsTable'
 import { MailDebugPaneel } from './MailDebugPaneel'
 import { relatiesApi } from '../../api/relaties'
@@ -148,10 +150,25 @@ export function MailImportReview({
     }
     setBusy(true)
     try {
-      setCurrent(await mailImportsApi.reread(current.id))
-      notifications.show({ color: 'green', title: 'Opnieuw uitgelezen', message: 'De mail is vers bekeken.' })
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Opnieuw uitlezen mislukt', message: (err as Error).message })
+      const vers = await mailImportsApi.reread(current.id)
+      setCurrent(vers)
+      // Lukt het model niet, dan antwoordt de server gewoon 200 met de reden in
+      // het rapport. Groen zou dan "gelukt" zeggen boven "niets uitgelezen".
+      const mislukt = vers.extractie?.foutmelding ?? null
+      notifications.show(
+        mislukt
+          ? { color: 'orange', title: 'Opnieuw uitgelezen, maar er kwam niets uit', message: mislukt }
+          : { color: 'green', title: 'Opnieuw uitgelezen', message: 'De mail is vers bekeken.' }
+      )
+    } catch (fout) {
+      meldFout({
+        actie: 'Mail opnieuw uitlezen',
+        fout,
+        gevolg:
+          fout instanceof ApiFout && fout.code === 'TIMEOUT'
+            ? 'Onbekend: de server kan nog aan het lezen zijn. Sluit deze mail over een minuut en open hem opnieuw om de uitkomst te zien.'
+            : 'Er is niets veranderd: de vorige uitkomst staat er nog.',
+      })
     } finally {
       setBusy(false)
     }

@@ -1,5 +1,5 @@
 import type { MailImport, MailImportStatus, MailIntent } from '@stockmanager/shared'
-import { apiFetch, apiUpload } from './client'
+import { apiFetch, apiUpload, MODEL_TIMEOUT_MS } from './client'
 
 export interface IngestResult {
   mailImport: MailImport
@@ -72,7 +72,8 @@ export const mailImportsApi = {
    * koppelingen inbegrepen — en laat het model er vers naar kijken.
    */
   reread: (id: string) =>
-    apiFetch<MailImport>(`/mail-imports/${id}/opnieuw`, { method: 'POST' }).then((r) => r.data),
+    apiFetch<MailImport>(`/mail-imports/${id}/opnieuw`, { method: 'POST', timeoutMs: MODEL_TIMEOUT_MS })
+      .then((r) => r.data),
 
   /**
    * Tekeningen uit de mail naar de bijlagenmap van een artikel kopiëren.

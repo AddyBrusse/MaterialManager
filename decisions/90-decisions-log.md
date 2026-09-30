@@ -1309,6 +1309,28 @@ het besluit hieronder).
   projectnummer komt van de server, en navigeren naar een project dat misschien
   niet ontstaat is erger dan even wachten.
 
+## 2026-09-28 — Mail-import: opnieuw uitlezen moet kunnen, en de melding moet kloppen
+
+Aanleiding: na een verlopen API-sleutel bleef een mail op "geen geldige
+API-sleutel" staan, ook met een nieuwe, werkende sleutel. Drie oorzaken:
+
+- **"Opnieuw uitlezen" brak na 3 seconden af.** Het gebruikte `apiFetch`, en
+  dat breekt elke JSON-call na 3 s af; het model heeft al snel een minuut nodig.
+  Nu dezelfde ruimte als slepen (`MODEL_TIMEOUT_MS`, 120 s).
+- **Een gekoppelde mail kon nooit opnieuw.** De server weigert dat terecht als de
+  offerte de regels al heeft overgenomen. Maar een mail waar níéts uitkwam heeft
+  niets om kwijt te raken, dus die mag nu wel. Hij houdt dan zijn project en zijn
+  status. Slepen leest een gekoppelde mail nooit opnieuw, dus zonder deze
+  uitzondering zat je vast.
+- **De melding wees de verkeerde kant op.** Er stond "Probeer de mail opnieuw te
+  slepen", en dat werkt niet meer zodra er iets over de mail besloten is. Een 400
+  heette altijd "mail te groot?", ook bij een account zonder tegoed. Nu kijkt
+  `aiFoutTekst` naar de reden die de API meestuurt. Die reden komt ook in het
+  API-venster te staan.
+
+Kwam er bij opnieuw uitlezen niets uit, dan zegt het scherm dat in oranje, niet
+in groen: de server antwoordt dan gewoon 200.
+
 ## 2026-09-28 — Wijzigen mag altijd; de app zegt wat er al gebeurd is
 
 **Aanleiding.** In het huidige pakket loopt het vast zodra er iets moet
