@@ -852,7 +852,15 @@
   padding: 9px var(--gutter);
   flex: none;
 }
+.pdv2-foot-stap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
 .pdv2-foot-lbl {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { IconArrowBackUp, IconLock, IconInfoCircle } from '@tabler/icons-react'
+import { IconArrowBackUp, IconArrowRight, IconLock, IconInfoCircle } from '@tabler/icons-react'
 import type { ActieVM, TerugVM } from '../types'
 import { RollbackPopover } from './RollbackPopover'
 
@@ -16,6 +16,10 @@ interface Props {
  * De reden waarom de primaire actie niet kan staat er altijd naast, vóór het
  * klikken — nooit pas in een melding achteraf. Dat is het hele idee van deze
  * balk: je ziet wat de volgende stap is én waarom hij nog niet kan.
+ *
+ * "Volgende stap" staat direct vóór de blauwe knop en leest ermee als één zin
+ * ("Volgende stap → Offerte accepteren"); terugdraaien staat los links. Het
+ * label stond eerst links vóór het terugdraaien, en hoorde daar niet bij.
  */
 export function FooterBar({ primair, terug, onPrimair, onTerug }: Props) {
   const [open, setOpen] = useState(false)
@@ -23,8 +27,6 @@ export function FooterBar({ primair, terug, onPrimair, onTerug }: Props) {
 
   return (
     <footer className="pdv2-foot">
-      <span className="pdv2-foot-lbl">Volgende stap</span>
-
       {terug && (
         <span className="pdv2-anchor">
           <button type="button" className="pdv2-btn s ghost" onClick={() => setOpen((v) => !v)}>
@@ -51,14 +53,20 @@ export function FooterBar({ primair, terug, onPrimair, onTerug }: Props) {
         </span>
       )}
 
-      <button
-        type="button"
-        className="pdv2-btn primair"
-        disabled={!primair.kan}
-        onClick={onPrimair}
-      >
-        {primair.label}
-      </button>
+      <span className="pdv2-foot-stap">
+        <span className="pdv2-foot-lbl">
+          Volgende stap
+          <IconArrowRight size={12} />
+        </span>
+        <button
+          type="button"
+          className="pdv2-btn primair"
+          disabled={!primair.kan}
+          onClick={onPrimair}
+        >
+          {primair.label}
+        </button>
+      </span>
     </footer>
   )
 }
