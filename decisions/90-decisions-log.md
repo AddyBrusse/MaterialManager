@@ -1415,3 +1415,34 @@ hierboven, en terugdraaien dat netjes opruimt.
   gereedgemelde stuks zonder afgevinkte stap, wat eerder doorglipte. De melding
   wijst naar het aanpassen van de opdracht, waar het gemaakte werk blijft staan.
 
+
+## 2026-09-30 — De blauwe knop hoort bij de tab, niet bij de fase
+
+De footerknop keek naar de fase van het hele project en was op elke tab gelijk.
+Op de Offertes-tab stond dan "Paklijst maken", en "Offerte accepteren" bracht je
+naar de tab waar je al stond.
+
+Nu heeft elke tab met een eigen document zijn eigen route, in `lib/tab-actie.ts`:
+maken → versturen → door naar de volgende tab.
+
+| Tab | Knop |
+|---|---|
+| Offertes | Offerte maken → vN versturen → vN accepteren (opent Opdracht) → Naar opdracht |
+| Opdracht | Opdracht versturen → *opnieuw versturen* als hij daarna gewijzigd is → Naar productie |
+| Productie | Paklijst maken (n klaar), anders uit met de reden |
+| Documenten | Paklijst versturen → Factuur maken → Factuur versturen → rond |
+
+- **Tabs zonder eigen document** (Algemeen, Nacalculatie, Financieel,
+  Reserveringen, Aandacht) hebben geen blauwe knop; terugdraaien blijft.
+- **Een stilgelegd project** toont op elke tab "Project hervatten".
+- **Label en handeling komen uit één beslissing** (`stap`). Toen ze apart werden
+  uitgerekend, zei de knop iets anders dan hij deed.
+- **Het tabje toont of het document de deur uit is.** Opdracht: groen ✓
+  "verzonden", ook met een open materiaal-todo (die staat in de Materiaal-kolom
+  en op Aandacht); oranje "gewijzigd" als de klant een oude stand heeft.
+  Productie ✓ als elke order af is. Documenten ✓ zodra er een factuur verstuurd is.
+- **Opdracht versturen** loopt via dezelfde Outlook-mail als de knop op de kaart;
+  `useObDocument` staat daarvoor op de pagina in plaats van in de tab.
+
+Volgt: een fase *voorbereiding* tussen opdracht en productie, met vrijgeven per
+order (selectievakjes, "4/10 vrijgeven", "Alles vrijgeven").

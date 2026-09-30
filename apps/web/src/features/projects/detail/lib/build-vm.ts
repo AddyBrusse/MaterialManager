@@ -15,7 +15,8 @@ import type { ZaagReservation } from '../../../../api/reservations'
 import { houdtVast } from '../../../../api/reservations'
 import type { FacetVM, GeldVM, ReserveringVM, TodoVM, ActiviteitVM, TabBadge, TabId } from '../types'
 import { datum, datumKort, eur, pct, relatieveDagen, dagenTot, tijdstip } from './format'
-import { geaccepteerdeOfferte, geldendeOfferte, ordersGereed, stapTelling } from './status'
+import { geaccepteerdeOfferte, geldendeOfferte, ordersGereed, productieAf, stapTelling } from './status'
+import { opdrachtGewijzigd } from './tab-actie'
 
 const STATUS_LABEL: Record<Project['status'], string> = {
   concept: 'Concept',
@@ -216,16 +217,18 @@ export function bouwTabBadges(
           },
     opdracht: !p.opdrachtbevestiging
       ? { tekst: '—' }
-      : p.opdrachtbevestiging.verzondenOp
-        ? { tekst: 'verzonden', kleur: 'ok' }
-        : { tekst: 'concept' },
+      : opdrachtGewijzigd(p)
+        ? { tekst: 'gewijzigd', kleur: 'warn' }
+        : p.opdrachtbevestiging.verzondenOp
+          ? { tekst: 'verzonden ✓', kleur: 'ok' }
+          : { tekst: 'concept' },
     productie:
-      totaal === 0
+      p.productieOrders.length === 0
         ? { tekst: 'geen' }
-        : {
-            tekst: `${gereed} van ${totaal}`,
-            kleur: gereed === totaal ? 'ok' : 'accent',
-          },
+        : productieAf(p.productieOrders)
+          ? // Stuks gereedgemeld zonder elke stap af te vinken: "0 van 1 ✓" zou liegen.
+            { tekst: totaal > 0 && gereed === totaal ? `${totaal} van ${totaal} ✓` : 'gereed ✓', kleur: 'ok' }
+          : { tekst: `${gereed} van ${totaal}`, kleur: 'accent' },
     nacalculatie: !nacalc
       ? { tekst: '—' }
       : !nacalc.gemeten
@@ -234,7 +237,9 @@ export function bouwTabBadges(
             tekst: pct(afw),
             kleur: afw !== null && Math.abs(afw) >= 15 ? 'dgr' : 'warn',
           },
-    documenten: { tekst: `${documenten}/4` },
+    documenten: p.facturen.some((f) => f.soort !== 'credit' && f.verzondenOp)
+      ? { tekst: `${documenten}/4 ✓`, kleur: 'ok' }
+      : { tekst: `${documenten}/4` },
     financieel: { tekst: eur(offerteTotaal(p)) },
     reserveringen: { tekst: extra.reserveringen === 0 ? 'geen' : `${extra.reserveringen}` },
     aandacht: { tekst: extra.aandacht === 0 ? 'geen' : `${extra.aandacht}` },

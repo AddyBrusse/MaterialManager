@@ -14,13 +14,17 @@ import { obBestandsnaam, obMail, obPdf } from '../../lib/ob-document'
  * Versturen gaat via Outlook: de app maakt een `.eml` met de pdf erin, jij
  * drukt in Outlook op Verzenden. De app kan dat niet zien — daarom vraagt hij
  * daarna "Heb je hem verstuurd?", en legt pas bij Ja de verzending vast.
+ *
+ * Staat op de pagina, niet in de Opdracht-tab: ook de footerknop "Opdracht
+ * versturen" zet hiermee de mail klaar.
  */
-export function useObDocument(p: Project, onVerstuurd: (naar: string | null) => void) {
+export function useObDocument(p: Project | undefined, onVerstuurd: (naar: string | null) => void) {
   const gebruiker = useUserStore(s => s.user)
   const [klaar, setKlaar] = useState<{ naar: string | null; mailto: string } | null>(null)
-  const obId = p.opdrachtbevestiging?.id ?? ''
+  const obId = p?.opdrachtbevestiging?.id ?? ''
 
   const openen = () => {
+    if (!p) return
     try {
       const gelukt = toonPdfInVenster(obPdf(p), {
         titel: `Opdrachtbevestiging ${obId} — ${p.naam}`,
@@ -39,6 +43,7 @@ export function useObDocument(p: Project, onVerstuurd: (naar: string | null) => 
   }
 
   const downloaden = () => {
+    if (!p) return
     try {
       obPdf(p).save(obBestandsnaam(p))
     } catch (fout) {
@@ -47,6 +52,7 @@ export function useObDocument(p: Project, onVerstuurd: (naar: string | null) => 
   }
 
   const klaarzetten = () => {
+    if (!p) return
     const actie = `Opdrachtbevestiging ${obId} versturen`
     const reden = waaromNietVersturenOB(p)
     if (reden) {

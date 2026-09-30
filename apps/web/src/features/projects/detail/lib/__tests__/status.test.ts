@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import type { Offerte, Project, ProductieOrder, ProductieStap } from '@stockmanager/shared'
 import { berekenVoortgang } from '@stockmanager/shared'
-import { primaireActie, terugActie, stapTelling, ordersGereed, geldendeOfferte, teAccepteren } from '../status'
+import { terugActie, stapTelling, ordersGereed, geldendeOfferte, teAccepteren, productieAf } from '../status'
+import { tabActie } from '../tab-actie'
+import type { TabId } from '../../types'
 
 /** De echte rekenkern erbij, zodat de test niet met een verzonnen voortgang
  *  test wat het scherm met de echte doet. */
-const actie = (p: Project) => primaireActie(p, berekenVoortgang(p))
+const actie = (p: Project, tab: TabId = 'productie', open: string | null = null) =>
+  tabActie(p, berekenVoortgang(p), tab, open)!
 
 function stap(over: Partial<ProductieStap> = {}): ProductieStap {
   return {
@@ -101,7 +104,7 @@ describe('stapTelling', () => {
   })
 })
 
-describe('primaireActie', () => {
+describe('tabActie: Productie', () => {
   it('blokkeert paklijst maken zolang er stappen open staan, met het aantal erbij', () => {
     const p = project({
       status: 'productie',
@@ -178,43 +181,19 @@ describe('primaireActie', () => {
     expect(uit.reden).toBe('Er ligt nog niets klaar om te leveren — 10 nog te maken.')
   })
 
-  it('noemt de ontbrekende acceptatie bij het aanmaken van de opdracht', () => {
-    const p = project({ status: 'bevestigd' })
-    const uit = actie(p)
-    expect(uit.label).toBe('Opdracht aanmaken')
-    expect(uit.reden).toBe('Er is nog geen offerte geaccepteerd.')
-  })
-
-  it('schakelt naar stap afmelden zodra de opdrachtbevestiging bestaat', () => {
-    const p = project({
-      status: 'bevestigd',
-      opdrachtbevestiging: {
-        id: 'OB-2026-001',
-        projectId: 'PRJ-2026-001',
-        offerteId: 'OFF-2026-001',
-        regels: [],
-        levertijdDatum: null,
-        notities: '',
-        opdrachtRef: null,
-        status: 'verzonden',
-        verzondenOp: '2026-09-03T10:00:00Z',
-        verzendingen: [], wijzigingen: [],
-        createdAt: '2026-09-03T10:00:00Z',
-        updatedAt: '2026-09-03T10:00:00Z',
-      },
-      productieOrders: [order([stap()])],
-    })
-    expect(actie(p).label).toBe('Stap afmelden')
-  })
-
   it('hervat naar de vorige fase, niet naar concept', () => {
     const p = project({ status: 'on_hold', statusVorige: 'productie' })
     expect(actie(p).label).toBe('Project hervatten → Productie')
+    // Op elke tab, ook zonder eigen document: het project staat stil.
+    expect(actie(p, 'algemeen').stap).toEqual({ soort: 'hervatten' })
   })
 
-  it('weigert factureren zolang de paklijst niet verzonden is', () => {
-    const p = project({ status: 'verzonden' })
-    expect(actie(p).reden).toBe('De paklijst is nog niet verzonden.')
+  it('verstuurt eerst de open paklijst voordat er gefactureerd wordt', () => {
+    const p = project({
+      status: 'paklijst',
+      paklijsten: [{ id: 'PL-1', projectId: 'PRJ-2026-001', regels: [], notities: '', verzondenOp: null, createdAt: '2026-09-10T10:00:00Z' }],
+    })
+    expect(actie(p, 'documenten')).toMatchObject({ label: 'Paklijst PL-1 versturen', stap: { soort: 'paklijst-versturen', paklijstId: 'PL-1' } })
   })
 })
 
@@ -290,18 +269,19 @@ describe('teAccepteren: welke versie de footerknop accepteert', () => {
   it('de enige verstuurde versie, ook als er een concept open staat', () => {
     const p = project({ status: 'offerte', offertes: [v1, v3] })
     expect(teAccepteren(p, 'OFF-3').offerte?.id).toBe('OFF-1')
-    expect(primaireActie(p, berekenVoortgang(p), 'OFF-3')).toMatchObject({ label: 'Offerte v1 accepteren', kan: true })
+    // Op de lege Opdracht-tab; op de Offertes-tab gaat de knop over het open concept.
+    expect(actie(p, 'opdracht', 'OFF-3')).toMatchObject({ label: 'Offerte v1 accepteren', kan: true })
   })
 
   it('bij meerdere verstuurde versies de opengeklapte', () => {
     const p = project({ status: 'offerte', offertes: [v1, v2, v3] })
     expect(teAccepteren(p, 'OFF-1').offerte?.id).toBe('OFF-1')
-    expect(primaireActie(p, berekenVoortgang(p), 'OFF-2').label).toBe('Offerte v2 accepteren')
+    expect(actie(p, 'offertes', 'OFF-2').label).toBe('Offerte v2 accepteren')
   })
 
-  it('verzint er geen als de opengeklapte niet verstuurd is, en zegt wat er moet', () => {
-    const p = project({ status: 'offerte', offertes: [v1, v2, v3] })
-    const uit = primaireActie(p, berekenVoortgang(p), 'OFF-3')
+  it('verzint er geen als er geen verstuurde versie open staat, en zegt wat er moet', () => {
+    const p = project({ status: 'offerte', offertes: [v1, v2] })
+    const uit = actie(p, 'offertes', null)
     expect(uit).toMatchObject({ label: 'Offerte accepteren', kan: false })
     expect(uit.reden).toContain('2 verstuurde versies (v1, v2)')
     expect(uit.reden).toContain('klap')
@@ -310,5 +290,70 @@ describe('teAccepteren: welke versie de footerknop accepteert', () => {
 
   it('zonder verstuurde versie: niets te accepteren', () => {
     expect(teAccepteren(project({ status: 'offerte', offertes: [v3] }), 'OFF-3').reden).toBe('Er is nog geen offerte verstuurd.')
+  })
+})
+
+// Besloten 2026-09-30: de knop hoort bij de tab, niet bij de fase van het project.
+describe('tabActie: per tab een eigen knop', () => {
+  const regel = {
+    id: 'r1', sortOrder: 1, artikelId: null, naam: 'Bus', omschrijving: '',
+    qty: 10, eenheid: 'st', verkoopprijs: 10, totaal: 100, bewerkingen: [],
+  }
+  const ob = (over: Partial<NonNullable<Project['opdrachtbevestiging']>> = {}) => ({
+    id: 'OB-1', projectId: 'PRJ-2026-001', offerteId: 'OFF-1', regels: [regel],
+    levertijdDatum: null, notities: '', opdrachtRef: 'INK-1', status: 'concept' as const,
+    verzondenOp: null, verzendingen: [], wijzigingen: [],
+    createdAt: '2026-09-03T10:00:00Z', updatedAt: '2026-09-03T10:00:00Z',
+    ...over,
+  })
+  const geaccepteerd = offerte({ id: 'OFF-1', status: 'geaccepteerd', regels: [regel] })
+
+  it('Offertes: maken, dan de open concept-versie versturen', () => {
+    expect(actie(project(), 'offertes')).toMatchObject({ label: 'Offerte maken', stap: { soort: 'offerte-maken' } })
+    const p = project({ offertes: [offerte({ id: 'OFF-1', regels: [regel] })] })
+    expect(actie(p, 'offertes', 'OFF-1')).toMatchObject({ label: 'Offerte v1 versturen', stap: { soort: 'offerte-versturen', offerteId: 'OFF-1' } })
+  })
+
+  it('Offertes: een lege versie kan niet de deur uit, en zegt waarom', () => {
+    const uit = actie(project({ offertes: [offerte()] }), 'offertes', 'OFF-2026-001')
+    expect(uit).toMatchObject({ kan: false, stap: null })
+    expect(uit.reden).toContain('nog geen regels')
+  })
+
+  it('Offertes: na accepteren door naar de opdracht, ook als het project al verder is', () => {
+    const p = project({ status: 'productie', offertes: [geaccepteerd] })
+    expect(actie(p, 'offertes')).toMatchObject({ label: 'Naar opdracht', stap: { soort: 'naar', tab: 'opdracht' } })
+  })
+
+  it('Opdracht: versturen, en daarna door naar productie', () => {
+    const p = project({ status: 'bevestigd', offertes: [geaccepteerd], opdrachtbevestiging: ob() })
+    expect(actie(p, 'opdracht')).toMatchObject({ label: 'Opdracht versturen', stap: { soort: 'opdracht-versturen' } })
+    const inhoud = { levertijd: null, opdrachtRef: 'INK-1', notities: '', regels: [{ id: 'r1', naam: 'Bus', qty: 10, verkoopprijs: 10 }] }
+    const verzonden = ob({ status: 'verzonden', verzondenOp: '2026-09-04T10:00:00Z', verzendingen: [{ op: '2026-09-04T10:00:00Z', door: 'Addy', naar: null, inhoud }] })
+    expect(actie({ ...p, opdrachtbevestiging: verzonden }, 'opdracht')).toMatchObject({ label: 'Naar productie', stap: { soort: 'naar', tab: 'productie' } })
+  })
+
+  it('Opdracht: gewijzigd na versturen → opnieuw versturen', () => {
+    const inhoud = { levertijd: null, opdrachtRef: 'INK-1', notities: '', regels: [{ id: 'r1', naam: 'Bus', qty: 8, verkoopprijs: 10 }] }
+    const p = project({
+      status: 'bevestigd', offertes: [geaccepteerd],
+      opdrachtbevestiging: ob({ status: 'verzonden', verzondenOp: '2026-09-04T10:00:00Z', verzendingen: [{ op: '2026-09-04T10:00:00Z', door: 'Addy', naar: null, inhoud }] }),
+    })
+    expect(actie(p, 'opdracht')).toMatchObject({ label: 'Opdracht opnieuw versturen', stap: { soort: 'opdracht-versturen' } })
+  })
+
+  it('tabs zonder eigen document hebben geen knop', () => {
+    const p = project({ status: 'productie', offertes: [geaccepteerd] })
+    for (const tab of ['algemeen', 'nacalculatie', 'financieel', 'reserveringen', 'aandacht'] as const) {
+      expect(tabActie(p, berekenVoortgang(p), tab, null)).toBeNull()
+    }
+  })
+})
+
+describe('productieAf', () => {
+  it('telt een gereedgemelde order als af, ook als zijn stap niet is afgevinkt', () => {
+    expect(productieAf([order([stap()], { status: 'gereed', aantalGereed: 10 })])).toBe(true)
+    expect(productieAf([order([stap()])])).toBe(false)
+    expect(productieAf([])).toBe(false)
   })
 })

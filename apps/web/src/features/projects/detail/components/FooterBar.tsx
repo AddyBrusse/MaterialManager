@@ -4,7 +4,8 @@ import type { ActieVM, TerugVM } from '../types'
 import { RollbackPopover } from './RollbackPopover'
 
 interface Props {
-  primair: ActieVM
+  /** `null` op een tab zonder eigen document: dan alleen terugdraaien. */
+  primair: ActieVM | null
   terug: TerugVM | null
   onPrimair: () => void
   onTerug: () => void
@@ -46,27 +47,29 @@ export function FooterBar({ primair, terug, onPrimair, onTerug }: Props) {
 
       <span className="pdv2-spacer" />
 
-      {primair.reden && (
+      {primair?.reden && (
         <span className={`pdv2-reden ${primair.kan ? '' : 'blok'}`}>
           <IconInfoCircle size={13} className="ico" />
           {primair.reden}
         </span>
       )}
 
-      <span className="pdv2-foot-stap">
-        <span className="pdv2-foot-lbl">
-          Volgende stap
-          <IconArrowRight size={12} />
+      {primair && (
+        <span className="pdv2-foot-stap">
+          <span className="pdv2-foot-lbl">
+            Volgende stap
+            <IconArrowRight size={12} />
+          </span>
+          <button
+            type="button"
+            className="pdv2-btn primair"
+            disabled={!primair.kan}
+            onClick={onPrimair}
+          >
+            {primair.label}
+          </button>
         </span>
-        <button
-          type="button"
-          className="pdv2-btn primair"
-          disabled={!primair.kan}
-          onClick={onPrimair}
-        >
-          {primair.label}
-        </button>
-      </span>
+      )}
     </footer>
   )
 }
