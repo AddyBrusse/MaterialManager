@@ -28,7 +28,7 @@ import { AandachtTab } from './tabs/AandachtTab'
 
 import { berekenVoortgang } from '@stockmanager/shared'
 import { useProjectActies } from './useProjectActies'
-import { actiesGeblokkeerd, primaireActie, terugActie } from './lib/status'
+import { actiesGeblokkeerd, geldendeOfferte, primaireActie, terugActie } from './lib/status'
 import { bouwAandacht } from './lib/aandacht'
 import { bouwTabStanden } from './lib/tab-stand'
 import {
@@ -152,7 +152,14 @@ export function ProjectDetailPage() {
   // keer ruimte nodig had op een ander project. Inklappen geldt nu zolang je op
   // deze pagina bent.
   const [kopIngeklapt, setKopIngeklapt] = useState(false)
-  const acties = useProjectActies(project, (t) => kiesTab(t as TabId))
+  // De opengeklapte versie op de Offertes-tab. Hier en niet in de tab zelf: de
+  // footerknop accepteert bij meerdere verstuurde versies de opengeklapte, en
+  // de keuze moet blijven staan als je even een andere tab opent. `undefined` =
+  // nog niets gekozen, dan de geldende versie.
+  const [gekozenVersie, setGekozenVersie] = useState<string | null | undefined>(undefined)
+  useEffect(() => setGekozenVersie(undefined), [id])
+  const openVersie = gekozenVersie === undefined ? (project ? geldendeOfferte(project)?.id ?? null : null) : gekozenVersie
+  const acties = useProjectActies(project, (t) => kiesTab(t as TabId), openVersie)
 
   // Mislukt een opslag, dan zet syncProject het project terug naar wat er op
   // de server staat. Opnieuw lezen maakt dat zichtbaar — ook voor wijzigingen
@@ -210,7 +217,7 @@ export function ProjectDetailPage() {
   const facetten = bouwFacetten(project, relatie, nacalc)
   const reserveringVMs = bouwReserveringen(reserveringen)
   const todoVMs = bouwTodos(projectTodos)
-  const primair = primaireActie(project, voortgang)
+  const primair = primaireActie(project, voortgang, openVersie)
   const terug = terugActie(project)
   const slot = bouwSlot(holderName, isReadOnly, holderIdle, saveState)
   const aandacht = bouwAandacht({
@@ -283,6 +290,8 @@ export function ProjectDetailPage() {
               onVerwijder={acties.verwijderOfferte}
               onIntrekken={acties.trekOfferteIn}
               onNaarProject={acties.naarNieuwProject}
+              open={openVersie}
+              onOpen={setGekozenVersie}
             />
           )}
           {tab === 'opdracht' && (

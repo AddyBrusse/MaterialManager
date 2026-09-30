@@ -10,13 +10,38 @@
  * primaire actie er vooruit hoort, en wat één stap terugdraaien weggooit.
  */
 
-import type { Project, ProductieOrder, ProjectVoortgang } from '@stockmanager/shared'
+import type { Offerte, Project, ProductieOrder, ProjectVoortgang } from '@stockmanager/shared'
 import { laatstePaklijst } from '@stockmanager/shared'
 import type { ActieVM, Fase, TerugVM } from '../types'
 import { datumKort } from './format'
 
 export function geaccepteerdeOfferte(p: Project) {
   return p.offertes.find((o) => o.status === 'geaccepteerd') ?? null
+}
+
+/**
+ * Welke verstuurde versie de footerknop accepteert, of waarom hij dat niet weet.
+ *
+ * Accepteren is een keuze van de klant, dus de knop verzint er geen. Is er maar
+ * één verstuurde versie, dan is het die. Zijn er meer, dan telt de versie die op
+ * de Offertes-tab is opengeklapt — dat is de "geselecteerde" (2026-09-30). Eerder
+ * stuurde de knop je alleen naar de Offertes-tab, en stond je daar al, dan
+ * gebeurde er niets.
+ */
+export function teAccepteren(
+  p: Project,
+  openVersie: string | null,
+): { offerte: Offerte; reden?: undefined } | { offerte?: undefined; reden: string } {
+  const verzonden = p.offertes.filter((o) => o.status === 'verzonden').sort((a, b) => a.versie - b.versie)
+  if (verzonden.length === 0) return { reden: 'Er is nog geen offerte verstuurd.' }
+  if (verzonden.length === 1) return { offerte: verzonden[0] }
+  const open = verzonden.find((o) => o.id === openVersie)
+  if (open) return { offerte: open }
+  return {
+    reden:
+      `Er zijn ${verzonden.length} verstuurde versies (${verzonden.map((o) => `v${o.versie}`).join(', ')}) — ` +
+      'klap op de Offertes-tab de versie open die de klant accepteert.',
+  }
 }
 
 /** De versie waarop de productie draait: de geaccepteerde, anders de hoogste. */
@@ -63,7 +88,7 @@ function faseLabel(f: Fase): string {
  * De primaire actie in de footer, mét de reden als hij niet kan. Die reden
  * staat er altíjd naast vóór het klikken — nooit pas in een melding achteraf.
  */
-export function primaireActie(p: Project, v: ProjectVoortgang): ActieVM {
+export function primaireActie(p: Project, v: ProjectVoortgang, openVersie: string | null = null): ActieVM {
   const { gereed, totaal } = stapTelling(p.productieOrders)
   const heeftOB = Boolean(p.opdrachtbevestiging)
 
@@ -88,12 +113,11 @@ export function primaireActie(p: Project, v: ProjectVoortgang): ActieVM {
     }
 
     case 'offerte': {
-      const verzonden = p.offertes.some((o) => o.status === 'verzonden')
-      return {
-        label: 'Offerte accepteren',
-        kan: verzonden,
-        reden: verzonden ? undefined : 'Er is nog geen offerte verstuurd.',
-      }
+      // Het label noemt de versie: vóór het klikken zie je wélke het wordt.
+      const keuze = teAccepteren(p, openVersie)
+      return keuze.offerte
+        ? { label: `Offerte v${keuze.offerte.versie} accepteren`, kan: true }
+        : { label: 'Offerte accepteren', kan: false, reden: keuze.reden }
     }
 
     case 'bevestigd':

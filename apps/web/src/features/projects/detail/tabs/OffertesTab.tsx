@@ -63,6 +63,9 @@ interface Props {
   onVerwijder: (offerteId: string) => void
   onIntrekken: (offerteId: string) => void
   onNaarProject: (offerteId: string, keuze: NaarProjectKeuze) => Promise<boolean>
+  /** De opengeklapte versie; `null` = alles dicht. */
+  open: string | null
+  onOpen: (offerteId: string | null) => void
 }
 
 /** §5.2 — de versies, elk met zijn eigen regels eronder. */
@@ -81,14 +84,15 @@ export function OffertesTab({
   onVerwijder,
   onIntrekken,
   onNaarProject,
+  open,
+  onOpen: setOpen,
 }: Props) {
   const versies = [...project.offertes].sort((a, b) => b.versie - a.versie)
   const acc = geaccepteerdeOfferte(project)
-  // Standaard de geaccepteerde versie open, anders de hoogste — dat is de
-  // versie waar iemand die dit scherm opent naar op zoek is. Eén versie
-  // tegelijk open: twee regeltabellen onder elkaar met dezelfde kolommen zijn
-  // niet meer uit elkaar te houden.
-  const [open, setOpen] = useState<string | null>(acc?.id ?? versies[0]?.id ?? null)
+  // Eén versie tegelijk open: twee regeltabellen onder elkaar met dezelfde
+  // kolommen zijn niet meer uit elkaar te houden. Wélke open staat houdt de
+  // pagina bij (standaard de geldende versie): bij meerdere verstuurde versies
+  // accepteert de footerknop de opengeklapte.
   // Komt er een versie bij — leeg of gekopieerd — dan klapt die open. Wie net
   // op "Kopieer" drukte wil de nieuwe versie bewerken, niet eerst zoeken waar
   // hij gebleven is.
