@@ -49,3 +49,13 @@ describe('planning slaat stilgelegde projecten over', () => {
     expect(buildStapItems([{ ...p, status: 'productie' }], [])).toHaveLength(1)
   })
 })
+
+// 2026-09-30: kantoor geeft vrij; tot dan staat het werk niet op het bord.
+describe('planning slaat orders in voorbereiding over', () => {
+  it('toont een order pas na vrijgeven', () => {
+    const p = project('bevestigd')
+    const inVoorbereiding = { ...p, productieOrders: p.productieOrders.map(o => ({ ...o, status: 'voorbereiding' as const })) }
+    expect(buildStapItems([inVoorbereiding], [])).toHaveLength(0)
+    expect(buildStapItems([p], [])).toHaveLength(1)
+  })
+})

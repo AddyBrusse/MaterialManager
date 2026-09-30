@@ -6,10 +6,14 @@ import type {
   Opdrachtbevestiging, OBStatus,
   OpdrachtWijziging,
 } from '@stockmanager/shared'
-import { berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken, obInhoud } from '@stockmanager/shared'
+import {
+  berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken, obInhoud,
+  isVrijgegeven, orderStatusNaStappen, vrijgeven, terugNaarVoorbereiding, waaromNietTerugNaarVoorbereiding,
+} from '@stockmanager/shared'
 import { apiFetch, ApiFout } from './client'
 import { meldFout } from '../utils/fout-melding-toon'
 import type { LaadFout } from '../utils/fout-melding'
+import { Weigering } from '../utils/fout-melding'
 
 // Bedragen worden op twee plekken berekend (hier optimistisch, op de server
 // definitief). Zelfde afronding, anders springt het bedrag zodra het antwoord
@@ -569,7 +573,8 @@ export const projectsApi = {
         eenheid: regel.eenheid,
         aantalGereed: 0,
         stappen,
-        status: 'gepland' as const,
+        // Eerst voorbereiding, net als de server (calc/vrijgeven.ts).
+        status: 'voorbereiding' as const,
         createdAt: now(),
         updatedAt: now(),
       }
@@ -631,11 +636,8 @@ export const projectsApi = {
         const stappen = o.stappen.map(s =>
           s.id === stapId && !s.gereedOp ? { ...s, gereedOp: now(), gereedDoor: userName } : s,
         )
-        const allDone = stappen.every(s => s.gereedOp)
-        const anyDone = stappen.some(s => s.gereedOp)
-        // Een gestopte order blijft gestopt: afvinken maakt hem niet weer lopend.
-        const status: ProductieOrder['status'] = o.status === 'gestopt' ? 'gestopt' : allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
-        return { ...o, stappen, status, updatedAt: now() }
+        // Gestopt blijft gestopt; afvinken op een order in voorbereiding geeft hem vrij.
+        return { ...o, stappen, status: orderStatusNaStappen(o, stappen), updatedAt: now() }
       })
       const status = p.status === 'bevestigd' ? 'productie' : p.status
       return { ...p, productieOrders: orders, status, updatedAt: now() }
@@ -678,11 +680,8 @@ export const projectsApi = {
         const stappen = o.stappen.map(s =>
           s.id === stapId ? { ...s, gereedOp: null, gereedDoor: null } : s,
         )
-        const allDone = stappen.every(s => s.gereedOp)
-        const anyDone = stappen.some(s => s.gereedOp)
-        // Een gestopte order blijft gestopt: afvinken maakt hem niet weer lopend.
-        const status: ProductieOrder['status'] = o.status === 'gestopt' ? 'gestopt' : allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
-        return { ...o, stappen, status, updatedAt: now() }
+        // Gestopt blijft gestopt; afvinken op een order in voorbereiding geeft hem vrij.
+        return { ...o, stappen, status: orderStatusNaStappen(o, stappen), updatedAt: now() }
       })
       return { ...p, productieOrders: orders, updatedAt: now() }
     })
@@ -1034,17 +1033,35 @@ export const projectsApi = {
     return updated
   },
 
+  /** Orders in de hal zetten (calc/vrijgeven.ts). Waarschuwen doet het scherm vooraf. */
+  vrijgeven(projectId: string, orderIds: string[]): Project {
+    const updated = updateCache(projectId, p => vrijgeven(p, orderIds, now()))
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/orders/vrijgeven`, { method: 'POST', body: JSON.stringify({ orderIds }) }),
+      'In productie geven',
+    )
+    return updated
+  },
+
+  /** Vrijgegeven orders terug naar voorbereiding, zolang er niet aan gewerkt is. */
+  terugNaarVoorbereiding(projectId: string, orderIds: string[]): Project {
+    const updated = updateCache(projectId, p => terugNaarVoorbereiding(p, orderIds, now()))
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/orders/terug-naar-voorbereiding`, { method: 'POST', body: JSON.stringify({ orderIds }) }),
+      'Terug naar voorbereiding',
+    )
+    return updated
+  },
+
   revertProductie(projectId: string): Project {
-    const updated = updateCache(projectId, p => ({
-      ...p,
-      status: 'bevestigd',
-      productieOrders: p.productieOrders.map(o => ({
-        ...o, status: 'gepland' as const,
-        stappen: o.stappen.map(s => ({ ...s, gereedOp: null, gereedDoor: null })),
-        updatedAt: now(),
-      })),
-      updatedAt: now(),
-    }))
+    const huidig = cache.find(p => p.id === projectId)
+    const ids = huidig?.productieOrders.filter(isVrijgegeven).map(o => o.id) ?? []
+    // Zelfde voorwaarde als de server: werk dat al gedaan is verdwijnt niet stil.
+    const reden = huidig ? waaromNietTerugNaarVoorbereiding(huidig, ids) : null
+    if (reden) throw new Weigering(reden)
+    const updated = updateCache(projectId, p => ({ ...terugNaarVoorbereiding(p, ids, now()), status: 'bevestigd' }))
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/productie`, { method: 'POST' }), 'Terugkeren naar bevestigd')
     return updated
   },

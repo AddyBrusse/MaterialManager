@@ -1446,3 +1446,29 @@ maken → versturen → door naar de volgende tab.
 
 Volgt: een fase *voorbereiding* tussen opdracht en productie, met vrijgeven per
 order (selectievakjes, "4/10 vrijgeven", "Alles vrijgeven").
+
+## 2026-09-30 — Voorbereiding: werk gaat pas de hal in als kantoor het vrijgeeft
+
+Accepteren zette de productieorders meteen op `gepland`, en daarmee stonden ze
+in de wachtrij, de planning en op de terminal voordat iemand had nagekeken of
+materiaal, tekening en programma klopten. Een operator kon beginnen aan iets wat
+de klant nog aanpaste.
+
+- **Nieuwe orderstatus `voorbereiding`.** Accepteren, een regel erbij en een
+  nieuwe order voor een hoger aantal beginnen daar. Niet in wachtrij, planning of
+  terminal. De Prognose telt ze wél mee: dat werk komt.
+- **Vrijgeven per order** op de Productie-tab: een vinkje per order (standaard
+  alles aan) en een splitsknop `[ 2/3 vrijgeven | ▾ Alles vrijgeven ]`. Het
+  pijltje werkt ook als de knop uit staat.
+- **Waarschuwen, niet blokkeren** (principe 2026-09-28): opdrachtbevestiging nog
+  niet verstuurd, of een regel met een open todo "materiaal kiezen" → eerst een
+  vraag, daarna mag het. Annuleren houdt de selectie.
+- **Het project gaat naar Productie bij de eerste vrijgave**, niet meer bij de
+  eerste gereedmelding. Wordt er toch iets afgevinkt op een order in
+  voorbereiding, dan geldt die als vrijgegeven — het werk is kennelijk gedaan.
+- **Terug naar voorbereiding** per order, en "Terugdraaien naar Bevestigd" voor
+  alles, zolang er niets aan gewerkt is. Die terugdraaiactie wiste eerder
+  stilletjes de afgevinkte stappen; nu weigert hij.
+- Bestaande orders blijven `gepland`. De status staat als tekst in de database:
+  geen migratie.
+- Logica in `packages/shared/src/calc/vrijgeven.ts`, gedeeld door scherm en server.

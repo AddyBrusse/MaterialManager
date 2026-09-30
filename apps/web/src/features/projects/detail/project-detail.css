@@ -1039,6 +1039,15 @@
   color: var(--text3);
   font-size: 10.5px;
 }
+/* In de footer: het menu klapt omhoog, en de twee blauwe helften krijgen een
+   lichte scheidslijn in plaats van de rand die de gewone variant weghaalt. */
+.pdv2-splits.omhoog .pdv2-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.pdv2-splits > .pdv2-btn.primair + .pdv2-btn.primair {
+  border-left: 1px solid rgba(255, 255, 255, 0.35);
+}
 
 
 /* ── Opdracht-tab: waarschuwing en verzendlogboek ─────────────────────────── */

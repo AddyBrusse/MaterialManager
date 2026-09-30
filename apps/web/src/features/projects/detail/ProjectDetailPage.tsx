@@ -159,7 +159,21 @@ export function ProjectDetailPage() {
   // de keuze moet blijven staan als je even een andere tab opent. `undefined` =
   // nog niets gekozen, dan de geldende versie.
   const [gekozenVersie, setGekozenVersie] = useState<string | null | undefined>(undefined)
-  useEffect(() => setGekozenVersie(undefined), [id])
+  // Aangevinkte orders in voorbereiding (Productie-tab). `undefined` = nog niets
+  // gekozen: dan alles, want vrijgeven wat klaarstaat is het gewone geval.
+  const [gekozenOrders, setGekozenOrders] = useState<string[] | undefined>(undefined)
+  useEffect(() => {
+    setGekozenVersie(undefined)
+    setGekozenOrders(undefined)
+  }, [id])
+  // Na vrijgeven (of een order erbij) staat wat overblijft weer allemaal
+  // aangevinkt. Niet bij het openen van de waarschuwing: wie daar Annuleren
+  // kiest, houdt zijn keuze.
+  const voorbereidingSleutel = (project?.productieOrders ?? [])
+    .filter((o) => o.status === 'voorbereiding')
+    .map((o) => o.id)
+    .join(',')
+  useEffect(() => setGekozenOrders(undefined), [voorbereidingSleutel])
   const openVersie = gekozenVersie === undefined ? (project ? geldendeOfferte(project)?.id ?? null : null) : gekozenVersie
   const acties = useProjectActies(project, (t) => kiesTab(t as TabId))
   // Op de pagina, niet in de tab: "Opdracht versturen" kan ook vanuit de footer.
@@ -222,7 +236,15 @@ export function ProjectDetailPage() {
   const reserveringVMs = bouwReserveringen(reserveringen)
   const todoVMs = bouwTodos(projectTodos)
   // Per tab een eigen knop (lib/tab-actie.ts); tabs zonder document hebben er geen.
-  const actie = tabActie(project, voortgang, tab, openVersie)
+  const inVoorbereiding = project.productieOrders.filter((o) => o.status === 'voorbereiding').map((o) => o.id)
+  const gekozen = gekozenOrders?.filter((x) => inVoorbereiding.includes(x)) ?? inVoorbereiding
+  const actie = tabActie(project, voortgang, tab, {
+    openVersie,
+    gekozenOrders: gekozen,
+    regelsZonderMateriaal: projectTodos
+      .filter((t) => !t.done && t.soort === 'materiaal_selecteren' && t.offerteRegelId)
+      .map((t) => t.offerteRegelId as string),
+  })
   // Stilgelegd dicht alles, behalve de stap die het project weer op gang brengt.
   const actieKan = Boolean(actie?.kan) && (!geblokkeerd || actie?.stap?.soort === 'hervatten')
   const terug = terugActie(project)
@@ -327,6 +349,11 @@ export function ProjectDetailPage() {
             <ProductieTab
               project={project}
               geblokkeerd={geblokkeerd}
+              gekozen={gekozen}
+              onKies={(orderId, aan) =>
+                setGekozenOrders(aan ? [...gekozen, orderId] : gekozen.filter((x) => x !== orderId))
+              }
+              onTerug={acties.terugNaarVoorbereiding}
               onPlanner={() => navigate('/planning-queue')}
               onStap={acties.stapCheck}
               onStuks={acties.meldStuksGereed}
@@ -356,12 +383,17 @@ export function ProjectDetailPage() {
       </div>
 
       <FooterBar
-        primair={actie ? { ...actie, kan: actieKan } : null}
+        primair={actie ? { ...actie, kan: actieKan, menu: geblokkeerd ? undefined : actie.menu } : null}
         terug={terug}
         onPrimair={() => {
           if (!actie?.stap) return
           if (actie.stap.soort === 'opdracht-versturen') obDoc.klaarzetten()
           else acties.voerUit(actie.stap)
+        }}
+        onMenu={(i) => {
+          const keuze = actie?.menu?.[i]
+          if (!keuze) return
+          acties.voerUit(keuze.stap)
         }}
         onTerug={acties.terug}
       />

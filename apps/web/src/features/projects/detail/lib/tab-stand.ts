@@ -84,7 +84,10 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
     productie:
       p.productieOrders.length === 0
         ? 'leeg'
-        : productieAf(p.productieOrders)
+        : // Nog vrij te geven: dat vraagt iets van een mens op kantoor.
+          p.productieOrders.some((o) => o.status === 'voorbereiding')
+          ? 'aandacht'
+          : productieAf(p.productieOrders)
           ? 'gereed'
           : wachtOpMateriaal(p)
             ? 'wacht'

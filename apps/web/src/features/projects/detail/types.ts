@@ -34,6 +34,8 @@ export interface ActieVM {
   label: string
   kan: boolean
   reden?: string
+  /** Keuzes onder het pijltje naast de knop (splitsknop), bijvoorbeeld "Alles vrijgeven". */
+  menu?: { label: string }[]
 }
 
 export interface TerugVM {

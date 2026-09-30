@@ -142,7 +142,7 @@ export function ObRegels({
                             onClick={() => onNaarOrder(o.id)}
                           >
                             {o.id}
-                            {o.status === 'gestopt' ? ' · gestopt' : ''}
+                            {o.status === 'gestopt' ? ' · gestopt' : o.status === 'voorbereiding' ? ' · voorbereiding' : ''}
                           </button>
                         ))}
                   </span>
