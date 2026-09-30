@@ -9,6 +9,8 @@ const BRON =
 
 function orderPill(o: ProductieOrder) {
   if (o.status === 'gereed') return { tekst: 'Gereed', kleur: 'ok' }
+  // Van de opdracht gehaald terwijl er al aan gewerkt was: zichtbaar, niet meer in de wachtrij.
+  if (o.status === 'gestopt') return { tekst: 'Gestopt', kleur: 'dgr' }
   if (o.status === 'in_productie') return { tekst: 'In productie', kleur: 'accent' }
   return { tekst: 'Gepland', kleur: '' }
 }

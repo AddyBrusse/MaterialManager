@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import type { OfferteRegel, Project, ProjectVoortgang, Todo } from '@stockmanager/shared'
+import { waarschuwingBijWijziging, type OfferteRegel, type OpdrachtWijziging, type Project, type ProjectVoortgang, type Todo } from '@stockmanager/shared'
+import { ArtikelPickerModal } from '../../../../components/projecten/ArtikelPickerModal'
+import { BevestigModal } from '../components/BevestigModal'
 import type { ZaagReservation } from '../../../../api/reservations'
 import { MateriaalSelectieModal } from '../../../../components/materiaal/MateriaalSelectieModal'
-import { Card } from '../components/Card'
-import { geaccepteerdeOfferte } from '../lib/status'
 import { ObKaart } from './opdracht/ObKaart'
 import { ObRegels } from './opdracht/ObRegels'
 import { useObDocument } from './opdracht/useObDocument'
+import { GeenOpdracht, type GeenOpdrachtActies } from './opdracht/GeenOpdracht'
 
 interface Props {
   project: Project
@@ -14,10 +15,11 @@ interface Props {
   todos: Todo[]
   reserveringen: ZaagReservation[]
   geblokkeerd: boolean
-  onAanmaken: () => void
+  geenOpdracht: GeenOpdrachtActies
   onVerstuurd: (naar: string | null) => void
   onZetOB: (patch: { notities?: string; opdrachtRef?: string | null; levertijdDatum?: string | null }) => void
   onNaarTab: (tab: 'offertes' | 'productie' | 'reserveringen') => void
+  onWijzig: (w: OpdrachtWijziging) => Promise<boolean>
 }
 
 /**
@@ -27,32 +29,20 @@ interface Props {
 export function OpdrachtTab(props: Props) {
   const { project: p, geblokkeerd } = props
   const [kies, setKies] = useState<OfferteRegel | null>(null)
+  const [picker, setPicker] = useState(false)
+  const [bevestig, setBevestig] = useState<{ w: OpdrachtWijziging; tekst: string } | null>(null)
   const doc = useObDocument(p, props.onVerstuurd)
   const ob = p.opdrachtbevestiging
 
-  if (!ob) {
-    // De lege staat komt in PR B (accepteren vanaf hier, directe opdracht).
-    const acc = geaccepteerdeOfferte(p)
-    return (
-      <Card
-        titel="Opdrachtbevestiging"
-        acties={
-          <button
-            type="button"
-            className={`pdv2-btn s ${acc ? 'primair' : ''}`}
-            onClick={props.onAanmaken}
-            disabled={!acc || geblokkeerd}
-          >
-            Opdracht aanmaken
-          </button>
-        }
-      >
-        <div className="pdv2-empty">
-          Ontstaat zodra de klant een offerte accepteert. Dan bevriezen de regels, kies je per
-          regel het materiaal en worden de productieorders met hun stappen aangemaakt.
-        </div>
-      </Card>
-    )
+  if (!ob) return <GeenOpdracht project={p} geblokkeerd={geblokkeerd} {...props.geenOpdracht} />
+
+  // Principe van 2026-09-28: niets blokkeren, maar zeggen wat er al gebeurd is.
+  // Is er iets om te melden (al gemaakt, geleverd, gefactureerd) — of haal je
+  // een regel weg — dan eerst die zin en een bevestiging; anders meteen doen.
+  const wijzig = (w: OpdrachtWijziging) => {
+    const tekst = waarschuwingBijWijziging(p, w)
+    if (tekst) setBevestig({ w, tekst })
+    else void props.onWijzig(w)
   }
 
   // Een openstaande todo voor deze regel wordt afgevinkt als het materiaal
@@ -79,7 +69,36 @@ export function OpdrachtTab(props: Props) {
         onKiesMateriaal={setKies}
         onNaarReserveringen={() => props.onNaarTab('reserveringen')}
         onNaarOrder={() => props.onNaarTab('productie')}
+        onWijzig={wijzig}
+        onToevoegen={() => setPicker(true)}
       />
+      {picker && (
+        <ArtikelPickerModal
+          opened
+          projectId={p.id}
+          offerteId={ob.offerteId}
+          relatieId={p.relatieId}
+          titel="Regels toevoegen aan de opdracht"
+          onClose={() => setPicker(false)}
+          onAdded={() => {}}
+          onVoegToe={(regels) => void props.onWijzig({ soort: 'erbij', regels })}
+        />
+      )}
+      {bevestig && (
+        <BevestigModal
+          titel={bevestig.w.soort === 'weg' ? 'Regel van de opdracht halen?' : 'Toch wijzigen?'}
+          knop={bevestig.w.soort === 'weg' ? 'Van de opdracht halen' : 'Ja, wijzig'}
+          gevaar={bevestig.w.soort === 'weg'}
+          onSluit={() => setBevestig(null)}
+          onBevestig={() => {
+            void props.onWijzig(bevestig.w)
+            setBevestig(null)
+          }}
+        >
+          <p>{bevestig.tekst}</p>
+          <p>De offerte blijft zoals hij was; de wijziging komt in het logboek van de opdracht.</p>
+        </BevestigModal>
+      )}
       {doc.dialoog}
       {kies && kies.artikelId && (
         <MateriaalSelectieModal

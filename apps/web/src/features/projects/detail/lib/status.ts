@@ -74,6 +74,9 @@ export function primaireActie(p: Project, v: ProjectVoortgang): ActieVM {
       // vullen en versturen.
       const concept = p.offertes.find((o) => o.status === 'concept')
       if (!concept) return { label: 'Offerte maken', kan: true }
+      // Een directe opdracht wordt niet verstuurd: de volgende stap is hem
+      // afmaken op de Opdracht-tab.
+      if (concept.direct) return { label: 'Opdracht maken', kan: true }
       return {
         label: 'Offerte versturen',
         kan: concept.regels.length > 0,

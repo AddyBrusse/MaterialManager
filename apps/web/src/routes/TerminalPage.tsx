@@ -139,6 +139,8 @@ export function TerminalPage() {
     }[] = []
     for (const p of projecten ?? []) {
       for (const o of p.productieOrders ?? []) {
+        // Van de opdracht gehaald (2026-09-28): niet meer op de werkvloer.
+        if (o.status === 'gestopt') continue
         const stappen = o.stappen ?? []
         stappen.forEach((s, i) => {
           if (s.gereedOp) return

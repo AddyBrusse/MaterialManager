@@ -58,6 +58,8 @@ export function kopieerOfferte(
     regels,
     notities: bron.notities,
     externeRef: bron.externeRef ?? null,
+    direct: false,
+    vervallenDoor: null,
     geldigTot: null,
     verzondenOp: null,
     geaccepteerdOp: null,

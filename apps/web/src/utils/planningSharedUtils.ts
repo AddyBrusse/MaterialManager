@@ -126,6 +126,7 @@ export function buildStapItems(
   for (const project of projects) {
     if (!teltMeeInPlanning(project)) continue
     for (const order of project.productieOrders) {
+      if (order.status === 'gestopt') continue
       if (order.status === 'gereed' && !opts.includeDone) continue
       for (const stap of order.stappen) {
         if (stap.gereedOp && !opts.includeDone) continue
@@ -242,7 +243,7 @@ export function berekenGhostBelasting(
     }
 
     for (const order of project.productieOrders) {
-      if (order.status === 'gereed') continue
+      if (order.status === 'gereed' || order.status === 'gestopt') continue
       for (const stap of order.stappen) {
         if (stap.geplandDatum != null || stap.gereedOp) continue
         const { min } = berekenStapMin(stap, order, articles)

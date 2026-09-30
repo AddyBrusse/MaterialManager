@@ -9,7 +9,7 @@ import { ArtikelCel, MargeCel, TekeningCel, VoorbeeldCel } from './OfferteRegelC
  * van het veld, niet bij elke toetsaanslag: anders gaat er per cijfer een
  * verzoek naar de server en telt een half ingetypt getal als de nieuwe waarde.
  */
-function CelGetal({
+export function CelGetal({
   waarde,
   decimalen = 0,
   onKlaar,
