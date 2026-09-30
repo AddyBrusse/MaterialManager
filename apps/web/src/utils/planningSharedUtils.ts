@@ -126,7 +126,9 @@ export function buildStapItems(
   for (const project of projects) {
     if (!teltMeeInPlanning(project)) continue
     for (const order of project.productieOrders) {
-      if (order.status === 'gestopt') continue
+      // Gestopt of nog in voorbereiding (niet vrijgegeven, 2026-09-30): niet op
+      // het bord. De Prognose telt voorbereiding wél mee — dat werk komt.
+      if (order.status === 'gestopt' || order.status === 'voorbereiding') continue
       if (order.status === 'gereed' && !opts.includeDone) continue
       for (const stap of order.stappen) {
         if (stap.gereedOp && !opts.includeDone) continue

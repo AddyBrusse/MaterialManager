@@ -11,10 +11,13 @@ export type ProjectStatus = typeof PROJECT_STATUSES[number]
 export const OFFERTE_STATUSES = ['concept', 'verzonden', 'geaccepteerd', 'vervallen'] as const
 export type OfferteStatus = typeof OFFERTE_STATUSES[number]
 
+// `voorbereiding`: geaccepteerd, maar nog niet vrijgegeven voor de hal
+// (besloten 2026-09-30, zie calc/vrijgeven.ts). Niet in wachtrij, planning of
+// terminal.
 // `gestopt`: de regel is uit de opdracht gehaald terwijl er al aan gewerkt
 // was (besloten 2026-09-28). De order blijft zichtbaar met wat er gemaakt is,
 // maar staat niet meer in de wachtrij van de werkvloer.
-export const PRODUCTIE_ORDER_STATUSES = ['gepland', 'in_productie', 'gereed', 'gestopt'] as const
+export const PRODUCTIE_ORDER_STATUSES = ['voorbereiding', 'gepland', 'in_productie', 'gereed', 'gestopt'] as const
 export type ProductieOrderStatus = typeof PRODUCTIE_ORDER_STATUSES[number]
 
 // ── Productie stap ────────────────────────────────────────────────────────────

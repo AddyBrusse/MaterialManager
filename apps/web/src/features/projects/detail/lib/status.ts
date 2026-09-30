@@ -143,14 +143,17 @@ export function terugActie(p: Project): TerugVM | null {
       }
       return { label: 'Terugdraaien naar Offerte', naar: 'offerte', blokkades, gevolgen }
 
-    case 'productie':
-      gevolgen.push('De productieorders vervallen.')
+    case 'productie': {
+      gevolgen.push('De orders gaan terug naar voorbereiding: weg uit de wachtrij, de planning en de terminal.')
       if (gereed > 0) {
         blokkades.push(
           `${gereed} ${gereed === 1 ? 'stap is' : 'stappen zijn'} al afgevinkt.`,
         )
       }
+      const stuks = p.productieOrders.reduce((n, o) => n + o.aantalGereed, 0)
+      if (stuks > 0) blokkades.push(`Er zijn al ${stuks} stuks gereedgemeld.`)
       return { label: 'Terugdraaien naar Bevestigd', naar: 'bevestigd', blokkades, gevolgen }
+    }
 
     case 'paklijst':
       gevolgen.push('De paklijst vervalt.')

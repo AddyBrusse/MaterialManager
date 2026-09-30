@@ -15,7 +15,7 @@
  */
 
 import type { Project, ProjectVoortgang } from '@stockmanager/shared'
-import { laatsteFactuur, laatstePaklijst, obInhoud, obWijzigingen } from '@stockmanager/shared'
+import { laatsteFactuur, laatstePaklijst, obInhoud, obWijzigingen, waarschuwingenBijVrijgeven } from '@stockmanager/shared'
 import type { ActieVM, TabId } from '../types'
 import { faseLabel, geaccepteerdeOfferte, stapTelling, teAccepteren } from './status'
 
@@ -30,19 +30,30 @@ export type Stap =
   | { soort: 'factuur-versturen'; factuurId: string }
   | { soort: 'hervatten' }
   | { soort: 'naar'; tab: TabId }
+  /** `waarschuwingen` eerst tonen en laten bevestigen; leeg = meteen doen. */
+  | { soort: 'vrijgeven'; orderIds: string[]; waarschuwingen: string[] }
 
-/** `stap` is wat de knop doet; `null` als hij uit staat (dan zegt `reden` waarom). */
-export type TabActie = ActieVM & { stap: Stap | null }
+/**
+ * `stap` is wat de knop doet; `null` als hij uit staat (dan zegt `reden` waarom).
+ * `menu` maakt er een splitsknop van: de keuzes onder het pijltje.
+ */
+export type TabActie = ActieVM & { stap: Stap | null; menu?: { label: string; stap: Stap }[] }
+
+/** Wat de pagina weet en het project niet: wat er open of aangevinkt staat. */
+export interface TabKeuze {
+  /** De opengeklapte versie op de Offertes-tab. */
+  openVersie: string | null
+  /** De aangevinkte orders in voorbereiding op de Productie-tab. */
+  gekozenOrders: string[]
+  /** Regel-id's met een open todo "materiaal kiezen" — todo's zitten niet in het project. */
+  regelsZonderMateriaal: string[]
+}
 
 const kan = (label: string, stap: Stap): TabActie => ({ label, kan: true, stap })
 const uit = (label: string, reden: string): TabActie => ({ label, kan: false, reden, stap: null })
 
-export function tabActie(
-  p: Project,
-  v: ProjectVoortgang,
-  tab: TabId,
-  openVersie: string | null,
-): TabActie | null {
+export function tabActie(p: Project, v: ProjectVoortgang, tab: TabId, keuze: TabKeuze): TabActie | null {
+  const { openVersie } = keuze
   // Een stilgelegd project heeft maar één stap vooruit, op welke tab je ook staat.
   if (p.status === 'on_hold' || p.status === 'geannuleerd') {
     const woord = p.status === 'on_hold' ? 'hervatten' : 'heropenen'
@@ -54,7 +65,7 @@ export function tabActie(
     case 'opdracht':
       return opdrachtActie(p, openVersie)
     case 'productie':
-      return productieActie(p, v)
+      return vrijgevenActie(p, keuze) ?? productieActie(p, v)
     case 'documenten':
       return documentenActie(p, v)
     default:
@@ -111,6 +122,11 @@ function opdrachtActie(p: Project, openVersie: string | null): TabActie {
   }
   if (!ob.verzondenOp) return kan('Opdracht versturen', { soort: 'opdracht-versturen' })
   if (opdrachtGewijzigd(p)) return kan('Opdracht opnieuw versturen', { soort: 'opdracht-versturen' })
+  // Staat er nog iets in voorbereiding, dan is de volgende stap het vrijgeven —
+  // dat gebeurt op de Productie-tab, waar je kiest wélke orders.
+  if (p.productieOrders.some((o) => o.status === 'voorbereiding')) {
+    return kan('In productie geven', { soort: 'naar', tab: 'productie' })
+  }
   return kan('Naar productie', { soort: 'naar', tab: 'productie' })
 }
 
@@ -120,6 +136,28 @@ export function opdrachtGewijzigd(p: Project): boolean {
   const laatste = log[log.length - 1]
   const nu = obInhoud(p)
   return Boolean(laatste && nu && obWijzigingen(laatste.inhoud, nu).length > 0)
+}
+
+/**
+ * Orders in voorbereiding: de knop geeft de aangevinkte vrij ("4/10
+ * vrijgeven"), het pijltje ernaast alles. `null` als er niets in voorbereiding
+ * staat — dan is de paklijst weer de volgende stap.
+ */
+function vrijgevenActie(p: Project, keuze: TabKeuze): TabActie | null {
+  const wachtend = p.productieOrders.filter((o) => o.status === 'voorbereiding')
+  if (wachtend.length === 0) return null
+  const gekozen = wachtend.filter((o) => keuze.gekozenOrders.includes(o.id))
+  const stap = (orders: typeof wachtend): Stap => {
+    const namen = orders
+      .filter((o) => keuze.regelsZonderMateriaal.includes(o.offerteRegelId))
+      .map((o) => o.artikelNaam)
+    return { soort: 'vrijgeven', orderIds: orders.map((o) => o.id), waarschuwingen: waarschuwingenBijVrijgeven(p, namen) }
+  }
+  const label = `${gekozen.length}/${wachtend.length} vrijgeven`
+  const menu = [{ label: 'Alles vrijgeven', stap: stap(wachtend) }]
+  return gekozen.length === 0
+    ? { label, kan: false, reden: 'Vink aan welke orders in productie mogen.', stap: null, menu }
+    : { label, kan: true, stap: stap(gekozen), menu }
 }
 
 /**

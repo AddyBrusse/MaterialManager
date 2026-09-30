@@ -7,8 +7,8 @@ import type { TabId } from '../../types'
 
 /** De echte rekenkern erbij, zodat de test niet met een verzonnen voortgang
  *  test wat het scherm met de echte doet. */
-const actie = (p: Project, tab: TabId = 'productie', open: string | null = null) =>
-  tabActie(p, berekenVoortgang(p), tab, open)!
+const actie = (p: Project, tab: TabId = 'productie', open: string | null = null, gekozenOrders: string[] = []) =>
+  tabActie(p, berekenVoortgang(p), tab, { openVersie: open, gekozenOrders, regelsZonderMateriaal: [] })!
 
 function stap(over: Partial<ProductieStap> = {}): ProductieStap {
   return {
@@ -345,7 +345,7 @@ describe('tabActie: per tab een eigen knop', () => {
   it('tabs zonder eigen document hebben geen knop', () => {
     const p = project({ status: 'productie', offertes: [geaccepteerd] })
     for (const tab of ['algemeen', 'nacalculatie', 'financieel', 'reserveringen', 'aandacht'] as const) {
-      expect(tabActie(p, berekenVoortgang(p), tab, null)).toBeNull()
+      expect(tabActie(p, berekenVoortgang(p), tab, { openVersie: null, gekozenOrders: [], regelsZonderMateriaal: [] })).toBeNull()
     }
   })
 })
@@ -355,5 +355,47 @@ describe('productieAf', () => {
     expect(productieAf([order([stap()], { status: 'gereed', aantalGereed: 10 })])).toBe(true)
     expect(productieAf([order([stap()])])).toBe(false)
     expect(productieAf([])).toBe(false)
+  })
+})
+
+// 2026-09-30: orders beginnen in voorbereiding; kantoor geeft ze vrij.
+describe('tabActie: vrijgeven', () => {
+  const vb = (id: string, over: Partial<ProductieOrder> = {}) => order([stap()], { id, status: 'voorbereiding', offerteRegelId: `r-${id}`, artikelNaam: `Art ${id}`, ...over })
+
+  it('telt de aangevinkte orders in het label, en biedt "Alles vrijgeven" onder het pijltje', () => {
+    const p = project({ status: 'bevestigd', productieOrders: [vb('P1'), vb('P2'), vb('P3')] })
+    const uit = actie(p, 'productie', null, ['P1', 'P3'])
+    expect(uit).toMatchObject({ label: '2/3 vrijgeven', kan: true, stap: { soort: 'vrijgeven', orderIds: ['P1', 'P3'] } })
+    expect(uit.menu?.[0]).toMatchObject({ label: 'Alles vrijgeven', stap: { orderIds: ['P1', 'P2', 'P3'] } })
+  })
+
+  it('niets aangevinkt: knop uit met de reden, het pijltje blijft', () => {
+    const uit = actie(project({ status: 'bevestigd', productieOrders: [vb('P1')] }), 'productie', null, [])
+    expect(uit).toMatchObject({ label: '0/1 vrijgeven', kan: false, reden: 'Vink aan welke orders in productie mogen.' })
+    expect(uit.menu).toHaveLength(1)
+  })
+
+  it('geeft de waarschuwingen mee: opdracht niet verstuurd, materiaal niet gekozen', () => {
+    const p = project({ status: 'bevestigd', productieOrders: [vb('P1'), vb('P2')] })
+    const uit = tabActie(p, berekenVoortgang(p), 'productie', { openVersie: null, gekozenOrders: ['P1', 'P2'], regelsZonderMateriaal: ['r-P2'] })!
+    expect(uit.stap).toMatchObject({
+      soort: 'vrijgeven',
+      waarschuwingen: ['De opdrachtbevestiging is nog niet naar de klant verstuurd.', 'Voor "Art P2" is nog geen materiaal gekozen.'],
+    })
+  })
+
+  it('Opdracht-tab: na versturen "In productie geven" zolang er iets in voorbereiding staat', () => {
+    const inhoud = { levertijd: null, opdrachtRef: null, notities: '', regels: [] }
+    const p = project({
+      status: 'bevestigd',
+      productieOrders: [vb('P1')],
+      opdrachtbevestiging: {
+        id: 'OB-1', projectId: 'PRJ-2026-001', offerteId: 'OFF-1', regels: [], levertijdDatum: null, notities: '',
+        opdrachtRef: null, status: 'verzonden', verzondenOp: '2026-09-04T10:00:00Z',
+        verzendingen: [{ op: '2026-09-04T10:00:00Z', door: 'Addy', naar: null, inhoud }], wijzigingen: [],
+        createdAt: '2026-09-03T10:00:00Z', updatedAt: '2026-09-03T10:00:00Z',
+      },
+    })
+    expect(actie(p, 'opdracht')).toMatchObject({ label: 'In productie geven', stap: { soort: 'naar', tab: 'productie' } })
   })
 })

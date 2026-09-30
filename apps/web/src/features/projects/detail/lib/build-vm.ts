@@ -55,7 +55,9 @@ function faseHerkomst(p: Project): string {
       return o ? `door acceptatie ${o.id}` : ''
     }
     case 'productie':
-      return 'door de eerste gereedmelding'
+      // Sinds 2026-09-30 door vrijgeven; een afmelding op een order in
+      // voorbereiding geeft hem ook vrij, dus dit dekt beide.
+      return 'door vrijgave aan de hal'
     case 'paklijst':
     case 'verzonden': {
       const pl = laatstePaklijst(p)
@@ -205,6 +207,7 @@ export function bouwTabBadges(
     p.facturen.length > 0 ? p.facturen[0] : null,
   ].filter(Boolean).length
   const afw = nacalc?.verschilPct ?? null
+  const voorbereiding = p.productieOrders.filter((o) => o.status === 'voorbereiding').length
 
   return {
     algemeen: null,
@@ -225,7 +228,10 @@ export function bouwTabBadges(
     productie:
       p.productieOrders.length === 0
         ? { tekst: 'geen' }
-        : productieAf(p.productieOrders)
+        : voorbereiding > 0
+          ? // Kantoor moet nog vrijgeven (2026-09-30): dat is de volgende stap hier.
+            { tekst: `${voorbereiding} vrij te geven`, kleur: 'warn' }
+          : productieAf(p.productieOrders)
           ? // Stuks gereedgemeld zonder elke stap af te vinken: "0 van 1 ✓" zou liegen.
             { tekst: totaal > 0 && gereed === totaal ? `${totaal} van ${totaal} ✓` : 'gereed ✓', kleur: 'ok' }
           : { tekst: `${gereed} van ${totaal}`, kleur: 'accent' },

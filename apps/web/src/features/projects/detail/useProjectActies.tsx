@@ -7,6 +7,7 @@ import {
   volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
   waaromNietVerwijderen, waaromNietIntrekken, waaromNietVersturenOB,
+  waaromNietVrijgeven, waaromNietTerugNaarVoorbereiding,
 } from '@stockmanager/shared'
 import { projectsApi, wachtOpOpslag } from '../../../api/projects'
 import { meldFout } from '../../../utils/fout-melding-toon'
@@ -15,6 +16,7 @@ import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
 import { AccepteerVenster } from './components/AccepteerVenster'
+import { BevestigModal } from './components/BevestigModal'
 import type { Stap } from './lib/tab-actie'
 import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
 import { ApiFout } from '../../../api/client'
@@ -49,6 +51,7 @@ export interface ProjectActies {
   /** De queries opnieuw laten lezen, voor onderdelen die zelf schrijven. */
   ververs: () => void
   voerUit: (stap: Stap) => void
+  terugNaarVoorbereiding: (orderId: string) => void
   onHold: () => void
   annuleer: () => void
   terug: () => void
@@ -94,6 +97,8 @@ export function useProjectActies(
   const navigate = useNavigate()
   const gebruiker = useUserStore((s) => s.user)
   const [vraag, setVraag] = useState<Vraag | null>(null)
+  // Vrijgeven met waarschuwingen: eerst de zinnen, dan pas doen (principe 2026-09-28).
+  const [vrijMetVraag, setVrijMetVraag] = useState<{ orderIds: string[]; waarschuwingen: string[] } | null>(null)
   const [teAccepteren, setTeAccepteren] = useState<string | null>(null)
 
   const ververs = useCallback(() => {
@@ -143,6 +148,7 @@ export function useProjectActies(
     dialoog: null,
     ververs,
     voerUit: () => {},
+    terugNaarVoorbereiding: () => {},
     onHold: () => {},
     annuleer: () => {},
     terug: () => {},
@@ -278,7 +284,23 @@ export function useProjectActies(
         )
       case 'hervatten':
         return doe('Project hervatten', 'Project hervat', () => projectsApi.hervatProject(id))
+      case 'vrijgeven':
+        if (stap.waarschuwingen.length > 0) return setVrijMetVraag(stap)
+        return vrijgevenNu(stap.orderIds)
     }
+  }
+
+  const vrijgevenNu = (orderIds: string[]) => {
+    setVrijMetVraag(null)
+    const n = orderIds.length
+    doe(
+      `${n} ${n === 1 ? 'order' : 'orders'} in productie geven`,
+      `${n} ${n === 1 ? 'order' : 'orders'} vrijgegeven — nu in de wachtrij, de planning en op de terminal`,
+      () => {
+        eis(waaromNietVrijgeven(project, orderIds))
+        projectsApi.vrijgeven(id, orderIds)
+      },
+    )
   }
 
   // Eerst het venster met de opdrachtreferentie; de handeling zelf gebeurt
@@ -317,7 +339,19 @@ export function useProjectActies(
   const accOfferte = teAccepteren ? project.offertes.find((x) => x.id === teAccepteren) : undefined
 
   return {
-    dialoog: accOfferte ? (
+    dialoog: vrijMetVraag ? (
+      <BevestigModal
+        titel={`${vrijMetVraag.orderIds.length} ${vrijMetVraag.orderIds.length === 1 ? 'order' : 'orders'} in productie geven?`}
+        knop="Toch vrijgeven"
+        onSluit={() => setVrijMetVraag(null)}
+        onBevestig={() => vrijgevenNu(vrijMetVraag.orderIds)}
+      >
+        {vrijMetVraag.waarschuwingen.map((w) => (
+          <p key={w}>{w}</p>
+        ))}
+        <p>Vrijgegeven orders staan meteen in de wachtrij, de planning en op de terminal.</p>
+      </BevestigModal>
+    ) : accOfferte ? (
       <AccepteerVenster
         offerte={accOfferte}
         start={project.klantRef ?? ''}
@@ -340,6 +374,11 @@ export function useProjectActies(
     ) : null,
     ververs,
     voerUit,
+    terugNaarVoorbereiding: (orderId) =>
+      doe(`${orderId} terug naar voorbereiding`, `${orderId} staat weer in voorbereiding — uit de wachtrij en de planning`, () => {
+        eis(waaromNietTerugNaarVoorbereiding(project, [orderId]))
+        projectsApi.terugNaarVoorbereiding(id, [orderId])
+      }),
     onHold: () => stop('on_hold'),
     annuleer: () => stop('geannuleerd'),
     terug,

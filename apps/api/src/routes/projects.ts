@@ -10,6 +10,8 @@ import {
   type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
   berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie,
+  isVrijgegeven, orderStatusNaStappen, vrijgeven, terugNaarVoorbereiding,
+  waaromNietVrijgeven, waaromNietTerugNaarVoorbereiding,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
@@ -99,7 +101,9 @@ function orderVoorRegel(p: Project, regel: OfferteRegel, qty: number, id: string
       gereedOp: null,
       gereedDoor: null,
     })),
-    status: 'gepland' as const,
+    // Eerst voorbereiding: kantoor geeft vrij wanneer het de hal in mag
+    // (calc/vrijgeven.ts). Ook een regel die later bij de opdracht komt.
+    status: 'voorbereiding' as const,
     createdAt: now(),
     updatedAt: now(),
   }
@@ -852,11 +856,8 @@ router.post(
             ? { ...s, gereedOp: now(), gereedDoor: userName }
             : s,
         )
-        const allDone = stappen.every(s => s.gereedOp)
-        const anyDone = stappen.some(s => s.gereedOp)
-        // Een gestopte order blijft gestopt: afvinken maakt hem niet weer lopend.
-        const status: ProductieOrder['status'] = o.status === 'gestopt' ? 'gestopt' : allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
-        return { ...o, stappen, status, updatedAt: now() }
+        // Gestopt blijft gestopt; afvinken op een order in voorbereiding geeft hem vrij.
+        return { ...o, stappen, status: orderStatusNaStappen(o, stappen), updatedAt: now() }
       })
       const status = p.status === 'bevestigd' ? 'productie' : p.status
       return { ...p, productieOrders, status, updatedAt: now() }
@@ -874,11 +875,8 @@ router.post(
         const stappen = o.stappen.map(s =>
           s.id === req.params.stapId ? { ...s, gereedOp: null, gereedDoor: null } : s,
         )
-        const allDone = stappen.every(s => s.gereedOp)
-        const anyDone = stappen.some(s => s.gereedOp)
-        // Een gestopte order blijft gestopt: afvinken maakt hem niet weer lopend.
-        const status: ProductieOrder['status'] = o.status === 'gestopt' ? 'gestopt' : allDone ? 'gereed' : anyDone ? 'in_productie' : 'gepland'
-        return { ...o, stappen, status, updatedAt: now() }
+        // Gestopt blijft gestopt; afvinken op een order in voorbereiding geeft hem vrij.
+        return { ...o, stappen, status: orderStatusNaStappen(o, stappen), updatedAt: now() }
       })
       return { ...p, productieOrders, updatedAt: now() }
     })
@@ -1341,24 +1339,50 @@ router.post(
   }),
 )
 
-// Productie → Bevestigd
-// Blocked if any order is marked gereed.
+const OrderIdsSchema = z.object({
+  orderIds: z.array(z.string()).min(1, 'Kies minstens één order'),
+})
+
+/** Orders in de hal zetten (calc/vrijgeven.ts). Waarschuwen doet het scherm. */
+router.post(
+  '/:id/orders/vrijgeven',
+  asyncHandler(async (req, res) => {
+    const { orderIds } = OrderIdsSchema.parse(req.body ?? {})
+    const updated = await withProject(req.params.id, (p) => {
+      const reden = waaromNietVrijgeven(p, orderIds)
+      if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+      return vrijgeven(p, orderIds, now())
+    })
+    res.json({ data: updated })
+  }),
+)
+
+/** Vrijgegeven orders uit de hal halen, zolang er niet aan gewerkt is. */
+router.post(
+  '/:id/orders/terug-naar-voorbereiding',
+  asyncHandler(async (req, res) => {
+    const { orderIds } = OrderIdsSchema.parse(req.body ?? {})
+    const updated = await withProject(req.params.id, (p) => {
+      const reden = waaromNietTerugNaarVoorbereiding(p, orderIds)
+      if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+      return terugNaarVoorbereiding(p, orderIds, now())
+    })
+    res.json({ data: updated })
+  }),
+)
+
+// Productie → Bevestigd: alles wat vrij is terug naar voorbereiding.
+// Eerder zette dit de orders op gepland en wiste het stilletjes de afgevinkte
+// stappen; nu weigert het zodra er aan een order gewerkt is (2026-09-30).
 router.post(
   '/:id/revert/productie',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       if (p.status !== 'productie') throw new AppError(409, 'VOORWAARDE', 'Kan niet terug: het project is niet in productie.')
-      const hasGereed = p.productieOrders.some(o => o.status === 'gereed')
-      if (hasGereed) {
-        throw new AppError(409, 'VOORWAARDE', 'Kan niet terug: er zijn al orders gereedgemeld. Trek die gereedmeldingen eerst in op de Productie-tab.')
-      }
-      const productieOrders = p.productieOrders.map(o => ({
-        ...o,
-        status: 'gepland' as const,
-        stappen: o.stappen.map(s => ({ ...s, gereedOp: null, gereedDoor: null })),
-        updatedAt: now(),
-      }))
-      return { ...p, status: 'bevestigd', productieOrders, updatedAt: now() }
+      const ids = p.productieOrders.filter(isVrijgegeven).map(o => o.id)
+      const reden = waaromNietTerugNaarVoorbereiding(p, ids)
+      if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+      return { ...terugNaarVoorbereiding(p, ids, now()), status: 'bevestigd' }
     })
     res.json({ data: updated })
   }),
