@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { notifications } from '@mantine/notifications'
 import type { OpdrachtWijziging, Project } from '@stockmanager/shared'
 import {
-  laatsteFactuur, laatstePaklijst, volgendeVersie,
+  volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
   waaromNietVerwijderen, waaromNietIntrekken, waaromNietVersturenOB,
 } from '@stockmanager/shared'
@@ -15,7 +15,7 @@ import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
 import { AccepteerVenster } from './components/AccepteerVenster'
-import { teAccepteren as welkeTeAccepteren } from './lib/status'
+import type { Stap } from './lib/tab-actie'
 import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
 import { ApiFout } from '../../../api/client'
 
@@ -48,7 +48,7 @@ export interface ProjectActies {
   dialoog: ReactNode
   /** De queries opnieuw laten lezen, voor onderdelen die zelf schrijven. */
   ververs: () => void
-  primair: () => void
+  voerUit: (stap: Stap) => void
   onHold: () => void
   annuleer: () => void
   terug: () => void
@@ -89,8 +89,6 @@ export interface ProjectActies {
 export function useProjectActies(
   project: Project | undefined,
   naarTab: (t: string) => void,
-  /** De versie die op de Offertes-tab open staat: de "geselecteerde" voor de footerknop. */
-  openVersie: string | null = null,
 ): ProjectActies {
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -144,7 +142,7 @@ export function useProjectActies(
   const leeg: ProjectActies = {
     dialoog: null,
     ververs,
-    primair: () => {},
+    voerUit: () => {},
     onHold: () => {},
     annuleer: () => {},
     terug: () => {},
@@ -241,58 +239,44 @@ export function useProjectActies(
   }
 
   /**
-   * De primaire actie in de footer. Vooruit betekent soms een keuze die alleen
-   * een mens kan maken — wélke offerte je verstuurt, wélke je accepteert. In
-   * dat geval brengt deze knop je naar de tab waar die keuze staat in plaats
-   * van er zelf een te verzinnen.
+   * Wat de blauwe knop in de footer doet. Welke stap het is, beslist
+   * `tabActie` (lib/tab-actie.ts) — hier alleen het uitvoeren, zodat label en
+   * handeling niet uit elkaar kunnen lopen. Opdracht versturen doet de pagina
+   * zelf: dat loopt via de mail in Outlook (useObDocument).
    */
-  const primair = () => {
-    switch (project.status) {
-      case 'concept': {
-        const concept = project.offertes.find((o) => o.status === 'concept')
-        if (!concept) return doe('Nieuwe offerte aanmaken', 'Nieuwe offerte aangemaakt', () => projectsApi.addOfferte(id))
-        if (concept.direct) return naarTab('opdracht')
-        if (concept.regels.length === 0) return naarTab('offertes')
-        return doe(`Offerte v${concept.versie} versturen`, `Offerte v${concept.versie} verstuurd`, () => {
-          eis(waaromNietVersturen(concept))
-          projectsApi.verzendOfferte(id, concept.id)
+  const voerUit = (stap: Stap) => {
+    switch (stap.soort) {
+      case 'naar':
+        return naarTab(stap.tab)
+      case 'offerte-maken':
+        return doe('Nieuwe offerte aanmaken', 'Nieuwe offerte aangemaakt', () => projectsApi.addOfferte(id))
+      case 'offerte-versturen': {
+        const o = project.offertes.find((x) => x.id === stap.offerteId)
+        return doe(`Offerte v${o?.versie ?? '?'} versturen`, `Offerte v${o?.versie ?? '?'} verstuurd`, () => {
+          eis(waaromNietVersturen(o))
+          projectsApi.verzendOfferte(id, stap.offerteId)
         })
       }
-      case 'offerte': {
-        // Dezelfde keuze als het label in de footer (primaireActie): de enige
-        // verstuurde versie, of de opengeklapte. Weet hij het niet, dan staat
-        // de reden al naast de knop en brengt hij je naar de keuze.
-        const keuze = welkeTeAccepteren(project, openVersie)
-        if (!keuze.offerte) return naarTab('offertes')
-        return accepteer(keuze.offerte.id)
+      case 'offerte-accepteren':
+        return accepteer(stap.offerteId)
+      case 'opdracht-versturen':
+        return
+      case 'paklijst-maken': {
+        const gelukt = doe('Paklijst aanmaken', 'Paklijst aangemaakt van wat klaarligt', () => projectsApi.createPaklijst(id))
+        if (gelukt) naarTab('documenten')
+        return
       }
-      case 'bevestigd':
-        if (!project.opdrachtbevestiging) return naarTab('offertes')
-        // Welke order, welke stap, hoeveel stuks — dat kiest een mens op de
-        // Productie-tab. Deze knop brengt je daarheen in plaats van er zelf
-        // een order uit te pikken.
-        return naarTab('productie')
-      case 'productie':
-        return doe('Paklijst aanmaken', 'Paklijst aangemaakt van wat klaarligt', () => projectsApi.createPaklijst(id))
-      case 'paklijst': {
-        const pl = laatstePaklijst(project)
-        if (!pl) return
-        return doe(`${pl.id} versturen`, `${pl.id} verzonden`, () => projectsApi.verzendPaklijst(id, pl.id))
-      }
-      case 'verzonden':
+      case 'paklijst-versturen':
+        return doe(`${stap.paklijstId} versturen`, `${stap.paklijstId} verzonden`, () =>
+          projectsApi.verzendPaklijst(id, stap.paklijstId),
+        )
+      case 'factuur-maken':
         return doe('Factuur aanmaken', 'Factuur aangemaakt over het geleverde', () => projectsApi.createFactuur(id))
-      case 'gefactureerd': {
-        const f = laatsteFactuur(project)
-        if (f && !f.verzondenOp) {
-          return doe(`${f.id} versturen`, `${f.id} verstuurd`, () => projectsApi.verzendFactuur(id, f.id))
-        }
-        return notifications.show({
-          color: 'blue',
-          message: 'Alles is gefactureerd en verstuurd — dit project is rond.',
-        })
-      }
-      case 'on_hold':
-      case 'geannuleerd':
+      case 'factuur-versturen':
+        return doe(`${stap.factuurId} versturen`, `${stap.factuurId} verstuurd`, () =>
+          projectsApi.verzendFactuur(id, stap.factuurId),
+        )
+      case 'hervatten':
         return doe('Project hervatten', 'Project hervat', () => projectsApi.hervatProject(id))
     }
   }
@@ -355,7 +339,7 @@ export function useProjectActies(
       />
     ) : null,
     ververs,
-    primair,
+    voerUit,
     onHold: () => stop('on_hold'),
     annuleer: () => stop('geannuleerd'),
     terug,

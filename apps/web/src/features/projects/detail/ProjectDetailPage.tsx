@@ -28,7 +28,9 @@ import { AandachtTab } from './tabs/AandachtTab'
 
 import { berekenVoortgang } from '@stockmanager/shared'
 import { useProjectActies } from './useProjectActies'
-import { actiesGeblokkeerd, geldendeOfferte, primaireActie, terugActie } from './lib/status'
+import { actiesGeblokkeerd, geldendeOfferte, terugActie } from './lib/status'
+import { tabActie } from './lib/tab-actie'
+import { useObDocument } from './tabs/opdracht/useObDocument'
 import { bouwAandacht } from './lib/aandacht'
 import { bouwTabStanden } from './lib/tab-stand'
 import {
@@ -159,7 +161,9 @@ export function ProjectDetailPage() {
   const [gekozenVersie, setGekozenVersie] = useState<string | null | undefined>(undefined)
   useEffect(() => setGekozenVersie(undefined), [id])
   const openVersie = gekozenVersie === undefined ? (project ? geldendeOfferte(project)?.id ?? null : null) : gekozenVersie
-  const acties = useProjectActies(project, (t) => kiesTab(t as TabId), openVersie)
+  const acties = useProjectActies(project, (t) => kiesTab(t as TabId))
+  // Op de pagina, niet in de tab: "Opdracht versturen" kan ook vanuit de footer.
+  const obDoc = useObDocument(project, acties.verzendOB)
 
   // Mislukt een opslag, dan zet syncProject het project terug naar wat er op
   // de server staat. Opnieuw lezen maakt dat zichtbaar — ook voor wijzigingen
@@ -217,7 +221,10 @@ export function ProjectDetailPage() {
   const facetten = bouwFacetten(project, relatie, nacalc)
   const reserveringVMs = bouwReserveringen(reserveringen)
   const todoVMs = bouwTodos(projectTodos)
-  const primair = primaireActie(project, voortgang, openVersie)
+  // Per tab een eigen knop (lib/tab-actie.ts); tabs zonder document hebben er geen.
+  const actie = tabActie(project, voortgang, tab, openVersie)
+  // Stilgelegd dicht alles, behalve de stap die het project weer op gang brengt.
+  const actieKan = Boolean(actie?.kan) && (!geblokkeerd || actie?.stap?.soort === 'hervatten')
   const terug = terugActie(project)
   const slot = bouwSlot(holderName, isReadOnly, holderIdle, saveState)
   const aandacht = bouwAandacht({
@@ -310,7 +317,7 @@ export function ProjectDetailPage() {
                 onPrijzen: acties.werkPrijzenBij,
                 onGewijzigd: acties.ververs,
               }}
-              onVerstuurd={acties.verzendOB}
+              doc={obDoc}
               onZetOB={acties.zetOB}
               onNaarTab={kiesTab}
               onWijzig={acties.wijzigOpdracht}
@@ -340,7 +347,8 @@ export function ProjectDetailPage() {
                   ? acties.maakPaklijst()
                   : doc === 'Factuur'
                     ? acties.maakFactuur()
-                    : acties.primair()
+                    : // Offerte en opdracht maak je op hun eigen tab.
+                      kiesTab(doc === 'Opdrachtbevestiging' ? 'opdracht' : 'offertes')
               }
             />
           )}
@@ -348,12 +356,17 @@ export function ProjectDetailPage() {
       </div>
 
       <FooterBar
-        primair={{ ...primair, kan: primair.kan && !geblokkeerd }}
+        primair={actie ? { ...actie, kan: actieKan } : null}
         terug={terug}
-        onPrimair={acties.primair}
+        onPrimair={() => {
+          if (!actie?.stap) return
+          if (actie.stap.soort === 'opdracht-versturen') obDoc.klaarzetten()
+          else acties.voerUit(actie.stap)
+        }}
         onTerug={acties.terug}
       />
       {acties.dialoog}
+      {obDoc.dialoog}
     </div>
   )
 }

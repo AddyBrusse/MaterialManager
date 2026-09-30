@@ -6,7 +6,7 @@ import type { ZaagReservation } from '../../../../api/reservations'
 import { MateriaalSelectieModal } from '../../../../components/materiaal/MateriaalSelectieModal'
 import { ObKaart } from './opdracht/ObKaart'
 import { ObRegels } from './opdracht/ObRegels'
-import { useObDocument } from './opdracht/useObDocument'
+import type { useObDocument } from './opdracht/useObDocument'
 import { GeenOpdracht, type GeenOpdrachtActies } from './opdracht/GeenOpdracht'
 
 interface Props {
@@ -16,7 +16,8 @@ interface Props {
   reserveringen: ZaagReservation[]
   geblokkeerd: boolean
   geenOpdracht: GeenOpdrachtActies
-  onVerstuurd: (naar: string | null) => void
+  /** Openen, pdf en versturen — van de pagina, zodat de footer ook kan versturen. */
+  doc: ReturnType<typeof useObDocument>
   onZetOB: (patch: { notities?: string; opdrachtRef?: string | null; levertijdDatum?: string | null }) => void
   onNaarTab: (tab: 'offertes' | 'productie' | 'reserveringen') => void
   onWijzig: (w: OpdrachtWijziging) => Promise<boolean>
@@ -31,7 +32,7 @@ export function OpdrachtTab(props: Props) {
   const [kies, setKies] = useState<OfferteRegel | null>(null)
   const [picker, setPicker] = useState(false)
   const [bevestig, setBevestig] = useState<{ w: OpdrachtWijziging; tekst: string } | null>(null)
-  const doc = useObDocument(p, props.onVerstuurd)
+  const doc = props.doc
   const ob = p.opdrachtbevestiging
 
   if (!ob) return <GeenOpdracht project={p} geblokkeerd={geblokkeerd} {...props.geenOpdracht} />
@@ -99,7 +100,6 @@ export function OpdrachtTab(props: Props) {
           <p>De offerte blijft zoals hij was; de wijziging komt in het logboek van de opdracht.</p>
         </BevestigModal>
       )}
-      {doc.dialoog}
       {kies && kies.artikelId && (
         <MateriaalSelectieModal
           projectId={p.id}

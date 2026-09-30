@@ -14,7 +14,8 @@ import type { Project } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import type { TabId } from '../types'
 import { dagenTot } from './format'
-import { geaccepteerdeOfferte, geldendeOfferte, stapTelling } from './status'
+import { geaccepteerdeOfferte, geldendeOfferte, productieAf } from './status'
+import { opdrachtGewijzigd } from './tab-actie'
 
 export type TabStand =
   /** Bestaat nog niet. */
@@ -55,7 +56,6 @@ function wachtOpMateriaal(p: Project): boolean {
 
 export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
   const { project: p, nacalc, openTodos, reserveringen, aandacht } = bron
-  const { gereed, totaal } = stapTelling(p.productieOrders)
   const acc = geaccepteerdeOfferte(p)
   const geldend = geldendeOfferte(p)
   const ob = p.opdrachtbevestiging
@@ -75,14 +75,16 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
 
     offertes: p.offertes.length === 0 ? 'leeg' : vervaltBinnenkort ? 'aandacht' : acc ? 'gereed' : 'bezig',
 
-    // Een opdracht met een openstaande materiaaltodo is niet "klaar", ook al is
-    // de OB verstuurd: er moet nog iemand een staaf kiezen.
-    opdracht: !ob ? 'leeg' : openTodos > 0 ? 'aandacht' : ob.verzondenOp ? 'gereed' : 'bezig',
+    // Het tabje zegt of het document de deur uit is (2026-09-30). Een open
+    // materiaal-todo kleurde hem eerder oranje terwijl de klant de opdracht al
+    // had; die todo staat in de Materiaal-kolom en op de Aandacht-tab. Wél
+    // oranje: gewijzigd na versturen — dan heeft de klant een oude stand.
+    opdracht: !ob ? 'leeg' : opdrachtGewijzigd(p) ? 'aandacht' : ob.verzondenOp ? 'gereed' : 'bezig',
 
     productie:
-      totaal === 0
+      p.productieOrders.length === 0
         ? 'leeg'
-        : gereed === totaal
+        : productieAf(p.productieOrders)
           ? 'gereed'
           : wachtOpMateriaal(p)
             ? 'wacht'
@@ -96,8 +98,9 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
           ? 'gereed'
           : 'bezig',
 
+    // Af zodra er een factuur verstuurd is: dan is de route van het project rond.
     documenten:
-      p.facturen.length > 0
+      p.facturen.some((f) => f.soort !== 'credit' && f.verzondenOp)
         ? 'gereed'
         : p.paklijsten.length > 0 || ob
           ? 'bezig'

@@ -6,13 +6,12 @@
  * verstuurd of afgevinkt wordt; de backend leidt `project.status` af en het
  * scherm toont hem alleen.
  *
- * Twee dingen staan hier bij elkaar omdat ze elkaars spiegelbeeld zijn: welke
- * primaire actie er vooruit hoort, en wat één stap terugdraaien weggooit.
+ * Hier staat wat één stap terugdraaien weggooit. Wat de blauwe knop vooruit
+ * doet, hangt sinds 2026-09-30 af van de tab en staat in `tab-actie.ts`.
  */
 
-import type { Offerte, Project, ProductieOrder, ProjectVoortgang } from '@stockmanager/shared'
-import { laatstePaklijst } from '@stockmanager/shared'
-import type { ActieVM, Fase, TerugVM } from '../types'
+import type { Offerte, Project, ProductieOrder } from '@stockmanager/shared'
+import type { Fase, TerugVM } from '../types'
 import { datumKort } from './format'
 
 export function geaccepteerdeOfferte(p: Project) {
@@ -69,7 +68,24 @@ export function ordersGereed(orders: ProductieOrder[]): number {
   return orders.filter((o) => o.stappen.length > 0 && o.stappen.every((s) => s.gereedOp)).length
 }
 
-function faseLabel(f: Fase): string {
+/**
+ * Is alle productie af? Een order telt als af als hij gereedgemeld of gestopt
+ * is, of als al zijn stappen afgevinkt zijn. Alleen stappen tellen gaf "0 van 1"
+ * bij een order waarvan de stuks gereedgemeld waren zonder de stap af te vinken.
+ */
+export function productieAf(orders: ProductieOrder[]): boolean {
+  return (
+    orders.length > 0 &&
+    orders.every(
+      (o) =>
+        o.status === 'gereed' ||
+        o.status === 'gestopt' ||
+        (o.stappen.length > 0 && o.stappen.every((s) => s.gereedOp)),
+    )
+  )
+}
+
+export function faseLabel(f: Fase): string {
   const map: Record<Fase, string> = {
     concept: 'Concept',
     offerte: 'Offerte',
@@ -82,125 +98,6 @@ function faseLabel(f: Fase): string {
     geannuleerd: 'Geannuleerd',
   }
   return map[f]
-}
-
-/**
- * De primaire actie in de footer, mét de reden als hij niet kan. Die reden
- * staat er altíjd naast vóór het klikken — nooit pas in een melding achteraf.
- */
-export function primaireActie(p: Project, v: ProjectVoortgang, openVersie: string | null = null): ActieVM {
-  const { gereed, totaal } = stapTelling(p.productieOrders)
-  const heeftOB = Boolean(p.opdrachtbevestiging)
-
-  switch (p.status) {
-    case 'concept': {
-      // Bestaat er al een concept, dan is nóg een offerte maken niet de
-      // volgende stap maar een tweede lege versie. De stap is dan die versie
-      // vullen en versturen.
-      const concept = p.offertes.find((o) => o.status === 'concept')
-      if (!concept) return { label: 'Offerte maken', kan: true }
-      // Een directe opdracht wordt niet verstuurd: de volgende stap is hem
-      // afmaken op de Opdracht-tab.
-      if (concept.direct) return { label: 'Opdracht maken', kan: true }
-      return {
-        label: 'Offerte versturen',
-        kan: concept.regels.length > 0,
-        reden:
-          concept.regels.length === 0
-            ? `${concept.id} heeft nog geen regels — voeg eerst artikelen toe.`
-            : undefined,
-      }
-    }
-
-    case 'offerte': {
-      // Het label noemt de versie: vóór het klikken zie je wélke het wordt.
-      const keuze = teAccepteren(p, openVersie)
-      return keuze.offerte
-        ? { label: `Offerte v${keuze.offerte.versie} accepteren`, kan: true }
-        : { label: 'Offerte accepteren', kan: false, reden: keuze.reden }
-    }
-
-    case 'bevestigd':
-      if (!heeftOB) {
-        const acc = Boolean(geaccepteerdeOfferte(p))
-        return {
-          label: 'Opdracht aanmaken',
-          kan: acc,
-          reden: acc ? undefined : 'Er is nog geen offerte geaccepteerd.',
-        }
-      }
-      // Niet elk artikel heeft bewerkingen, dus niet elke order heeft stappen.
-      // Vragen om een stap die niet bestaat is een doodlopende knop; met
-      // deelleveringen is het aantal gereed dan de werkelijke volgende stap.
-      if (totaal > 0) return { label: 'Stap afmelden', kan: true }
-      return {
-        label: 'Stuks gereedmelden',
-        kan: p.productieOrders.length > 0,
-        reden:
-          p.productieOrders.length > 0
-            ? undefined
-            : 'Deze opdracht heeft nog geen productieorders.',
-      }
-
-    case 'productie': {
-      // De poort is niet meer "alle stappen gereed" maar "er ligt iets klaar".
-      // Bij deelleveringen gaat de eerste pakbon de deur uit terwijl de rest
-      // nog op de machine staat; wachten tot alles af is zou die manier van
-      // werken juist blokkeren.
-      if (v.klaar > 0) {
-        return { label: `Paklijst maken (${v.klaar} klaar)`, kan: true }
-      }
-      const openStappen = totaal - gereed
-      return {
-        label: 'Paklijst maken',
-        kan: false,
-        reden:
-          v.teMaken > 0
-            ? `Er ligt nog niets klaar om te leveren — ${v.teMaken} nog te maken.`
-            : openStappen > 0
-              ? `${openStappen} van de ${totaal} productiestappen zijn nog niet gereed.`
-              : 'Alles wat gemaakt is, is al geleverd.',
-      }
-    }
-
-    case 'paklijst': {
-      const open = laatstePaklijst(p)
-      return {
-        label: 'Paklijst versturen',
-        kan: Boolean(open && !open.verzondenOp),
-        reden: open && open.verzondenOp ? 'De laatste paklijst is al verzonden.' : undefined,
-      }
-    }
-
-    case 'verzonden': {
-      // Met deelleveringen kan er meer dan één pakbon zijn; factureren mag
-      // zodra er íets geleverd is dat nog niet gefactureerd is.
-      const verzonden = p.paklijsten.some((pl) => pl.verzondenOp)
-      if (!verzonden) {
-        return { label: 'Factureren', kan: false, reden: 'De paklijst is nog niet verzonden.' }
-      }
-      return {
-        label: v.teFactureren > 0 ? `Factureren (${v.teFactureren} stuks)` : 'Factureren',
-        kan: v.teFactureren > 0,
-        reden: v.teFactureren > 0 ? undefined : 'Alles wat geleverd is, is al gefactureerd.',
-      }
-    }
-
-    case 'gefactureerd':
-      return { label: 'Project afsluiten', kan: true }
-
-    case 'on_hold':
-      return {
-        label: `Project hervatten → ${faseLabel(p.statusVorige ?? 'concept')}`,
-        kan: true,
-      }
-
-    case 'geannuleerd':
-      return {
-        label: `Project heropenen → ${faseLabel(p.statusVorige ?? 'concept')}`,
-        kan: true,
-      }
-  }
 }
 
 /** Bij on hold is álles op de pagina dicht behalve hervatten en de zijsporen. */
