@@ -238,7 +238,13 @@ router.post(
   asyncHandler(async (req, res) => {
     const existing = await prisma.mailImport.findUnique({ where: { id: req.params.id } })
     if (!existing) throw new AppError(404, 'NOT_FOUND', 'Mail-import niet gevonden')
-    if (existing.projectId) {
+    // Gekoppeld mét regels: die heeft de offerte al overgenomen, dus opnieuw
+    // uitlezen zou ze weggooien. Gekoppeld zónder regels (het lezen mislukte,
+    // bijvoorbeeld door een verlopen sleutel) heeft niets om kwijt te raken —
+    // en zonder deze uitzondering zat je dan vast: slepen herkent de mail en
+    // leest niet opnieuw, en de melding wees naar deze knop (2026-09-28).
+    const hadRegels = ((existing.kandidaten ?? []) as unknown[]).length > 0
+    if (existing.projectId && hadRegels) {
       throw new AppError(
         409,
         'IN_USE',
@@ -271,7 +277,8 @@ router.post(
         klantRef,
         leverdatum: leverdatum ? new Date(leverdatum) : null,
         // Een genegeerde of mislukte import komt hiermee weer in behandeling.
-        status: 'nieuw',
+        // Een gekoppelde houdt zijn status: die hoort bij het project.
+        status: existing.projectId ? existing.status : 'nieuw',
       },
     })
 

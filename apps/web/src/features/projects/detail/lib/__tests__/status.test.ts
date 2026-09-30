@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Offerte, Project, ProductieOrder, ProductieStap } from '@stockmanager/shared'
 import { berekenVoortgang } from '@stockmanager/shared'
-import { primaireActie, terugActie, stapTelling, ordersGereed, geldendeOfferte } from '../status'
+import { primaireActie, terugActie, stapTelling, ordersGereed, geldendeOfferte, teAccepteren } from '../status'
 
 /** De echte rekenkern erbij, zodat de test niet met een verzonnen voortgang
  *  test wat het scherm met de echte doet. */
@@ -277,5 +277,38 @@ describe('geldendeOfferte', () => {
       ],
     })
     expect(geldendeOfferte(p)?.id).toBe('OFF-2')
+  })
+})
+
+// 2026-09-30: "Offerte accepteren" in de footer bracht je alleen naar de
+// Offertes-tab; stond je daar al, dan gebeurde er niets.
+describe('teAccepteren: welke versie de footerknop accepteert', () => {
+  const v1 = offerte({ id: 'OFF-1', versie: 1, status: 'verzonden' })
+  const v2 = offerte({ id: 'OFF-2', versie: 2, status: 'verzonden' })
+  const v3 = offerte({ id: 'OFF-3', versie: 3, status: 'concept' })
+
+  it('de enige verstuurde versie, ook als er een concept open staat', () => {
+    const p = project({ status: 'offerte', offertes: [v1, v3] })
+    expect(teAccepteren(p, 'OFF-3').offerte?.id).toBe('OFF-1')
+    expect(primaireActie(p, berekenVoortgang(p), 'OFF-3')).toMatchObject({ label: 'Offerte v1 accepteren', kan: true })
+  })
+
+  it('bij meerdere verstuurde versies de opengeklapte', () => {
+    const p = project({ status: 'offerte', offertes: [v1, v2, v3] })
+    expect(teAccepteren(p, 'OFF-1').offerte?.id).toBe('OFF-1')
+    expect(primaireActie(p, berekenVoortgang(p), 'OFF-2').label).toBe('Offerte v2 accepteren')
+  })
+
+  it('verzint er geen als de opengeklapte niet verstuurd is, en zegt wat er moet', () => {
+    const p = project({ status: 'offerte', offertes: [v1, v2, v3] })
+    const uit = primaireActie(p, berekenVoortgang(p), 'OFF-3')
+    expect(uit).toMatchObject({ label: 'Offerte accepteren', kan: false })
+    expect(uit.reden).toContain('2 verstuurde versies (v1, v2)')
+    expect(uit.reden).toContain('klap')
+    expect(teAccepteren(p, null).offerte).toBeUndefined()
+  })
+
+  it('zonder verstuurde versie: niets te accepteren', () => {
+    expect(teAccepteren(project({ status: 'offerte', offertes: [v3] }), 'OFF-3').reden).toBe('Er is nog geen offerte verstuurd.')
   })
 })

@@ -1,6 +1,14 @@
 import { useUserStore } from '../stores/user'
 
 /**
+ * Hoe lang een verzoek mag duren waarin de server het taalmodel aanroept: een
+ * mail slepen of opnieuw uitlezen. Twee lezingen met pdf's erbij duren al snel
+ * een minuut; met de 3 seconden van een gewone JSON-call brak "Opnieuw
+ * uitlezen" altijd af terwijl de server gewoon doorlas (2026-09-28).
+ */
+export const MODEL_TIMEOUT_MS = 120_000
+
+/**
  * Multipart file upload — separate from apiFetch because a FormData body
  * must NOT get a Content-Type header (the browser sets its own multipart
  * boundary), and apiFetch's 3s abort timeout is sized for JSON calls, not
@@ -13,7 +21,7 @@ export async function apiUpload<T>(path: string, file: File): Promise<{ data: T 
   form.append('file', file)
 
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 120_000)
+  const timer = setTimeout(() => controller.abort(), MODEL_TIMEOUT_MS)
 
   let res: Response
   try {
@@ -62,7 +70,8 @@ export class ApiFout extends Error {
 
 export async function apiFetch<T>(
   path: string,
-  options: RequestInit = {}
+  /** `timeoutMs` alleen voor verzoeken die echt lang duren; standaard 3 s. */
+  { timeoutMs = 3000, ...options }: RequestInit & { timeoutMs?: number } = {}
 ): Promise<{ data: T }> {
   const user = useUserStore.getState().user
   const headers: HeadersInit = {
@@ -72,7 +81,7 @@ export async function apiFetch<T>(
   }
 
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 3000)
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   const verzoek = `${(options.method ?? 'GET').toUpperCase()} ${path}`
 
   let res: Response
@@ -83,7 +92,7 @@ export async function apiFetch<T>(
     // verschillende situaties met een verschillende oplossing, dus ook twee
     // verschillende meldingen.
     if (controller.signal.aborted) {
-      throw new ApiFout('De server antwoordde niet binnen 3 seconden', 'TIMEOUT', 0, verzoek)
+      throw new ApiFout(`De server antwoordde niet binnen ${Math.round(timeoutMs / 1000)} seconden`, 'TIMEOUT', 0, verzoek)
     }
     throw new ApiFout(
       'De server is niet bereikbaar — draait de API, en is het netwerk in orde?',

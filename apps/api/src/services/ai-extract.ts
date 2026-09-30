@@ -356,15 +356,35 @@ export function getClient(): Anthropic {
  *
  * De SDK gooit de ruwe JSON van de API mee in `message`; dat is niets waard voor
  * iemand die een offerte zit na te kijken. Wat hij moet weten is of dit iets is
- * dat vanzelf overgaat of dat er een sleutel gezet moet worden.
+ * dat vanzelf overgaat, of wat er eerst moet gebeuren.
+ *
+ * Een 400 is niet altijd "te groot": een account zonder tegoed antwoordt ook met
+ * 400. Dat gebeurde op 2026-09-28 met een nieuwe sleutel, en "mail te groot?"
+ * stuurde het zoeken de verkeerde kant op. Daarom kijken we naar de reden die de
+ * API meestuurt.
  */
 export function aiFoutTekst(err: unknown): string {
   const status = (err as { status?: number } | null)?.status
-  if (status === 401 || status === 403) return 'geen geldige API-sleutel'
+  const reden = apiReden(err)
+  if (status === 401) return 'geen geldige API-sleutel'
+  if (status === 403) return 'de API-sleutel heeft geen toegang (workspace of organisatie uitgeschakeld?)'
+  if (status === 404) return `het model "${config.ai.model}" is niet beschikbaar met deze sleutel (zie MAIL_AI_MODEL)`
   if (status === 429) return 'de limiet van de API is bereikt'
-  if (status === 400) return 'het model wees de aanvraag af (mail te groot?)'
+  if (status === 413 || /too long|too large|exceeds/i.test(reden)) return 'de mail is te groot voor het model'
+  if (/credit balance/i.test(reden)) {
+    return 'er is geen tegoed meer op het API-account (Anthropic Console → Billing)'
+  }
+  if (status === 400) return 'het model wees de aanvraag af'
   if (typeof status === 'number' && status >= 500) return 'de API is tijdelijk niet bereikbaar'
   return err instanceof Error ? err.message : String(err)
+}
+
+/** De reden die de API zelf meestuurt (`{ error: { message } }`), anders de foutmelding. */
+export function apiReden(err: unknown): string {
+  const body = (err as { error?: { error?: { message?: unknown } } } | null)?.error
+  const bericht = body?.error?.message
+  if (typeof bericht === 'string') return bericht
+  return err instanceof Error ? err.message : String(err ?? '')
 }
 
 export interface AiExtractOutcome {

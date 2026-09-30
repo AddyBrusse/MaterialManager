@@ -15,6 +15,7 @@ import type { Bijwerking } from '../../../components/projecten/prijs-bijwerken'
 import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
 import { AccepteerVenster } from './components/AccepteerVenster'
+import { teAccepteren as welkeTeAccepteren } from './lib/status'
 import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
 import { ApiFout } from '../../../api/client'
 
@@ -85,7 +86,12 @@ export interface ProjectActies {
   naarNieuwProject: (offerteId: string, keuze: NaarProjectKeuze) => Promise<boolean>
 }
 
-export function useProjectActies(project: Project | undefined, naarTab: (t: string) => void): ProjectActies {
+export function useProjectActies(
+  project: Project | undefined,
+  naarTab: (t: string) => void,
+  /** De versie die op de Offertes-tab open staat: de "geselecteerde" voor de footerknop. */
+  openVersie: string | null = null,
+): ProjectActies {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const gebruiker = useUserStore((s) => s.user)
@@ -111,8 +117,8 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
    *  - op de server: gemeld door syncProject, dat ook het scherm terugzet.
    */
   const doe = useCallback(
-    (actie: string, gelukt: string, fn: () => void) => {
-      if (!project) return
+    (actie: string, gelukt: string, fn: () => void): boolean => {
+      if (!project) return false
       try {
         fn()
       } catch (fout) {
@@ -121,7 +127,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
           fout,
           gevolg: 'Er is niets gewijzigd — niet op de server en niet op je scherm.',
         })
-        return
+        return false
       }
       ververs()
       wachtOpOpslag(project.id).then((ok) => {
@@ -130,6 +136,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         ververs()
         if (ok) notifications.show({ color: 'green', message: gelukt })
       })
+      return true
     },
     [project, ververs],
   )
@@ -251,8 +258,14 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
           projectsApi.verzendOfferte(id, concept.id)
         })
       }
-      case 'offerte':
-        return naarTab('offertes')
+      case 'offerte': {
+        // Dezelfde keuze als het label in de footer (primaireActie): de enige
+        // verstuurde versie, of de opengeklapte. Weet hij het niet, dan staat
+        // de reden al naast de knop en brengt hij je naar de keuze.
+        const keuze = welkeTeAccepteren(project, openVersie)
+        if (!keuze.offerte) return naarTab('offertes')
+        return accepteer(keuze.offerte.id)
+      }
       case 'bevestigd':
         if (!project.opdrachtbevestiging) return naarTab('offertes')
         // Welke order, welke stap, hoeveel stuks — dat kiest een mens op de
@@ -284,10 +297,28 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
     }
   }
 
+  // Eerst het venster met de opdrachtreferentie; de handeling zelf gebeurt
+  // bij bevestigen (`accepteerNu`). De voorwaarde wordt vóór het openen al
+  // gecontroleerd, zodat er geen venster verschijnt voor iets wat niet kan.
+  function accepteer(offerteId: string) {
+    if (!project) return
+    const o = project.offertes.find((x) => x.id === offerteId)
+    const reden = waaromNietAccepteren(o, project.offertes)
+    if (reden) {
+      doe(`Offerte ${versieVan(offerteId)} accepteren`, '', () => eis(reden))
+      return
+    }
+    setTeAccepteren(offerteId)
+  }
+
   const accepteerNu = (offerteId: string, opdrachtRef: string | null) => {
     const o = project.offertes.find((x) => x.id === offerteId)
     setTeAccepteren(null)
-    doe(
+    // Na accepteren is de opdracht het werk, dus daar naartoe — ook vanaf de
+    // knop in de versielijst. Meteen, niet pas na de server: het scherm toont
+    // de opdracht al, en mislukt het, dan zet syncProject hem terug en meldt
+    // het (2026-09-30).
+    const gelukt = doe(
       o?.direct ? 'Opdracht maken' : `Offerte ${versieVan(offerteId)} accepteren`,
       o?.direct
         ? 'Opdracht gemaakt — productieorders en materiaal-todo\'s staan klaar'
@@ -297,6 +328,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         projectsApi.accepteerOfferte(id, offerteId, naam, opdrachtRef)
       },
     )
+    if (gelukt) naarTab('opdracht')
   }
   const accOfferte = teAccepteren ? project.offertes.find((x) => x.id === teAccepteren) : undefined
 
@@ -353,18 +385,7 @@ export function useProjectActies(project: Project | undefined, naarTab: (t: stri
         projectsApi.verzendOfferte(id, offerteId)
       })
     },
-    // Eerst het venster met de opdrachtreferentie; de handeling zelf gebeurt
-    // bij bevestigen (`accepteerNu`). De voorwaarde wordt vóór het openen al
-    // gecontroleerd, zodat er geen venster verschijnt voor iets wat niet kan.
-    accepteerOfferte: (offerteId) => {
-      const o = project.offertes.find((x) => x.id === offerteId)
-      const reden = waaromNietAccepteren(o, project.offertes)
-      if (reden) {
-        doe(`Offerte ${versieVan(offerteId)} accepteren`, '', () => eis(reden))
-        return
-      }
-      setTeAccepteren(offerteId)
-    },
+    accepteerOfferte: accepteer,
     maakOpdracht: () => naarTab('offertes'),
     // Niet via `doe`: de server rekent uit wat er met de productieorders
     // gebeurt, dus hier wachten we op zijn antwoord in plaats van het scherm

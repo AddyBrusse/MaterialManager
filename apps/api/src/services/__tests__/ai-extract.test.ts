@@ -3,7 +3,7 @@ import type { CandidateLine, NormalizedMail } from '@stockmanager/shared'
 import { config } from '../../config'
 import {
   bevestigdDoor, buildLines, buildPrompt, grondingVan, haystack, isGrounded,
-  documentenVoorModel, tekeningStaatErIn, type AiLine,
+  documentenVoorModel, tekeningStaatErIn, aiFoutTekst, apiReden, type AiLine,
 } from '../ai-extract'
 
 function mail(partial: Partial<NormalizedMail> = {}): NormalizedMail {
@@ -307,5 +307,36 @@ describe('buildLines', () => {
       bron
     )
     expect(lines.map((l) => l.tekening)).toEqual(['B-2', 'A-1'])
+  })
+})
+
+// De SDK zet de body van de API in `error`; zo ziet een APIError er daar uit.
+function apiFout(status: number, message: string) {
+  return Object.assign(new Error(`${status} ${JSON.stringify({ type: 'error', error: { message } })}`), {
+    status,
+    error: { type: 'error', error: { type: 'invalid_request_error', message } },
+  })
+}
+
+describe('aiFoutTekst', () => {
+  // 2026-09-28: een nieuwe sleutel zonder tegoed gaf "mail te groot?".
+  it('noemt een leeg tegoed bij naam, niet "te groot"', () => {
+    expect(aiFoutTekst(apiFout(400, 'Your credit balance is too low to access the Anthropic API.')))
+      .toContain('geen tegoed')
+  })
+
+  it('zegt "te groot" alleen als de API dat zegt', () => {
+    expect(aiFoutTekst(apiFout(400, 'prompt is too long: 250000 tokens > 200000 maximum'))).toContain('te groot')
+    expect(aiFoutTekst(apiFout(400, 'iets anders'))).toBe('het model wees de aanvraag af')
+  })
+
+  it('onderscheidt een ongeldige sleutel van een onbekend model', () => {
+    expect(aiFoutTekst(apiFout(401, 'invalid x-api-key'))).toBe('geen geldige API-sleutel')
+    expect(aiFoutTekst(apiFout(404, 'model: claude-x'))).toContain(config.ai.model)
+  })
+
+  it('pakt de reden van de API, niet de JSON-dump', () => {
+    expect(apiReden(apiFout(400, 'Your credit balance is too low'))).toBe('Your credit balance is too low')
+    expect(apiReden(new Error('socket hang up'))).toBe('socket hang up')
   })
 })
