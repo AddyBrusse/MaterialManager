@@ -1472,3 +1472,22 @@ de klant nog aanpaste.
 - Bestaande orders blijven `gepland`. De status staat als tekst in de database:
   geen migratie.
 - Logica in `packages/shared/src/calc/vrijgeven.ts`, gedeeld door scherm en server.
+
+## 2026-10-01 — Algemeen-tab: klant uit de relaties, en alles wordt opgeslagen
+
+- **Fout:** "Bewerken" maakte de velden invulbaar, maar er zat geen opslaan
+  achter — ook niet bij Notities. Wat je typte was na verversen weg, zonder
+  melding. De knop is weg: de velden zijn altijd in te vullen, net als op de
+  Opdracht-tab. Kiezen slaat meteen op, tekst bij het verlaten van het veld.
+- **Projectnaam** is nu een veld. Leeg mag niet (oranje melding, niets opgeslagen).
+- **Klant** is een doorzoekbare keuzelijst met alleen klanten (type klant of
+  beide; inactieve alleen als ze al gekozen zijn). Typ je een naam die niet
+  bestaat, dan maakt "+ Nieuwe klant …" hem aan en kiest hem.
+- **Contactpersoon** toont alleen de contacten van die klant; "+ Nieuw contact …"
+  voegt er een toe. Heeft de klant er precies één, dan wordt die ingevuld.
+- **Van klant wisselen** nadat er iets verstuurd is: eerst de vraag, met wat er
+  al verstuurd is (principe 2026-09-28). Wat verstuurd is verandert niet mee.
+- Nieuwe klanten en contacten gaan via `relatiesApi.aanmaken` en
+  `contactToevoegen`, die **niet** terugvallen op een browserkopie: een project
+  dat naar een klant wijst die alleen in deze browser bestaat, wijst op de
+  server naar niets.

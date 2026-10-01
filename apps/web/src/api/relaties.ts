@@ -133,6 +133,34 @@ export const relatiesApi = {
     }
   },
 
+  /**
+   * Aanmaken zonder terugval: gooit een `ApiFout` als de server het niet
+   * aanneemt. `create` hierboven valt dan stil terug op een kopie in deze
+   * browser, en een project dat daarnaar wijst, wijst op de server naar niets.
+   * Voor de klantkeuze op een project (Algemeen-tab).
+   */
+  aanmaken: async (body: CreateRelatie): Promise<Relatie> => {
+    const { data } = await apiFetch<Relatie>('/relaties', { method: 'POST', body: JSON.stringify(body) })
+    cache = [...cache, data]
+    saveLocal(cache)
+    return data
+  },
+
+  /** Een contactpersoon bij een bestaande relatie, ook zonder terugval. Geeft het nieuwe contact terug. */
+  contactToevoegen: async (relatieId: string, naam: string): Promise<{ relatie: Relatie; contactId: string }> => {
+    const bestaand = cache.find((r) => r.id === relatieId)
+    if (!bestaand) throw new Error('Deze klant staat niet (meer) in de lijst. Ververs de pagina.')
+    const contactId = `c${Date.now()}`
+    const contacten = [...(bestaand.contacten ?? []), { id: contactId, naam }]
+    const { data } = await apiFetch<Relatie>(`/relaties/${relatieId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ contacten }),
+    })
+    cache = cache.map((r) => (r.id === relatieId ? data : r))
+    saveLocal(cache)
+    return { relatie: data, contactId }
+  },
+
   update: async (id: string, body: UpdateRelatie): Promise<{ data: Relatie }> => {
     try {
       const r = await apiFetch<Relatie>(`/relaties/${id}`, { method: 'PATCH', body: JSON.stringify(body) })

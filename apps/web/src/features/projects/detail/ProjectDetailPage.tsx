@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 
 import { projectsApi } from '../../../api/projects'
@@ -189,10 +189,15 @@ export function ProjectDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saveState])
 
-  const relatie = useMemo(() => {
-    if (!project?.relatieId) return null
-    return relatiesApi.listSync().find((r) => r.id === project.relatieId) ?? null
-  }, [project?.relatieId])
+  // Uit de query, niet alleen uit de cache: een klant of contactpersoon die op
+  // de Algemeen-tab wordt aangemaakt, moet meteen in de lijst en de kop staan.
+  const qc = useQueryClient()
+  const { data: relatiesRes } = useQuery({ queryKey: ['relaties'], queryFn: relatiesApi.list })
+  const relaties = relatiesRes?.data ?? relatiesApi.listSync()
+  const relatie = useMemo(
+    () => (project?.relatieId ? relaties.find((r) => r.id === project.relatieId) ?? null : null),
+    [project?.relatieId, relaties],
+  )
 
   const projectTodos = useMemo(
     () => todos.filter((t) => t.projectId === id),
@@ -297,7 +302,9 @@ export function ProjectDetailPage() {
           {tab === 'algemeen' && (
             <AlgemeenTab
               project={project}
-              relatie={relatie}
+              relaties={relaties}
+              onZet={acties.zetProject}
+              onRelatiesGewijzigd={() => qc.invalidateQueries({ queryKey: ['relaties'] })}
               activiteit={bouwActiviteit(project)}
               geblokkeerd={geblokkeerd}
               onGewijzigd={acties.ververs}
