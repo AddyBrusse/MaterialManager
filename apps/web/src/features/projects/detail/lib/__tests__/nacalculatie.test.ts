@@ -1,28 +1,32 @@
 import { describe, it, expect } from 'vitest'
-import { afwijkingKleur, devBalk, DEV_HALF, devKleurVar } from '../nacalculatie'
+import { afwijkingKleur, afwijkingTekst, devBalk, DEV_HALF, devKleurVar } from '../nacalculatie'
 
 describe('afwijkingKleur', () => {
-  it('zwijgt onder de 5 procent — 3 % mag niet schreeuwen', () => {
-    expect(afwijkingKleur(3)).toBe('neutraal')
-    expect(afwijkingKleur(-4.9)).toBe('neutraal')
+  it('goedkoper gemaakt dan berekend is groen, ook bij een kleine afwijking', () => {
+    expect(afwijkingKleur(-10)).toBe('ok')
+    expect(afwijkingKleur(-3)).toBe('ok')
+    expect(afwijkingKleur(-40)).toBe('ok')
   })
 
-  it('waarschuwt tussen 5 en 15 procent, beide kanten op', () => {
-    expect(afwijkingKleur(5)).toBe('warn')
-    expect(afwijkingKleur(14.9)).toBe('warn')
-    expect(afwijkingKleur(-9)).toBe('warn')
-  })
-
-  it('maakt onderschrijding vanaf 15 procent groen en overschrijding rood', () => {
-    expect(afwijkingKleur(15)).toBe('dgr')
+  it('duurder is rood', () => {
+    expect(afwijkingKleur(3)).toBe('dgr')
     expect(afwijkingKleur(40)).toBe('dgr')
-    expect(afwijkingKleur(-15)).toBe('ok')
   })
 
-  it('behandelt ontbrekende meting als neutraal, niet als nul', () => {
+  it('afronding en een ontbrekende meting zijn neutraal', () => {
+    expect(afwijkingKleur(0.3)).toBe('neutraal')
     expect(afwijkingKleur(null)).toBe('neutraal')
     expect(afwijkingKleur(undefined)).toBe('neutraal')
     expect(afwijkingKleur(NaN)).toBe('neutraal')
+  })
+})
+
+describe('afwijkingTekst', () => {
+  it('zegt in woorden welke kant op', () => {
+    expect(afwijkingTekst(-10)).toBe('10,0 % onder calculatie')
+    expect(afwijkingTekst(8.25)).toBe('8,3 % boven calculatie')
+    expect(afwijkingTekst(0.2)).toBe('gelijk aan calculatie')
+    expect(afwijkingTekst(null)).toBe('')
   })
 })
 
@@ -49,8 +53,9 @@ describe('devBalk', () => {
 })
 
 describe('devKleurVar', () => {
-  it('gebruikt de rail onder de 5 procent: zichtbaar, maar geen signaal', () => {
-    expect(devKleurVar(2)).toBe('var(--rail)')
+  it('gebruikt de rail bij gelijk: zichtbaar, maar geen signaal', () => {
+    expect(devKleurVar(0.2)).toBe('var(--rail)')
+    expect(devKleurVar(2)).toBe('var(--dgr)')
     expect(devKleurVar(20)).toBe('var(--dgr)')
     expect(devKleurVar(-20)).toBe('var(--ok)')
   })

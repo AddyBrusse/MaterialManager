@@ -1511,3 +1511,47 @@ CLAUDE.md, maar was voor projecten nooit gebouwd.
 - **Stil bij een fout:** het verversen start niet door een handeling van de
   gebruiker; elke 10 s een melding over een haperend netwerk helpt niemand.
 - Geen WebSocket: voor 4 gebruikers is dit genoeg (zie het besluit hierboven).
+
+## 2026-10-01 — Nacalculatie per machine, één kleurregel, afboeken bij gereedmelden
+
+**Per machine.** De Nacalculatie-tab telde instellen en draaien over alle
+machines op: twee uur draaien op twee machines stond er als één bedrag. Onder
+de samenvatting staat nu een boom **order → machine → klokregel**:
+
+- Per machine instellen en draaien apart, gecalculeerd naast werkelijk.
+  `gecalculeerdPerMachine` (shared) rekent zoals `computeEstimateTotals`, dus de
+  machines tellen op tot de posten erboven — dat staat in een test.
+- Een machine uit de calculatie waar niets op gebeurde blijft staan ("niet
+  gebruikt"); een machine waar wel op gewerkt is maar die niet gecalculeerd was
+  komt erbij ("niet gecalculeerd — calculatie: …"). Anders verdwijnt de ene en
+  lijkt de andere duur zonder reden.
+- Machinenamen worden vergeleken via `machineSleutel` (zonder hoofdletters en
+  spaties). Een naam die geen machine uit de lijst is heeft geen tarief: dat
+  staat er als "geen tarief", in plaats van stil € 0.
+- Een klokregel is alleen te bekijken; klikken opent de Tijdregistratie-pagina
+  op die dag met die regel gemarkeerd (`?datum=…&regel=…`). Corrigeren gebeurt
+  daar.
+
+**Kleur.** Goedkoper gemaakt dan berekend is groen, duurder rood; onder een
+halve procent "gelijk" (`afwijkingRichting` in shared). Eerder gaf de tabel
+5–15 % oranje in béide richtingen en kleurde het tabje een meevaller van 15 %
+rood: drie oordelen over hetzelfde getal.
+
+**Afboeken bij gereedmelden.** Materiaal werd alleen in de Zaagflow
+afgeboekt, met een gemeten rest. Werd dat overgeslagen, dan bleef de staaf
+gereserveerd en rekende de nacalculatie met de calculatie. Nu boekt het
+gereedmelden van een order (laatste stap, of "order gereed") de zaagbonnen van
+die orderregel af die nog openstaan, in dezelfde transactie
+(`services/zaagbon.ts`):
+
+- Rest = staaf min verbruikte lengte; twee bonnen op één staaf na elkaar. Onder
+  100 mm schroot, net als in de Zaagflow.
+- De voorraadmutatie zegt "rest uitgerekend, niet gemeten", zodat je ziet waar
+  hij vandaan kwam. Corrigeren via Voorraad.
+- Een bon die in de Zaagflow al afgeboekt is, wordt overgeslagen.
+- Oude bonnen zonder orderregel tellen alleen als er één order met dat artikel
+  in het project staat. Bij twee is niet te zeggen van wie de staaf was.
+
+Daarbij gevonden: de nacalculatie telde materiaal per project + artikel. Stond
+hetzelfde artikel op twee regels, dan telde elke order de bonnen van beide. Nu
+per orderregel, met dezelfde regel als hierboven.

@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { Nacalculatie } from '@stockmanager/shared'
+import type { MachineNacalculatie, Nacalculatie } from '@stockmanager/shared'
 
 export interface OrderNacalculatie extends Nacalculatie {
   orderId: string
@@ -9,6 +9,10 @@ export interface OrderNacalculatie extends Nacalculatie {
   status: string
   gemaakteStuks: number
   advies: { instelMin: number | null; cycleMin: number | null } | null
+  /** Instellen en draaien per machine, met de klokregels eronder. */
+  machines: MachineNacalculatie[]
+  /** Zaagbonnen van deze orderregel. */
+  zaagbonnen: { afgeboekt: number; open: number }
 }
 
 export interface ProjectNacalculatie {

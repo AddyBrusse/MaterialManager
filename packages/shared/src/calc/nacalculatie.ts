@@ -11,7 +11,7 @@
  * in `effectieveSeconden` in schemas/tijdregistratie.
  */
 
-import type { EstimateTotals } from './estimate'
+import { machineRatePerHour, type ArticleEstimate, type EstimateCtx, type EstimateTotals } from './estimate'
 
 export type NacalculatiePost = 'materiaal' | 'instellen' | 'draaien' | 'extern'
 
@@ -174,4 +174,189 @@ export function adviesCycleMinuten(draaienSeconden: number, stuks: number): numb
   if (stuks <= 0 || draaienSeconden <= 0) return null
   const minPerStuk = draaienSeconden / 60 / stuks
   return Math.round(minPerStuk * 2) / 2
+}
+
+// ── Oordeel over een afwijking ──────────────────────────────────────────────
+
+/**
+ * Goedkoper dan gecalculeerd of duurder (besloten 2026-10-01).
+ *
+ * Twee kanten, geen tussenstand: goedkoper gemaakt dan berekend is groen,
+ * anders rood. Eerder gaf de tabel 5–15 % oranje in béide richtingen en kleurde
+ * het tabje een grote meevaller rood — drie schermen, drie oordelen over
+ * hetzelfde getal. Onder een halve procent heet het "gelijk": dat is afronding,
+ * geen signaal.
+ */
+export type AfwijkingRichting = 'goedkoper' | 'duurder' | 'gelijk'
+
+export function afwijkingRichting(pct: number | null | undefined): AfwijkingRichting | null {
+  if (pct === null || pct === undefined || Number.isNaN(pct)) return null
+  if (Math.abs(pct) < 0.5) return 'gelijk'
+  return pct < 0 ? 'goedkoper' : 'duurder'
+}
+
+// ── Per machine ─────────────────────────────────────────────────────────────
+
+/** Machinenamen vergelijken zonder op hoofdletters of spaties te struikelen. */
+export function machineSleutel(naam: string): string {
+  return naam.trim().toLowerCase()
+}
+
+/** Wat de calculatie voor één machine rekent, over de hele order. */
+export interface GecalculeerdeMachine {
+  sleutel: string
+  naam: string
+  instelMin: number
+  /** Cyclustijd × aantal. */
+  draaienMin: number
+  instelKosten: number
+  draaienKosten: number
+}
+
+/**
+ * De machinebewerkingen uit de calculatie, per machine opgeteld.
+ *
+ * Rekent precies zoals `computeEstimateTotals` (tarief uit `machineRatePerHour`,
+ * insteltijd één keer, cyclus maal het aantal), zodat de machines samen optellen
+ * tot de posten Instellen en Draaien van de order. `naamVan` geeft de naam uit de
+ * machinelijst; zonder herleidbare machine blijft de naam van de calculatieknoop.
+ */
+export function gecalculeerdPerMachine(
+  est: ArticleEstimate,
+  ctx: EstimateCtx,
+  qty: number,
+  naamVan: (machineId: string | null | undefined) => string | null,
+): GecalculeerdeMachine[] {
+  const n = Math.max(1, qty)
+  const uit = new Map<string, GecalculeerdeMachine>()
+  for (const node of est.nodes) {
+    if (node.type !== 'machine') continue
+    const naam = naamVan(node.machineId) ?? node.name
+    const sleutel = machineSleutel(naam)
+    const rate = machineRatePerHour(node, ctx)
+    const instelMin = node.setupMin || 0
+    const draaienMin = (node.steps ?? []).reduce((s, st) => s + (st.cycleMin || 0), 0) * n
+    const m = uit.get(sleutel) ?? {
+      sleutel, naam, instelMin: 0, draaienMin: 0, instelKosten: 0, draaienKosten: 0,
+    }
+    m.instelMin += instelMin
+    m.draaienMin += draaienMin
+    m.instelKosten += (instelMin / 60) * rate
+    m.draaienKosten += (draaienMin / 60) * rate
+    uit.set(sleutel, m)
+  }
+  return [...uit.values()]
+}
+
+/** Eén keer klokken, zoals de nacalculatie hem toont. */
+export interface Klokregel {
+  id: string
+  soort: 'instellen' | 'draaien'
+  bemand: boolean
+  status: 'lopend' | 'gepauzeerd' | 'afgerond'
+  machineNaam: string | null
+  userNaam: string | null
+  gestartOp: string
+  gestoptOp: string | null
+  /** Effectief: de correctie als die er is (zie `effectieveSeconden`). */
+  seconden: number
+  /** Wat de klok zelf zag — blijft staan naast een correctie. */
+  gemetenSeconden: number
+  gecorrigeerd: boolean
+  correctieReden: string | null
+  aantalStuks: number | null
+  /** Seconden × uurtarief; null als de regel (nog) niet meetelt of de machine geen tarief heeft. */
+  kosten: number | null
+}
+
+export interface MachineNacalculatie {
+  sleutel: string
+  naam: string
+  /** Null: deze machine staat niet in de calculatie, er is alleen op gewerkt. */
+  gecalculeerd: Omit<GecalculeerdeMachine, 'sleutel' | 'naam'> | null
+  /** Null: er is niets afgerond op deze machine geklokt. */
+  werkelijk: {
+    instelSeconden: number
+    draaienSeconden: number
+    onbemandSeconden: number
+    instelKosten: number
+    draaienKosten: number
+    stuks: number
+  } | null
+  /** Geklokt op een naam die geen machine uit de lijst is: dan is er geen tarief. */
+  tariefOnbekend: boolean
+  gecalculeerdTotaal: number
+  werkelijkTotaal: number
+  verschil: number
+  verschilPct: number | null
+  klokregels: Klokregel[]
+}
+
+/**
+ * Calculatie en klokregels per machine naast elkaar.
+ *
+ * Een machine uit de calculatie waar niet op geklokt is blijft staan ("niet
+ * gebruikt"), en een machine waar wel op geklokt is maar die niet gecalculeerd
+ * was komt erbij. Zo zie je allebei als het werk naar een andere machine ging —
+ * anders verdwijnt de gecalculeerde machine en lijkt de andere duur zonder reden.
+ *
+ * Alleen afgeronde regels tellen mee, net als in `telUren`; lopende staan erbij
+ * zodat je ziet dat er nog iets komt. `tarief` geeft het uurtarief van een
+ * machinenaam (bemand of onbemand) of `null` als die naam geen machine is.
+ */
+export function bouwMachineNacalculatie(
+  gecalc: GecalculeerdeMachine[],
+  regels: Omit<Klokregel, 'kosten'>[],
+  tarief: (machineNaam: string | null, bemand: boolean) => number | null,
+): MachineNacalculatie[] {
+  const uit = new Map<string, MachineNacalculatie>()
+  const leeg = (sleutel: string, naam: string): MachineNacalculatie => ({
+    sleutel, naam, gecalculeerd: null, werkelijk: null, tariefOnbekend: false,
+    gecalculeerdTotaal: 0, werkelijkTotaal: 0, verschil: 0, verschilPct: null, klokregels: [],
+  })
+
+  for (const g of gecalc) {
+    const { sleutel, naam, ...rest } = g
+    uit.set(sleutel, { ...leeg(sleutel, naam), gecalculeerd: rest })
+  }
+
+  const gesorteerd = [...regels].sort((a, b) => a.gestartOp.localeCompare(b.gestartOp))
+  for (const r of gesorteerd) {
+    const naam = r.machineNaam?.trim() || 'Geen machine'
+    const sleutel = machineSleutel(naam)
+    const m = uit.get(sleutel) ?? leeg(sleutel, naam)
+    uit.set(sleutel, m)
+
+    const uurtarief = tarief(r.machineNaam, r.bemand)
+    if (uurtarief === null) m.tariefOnbekend = true
+    const telt = r.status === 'afgerond'
+    const kosten = telt && uurtarief !== null ? (r.seconden / 3600) * uurtarief : null
+    m.klokregels.push({ ...r, kosten })
+    if (!telt) continue
+
+    const w = m.werkelijk ?? {
+      instelSeconden: 0, draaienSeconden: 0, onbemandSeconden: 0,
+      instelKosten: 0, draaienKosten: 0, stuks: 0,
+    }
+    if (!r.bemand) w.onbemandSeconden += r.seconden
+    if (r.soort === 'instellen') {
+      w.instelSeconden += r.seconden
+      w.instelKosten += kosten ?? 0
+    } else {
+      w.draaienSeconden += r.seconden
+      w.draaienKosten += kosten ?? 0
+      w.stuks += r.aantalStuks ?? 0
+    }
+    m.werkelijk = w
+  }
+
+  for (const m of uit.values()) {
+    m.gecalculeerdTotaal = m.gecalculeerd ? m.gecalculeerd.instelKosten + m.gecalculeerd.draaienKosten : 0
+    m.werkelijkTotaal = m.werkelijk ? m.werkelijk.instelKosten + m.werkelijk.draaienKosten : 0
+    m.verschil = m.werkelijkTotaal - m.gecalculeerdTotaal
+    // Alleen een percentage als er aan beide kanten iets staat: "−100 %" bij een
+    // ongebruikte machine of "∞" bij een niet-gecalculeerde zegt niets.
+    m.verschilPct = m.gecalculeerd && m.werkelijk ? pct(m.verschil, m.gecalculeerdTotaal) : null
+  }
+  return [...uit.values()]
 }

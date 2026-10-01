@@ -19,6 +19,7 @@ import { PROJECT_INCLUDE, serialize, persist } from '../services/project-store'
 import { snapshotBijOrder } from '../services/prijs-snapshot'
 import { todosBijOpdracht } from '../services/materiaal-selectie'
 import { rondAfVoorStap } from '../services/tijdregistratie'
+import { boekAfBijGereed } from '../services/zaagbon'
 import type { Prisma } from '@prisma/client'
 
 const router = Router()
@@ -860,7 +861,10 @@ router.post(
         return { ...o, stappen, status: orderStatusNaStappen(o, stappen), updatedAt: now() }
       })
       const status = p.status === 'bevestigd' ? 'productie' : p.status
-      return { ...p, productieOrders, status, updatedAt: now() }
+      const next = { ...p, productieOrders, status, updatedAt: now() }
+      // Was dit de laatste stap, dan is het materiaal verbruikt (2026-10-01).
+      await boekAfBijGereed(tx, p, next, req.user.id)
+      return next
     })
     res.json({ data: updated })
   }),
@@ -957,7 +961,7 @@ router.post(
   '/:id/orders/:orderId/gereed',
   asyncHandler(async (req, res) => {
     const { aantal } = OrderGereedSchema.parse(req.body ?? {})
-    const updated = await withProject(req.params.id, (p) => {
+    const updated = await withProject(req.params.id, async (p, tx) => {
       const order = p.productieOrders.find(o => o.id === req.params.orderId)
       if (!order) throw new AppError(404, 'NOT_FOUND', 'Deze productieorder bestaat niet (meer). Ververs de pagina.')
       const gereed = aantal ?? order.qty
@@ -978,7 +982,9 @@ router.post(
           : o,
       )
       const status = p.status === 'bevestigd' ? 'productie' : p.status
-      return { ...p, productieOrders, status, updatedAt: now() }
+      const next = { ...p, productieOrders, status, updatedAt: now() }
+      await boekAfBijGereed(tx, p, next, req.user.id)
+      return next
     })
     res.json({ data: updated })
   }),

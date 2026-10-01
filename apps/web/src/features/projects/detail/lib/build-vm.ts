@@ -17,6 +17,7 @@ import type { FacetVM, GeldVM, ReserveringVM, TodoVM, ActiviteitVM, TabBadge, Ta
 import { datum, datumKort, eur, pct, relatieveDagen, dagenTot, tijdstip } from './format'
 import { geaccepteerdeOfferte, geldendeOfferte, ordersGereed, productieAf, stapTelling } from './status'
 import { opdrachtGewijzigd } from './tab-actie'
+import { afwijkingTekst, kleurClass } from './nacalculatie'
 
 const STATUS_LABEL: Record<Project['status'], string> = {
   concept: 'Concept',
@@ -160,9 +161,9 @@ export function bouwFacetten(
     sub: !nacalc
       ? 'nog niets gemeten'
       : nacalc.gemeten
-        ? `${pct(afw)} ${afw !== null && afw < 0 ? 'onder' : 'boven'} calculatie`
+        ? afwijkingTekst(afw)
         : `voorlopig · ${gemetenPosten(nacalc)} van ${nacalc.orders.length * 4} posten gemeten`,
-    kleur: afw !== null && Math.abs(afw) >= 15 ? (afw > 0 ? 'dgr' : 'ok') : undefined,
+    kleur: nacalc?.gemeten ? kleurClass(afw) || undefined : undefined,
   })
 
   return facetten
@@ -239,10 +240,8 @@ export function bouwTabBadges(
       ? { tekst: '—' }
       : !nacalc.gemeten
         ? { tekst: 'voorlopig', kleur: 'warn' }
-        : {
-            tekst: pct(afw),
-            kleur: afw !== null && Math.abs(afw) >= 15 ? 'dgr' : 'warn',
-          },
+        : // Zelfde oordeel als de tabel: goedkoper groen, duurder rood.
+          { tekst: pct(afw), kleur: kleurClass(afw) || undefined },
     documenten: p.facturen.some((f) => f.soort !== 'credit' && f.verzondenOp)
       ? { tekst: `${documenten}/4 ✓`, kleur: 'ok' }
       : { tekst: `${documenten}/4` },

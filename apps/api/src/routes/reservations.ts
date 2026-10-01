@@ -5,6 +5,7 @@ import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { beschikbaarheidVan, gereserveerdPerStaaf, mm, OPEN_STATUSSEN } from '../services/voorraad'
 import { maakPlan, bestelTodo } from '../services/materiaal-selectie'
+import { boekZaagbonAf } from '../services/zaagbon'
 import { stukLengte } from '@stockmanager/shared'
 
 const router = Router()
@@ -231,10 +232,6 @@ const AfboekenSchema = z.object({
   note: z.string().optional(),
 })
 
-/** Een rest hieronder is geen bruikbaar stuk staal meer. Ook in de zaagflow
- *  gebruikt om de zager naar een keuze te duwen. */
-export const MIN_REST_MM = 100
-
 /**
  * Afboeken: het moment waarop er werkelijk gezaagd is.
  *
@@ -255,48 +252,7 @@ router.post(
     const uitkomst = await prisma.$transaction(async (tx) => {
       const reservering = await tx.zaagReservering.findUnique({ where: { id: req.params.id } })
       if (!reservering) throw new AppError(404, 'NOT_FOUND', 'Reservering niet gevonden')
-      if (reservering.status === 'done') {
-        throw new AppError(409, 'AL_AFGEBOEKT', 'Deze reservering is al afgeboekt')
-      }
-      if (reservering.status === 'geannuleerd') {
-        throw new AppError(409, 'GEANNULEERD', 'Deze reservering is geannuleerd en kan niet afgeboekt worden')
-      }
-
-      const staaf = await tx.rawMaterial.findUnique({ where: { id: reservering.barId } })
-      if (!staaf) throw new AppError(404, 'NOT_FOUND', 'De staaf van deze reservering bestaat niet meer')
-
-      const gemeten = body.restLengteMm ?? 0
-      // Een rest onder de drempel is geen staaf meer, ook zonder dat iemand
-      // 'schroot' aanvinkt: hij ligt straks in de bak en niet in het rek.
-      const schroot = body.schroot === true || gemeten < MIN_REST_MM
-      const nieuweVoorraad = schroot ? 0 : gemeten
-      const vorigeVoorraad = Number(staaf.currentStock)
-
-      await tx.rawMaterial.update({
-        where: { id: staaf.id },
-        data: { currentStock: nieuweVoorraad },
-      })
-
-      const mutatie = await tx.stockMovement.create({
-        data: {
-          itemType: 'raw',
-          itemId: staaf.id,
-          userId: req.user.id,
-          kind: 'overwrite',
-          amount: nieuweVoorraad,
-          previousStock: vorigeVoorraad,
-          newStock: nieuweVoorraad,
-          reason: schroot ? 'scrapped' : 'used',
-          note: body.note ?? `Zaagbon ${reservering.calculatieNr}`,
-        },
-      })
-
-      const row = await tx.zaagReservering.update({
-        where: { id: reservering.id },
-        data: { status: 'done', restLengteMm: body.restLengteMm, completedAt: new Date() },
-      })
-
-      return { row, mutatie, schroot, vorigeVoorraad, nieuweVoorraad }
+      return boekZaagbonAf(tx, reservering, body, req.user.id)
     })
 
     res.json({

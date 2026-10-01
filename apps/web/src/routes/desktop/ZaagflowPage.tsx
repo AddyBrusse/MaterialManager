@@ -10,7 +10,7 @@ import {
 } from '../../hooks/useReserveringen'
 import { buildJobs, type ZaagJob } from '../../api/zaag-jobs'
 
-// Gelijk aan MIN_REST_MM in apps/api/src/routes/reservations.ts: een rest
+// Gelijk aan MIN_REST_MM in apps/api/src/services/zaagbon.ts: een rest
 // hieronder is geen bruikbaar stuk staal meer. De server beslist het, hier
 // duwt het de zager alleen naar een keuze.
 const MIN_REST_MM = 100

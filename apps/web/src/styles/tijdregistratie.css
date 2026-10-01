@@ -289,7 +289,7 @@
    boodschap — het percentage staat er altijd naast. */
 .tr-bul { position: relative; height: 14px; background: var(--bg-chip); border-radius: 3px; min-width: 120px; }
 .tr-bul-bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--text-3); }
-.tr-bul-bar.is-over { background: var(--warning); }
+.tr-bul-bar.is-over { background: var(--danger); }
 .tr-bul-bar.is-onder { background: var(--success); }
 .tr-bul-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); border-radius: 1px; }
 
@@ -297,7 +297,7 @@
   font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   font-weight: 500; white-space: nowrap;
 }
-.tr-delta.is-over  { color: var(--warning); }
+.tr-delta.is-over  { color: var(--danger); }
 .tr-delta.is-onder { color: var(--success); }
 
 /* De conclusie in gewone taal. Zonder dit blijft het een tabel waar iedereen
@@ -321,4 +321,12 @@
   .tr-conclusie-kop, .tr-conclusie-actie { width: auto; }
   .tr-conclusie-sep { display: none; }
   .tr-gemeten { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* De regel die vanuit de nacalculatie geopend is. */
+.st-tbl tr.tr-gekozen td {
+  background: var(--accent-soft);
+}
+.st-tbl tr.tr-gekozen td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
 }
