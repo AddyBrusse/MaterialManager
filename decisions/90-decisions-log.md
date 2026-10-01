@@ -1491,3 +1491,23 @@ de klant nog aanpaste.
   `contactToevoegen`, die **niet** terugvallen op een browserkopie: een project
   dat naar een klant wijst die alleen in deze browser bestaat, wijst op de
   server naar niets.
+
+## 2026-10-01 — Projecten verversen zonder F5
+
+Projecten werden één keer van de server geladen, bij het openen van de app;
+daarna las elk scherm uit de kopie in de browser. Een gereedmelding op de
+terminal stond op het kantoorscherm pas na F5 (of toevallig na het openen van
+de Wachtrij, die alles opnieuw laadt). "Polling every 5–10 s" stond al in
+CLAUDE.md, maar was voor projecten nooit gebouwd.
+
+- **Projectpagina:** elke 10 s het project van de server — zelfde ritme als de
+  wachtrij op de terminal. Gemeten: een afgemelde stap staat er na ~9 s.
+- **Projectenlijst:** elke 30 s de hele lijst.
+- **Verborgen tabblad:** geen verzoeken (React Query pauzeert `refetchInterval`),
+  en bij terugkomen meteen verversen.
+- **Eigen wijzigingen gaan voor.** Is er een opslag onderweg, of veranderde het
+  project nadat het verzoek vertrok (`wijzigTeller`), dan wordt het antwoord
+  weggegooid. Anders sprong een net getypte waarde even terug naar de oude.
+- **Stil bij een fout:** het verversen start niet door een handeling van de
+  gebruiker; elke 10 s een melding over een haperend netwerk helpt niemand.
+- Geen WebSocket: voor 4 gebruikers is dit genoeg (zie het besluit hierboven).

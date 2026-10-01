@@ -91,11 +91,82 @@ export async function initProjects(): Promise<LaadFout | null> {
   }
 }
 
+// ── Verversen (polling) ───────────────────────────────────────────────────────
+// Besloten 2026-10-01. Projecten werden één keer geladen, bij het openen van de
+// app; daarna las elk scherm uit deze kopie. Een gereedmelding op de terminal
+// stond dus pas op het kantoorscherm na F5. CLAUDE.md zegt "polling every
+// 5–10 s" — dat was voor projecten nooit gebouwd.
+//
+// Stil bij een fout: dit start niet door een handeling van de gebruiker, en
+// elke tien seconden een melding over een haperend netwerk helpt niemand. De
+// volgende ronde probeert het opnieuw; wie zelf iets doet krijgt wél een melding.
+
+/** Mag de serverstand de kopie van dit project vervangen? Niet als er sinds `teller` iets veranderd is. */
+function magVervangen(id: string, teller: number): boolean {
+  return (saveInflight[id] ?? 0) === 0 && (wijzigTeller[id] ?? 0) === teller
+}
+
+/** Haalt één project opnieuw van de server. `true` als er iets veranderd is. */
+export async function herlaadProject(id: string): Promise<boolean> {
+  if ((saveInflight[id] ?? 0) > 0) return false
+  const teller = wijzigTeller[id] ?? 0
+  let data: Project
+  try {
+    ;({ data } = await apiFetch<Project>(`/projects/${id}`))
+  } catch {
+    return false
+  }
+  if (!magVervangen(id, teller)) return false
+  const oud = cache.find(p => p.id === id)
+  if (oud && JSON.stringify(oud) === JSON.stringify(data)) return false
+  cache = oud ? cache.map(p => (p.id === id ? data : p)) : [...cache, data]
+  saveLocal(cache)
+  return true
+}
+
+/** Haalt de hele lijst opnieuw, zonder projecten te raken die net gewijzigd worden. */
+export async function herlaadProjecten(): Promise<boolean> {
+  const tellers = Object.fromEntries(cache.map(p => [p.id, wijzigTeller[p.id] ?? 0]))
+  let data: Project[]
+  try {
+    ;({ data } = await apiFetch<Project[]>('/projects'))
+  } catch {
+    return false
+  }
+  const vanServer = new Map(data.map(p => [p.id, p]))
+  const nieuw: Project[] = []
+  let veranderd = false
+  for (const p of cache) {
+    const server = vanServer.get(p.id)
+    vanServer.delete(p.id)
+    // Lokaal net aangemaakt of gewijzigd: de eigen stand blijft tot de opslag terug is.
+    if (!magVervangen(p.id, tellers[p.id] ?? 0)) {
+      nieuw.push(p)
+      continue
+    }
+    if (!server) {
+      veranderd = true // op de server verwijderd
+      continue
+    }
+    if (JSON.stringify(p) !== JSON.stringify(server)) veranderd = true
+    nieuw.push(server)
+  }
+  for (const p of vanServer.values()) {
+    nieuw.push(p) // door iemand anders aangemaakt
+    veranderd = true
+  }
+  if (!veranderd) return false
+  cache = nieuw
+  saveLocal(cache)
+  return true
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function now(): string { return new Date().toISOString() }
 
 function updateCache(id: string, fn: (p: Project) => Project): Project {
+  wijzigTeller[id] = (wijzigTeller[id] ?? 0) + 1
   let updated!: Project
   cache = cache.map(p => {
     if (p.id !== id) return p
@@ -126,6 +197,7 @@ function syncProject(
    *  zelf "mislukt" achter. */
   actie: string,
 ): void {
+  wijzigTeller[projectId] = (wijzigTeller[projectId] ?? 0) + 1
   // Start of a fresh save batch for this project → clear any prior error.
   if ((saveInflight[projectId] ?? 0) === 0) saveErrored[projectId] = false
   saveInflight[projectId] = (saveInflight[projectId] ?? 0) + 1
@@ -203,6 +275,12 @@ const vorigeStand: Record<string, Project | undefined> = {}
 export type ProjectSaveState = 'idle' | 'saving' | 'saved' | 'error'
 const saveStateById: Record<string, ProjectSaveState> = {}
 const saveInflight: Record<string, number> = {}
+/**
+ * Telt elke wijziging per project. Een ververs-antwoord dat vertrok vóór een
+ * wijziging en daarna binnenkomt, is ouder dan wat er op het scherm staat en
+ * zou die wijziging overschrijven — met deze teller herkennen we dat.
+ */
+const wijzigTeller: Record<string, number> = {}
 const saveErrored: Record<string, boolean> = {}
 const saveListeners = new Set<() => void>()
 

@@ -8,7 +8,7 @@ import {
 } from '@tabler/icons-react'
 import { Menu } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { projectsApi } from '../../api/projects'
+import { projectsApi, herlaadProjecten } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
 import { useUserPreference } from '../../hooks/useUserPreference'
 import { ColumnSettings } from '../../components/projecten/ColumnSettings'
@@ -56,7 +56,16 @@ export function ProjectenPage() {
   // populated once the background initProjects() fetch resolves — without
   // going through useQuery, this page never re-renders once that happens,
   // so it can get stuck showing whatever was cached/seeded at first paint.
-  const { data: projects = [] } = useQuery({ queryKey: ['projects'], queryFn: () => projectsApi.list() })
+  // Elke 30 s de lijst van de server, zodat voortgang uit de hal en projecten
+  // van een collega zonder F5 verschijnen (2026-10-01).
+  const { data: projects = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
+      await herlaadProjecten()
+      return projectsApi.list()
+    },
+    refetchInterval: 30_000,
+  })
   const relaties = relatiesApi.listSync()
 
   // Column layout is per user and lives server-side, so it follows whoever is

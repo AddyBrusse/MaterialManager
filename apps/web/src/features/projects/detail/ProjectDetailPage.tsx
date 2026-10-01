@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 
-import { projectsApi } from '../../../api/projects'
+import { projectsApi, herlaadProject } from '../../../api/projects'
 import { relatiesApi } from '../../../api/relaties'
 import { todosApi } from '../../../api/todos'
 import { reservationsApi } from '../../../api/reservations'
@@ -112,12 +112,21 @@ export function ProjectDetailPage() {
   const { isReadOnly, holderName, holderIdle } = useProjectLock(id, !isPoppedOut)
   const saveState = useProjectSaveState(id)
 
+  // Elke 10 s de serverstand: een gereedmelding op de terminal stond eerder pas
+  // na F5 op dit scherm (2026-10-01). Zelfde ritme als de wachtrij op de
+  // terminal. React Query pauzeert dit als het tabblad verborgen is en ververst
+  // meteen bij terugkomen. Een eigen wijziging die nog onderweg is, wordt niet
+  // overschreven (herlaadProject).
   const { data: project, isPending } = useQuery({
     queryKey: ['projects', id],
-    queryFn: () => projectsApi.get(id),
+    queryFn: async () => {
+      await herlaadProject(id)
+      return projectsApi.get(id)
+    },
     enabled: !!id,
     retry: 5,
     retryDelay: 300,
+    refetchInterval: 10_000,
   })
 
   // Let op de vorm: AppLayout vult diezelfde cachesleutel ['todos'] met de
