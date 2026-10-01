@@ -96,78 +96,76 @@ export function BasisGegevens({ project: p, relaties, geblokkeerd, onZet, onRela
 
   return (
     <Card titel="Basisgegevens">
-      <div className="pdv2-veld" style={{ marginBottom: 9 }}>
-        <label htmlFor="pdv2-naam">Projectnaam</label>
-        <input
-          id="pdv2-naam"
-          key={p.naam}
-          defaultValue={p.naam}
-          maxLength={200}
-          disabled={geblokkeerd}
-          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-          onBlur={(e) => tekst('naam', e.currentTarget.value)}
-        />
-      </div>
-      <div className="pdv2-grid3">
-        <KeuzeMetNieuw
-          id="pdv2-klant"
-          label="Klant"
-          soort="klant"
-          placeholder="Zoek of typ een klant"
-          opties={klantOpties(relaties, p.relatieId)}
-          waarde={p.relatieId}
-          disabled={geblokkeerd}
-          hint={relatie?.kvk ? `KvK ${relatie.kvk}` : undefined}
-          onKies={(id) => kiesKlant(id)}
-          onNieuw={nieuweKlant}
-        />
-        <KeuzeMetNieuw
-          id="pdv2-contact"
-          label="Contactpersoon"
-          soort="contact"
-          placeholder={relatie ? 'Zoek of typ een naam' : 'Kies eerst een klant'}
-          opties={(relatie?.contacten ?? []).map((c) => ({ value: c.id, label: c.naam }))}
-          waarde={contact?.id ?? null}
-          disabled={geblokkeerd || !relatie}
-          hint={contact?.email ?? undefined}
-          onKies={(contactId) => onZet({ contactId })}
-          onNieuw={nieuwContact}
-        />
-        <div className="pdv2-veld">
-          <label htmlFor="pdv2-ref">Uw referentie</label>
-          <input
-            id="pdv2-ref"
-            key={p.klantRef ?? ''}
-            defaultValue={p.klantRef ?? ''}
-            maxLength={200}
+      <div className="pdv2-form">
+        <div className="pdv2-form-grid">
+          <div className="pdv2-veld breed">
+            <label htmlFor="pdv2-naam">Projectnaam</label>
+            <input
+              id="pdv2-naam"
+              key={p.naam}
+              defaultValue={p.naam}
+              maxLength={200}
+              disabled={geblokkeerd}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              onBlur={(e) => tekst('naam', e.currentTarget.value)}
+            />
+          </div>
+          <div />
+          <KeuzeMetNieuw
+            id="pdv2-klant"
+            label="Klant"
+            soort="klant"
+            placeholder="Zoek of typ een klant"
+            opties={klantOpties(relaties, p.relatieId)}
+            waarde={p.relatieId}
             disabled={geblokkeerd}
-            placeholder="ordernummer of aanvraag van de klant"
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-            onBlur={(e) => tekst('klantRef', e.currentTarget.value)}
+            hint={relatie?.kvk ? `KvK ${relatie.kvk}` : undefined}
+            onKies={(id) => kiesKlant(id)}
+            onNieuw={nieuweKlant}
           />
-        </div>
-        <div className="pdv2-veld">
-          <label htmlFor="pdv2-lever">Levertijd</label>
-          <input
-            id="pdv2-lever"
-            type="date"
-            key={p.levertijdDatum ?? ''}
-            defaultValue={p.levertijdDatum?.slice(0, 10) ?? ''}
-            disabled={geblokkeerd}
-            onBlur={(e) => {
-              const v = e.currentTarget.value || null
-              if (v !== (p.levertijdDatum?.slice(0, 10) ?? null)) onZet({ levertijdDatum: v })
-            }}
+          <KeuzeMetNieuw
+            id="pdv2-contact"
+            label="Contactpersoon"
+            soort="contact"
+            placeholder={relatie ? 'Zoek of typ een naam' : 'Kies eerst een klant'}
+            opties={(relatie?.contacten ?? []).map((c) => ({ value: c.id, label: c.naam }))}
+            waarde={contact?.id ?? null}
+            disabled={geblokkeerd || !relatie}
+            hint={contact?.email ?? undefined}
+            onKies={(contactId) => onZet({ contactId })}
+            onNieuw={nieuwContact}
           />
-          <div className="hint">{relatieveDagen(p.levertijdDatum) || 'Dezelfde datum als op de Opdracht-tab.'}</div>
+          <div className="pdv2-veld">
+            <label htmlFor="pdv2-ref">Uw referentie</label>
+            <input
+              id="pdv2-ref"
+              key={p.klantRef ?? ''}
+              defaultValue={p.klantRef ?? ''}
+              maxLength={200}
+              disabled={geblokkeerd}
+              placeholder="ordernummer of aanvraag"
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+              onBlur={(e) => tekst('klantRef', e.currentTarget.value)}
+            />
+          </div>
+          <div className="pdv2-veld">
+            <label htmlFor="pdv2-lever">Levertijd</label>
+            <input
+              id="pdv2-lever"
+              type="date"
+              key={p.levertijdDatum ?? ''}
+              defaultValue={p.levertijdDatum?.slice(0, 10) ?? ''}
+              disabled={geblokkeerd}
+              onBlur={(e) => {
+                const v = e.currentTarget.value || null
+                if (v !== (p.levertijdDatum?.slice(0, 10) ?? null)) onZet({ levertijdDatum: v })
+              }}
+            />
+            <div className="hint">{relatieveDagen(p.levertijdDatum) || 'Dezelfde datum als op de Opdracht-tab.'}</div>
+          </div>
         </div>
-        <div className="pdv2-veld">
-          <label>Aangemaakt</label>
-          <input value={datum(p.createdAt)} readOnly tabIndex={-1} />
-        </div>
-        <div className="pdv2-veld">
-          <label>Gewijzigd</label>
-          <input value={datum(p.updatedAt)} readOnly tabIndex={-1} />
+        <div className="pdv2-meta">
+          Aangemaakt {datum(p.createdAt)} · laatst gewijzigd {datum(p.updatedAt)}
         </div>
       </div>
 

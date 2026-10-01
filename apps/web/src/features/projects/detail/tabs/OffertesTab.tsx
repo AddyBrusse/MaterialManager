@@ -150,15 +150,14 @@ export function OffertesTab({
             <th style={{ width: 54 }}>v.</th>
             <th style={{ width: 118 }}>Nummer</th>
             <th style={{ width: 170 }}>Referentie</th>
-            <th style={{ width: 120 }}>Status</th>
-            <th>Wat het is</th>
+            <th>Status</th>
             <th style={{ width: 92 }}>Verzonden</th>
             <th style={{ width: 100 }}>Geaccepteerd</th>
             <th style={{ width: 92 }}>Geldig tot</th>
             <th className="num" style={{ width: 104 }}>
               Totaal
             </th>
-            <th style={{ width: 196 }} />
+            <th style={{ width: 344 }} />
           </tr>
         </thead>
         <tbody>
@@ -200,7 +199,10 @@ export function OffertesTab({
                   <td>
                     <CelTekst
                       waarde={o.externeRef}
-                      placeholder="RFQ of mail…"
+                      // Zonder referentie kun je een concept niet versturen:
+                      // oranje tot hij er staat (.pdv2-cel-tekst.ref.nodig).
+                      className={`ref ${o.status === 'concept' && !o.direct ? 'nodig' : ''}`}
+                      placeholder={o.status === 'concept' && !o.direct ? 'Invullen' : 'RFQ of mail…'}
                       uit={geblokkeerd}
                       max={200}
                       onKlaar={(ref) => onReferentie(o.id, ref)}
@@ -208,8 +210,8 @@ export function OffertesTab({
                   </td>
                   <td>
                     <span className={`pdv2-pill ${pill.kleur}`}>{pill.tekst}</span>
+                    <span className="pdv2-status-uitleg">{toelichting(o, Boolean(acc))}</span>
                   </td>
-                  <td style={{ color: 'var(--text3)' }}>{toelichting(o, Boolean(acc))}</td>
                   <td className="mono">{datum(o.verzondenOp)}</td>
                   <td className="mono">{datum(o.geaccepteerdOp)}</td>
                   <td className="mono">{datum(o.geldigTot)}</td>
@@ -229,7 +231,7 @@ export function OffertesTab({
 
                 {uit && (
                   <tr className="pdv2-kind-rij">
-                    <td colSpan={10}>
+                    <td colSpan={9}>
                       <OfferteRegels
                         offerte={o}
                         projectId={project.id}

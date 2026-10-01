@@ -10,6 +10,7 @@ export function CelTekst({
   placeholder,
   uit,
   max,
+  className,
   onKlaar,
 }: {
   waarde: string | null
@@ -17,6 +18,8 @@ export function CelTekst({
   uit?: boolean
   /** Zelfde grens als de server, zodat je er niet pas na het opslaan achter komt. */
   max?: number
+  /** Extra klassen, bijvoorbeeld `ref nodig` voor de offertereferentie. */
+  className?: string
   onKlaar: (tekst: string) => void
 }) {
   const toon = waarde ?? ''
@@ -27,7 +30,7 @@ export function CelTekst({
       placeholder={placeholder}
       disabled={uit}
       maxLength={max}
-      className="pdv2-cel-tekst"
+      className={`pdv2-cel-tekst ${className ?? ''}`}
       onKeyDown={(e) => {
         if (e.key === 'Enter') e.currentTarget.blur()
         if (e.key === 'Escape') {

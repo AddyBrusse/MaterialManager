@@ -38,6 +38,18 @@ export function KeuzeMetNieuw({ id, label, placeholder, opties, waarde, disabled
       <Select
         id={id}
         size="xs"
+        // Zelfde maat en rand als de gewone velden ernaast (.pdv2-form).
+        styles={{
+          input: {
+            height: 30,
+            minHeight: 30,
+            fontSize: 12.5,
+            borderRadius: 4,
+            borderColor: 'var(--border2)',
+            fontFamily: 'inherit',
+          },
+          option: { fontSize: 12.5 },
+        }}
         searchable
         clearable
         placeholder={placeholder}
