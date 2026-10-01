@@ -1,24 +1,39 @@
 /**
- * De kleurdrempels en de afwijkingsbalk uit §5.5.
+ * De kleur van een afwijking en de afwijkingsbalk uit §5.5.
  *
- * Hier zit het hele ontwerp van dit tabblad in: 3 % moet niet schreeuwen, 40 %
- * wel. Eén functie, zodat de tabel, de facetkleur, de tabbadge en de FactBox
- * Geld hetzelfde zeggen over dezelfde afwijking.
+ * Eén functie, zodat de tabel, de facetkleur, de tabbadge en de FactBox Geld
+ * hetzelfde zeggen over dezelfde afwijking.
  */
 
-export type AfwijkingKleur = 'neutraal' | 'warn' | 'dgr' | 'ok'
+import { afwijkingRichting } from '@stockmanager/shared'
+
+export type AfwijkingKleur = 'neutraal' | 'dgr' | 'ok'
 
 /**
- * | afwijking | < 5 %        → neutraal (geen signaal)
- * 5 % ≤ | afwijking | < 15 % → warn
- * | afwijking | ≥ 15 %       → dgr bij overschrijding, ok bij onderschrijding
+ * Goedkoper gemaakt dan berekend is groen, anders rood (2026-10-01). Het
+ * oordeel zelf staat in `afwijkingRichting` in de gedeelde kern.
+ *
+ * Eerder: 5–15 % oranje in beide richtingen, en het tabje kleurde een grote
+ * meevaller rood. Dan zei −10 % hier oranje en in de uitleg groen.
  */
 export function afwijkingKleur(pct: number | null | undefined): AfwijkingKleur {
-  if (pct === null || pct === undefined || Number.isNaN(pct)) return 'neutraal'
-  const a = Math.abs(pct)
-  if (a < 5) return 'neutraal'
-  if (a < 15) return 'warn'
-  return pct > 0 ? 'dgr' : 'ok'
+  switch (afwijkingRichting(pct)) {
+    case 'goedkoper':
+      return 'ok'
+    case 'duurder':
+      return 'dgr'
+    default:
+      return 'neutraal'
+  }
+}
+
+/** "10,0 % onder calculatie" — het teken alleen zegt niet wat goed is. */
+export function afwijkingTekst(pct: number | null | undefined): string {
+  const r = afwijkingRichting(pct)
+  if (r === null || pct === null || pct === undefined) return ''
+  if (r === 'gelijk') return 'gelijk aan calculatie'
+  const getal = Math.abs(pct).toLocaleString('nl-NL', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  return `${getal} % ${r === 'goedkoper' ? 'onder' : 'boven'} calculatie`
 }
 
 export const DEV_BREEDTE = 132
@@ -37,11 +52,9 @@ export function devBalk(pct: number | null | undefined): { left: number; width: 
   return pct > 0 ? { left: DEV_HALF, width } : { left: DEV_HALF - width, width }
 }
 
-/** Onder de 5 % krijgt de balk --rail: zichtbaar, maar geen signaal. */
+/** "Gelijk" krijgt --rail: zichtbaar, maar geen signaal. */
 export function devKleurVar(pct: number | null | undefined): string {
   switch (afwijkingKleur(pct)) {
-    case 'warn':
-      return 'var(--warn)'
     case 'dgr':
       return 'var(--dgr)'
     case 'ok':
@@ -51,7 +64,7 @@ export function devKleurVar(pct: number | null | undefined): string {
   }
 }
 
-export function kleurClass(pct: number | null | undefined): '' | 'warn' | 'dgr' | 'ok' {
+export function kleurClass(pct: number | null | undefined): '' | 'dgr' | 'ok' {
   const k = afwijkingKleur(pct)
   return k === 'neutraal' ? '' : k
 }

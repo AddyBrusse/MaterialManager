@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { IconAlertTriangle, IconPencil, IconCheck, IconMoon, IconUser } from '@tabler/icons-react'
 import { secondenNaarKlok, secondenNaarUren } from '@stockmanager/shared'
 import type { TijdRegistratieDTO } from '../../api/tijdregistratie'
@@ -24,19 +24,34 @@ function tijdstip(iso: string | null) {
 }
 
 /** Eén rij in "Nu bezig" — apart zodat de klok per rij kan doortikken. */
+/**
+ * De regel die via de nacalculatie geopend is (`?regel=`): gemarkeerd en in
+ * beeld gescrold, zodat je niet hoeft te zoeken welke het was.
+ */
+function useGekozen(id: string, gekozen: string | null) {
+  const [el, setEl] = useState<HTMLTableRowElement | null>(null)
+  const is = id === gekozen
+  useEffect(() => {
+    if (is && el) el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [is, el])
+  return { ref: setEl, className: is ? 'tr-gekozen' : undefined }
+}
+
 function LopendeRij({
-  r, onPauze, onHervat, onKlaar,
+  r, gekozen, onPauze, onHervat, onKlaar,
 }: {
   r: TijdRegistratieDTO
+  gekozen: string | null
   onPauze: () => void; onHervat: () => void; onKlaar: () => void
 }) {
+  const markering = useGekozen(r.id, gekozen)
   const seconden = useKlok(r)
   const teLang = seconden > TE_LANG_SECONDEN
   const gepauzeerd = r.status === 'gepauzeerd'
 
   return (
     <>
-      <tr>
+      <tr {...markering}>
         <td className="cell-mono cell-muted">{tijdstip(r.gestartOp)}</td>
         <td>
           <div className="cell-strong">{r.artikelNaam}</div>
@@ -91,8 +106,57 @@ function LopendeRij({
  * nu loopt, wat er vandaag geregistreerd is, en welke klok is blijven staan. Dat
  * laatste is de grootste vervuiler van de dataset waar de calculatie op leunt.
  */
+/** Eén afgeronde regel van de dag. */
+function DagRij({ r, gekozen, onCorrigeer }: {
+  r: TijdRegistratieDTO; gekozen: string | null; onCorrigeer: () => void
+}) {
+  const markering = useGekozen(r.id, gekozen)
+  return (
+    <tr {...markering}>
+      <td className="cell-mono cell-muted">
+        {tijdstip(r.gestartOp)}–{tijdstip(r.gestoptOp)}
+      </td>
+      <td>
+        <div className="cell-strong">{r.artikelNaam}</div>
+        <div className="cell-muted" style={{ fontSize: 11.5 }}>
+          <Link to={`/projecten/${r.projectId}`}>{r.orderId}</Link>
+          {r.gecorrigeerd && (
+            <> · gemeten {secondenNaarUren(r.gemetenSeconden)} · bijgesteld naar{' '}
+              {secondenNaarUren(r.bijgesteldeSeconden ?? 0)} door {r.correctieDoor}</>
+          )}
+        </div>
+      </td>
+      <td>{r.machineNaam ?? '—'}</td>
+      <td><span className={`st-badge${r.soort === 'instellen' ? ' info' : ''}`}>{r.soort}</span></td>
+      <td>
+        {r.bemand
+          ? (r.userNaam ?? 'onbekend')
+          : <span className="cell-muted">onbemand</span>}
+      </td>
+      <td className="cell-mono cell-num">{r.aantalStuks ?? '—'}</td>
+      <td className="cell-mono cell-num">
+        {secondenNaarUren(r.seconden)}
+        {r.gecorrigeerd && <IconCheck size={12} stroke={2} style={{ marginLeft: 4, color: 'var(--text-3)' }} />}
+      </td>
+      <td className="row-actions">
+        <button className="st-btn xs" onClick={onCorrigeer}>
+          <IconPencil size={12} stroke={1.8} />
+        </button>
+      </td>
+    </tr>
+  )
+}
+
 export function TijdregistratiePage() {
-  const [datum, setDatum] = useState(vandaagISO())
+  // Vanuit de nacalculatie: ?datum=2026-09-30&regel=<id> opent die dag met die
+  // regel gemarkeerd. Zonder parameters gewoon vandaag.
+  const [params] = useSearchParams()
+  const gekozen = params.get('regel')
+  const [datum, setDatum] = useState(params.get('datum') ?? vandaagISO())
+  useEffect(() => {
+    const d = params.get('datum')
+    if (d) setDatum(d)
+  }, [params])
   const lopend = useLopendeTijd()
   const dag = useTijdVanDag(datum)
   const acties = useTijdActies()
@@ -185,7 +249,7 @@ export function TijdregistratiePage() {
               <tbody>
                 {lopendeRijen.map((r) => (
                   <LopendeRij
-                    key={r.id} r={r}
+                    key={r.id} r={r} gekozen={gekozen}
                     onPauze={() => acties.pauze.mutate(r.id)}
                     onHervat={() => acties.hervat.mutate(r.id)}
                     onKlaar={() => acties.stop.mutate({ id: r.id })}
@@ -218,38 +282,7 @@ export function TijdregistratiePage() {
               </thead>
               <tbody>
                 {dagRijen.map((r) => (
-                  <tr key={r.id}>
-                    <td className="cell-mono cell-muted">
-                      {tijdstip(r.gestartOp)}–{tijdstip(r.gestoptOp)}
-                    </td>
-                    <td>
-                      <div className="cell-strong">{r.artikelNaam}</div>
-                      <div className="cell-muted" style={{ fontSize: 11.5 }}>
-                        <Link to={`/projecten/${r.projectId}`}>{r.orderId}</Link>
-                        {r.gecorrigeerd && (
-                          <> · gemeten {secondenNaarUren(r.gemetenSeconden)} · bijgesteld naar{' '}
-                            {secondenNaarUren(r.bijgesteldeSeconden ?? 0)} door {r.correctieDoor}</>
-                        )}
-                      </div>
-                    </td>
-                    <td>{r.machineNaam ?? '—'}</td>
-                    <td><span className={`st-badge${r.soort === 'instellen' ? ' info' : ''}`}>{r.soort}</span></td>
-                    <td>
-                      {r.bemand
-                        ? (r.userNaam ?? 'onbekend')
-                        : <span className="cell-muted">onbemand</span>}
-                    </td>
-                    <td className="cell-mono cell-num">{r.aantalStuks ?? '—'}</td>
-                    <td className="cell-mono cell-num">
-                      {secondenNaarUren(r.seconden)}
-                      {r.gecorrigeerd && <IconCheck size={12} stroke={2} style={{ marginLeft: 4, color: 'var(--text-3)' }} />}
-                    </td>
-                    <td className="row-actions">
-                      <button className="st-btn xs" onClick={() => setCorrigeren(r)}>
-                        <IconPencil size={12} stroke={1.8} />
-                      </button>
-                    </td>
-                  </tr>
+                  <DagRij key={r.id} r={r} gekozen={gekozen} onCorrigeer={() => setCorrigeren(r)} />
                 ))}
               </tbody>
             </table>

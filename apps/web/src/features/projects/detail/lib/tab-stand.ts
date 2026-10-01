@@ -16,6 +16,7 @@ import type { TabId } from '../types'
 import { dagenTot } from './format'
 import { geaccepteerdeOfferte, geldendeOfferte, productieAf } from './status'
 import { opdrachtGewijzigd } from './tab-actie'
+import { afwijkingKleur } from './nacalculatie'
 
 export type TabStand =
   /** Bestaat nog niet. */
@@ -69,6 +70,8 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
   })()
 
   const afw = nacalc?.verschilPct ?? null
+  // Duurder gemaakt dan berekend (2026-10-01): elke overschrijding, geen drempel.
+  const teDuur = Boolean(nacalc?.gemeten) && afwijkingKleur(afw) === 'dgr'
 
   return {
     algemeen: p.notities.trim() ? 'bezig' : 'leeg',
@@ -95,7 +98,7 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
 
     nacalculatie: !nacalc
       ? 'leeg'
-      : afw !== null && Math.abs(afw) >= 15
+      : teDuur
         ? 'aandacht'
         : nacalc.gemeten
           ? 'gereed'
@@ -115,7 +118,7 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
     // niet op de ene tab amber te zijn en op de andere niet.
     financieel: !geldend
       ? 'leeg'
-      : afw !== null && Math.abs(afw) >= 15
+      : teDuur
         ? 'aandacht'
         : p.facturen.length > 0
           ? 'gereed'

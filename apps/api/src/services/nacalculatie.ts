@@ -12,9 +12,11 @@ import type { Prisma } from '@prisma/client'
 import {
   bouwNacalculatie, computeEstimateTotals, buildEstimateCtx, computeWeightKg,
   effectieveSeconden, adviesInstelMinuten, adviesCycleMinuten,
+  gecalculeerdPerMachine, bouwMachineNacalculatie, machineSleutel,
   type Nacalculatie, type GemetenUren, type ArticleEstimate, type ArticleRecipe,
-  type EstimateTotals, type VolumeFormula,
+  type EstimateTotals, type VolumeFormula, type MachineNacalculatie, type Klokregel,
 } from '@stockmanager/shared'
+import { bonnenVanOrderWaar } from './zaagbon'
 
 type Db = Prisma.TransactionClient
 
@@ -23,7 +25,7 @@ function num(v: unknown): number {
 }
 
 interface Tarieven {
-  /** Per machinenaam: wat de machine kost, en wat de operator er bovenop kost. */
+  /** Per machinesleutel (`machineSleutel`): wat de machine kost, en wat de operator er bovenop kost. */
   perNaam: Map<string, { machine: number; operator: number }>
 }
 
@@ -31,7 +33,7 @@ async function tarievenLaden(db: Db): Promise<Tarieven> {
   const machines = await db.machine.findMany()
   const perNaam = new Map<string, { machine: number; operator: number }>()
   for (const m of machines) {
-    perNaam.set(m.name, {
+    perNaam.set(machineSleutel(m.name), {
       machine: num(m.machineRatePerHour),
       operator: num(m.operatorRatePerHour),
     })
@@ -47,8 +49,13 @@ async function tarievenLaden(db: Db): Promise<Tarieven> {
  * verschil hoort zichtbaar te worden in plaats van weggepoetst.
  */
 function uurtarief(t: Tarieven, machineNaam: string | null, bemand: boolean): number {
-  const m = machineNaam ? t.perNaam.get(machineNaam) : undefined
-  if (!m) return 0
+  return tariefVan(t, machineNaam, bemand) ?? 0
+}
+
+/** Als `uurtarief`, maar `null` als de naam geen machine uit de lijst is. */
+function tariefVan(t: Tarieven, machineNaam: string | null, bemand: boolean): number | null {
+  const m = machineNaam ? t.perNaam.get(machineSleutel(machineNaam)) : undefined
+  if (!m) return null
   return bemand ? m.machine + m.operator : m.machine
 }
 
@@ -111,7 +118,7 @@ export function telUren(rijen: RegistratieRij[], tarieven: Tarieven): GemetenUre
  * tonen die als besparing gelezen wordt.
  */
 export async function materiaalWerkelijk(
-  db: Db, waar: { projectId?: string; artikelId?: string },
+  db: Db, waar: Prisma.ZaagReserveringWhereInput,
 ): Promise<number | null> {
   const reserveringen = await db.zaagReservering.findMany({
     where: { ...waar, status: 'done' },
@@ -141,10 +148,10 @@ export async function materiaalWerkelijk(
   return totaal
 }
 
-/** De calculatie van een artikel, herrekend bij dit aantal. */
+/** De calculatie van een artikel, herrekend bij dit aantal — totaal en per machine. */
 async function geschatVoorArtikel(
   db: Db, artikelId: string, qty: number,
-): Promise<EstimateTotals | null> {
+): Promise<{ totalen: EstimateTotals; machines: ReturnType<typeof gecalculeerdPerMachine> } | null> {
   const artikel = await db.article.findUnique({ where: { id: artikelId } })
   if (!artikel || !artikel.estimate) return null
   const [grades, machines, profiles] = await Promise.all([
@@ -162,7 +169,38 @@ async function geschatVoorArtikel(
       operatorRatePerHour: num(m.operatorRatePerHour),
     })),
   )
-  return computeEstimateTotals(artikel.estimate as unknown as ArticleEstimate, ctx, qty)
+  const est = artikel.estimate as unknown as ArticleEstimate
+  return {
+    totalen: computeEstimateTotals(est, ctx, qty),
+    // Dezelfde naam als op de productiestap (`bewerkingenVan`): uit de
+    // machinelijst, anders die van de calculatieknoop.
+    machines: gecalculeerdPerMachine(est, ctx, qty, (id) => machines.find((m) => m.id === id)?.name ?? null),
+  }
+}
+
+/** Van databaserij naar wat de nacalculatie per klokregel toont. */
+function naarKlokregel(r: RegistratieRij & {
+  id: string; userNaam: string | null; gestartOp: Date; gestoptOp: Date | null; correctieReden: string | null
+}): Omit<Klokregel, 'kosten'> {
+  return {
+    id: r.id,
+    soort: r.soort === 'instellen' ? 'instellen' : 'draaien',
+    bemand: r.bemand,
+    status: r.status as Klokregel['status'],
+    machineNaam: r.machineNaam,
+    userNaam: r.userNaam,
+    gestartOp: r.gestartOp.toISOString(),
+    gestoptOp: r.gestoptOp ? r.gestoptOp.toISOString() : null,
+    seconden: effectieveSeconden({
+      gemetenSeconden: r.gemetenSeconden,
+      bijgesteldeSeconden: r.bijgesteldeSeconden,
+      lopendSinds: r.lopendSinds ? r.lopendSinds.toISOString() : null,
+    }),
+    gemetenSeconden: r.gemetenSeconden,
+    gecorrigeerd: r.bijgesteldeSeconden !== null,
+    correctieReden: r.correctieReden,
+    aantalStuks: r.aantalStuks,
+  }
 }
 
 export interface OrderNacalculatie extends Nacalculatie {
@@ -175,6 +213,10 @@ export interface OrderNacalculatie extends Nacalculatie {
   gemaakteStuks: number
   /** Wat de metingen als nieuwe norm zouden adviseren. Null bij te weinig data. */
   advies: { instelMin: number | null; cycleMin: number | null } | null
+  /** Instellen en draaien per machine, met de klokregels eronder. */
+  machines: MachineNacalculatie[]
+  /** Zaagbonnen van deze orderregel: afgeboekt en nog open. */
+  zaagbonnen: { afgeboekt: number; open: number }
 }
 
 /** Nacalculatie van één productieorder — de regel die in het project staat. */
@@ -194,24 +236,32 @@ async function bouwVoorOrder(db: Db, order: OrderRij): Promise<OrderNacalculatie
   const geschat = await geschatVoorArtikel(db, order.artikelId, order.qty)
   if (!geschat) return null
 
+  // Materiaal per orderregel: staat hetzelfde artikel twee keer in het project,
+  // dan telde eerder elke order de zaagbonnen van beide.
+  const metHetzelfdeArtikel = await db.productieOrder.count({
+    where: { projectId: order.projectId, artikelId: order.artikelId },
+  })
+  const bonWaar = bonnenVanOrderWaar(order, metHetzelfdeArtikel === 1)
+
   // De opdracht gaat voor de offerte: sinds 2026-09-28 zijn aantal en prijs
   // op de opdracht aan te passen, en een regel die er later bijkwam staat
   // alleen daar. De offerteregel blijft de terugval voor oudere orders.
-  const [tarieven, registraties, obRegel, offerteRegel] = await Promise.all([
+  const [tarieven, registraties, obRegel, offerteRegel, bonnen] = await Promise.all([
     tarievenLaden(db),
     db.tijdRegistratie.findMany({ where: { orderId: order.id } }),
     db.obRegel.findUnique({ where: { id: order.offerteRegelId } }),
     db.offerteRegel.findUnique({ where: { id: order.offerteRegelId } }),
+    db.zaagReservering.groupBy({ by: ['status'], where: bonWaar, _count: true }),
   ])
   const regel = obRegel ?? offerteRegel
   const uren = telUren(registraties, tarieven)
-  const materiaal = await materiaalWerkelijk(db, {
-    projectId: order.projectId, artikelId: order.artikelId,
-  })
+  const materiaal = await materiaalWerkelijk(db, bonWaar)
+  const telBon = (st: string[]) =>
+    bonnen.filter((b) => st.includes(b.status)).reduce((s, b) => s + b._count, 0)
 
   const basis = bouwNacalculatie({
     qty: order.qty,
-    geschat,
+    geschat: geschat.totalen,
     gemeten: uren,
     materiaalWerkelijk: materiaal,
     externWerkelijk: null,
@@ -230,6 +280,12 @@ async function bouwVoorOrder(db: Db, order: OrderRij): Promise<OrderNacalculatie
       instelMin: adviesInstelMinuten(uren.instelMetingen),
       cycleMin: adviesCycleMinuten(uren.draaienSeconden, uren.stuks || order.qty),
     },
+    machines: bouwMachineNacalculatie(
+      geschat.machines,
+      registraties.map(naarKlokregel),
+      (naam, bemand) => tariefVan(tarieven, naam, bemand),
+    ),
+    zaagbonnen: { afgeboekt: telBon(['done']), open: telBon(['open', 'in_progress']) },
   }
 }
 
