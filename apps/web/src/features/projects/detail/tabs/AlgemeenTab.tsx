@@ -27,7 +27,7 @@ export function AlgemeenTab({ project: p, relaties, activiteit, geblokkeerd, onG
       />
 
       <Card titel="Notities">
-        <div className="pdv2-veld">
+        <div className="pdv2-veld pdv2-form">
           <label htmlFor="pdv2-notities">Notities</label>
           <textarea
             id="pdv2-notities"

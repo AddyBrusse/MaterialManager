@@ -34,50 +34,62 @@ export function OfferteActies({
   onIntrekken,
   onVerwijder,
 }: Props) {
+  // Drie vaste vakken (.pdv2-acties-rij): vooruit, kopiëren, weg. Een vak
+  // zonder knop blijft leeg, zodat Kopieer in elke rij op dezelfde plek staat.
+  const vooruit =
+    o.status === 'concept' && !o.direct ? (
+      <button
+        type="button"
+        className="pdv2-btn s primair"
+        // Niet uitgeschakeld bij een lege versie of zonder referentie: een
+        // grijze knop zegt niet wáárom. Klikken geeft een melding die zegt wat
+        // er eerst moet (zie offerte-voorwaarden).
+        disabled={geblokkeerd}
+        onClick={onVerzend}
+      >
+        Versturen
+      </button>
+    ) : o.status === 'verzonden' && !erIsGeaccepteerd ? (
+      <button type="button" className="pdv2-btn s primair" disabled={geblokkeerd} onClick={onAccepteer}>
+        Accepteren
+      </button>
+    ) : (
+      <span />
+    )
+
+  const weg =
+    o.status === 'verzonden' ? (
+      <button
+        type="button"
+        className="pdv2-btn s stil"
+        disabled={geblokkeerd}
+        title="Deze versie geldt niet meer; hij blijft zichtbaar als vervallen"
+        onClick={onIntrekken}
+      >
+        Intrekken
+      </button>
+    ) : o.status === 'concept' ? (
+      <button
+        type="button"
+        className="pdv2-btn s stil"
+        disabled={geblokkeerd}
+        title={`v${o.versie} verwijderen`}
+        onClick={onVerwijder}
+      >
+        <IconTrash size={12} />
+        Verwijderen
+      </button>
+    ) : (
+      <span />
+    )
+
   return (
     <td className="pdv2-acties">
-      {o.status === 'concept' && !o.direct && (
-        <button
-          type="button"
-          className="pdv2-btn s"
-          // Niet uitgeschakeld bij een lege versie of zonder referentie: een
-          // grijze knop zegt niet wáárom. Klikken geeft een melding die zegt wat
-          // er eerst moet (zie offerte-voorwaarden).
-          disabled={geblokkeerd}
-          onClick={onVerzend}
-        >
-          Versturen
-        </button>
-      )}
-      {o.status === 'verzonden' && !erIsGeaccepteerd && (
-        <button type="button" className="pdv2-btn s primair" disabled={geblokkeerd} onClick={onAccepteer}>
-          Accepteren
-        </button>
-      )}
-      {o.status === 'verzonden' && (
-        <button
-          type="button"
-          className="pdv2-btn s stil"
-          disabled={geblokkeerd}
-          title="Deze versie geldt niet meer; hij blijft zichtbaar als vervallen"
-          onClick={onIntrekken}
-        >
-          Intrekken
-        </button>
-      )}
-      <KopieerKnop versie={o.versie} geblokkeerd={geblokkeerd} onKopieer={onKopieer} onNaarProject={onNaarProject} />
-      {o.status === 'concept' && (
-        <button
-          type="button"
-          className="pdv2-btn s stil"
-          disabled={geblokkeerd}
-          title={`v${o.versie} verwijderen`}
-          aria-label={`v${o.versie} verwijderen`}
-          onClick={onVerwijder}
-        >
-          <IconTrash size={12} />
-        </button>
-      )}
+      <div className="pdv2-acties-rij">
+        {vooruit}
+        <KopieerKnop versie={o.versie} geblokkeerd={geblokkeerd} onKopieer={onKopieer} onNaarProject={onNaarProject} />
+        {weg}
+      </div>
     </td>
   )
 }
