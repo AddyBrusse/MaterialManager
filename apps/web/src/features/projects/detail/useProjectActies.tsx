@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { notifications } from '@mantine/notifications'
-import type { OpdrachtWijziging, Project } from '@stockmanager/shared'
+import type { OpdrachtWijziging, Project, UpdateProject } from '@stockmanager/shared'
 import {
   volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
@@ -69,6 +69,8 @@ export interface ProjectActies {
   verzendOB: (naar: string | null) => void
   /** Opdrachtreferentie, opmerking of levertijd op de opdrachtbevestiging. */
   zetOB: (patch: { notities?: string; opdrachtRef?: string | null; levertijdDatum?: string | null }) => void
+  /** Basisgegevens van het project. Stil bij gelukt; mislukt meldt syncProject. */
+  zetProject: (patch: UpdateProject) => void
   stapCheck: (orderId: string, stapId: string, gereed: boolean) => void
   meldStuksGereed: (orderId: string) => void
   maakPaklijst: () => void
@@ -162,6 +164,7 @@ export function useProjectActies(
     maakDirecteOpdracht: () => {},
     verzendOB: () => {},
     zetOB: () => {},
+    zetProject: () => {},
     stapCheck: () => {},
     meldStuksGereed: () => {},
     maakPaklijst: () => {},
@@ -457,6 +460,13 @@ export function useProjectActies(
       ),
     // Stil, zoals de referentie van een offerte: een groene melding per
     // ingevuld veld is ruis. Een fout meldt syncProject zelf.
+    // Stil, net als zetOB: een groene melding per veld zou bij het invullen om
+    // de paar seconden verschijnen. Mislukt het, dan meldt syncProject het met
+    // wat/waar/gevolg en zet het scherm terug.
+    zetProject: (patch) => {
+      projectsApi.update(id, patch)
+      ververs()
+    },
     zetOB: (patch) => {
       try {
         projectsApi.updateOB(id, patch)
