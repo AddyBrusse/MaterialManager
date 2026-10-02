@@ -4,12 +4,13 @@ import type {
   ProductieOrder,
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
-  OpdrachtWijziging,
+  OpdrachtWijziging, PakbonRegelKeuze,
 } from '@stockmanager/shared'
 import {
   berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken, obInhoud,
   isVrijgegeven, orderStatusNaStappen, vrijgeven, terugNaarVoorbereiding, waaromNietTerugNaarVoorbereiding,
-  statusNaLevering, waaromNietPakbon,
+  statusNaLevering, waaromNietPakbon, voorstelPakbon, pakbonRegels, waaromNietPakbonWijzigen,
+  waaromNietPakbonVersturen,
 } from '@stockmanager/shared'
 import { apiFetch, ApiFout } from './client'
 import { meldFout } from '../utils/fout-melding-toon'
@@ -878,54 +879,80 @@ export const projectsApi = {
   // `berekenVoortgang` — dezelfde functie als op de server, zodat het
   // optimistische scherm en het antwoord daarna niet uit elkaar lopen.
 
-  createPaklijst(projectId: string, regels?: { offerteRegelId: string; qty: number }[]): Project {
+  /**
+   * Een nieuwe concept-pakbon met de regels die helemaal klaar zijn
+   * (`voorstelPakbon`); mag leeg zijn. Aanpassen gebeurt daarna op de
+   * Pakbonnen-tab met `wijzigPaklijst` (2026-10-02).
+   */
+  createPaklijst(projectId: string): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
-
-    const voortgang = berekenVoortgang(p)
-    const keuze = regels ?? voortgang.regels
-      .filter(r => r.klaar > 0)
-      .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.klaar }))
-    const nee = waaromNietPakbon(p, keuze)
-    if (nee) throw new Weigering(nee)
-
-    const orderVan = (regelId: string) => p.productieOrders.find(o => o.offerteRegelId === regelId)
-    const regelVan = (regelId: string) => basisRegels(p).find(r => r.id === regelId)
-
+    const keuze = voorstelPakbon(p)
     const paklijst: Paklijst = {
       id: nextLocalDocId('PL'),
       projectId,
-      regels: keuze.map(g => {
-        const order = orderVan(g.offerteRegelId)
-        const regel = regelVan(g.offerteRegelId)
-        return {
-          productieOrderId: order?.id ?? '',
-          offerteRegelId: g.offerteRegelId,
-          artikelNaam: order?.artikelNaam ?? regel?.naam ?? g.offerteRegelId,
-          qty: g.qty,
-          eenheid: order?.eenheid ?? regel?.eenheid ?? 'st',
-        }
-      }),
+      regels: pakbonRegels(p, keuze),
       notities: '',
       verzondenOp: null,
       createdAt: now(),
     }
-    // Status volgt de voortgang (2026-10-02): bij een deellevering blijft het project in productie.
     const updated = updateCache(projectId, p => {
       const next = { ...p, paklijsten: [...p.paklijsten, paklijst], updatedAt: now() }
       return { ...next, status: statusNaLevering(next) }
     })
     syncProject(
       projectId,
-      apiFetch<Project>(`/projects/${projectId}/paklijst`, {
-        method: 'POST', body: JSON.stringify({ regels: keuze }),
-      }),
-      'Paklijst aanmaken',
+      apiFetch<Project>(`/projects/${projectId}/paklijst`, { method: 'POST', body: '{}' }),
+      'Pakbon aanmaken',
     )
     return updated
   },
 
+  /** Een concept-pakbon aanpassen: de hele lijst regels in één keer. */
+  wijzigPaklijst(projectId: string, paklijstId: string, regels: PakbonRegelKeuze[]): Project {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const nee = waaromNietPakbonWijzigen(p, paklijstId) ?? waaromNietPakbon(p, regels, { pakbonId: paklijstId, leegMag: true })
+    if (nee) throw new Weigering(nee)
+    const updated = updateCache(projectId, p => {
+      const next = {
+        ...p,
+        paklijsten: p.paklijsten.map(x => (x.id === paklijstId ? { ...x, regels: pakbonRegels(p, regels) } : x)),
+        updatedAt: now(),
+      }
+      return { ...next, status: statusNaLevering(next) }
+    })
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/paklijst/${paklijstId}`, { method: 'PATCH', body: JSON.stringify({ regels }) }),
+      'Pakbon aanpassen',
+    )
+    return updated
+  },
+
+  /** Een concept-pakbon weggooien. */
+  verwijderPaklijst(projectId: string, paklijstId: string): Project {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const nee = waaromNietPakbonWijzigen(p, paklijstId)
+    if (nee) throw new Weigering(nee)
+    const updated = updateCache(projectId, p => {
+      const next = { ...p, paklijsten: p.paklijsten.filter(x => x.id !== paklijstId), updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
+    })
+    syncProject(
+      projectId,
+      apiFetch<Project>(`/projects/${projectId}/paklijst/${paklijstId}`, { method: 'DELETE' }),
+      'Pakbon verwijderen',
+    )
+    return updated
+  },
+
+
   verzendPaklijst(projectId: string, paklijstId: string): Project {
+    const p0 = cache.find(p => p.id === projectId)
+    const nee = p0 ? waaromNietPakbonVersturen(p0, paklijstId) : null
+    if (nee) throw new Weigering(nee)
     const updated = updateCache(projectId, p => {
       if (!p.paklijsten.some(x => x.id === paklijstId)) throw new Error('Geen paklijst')
       const paklijsten = p.paklijsten.map(x =>

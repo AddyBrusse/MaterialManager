@@ -6,6 +6,7 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'offertes', label: 'Offertes' },
   { id: 'opdracht', label: 'Opdracht' },
   { id: 'productie', label: 'Productie' },
+  { id: 'pakbonnen', label: 'Pakbonnen' },
   { id: 'nacalculatie', label: 'Nacalculatie' },
   { id: 'documenten', label: 'Documenten' },
   { id: 'financieel', label: 'Financieel' },

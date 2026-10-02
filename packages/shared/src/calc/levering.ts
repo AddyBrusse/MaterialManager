@@ -1,5 +1,5 @@
-import type { ProductieOrder, Project, ProjectStatus } from '../schemas/project'
-import { berekenVoortgang } from './projectvoortgang'
+import type { PaklijstRegel, ProductieOrder, Project, ProjectStatus } from '../schemas/project'
+import { basisRegels, berekenVoortgang } from './projectvoortgang'
 
 /**
  * Leveren in delen (besloten 2026-10-02).
@@ -48,22 +48,53 @@ export interface PakbonRegelKeuze {
 }
 
 /**
+ * Wat er per regel nog voor een pakbon beschikbaar is: gemaakt min wat al op
+ * een pakbon staat. Met `zonder` telt die pakbon niet mee — bij het aanpassen
+ * van een concept zijn zijn eigen stuks immers weer beschikbaar.
+ */
+export function leverVoortgang(p: Project, zonder?: string) {
+  return berekenVoortgang(zonder ? { ...p, paklijsten: p.paklijsten.filter(pl => pl.id !== zonder) } : p)
+}
+
+/**
+ * De regels voor een nieuwe pakbon (besloten 2026-10-02): alleen regels die
+ * helemaal klaar zijn — alles wat nog geleverd moet worden is gereed. Een regel
+ * die maar deels klaar is, voeg je zelf toe; anders gaat er ongemerkt een halve
+ * regel de deur uit.
+ */
+export function voorstelPakbon(p: Project): PakbonRegelKeuze[] {
+  return berekenVoortgang(p).regels
+    .filter(r => r.klaar > 0 && r.teMaken === 0)
+    .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.klaar }))
+}
+
+/**
  * Waarom deze pakbon niet kan, of `null`.
  *
  * Meer meegeven dan er klaarligt kan niet (besloten 2026-10-02): wat de deur
  * uit gaat moet eerst gereed gemeld zijn, anders klopt "gemaakt" niet meer en
  * rekent de nacalculatie met stuks die niemand heeft afgemeld.
+ *
+ * Een concept mag leeg zijn (`leegMag`); je vult hem daarna op de tab. Bij het
+ * aanpassen van een bestaand concept geef je zijn id mee als `pakbonId`.
  */
-export function waaromNietPakbon(p: Project, regels: PakbonRegelKeuze[]): string | null {
-  const v = berekenVoortgang(p)
-  if (v.klaar === 0) {
-    return 'Er ligt nog niets klaar om te leveren. Meld eerst stuks gereed op de Productie-tab.'
+export function waaromNietPakbon(
+  p: Project, regels: PakbonRegelKeuze[], opties: { pakbonId?: string; leegMag?: boolean } = {},
+): string | null {
+  const v = leverVoortgang(p, opties.pakbonId)
+  if (regels.length === 0) {
+    if (opties.leegMag) return null
+    return v.klaar === 0
+      ? 'Er ligt nog niets klaar om te leveren. Meld eerst stuks gereed op de Productie-tab.'
+      : 'Zet minstens één regel op de pakbon.'
   }
-  if (regels.length === 0) return 'Vink minstens één regel aan om op de pakbon te zetten.'
+  const gezien = new Set<string>()
   for (const g of regels) {
     const r = v.regels.find(x => x.offerteRegelId === g.offerteRegelId)
     if (!r) return 'Een van de regels bestaat niet (meer) in de opdracht. Ververs de pagina.'
-    if (!(g.qty > 0)) return `${r.naam}: vul een aantal groter dan 0 in, of vink de regel uit.`
+    if (gezien.has(g.offerteRegelId)) return `${r.naam} staat twee keer op de pakbon.`
+    gezien.add(g.offerteRegelId)
+    if (!(g.qty > 0)) return `${r.naam}: vul een aantal groter dan 0 in, of haal de regel weg.`
     if (g.qty > r.klaar) {
       const tekort = g.qty - r.klaar
       if (r.klaar === 0) {
@@ -72,6 +103,42 @@ export function waaromNietPakbon(p: Project, regels: PakbonRegelKeuze[]): string
       return `${r.naam}: er liggen er maar ${r.klaar} klaar. Meld eerst ${tekort} ${r.eenheid} gereed op de Productie-tab.`
     }
   }
+  return null
+}
+
+/**
+ * Van keuze naar pakbonregels. De productieorder levert naam en eenheid;
+ * meerdere orders kunnen naar dezelfde orderregel wijzen, de eerste volstaat,
+ * want de pakbon legt de orderregel zelf vast.
+ */
+export function pakbonRegels(p: Project, keuze: PakbonRegelKeuze[]): PaklijstRegel[] {
+  return keuze.map(g => {
+    const order = p.productieOrders.find(o => o.offerteRegelId === g.offerteRegelId)
+    const regel = basisRegels(p).find(r => r.id === g.offerteRegelId)
+    return {
+      productieOrderId: order?.id ?? '',
+      offerteRegelId: g.offerteRegelId,
+      artikelNaam: order?.artikelNaam ?? regel?.naam ?? g.offerteRegelId,
+      qty: g.qty,
+      eenheid: order?.eenheid ?? regel?.eenheid ?? 'st',
+    }
+  })
+}
+
+/** Waarom deze pakbon niet verstuurd kan worden, of `null`. */
+export function waaromNietPakbonVersturen(p: Project, pakbonId: string): string | null {
+  const pl = p.paklijsten.find(x => x.id === pakbonId)
+  if (!pl) return 'Deze pakbon bestaat niet (meer). Ververs de pagina.'
+  if (pl.verzondenOp) return `${pl.id} is al verstuurd.`
+  if (pl.regels.length === 0) return `${pl.id} heeft nog geen regels. Voeg eerst toe wat er mee moet.`
+  return null
+}
+
+/** Waarom deze pakbon niet aangepast of verwijderd kan worden, of `null`. */
+export function waaromNietPakbonWijzigen(p: Project, pakbonId: string): string | null {
+  const pl = p.paklijsten.find(x => x.id === pakbonId)
+  if (!pl) return 'Deze pakbon bestaat niet (meer). Ververs de pagina.'
+  if (pl.verzondenOp) return `${pl.id} is al verstuurd en ligt bij de klant; die verandert niet meer.`
   return null
 }
 

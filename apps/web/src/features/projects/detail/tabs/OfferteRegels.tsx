@@ -16,7 +16,8 @@ export function CelGetal({
 }: {
   waarde: number
   decimalen?: number
-  onKlaar: (n: number) => void
+  /** `false` = niet doorgegaan (geweigerd): dan springt het vak terug naar de oude waarde. */
+  onKlaar: (n: number) => boolean | void
 }) {
   const toon = waarde.toLocaleString('nl-NL', {
     minimumFractionDigits: decimalen,
@@ -31,8 +32,10 @@ export function CelGetal({
       onFocus={(e) => e.currentTarget.select()}
       onBlur={(e) => {
         const n = Number(e.currentTarget.value.replace(/\./g, '').replace(',', '.'))
-        if (Number.isFinite(n) && n >= 0 && n !== waarde) onKlaar(n)
-        else e.currentTarget.value = toon
+        const veld = e.currentTarget
+        if (Number.isFinite(n) && n >= 0 && n !== waarde) {
+          if (onKlaar(n) === false) veld.value = toon
+        } else veld.value = toon
       }}
     />
   )

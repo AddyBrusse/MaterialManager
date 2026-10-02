@@ -13,6 +13,7 @@ import {
   isVrijgegeven, orderStatusNaStappen, vrijgeven, terugNaarVoorbereiding,
   waaromNietVrijgeven, waaromNietTerugNaarVoorbereiding,
   statusNaLevering, waaromNietPakbon, waaromNietDeelsGereed,
+  voorstelPakbon, pakbonRegels, waaromNietPakbonVersturen, waaromNietPakbonWijzigen,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
@@ -1044,40 +1045,16 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = CreatePaklijstSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, async (p, tx) => {
-      const voortgang = berekenVoortgang(p)
-
-      // Zonder keuze: alles wat klaarligt (gemaakt min al geleverd). Zonder dat
-      // aftrekken zou de tweede pakbon dezelfde stuks nog een keer meesturen.
-      const gevraagd = body.regels ?? voortgang.regels
-        .filter(r => r.klaar > 0)
-        .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.klaar }))
-
-      // Dezelfde vraag als het scherm vóór het versturen stelde (2026-10-02).
-      const nee = waaromNietPakbon(p, gevraagd)
+      // Zonder keuze: de regels die helemaal klaar zijn (voorstelPakbon). Een
+      // concept mag leeg zijn; je vult hem op de Pakbonnen-tab (2026-10-02).
+      const gevraagd = body.regels ?? voorstelPakbon(p)
+      const nee = waaromNietPakbon(p, gevraagd, { leegMag: !body.regels })
       if (nee) throw new AppError(409, 'VOORWAARDE', nee)
-
-      // De productieorder erbij zoeken voor de naam en de eenheid. Meerdere
-      // orders kunnen naar dezelfde orderregel wijzen; de eerste volstaat,
-      // want de pakbon legt de orderregel zelf vast.
-      const orderVan = (regelId: string) =>
-        p.productieOrders.find(o => o.offerteRegelId === regelId)
-      const regelVan = (regelId: string) =>
-        basisRegels(p).find(r => r.id === regelId)
 
       const paklijst: Paklijst = {
         id: await nextDocId(tx, 'PL'),
         projectId: p.id,
-        regels: gevraagd.map(g => {
-          const order = orderVan(g.offerteRegelId)
-          const regel = regelVan(g.offerteRegelId)
-          return {
-            productieOrderId: order?.id ?? '',
-            offerteRegelId: g.offerteRegelId,
-            artikelNaam: order?.artikelNaam ?? regel?.naam ?? g.offerteRegelId,
-            qty: g.qty,
-            eenheid: order?.eenheid ?? regel?.eenheid ?? 'st',
-          }
-        }),
+        regels: pakbonRegels(p, gevraagd),
         notities: '',
         verzondenOp: null,
         createdAt: now(),
@@ -1091,12 +1068,54 @@ router.post(
   }),
 )
 
+const WijzigPaklijstSchema = z.object({
+  regels: z.array(z.object({ offerteRegelId: z.string(), qty: z.number() })),
+})
+
+/**
+ * Een concept-pakbon aanpassen op de Pakbonnen-tab: aantal per regel, regel
+ * weg, regel erbij. De hele lijst in één keer, zodat er nooit een halve
+ * wijziging blijft staan. Zijn eigen stuks tellen daarbij weer als klaar.
+ */
+router.patch(
+  '/:id/paklijst/:paklijstId',
+  asyncHandler(async (req, res) => {
+    const { regels } = WijzigPaklijstSchema.parse(req.body ?? {})
+    const updated = await withProject(req.params.id, (p) => {
+      const id = req.params.paklijstId
+      const nee = waaromNietPakbonWijzigen(p, id) ?? waaromNietPakbon(p, regels, { pakbonId: id, leegMag: true })
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      const paklijsten = p.paklijsten.map(x => (x.id === id ? { ...x, regels: pakbonRegels(p, regels) } : x))
+      const next = { ...p, paklijsten, updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
+    })
+    res.json({ data: updated })
+  }),
+)
+
+/** Een concept-pakbon weggooien, ook als het niet de laatste is. */
+router.delete(
+  '/:id/paklijst/:paklijstId',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      const id = req.params.paklijstId
+      const nee = waaromNietPakbonWijzigen(p, id)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      const next = { ...p, paklijsten: p.paklijsten.filter(x => x.id !== id), updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
+    })
+    res.json({ data: updated })
+  }),
+)
+
 router.post(
   '/:id/paklijst/:paklijstId/verzend',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
       const pl = p.paklijsten.find(x => x.id === req.params.paklijstId)
       if (!pl) throw new AppError(404, 'NOT_FOUND', 'Deze paklijst bestaat niet (meer). Ververs de pagina.')
+      const nee = waaromNietPakbonVersturen(p, pl.id)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
       const paklijsten = p.paklijsten.map(x =>
         x.id === pl.id ? { ...x, verzondenOp: now() } : x,
       )

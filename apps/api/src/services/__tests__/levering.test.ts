@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   statusNaLevering, waaromNietPakbon, waaromNietDeelsGereed,
+  voorstelPakbon, waaromNietPakbonVersturen, waaromNietPakbonWijzigen,
   type Project, type ProductieOrder, type Paklijst,
 } from '@stockmanager/shared'
 
@@ -77,12 +78,13 @@ describe('waaromNietPakbon', () => {
   })
 
   it('weigert een lege pakbon en een aantal van 0', () => {
-    expect(waaromNietPakbon(p, [])).toContain('Vink minstens één regel aan')
+    expect(waaromNietPakbon(p, [])).toContain('minstens één regel')
+    expect(waaromNietPakbon(p, [], { leegMag: true })).toBeNull()
     expect(waaromNietPakbon(p, [{ offerteRegelId: 'r-B', qty: 0 }])).toContain('groter dan 0')
   })
 
   it('zegt het als er helemaal niets klaarligt', () => {
-    expect(waaromNietPakbon(project([order('A')]), [{ offerteRegelId: 'r-A', qty: 1 }])).toContain('nog niets klaar')
+    expect(waaromNietPakbon(project([order('A')]), [{ offerteRegelId: 'r-A', qty: 1 }])).toContain('niets klaar')
   })
 })
 
@@ -93,5 +95,40 @@ describe('waaromNietDeelsGereed', () => {
     expect(waaromNietDeelsGereed(o, 8)).toContain('al 8 gereed')
     expect(waaromNietDeelsGereed(o, 20)).toContain('Gebruik dan "Gereed"')
     expect(waaromNietDeelsGereed(o, 2.5)).toContain('heel aantal')
+  })
+})
+
+describe('voorstelPakbon', () => {
+  it('neemt alleen regels die helemaal klaar zijn', () => {
+    // Asbus: 8 van 20 gemaakt → niet voorgesteld. Pen: 5 van 5 → wel.
+    const p = project([order('A', { aantalGereed: 8 }), order('B', { qty: 5, status: 'gereed' })])
+    expect(voorstelPakbon(p)).toEqual([{ offerteRegelId: 'r-B', qty: 5 }])
+  })
+
+  it('neemt de rest van een regel die na een deellevering helemaal klaar is', () => {
+    const p = project([order('A', { aantalGereed: 20 })], [pakbon('PL1', [['r-A', 10]], true)])
+    expect(voorstelPakbon(p)).toEqual([{ offerteRegelId: 'r-A', qty: 10 }])
+  })
+})
+
+describe('een concept aanpassen', () => {
+  const orders = [order('A', { aantalGereed: 8 })]
+
+  it('telt de eigen stuks van het concept weer als klaar', () => {
+    const p = project(orders, [pakbon('PL1', [['r-A', 8]], false)])
+    expect(waaromNietPakbon(p, [{ offerteRegelId: 'r-A', qty: 8 }])).toContain('niets klaar')
+    expect(waaromNietPakbon(p, [{ offerteRegelId: 'r-A', qty: 8 }], { pakbonId: 'PL1' })).toBeNull()
+  })
+
+  it('weigert een regel twee keer', () => {
+    const p = project(orders)
+    expect(waaromNietPakbon(p, [{ offerteRegelId: 'r-A', qty: 1 }, { offerteRegelId: 'r-A', qty: 1 }])).toContain('twee keer')
+  })
+
+  it('laat een verstuurde pakbon niet meer wijzigen, en een lege niet versturen', () => {
+    const p = project(orders, [pakbon('PL1', [['r-A', 4]], true), pakbon('PL2', [], false)])
+    expect(waaromNietPakbonWijzigen(p, 'PL1')).toContain('al verstuurd')
+    expect(waaromNietPakbonWijzigen(p, 'PL2')).toBeNull()
+    expect(waaromNietPakbonVersturen(p, 'PL2')).toContain('nog geen regels')
   })
 })

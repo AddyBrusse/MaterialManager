@@ -1246,47 +1246,18 @@
   font-weight: 600;
 }
 
-/* ── Pakbon maken (2026-10-02) ───────────────────────────────────────────── */
 
-.pdv2-modal.pdv2-pakbon {
-  width: min(960px, calc(100vw - 64px));
-  max-height: 80vh;
+/* ── Pakbonnen-tab (2026-10-02) ─────────────────────────────────────────── */
+
+.pdv2-tbl td.pdv2-acties .pdv2-pakbon-acties {
   display: flex;
-  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
 }
-.pdv2-pakbon-lijst {
-  overflow: auto;
-  flex: 1;
-}
-.pdv2-pakbon-aantal {
-  display: inline-flex;
+.pdv2-pakbon-erbij {
+  justify-content: flex-start;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
-}
-.pdv2-pakbon-aantal input {
-  width: 64px;
-  height: 26px;
-  padding: 0 7px;
-  text-align: right;
-  font-family: var(--mono);
-  font-size: 12px;
-  border: 1px solid var(--border2);
-  border-radius: 4px;
-  background: var(--bg2);
-  color: var(--text);
-}
-.pdv2-pakbon-aantal input:disabled {
-  opacity: 0.45;
-}
-.pdv2-pakbon-voet {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 10px;
-  border-top: 1px solid var(--border);
-}
-.pdv2-pakbon-gevolg {
-  flex: 1;
   font-size: 11.5px;
   color: var(--text2);
 }

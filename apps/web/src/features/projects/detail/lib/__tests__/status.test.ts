@@ -117,7 +117,7 @@ describe('tabActie: Productie', () => {
       ],
     })
     const uit = actie(p)
-    expect(uit.label).toBe('Pakbon maken')
+    expect(uit.label).toBe('Naar pakbonnen')
     expect(uit.kan).toBe(false)
     expect(uit.reden).toBe('2 van de 3 productiestappen zijn nog niet gereed.')
   })

@@ -1590,12 +1590,26 @@ pakbon maken, versturen, intrekken) die ene regel:
 
 Geen migratie: de waarden blijven, de betekenis en het label veranderen.
 
-**Pakbonvenster.** "Pakbon maken" opent een venster over de volle breedte met
-per regel besteld, gemaakt, al geleverd, klaar en "nu leveren". Standaard alles
-wat klaarligt; uitvinken of een lager aantal geeft een deellevering — een deel
-van de regels, en van een regel een deel van de stuks. **Meer dan klaarligt kan
-niet** (`waaromNietPakbon`, scherm én server, `409 VOORWAARDE`): wat de deur uit
-gaat moet eerst gereed gemeld zijn, anders klopt "gemaakt" niet meer.
+**Pakbonnen-tab** (tussen Productie en Nacalculatie, zelfde opbouw als de
+Offertes-tab). Eerst als venster gebouwd; de gebruiker wilde een eigen tab waar
+pakbonnen gemaakt, aangepast en verstuurd worden.
+
+- Bovenaan "Wat ligt klaar": per regel besteld, gemaakt, op een pakbon, klaar,
+  nog te maken.
+- **Nieuwe pakbon** maakt een concept met alleen de regels die **helemaal**
+  klaar zijn (`voorstelPakbon`): alles wat nog geleverd moet worden is gereed.
+  Een regel die maar deels klaar is, voeg je zelf toe ("+ Bus 40 (18 klaar,
+  deels)") — anders gaat er ongemerkt een halve regel de deur uit. Een concept
+  mag leeg zijn.
+- Een concept pas je in de tabel aan: aantal, regel weg, regel erbij
+  (`PATCH /paklijst/:id`, de hele lijst in één keer), of je verwijdert hem
+  (`DELETE`, ook als het niet de laatste is). Een verstuurde pakbon staat vast.
+- **Meer dan klaarligt kan niet** (`waaromNietPakbon`, scherm én server,
+  `409 VOORWAARDE`); bij het aanpassen tellen de eigen stuks van het concept
+  weer als klaar. Een leeg concept versturen kan niet
+  (`waaromNietPakbonVersturen`).
+- De footer van Productie zegt "Naar pakbonnen (N klaar)"; op Documenten blijven
+  de pakbonnen in de lijst staan en brengt "Maken" je naar de tab.
 
 **Intrekken.** Een niet verstuurde pakbon trek je eerst in, in welke fase ook —
 een open pakbon kan nu midden in de productie liggen. "Gereed voor levering"

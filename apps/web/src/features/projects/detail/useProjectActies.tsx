@@ -7,7 +7,7 @@ import {
   volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
   waaromNietVerwijderen, waaromNietIntrekken, waaromNietVersturenOB,
-  waaromNietVrijgeven, waaromNietTerugNaarVoorbereiding, waaromNietPakbon,
+  waaromNietVrijgeven, waaromNietTerugNaarVoorbereiding,
 } from '@stockmanager/shared'
 import { projectsApi, wachtOpOpslag } from '../../../api/projects'
 import { meldFout } from '../../../utils/fout-melding-toon'
@@ -17,7 +17,6 @@ import { useUserStore } from '../../../stores/user'
 import { InvoerModal } from './components/InvoerModal'
 import { AccepteerVenster } from './components/AccepteerVenster'
 import { BevestigModal } from './components/BevestigModal'
-import { PakbonVenster } from './components/PakbonVenster'
 import type { Stap } from './lib/tab-actie'
 import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
 import { ApiFout } from '../../../api/client'
@@ -75,6 +74,8 @@ export interface ProjectActies {
   stapCheck: (orderId: string, stapId: string, gereed: boolean) => void
   meldStuksGereed: (orderId: string) => void
   maakPaklijst: () => void
+  wijzigPaklijst: (paklijstId: string, regels: PakbonRegelKeuze[]) => boolean
+  verwijderPaklijst: (paklijstId: string) => void
   verzendPaklijst: (paklijstId: string) => void
   maakFactuur: () => void
   verzendFactuur: (factuurId: string) => void
@@ -102,8 +103,6 @@ export function useProjectActies(
   const [vraag, setVraag] = useState<Vraag | null>(null)
   // Vrijgeven met waarschuwingen: eerst de zinnen, dan pas doen (principe 2026-09-28).
   const [vrijMetVraag, setVrijMetVraag] = useState<{ orderIds: string[]; waarschuwingen: string[] } | null>(null)
-  // Het venster "Pakbon maken": welke regels en hoeveel er meegaan (2026-10-02).
-  const [pakbonOpen, setPakbonOpen] = useState(false)
   const [teAccepteren, setTeAccepteren] = useState<string | null>(null)
 
   const ververs = useCallback(() => {
@@ -171,6 +170,8 @@ export function useProjectActies(
     stapCheck: () => {},
     meldStuksGereed: () => {},
     maakPaklijst: () => {},
+    wijzigPaklijst: () => false,
+    verwijderPaklijst: () => {},
     verzendPaklijst: () => {},
     maakFactuur: () => {},
     verzendFactuur: () => {},
@@ -277,8 +278,13 @@ export function useProjectActies(
         return accepteer(stap.offerteId)
       case 'opdracht-versturen':
         return
-      case 'paklijst-maken':
-        return setPakbonOpen(true)
+      case 'paklijst-maken': {
+        // Een concept met de regels die helemaal klaar zijn; aanpassen doe je
+        // daarna in de tabel op de Pakbonnen-tab (2026-10-02).
+        const gelukt = doe('Nieuwe pakbon maken', 'Nieuwe pakbon aangemaakt', () => projectsApi.createPaklijst(id))
+        if (gelukt) naarTab('pakbonnen')
+        return
+      }
       case 'paklijst-versturen':
         return doe(`${stap.paklijstId} versturen`, `${stap.paklijstId} verzonden`, () =>
           projectsApi.verzendPaklijst(id, stap.paklijstId),
@@ -345,20 +351,8 @@ export function useProjectActies(
   }
   const accOfferte = teAccepteren ? project.offertes.find((x) => x.id === teAccepteren) : undefined
 
-  const maakPakbon = (regels: PakbonRegelKeuze[]) => {
-    const stuks = regels.reduce((t, r) => t + r.qty, 0)
-    const gelukt = doe('Pakbon maken', `Pakbon aangemaakt: ${regels.length} ${regels.length === 1 ? 'regel' : 'regels'}, ${stuks} stuks`, () => {
-      eis(waaromNietPakbon(project, regels))
-      projectsApi.createPaklijst(id, regels)
-    })
-    if (gelukt) naarTab('documenten')
-    return gelukt
-  }
-
   return {
-    dialoog: pakbonOpen ? (
-      <PakbonVenster project={project} onMaak={maakPakbon} onSluit={() => setPakbonOpen(false)} />
-    ) : vrijMetVraag ? (
+    dialoog: vrijMetVraag ? (
       <BevestigModal
         titel={`${vrijMetVraag.orderIds.length} ${vrijMetVraag.orderIds.length === 1 ? 'order' : 'orders'} in productie geven?`}
         knop="Toch vrijgeven"
@@ -505,7 +499,11 @@ export function useProjectActies(
           : projectsApi.uncheckStap(id, orderId, stapId),
       ),
     meldStuksGereed,
-    maakPaklijst: () => setPakbonOpen(true),
+    maakPaklijst: () => doe('Nieuwe pakbon maken', 'Nieuwe pakbon aangemaakt', () => projectsApi.createPaklijst(id)),
+    wijzigPaklijst: (paklijstId, regels) =>
+      doe(`${paklijstId} aanpassen`, `${paklijstId} aangepast`, () => projectsApi.wijzigPaklijst(id, paklijstId, regels)),
+    verwijderPaklijst: (paklijstId) =>
+      doe(`${paklijstId} verwijderen`, `${paklijstId} verwijderd`, () => projectsApi.verwijderPaklijst(id, paklijstId)),
     verzendPaklijst: (paklijstId) =>
       doe(`${paklijstId} versturen`, `${paklijstId} verzonden`, () => projectsApi.verzendPaklijst(id, paklijstId)),
     maakFactuur: () => doe('Factuur aanmaken', 'Factuur aangemaakt', () => projectsApi.createFactuur(id)),

@@ -11,6 +11,7 @@
  */
 
 import type { Project } from '@stockmanager/shared'
+import { berekenVoortgang } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import type { TabId } from '../types'
 import { dagenTot } from './format'
@@ -105,6 +106,15 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
           : 'bezig',
 
     // Af zodra er een factuur verstuurd is: dan is de route van het project rond.
+    // Een concept dat nog weg moet vraagt iets; alles geleverd is af.
+    pakbonnen: p.paklijsten.some((pl) => !pl.verzondenOp)
+      ? 'aandacht'
+      : p.status === 'verzonden' || p.status === 'gefactureerd'
+        ? 'gereed'
+        : p.paklijsten.length > 0 || berekenVoortgang(p).klaar > 0
+          ? 'bezig'
+          : 'leeg',
+
     documenten:
       p.facturen.some((f) => f.soort !== 'credit' && f.verzondenOp)
         ? 'gereed'

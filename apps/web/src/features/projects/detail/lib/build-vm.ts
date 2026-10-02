@@ -9,7 +9,7 @@
  */
 
 import type { Project, Relatie, Todo } from '@stockmanager/shared'
-import { aantalDeelleveringen, gefactureerdInclBtw, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
+import { aantalDeelleveringen, berekenVoortgang, gefactureerdInclBtw, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import type { ZaagReservation } from '../../../../api/reservations'
 import { houdtVast } from '../../../../api/reservations'
@@ -198,6 +198,18 @@ export function bouwSamenvatting(p: Project, relatie: Relatie | null): string {
  * `bouwTabStanden`. Twee bronnen voor één kleur leverde tabs op die groen
  * kleurden terwijl hun stand amber was.
  */
+/** Het tabje Pakbonnen: een concept dat nog weg moet, wat er klaarligt, of hoeveel er de deur uit zijn. */
+function pakbonBadge(p: Project): TabBadge {
+  const concepten = p.paklijsten.filter((pl) => !pl.verzondenOp).length
+  if (concepten > 0) return { tekst: `${concepten} concept`, kleur: 'warn' }
+  const klaar = berekenVoortgang(p).klaar
+  if (klaar > 0) return { tekst: `${klaar} klaar`, kleur: 'accent' }
+  if (p.paklijsten.length === 0) return { tekst: '—' }
+  return p.status === 'verzonden' || p.status === 'gefactureerd'
+    ? { tekst: `${p.paklijsten.length} ✓`, kleur: 'ok' }
+    : { tekst: `${p.paklijsten.length}` }
+}
+
 export function bouwTabBadges(
   p: Project,
   nacalc: ProjectNacalculatie | null,
@@ -248,6 +260,7 @@ export function bouwTabBadges(
         ? { tekst: 'voorlopig', kleur: 'warn' }
         : // Zelfde oordeel als de tabel: goedkoper groen, duurder rood.
           { tekst: pct(afw), kleur: kleurClass(afw) || undefined },
+    pakbonnen: pakbonBadge(p),
     documenten: p.facturen.some((f) => f.soort !== 'credit' && f.verzondenOp)
       ? { tekst: `${documenten}/4 ✓`, kleur: 'ok' }
       : { tekst: `${documenten}/4` },
