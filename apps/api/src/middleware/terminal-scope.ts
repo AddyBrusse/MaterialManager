@@ -33,6 +33,9 @@ const TOEGESTAAN: Regel[] = [
   // Staat bewust vóór de brede /projects-regel hieronder: de eerste regel die
   // past wint, en die brede regel is alleen-lezen.
   { patroon: /^\/projects\/[^/]+\/orders\/[^/]+\/stap\/[^/]+\/check$/, schrijven: true },
+  // Deels gereed melden: "10 van de 20 zijn klaar", zodat ze op een pakbon
+  // kunnen (2026-10-02). Ook één route; de server laat alleen ophogen toe.
+  { patroon: /^\/projects\/[^/]+\/orders\/[^/]+\/deels-gereed$/, schrijven: true },
   // De wachtrij van de machine en de stappen erin.
   { patroon: /^\/projects(\/|$)/ },
   { patroon: /^\/machines$/ },

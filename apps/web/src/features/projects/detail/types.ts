@@ -81,6 +81,7 @@ export type TabId =
   | 'offertes'
   | 'opdracht'
   | 'productie'
+  | 'pakbonnen'
   | 'nacalculatie'
   | 'documenten'
   | 'financieel'

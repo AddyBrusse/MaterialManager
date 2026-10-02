@@ -1245,3 +1245,19 @@
   color: var(--warn);
   font-weight: 600;
 }
+
+
+/* ── Pakbonnen-tab (2026-10-02) ─────────────────────────────────────────── */
+
+.pdv2-tbl td.pdv2-acties .pdv2-pakbon-acties {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.pdv2-pakbon-erbij {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--text2);
+}

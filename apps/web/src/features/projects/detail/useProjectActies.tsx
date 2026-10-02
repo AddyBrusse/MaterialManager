@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { notifications } from '@mantine/notifications'
-import type { OpdrachtWijziging, Project, UpdateProject } from '@stockmanager/shared'
+import type { OpdrachtWijziging, PakbonRegelKeuze, Project, UpdateProject } from '@stockmanager/shared'
 import {
   volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
@@ -74,6 +74,8 @@ export interface ProjectActies {
   stapCheck: (orderId: string, stapId: string, gereed: boolean) => void
   meldStuksGereed: (orderId: string) => void
   maakPaklijst: () => void
+  wijzigPaklijst: (paklijstId: string, regels: PakbonRegelKeuze[]) => boolean
+  verwijderPaklijst: (paklijstId: string) => void
   verzendPaklijst: (paklijstId: string) => void
   maakFactuur: () => void
   verzendFactuur: (factuurId: string) => void
@@ -168,6 +170,8 @@ export function useProjectActies(
     stapCheck: () => {},
     meldStuksGereed: () => {},
     maakPaklijst: () => {},
+    wijzigPaklijst: () => false,
+    verwijderPaklijst: () => {},
     verzendPaklijst: () => {},
     maakFactuur: () => {},
     verzendFactuur: () => {},
@@ -242,7 +246,11 @@ export function useProjectActies(
       verzonden: () => projectsApi.revertVerzonden(id),
       gefactureerd: () => projectsApi.revertGefactureerd(id),
     }
-    const fn = naar[project.status]
+    // Zelfde volgorde als terugActie: eerst een niet verstuurde pakbon intrekken.
+    const laatste = project.paklijsten[project.paklijsten.length - 1]
+    const fn = laatste && !laatste.verzondenOp && ['productie', 'paklijst', 'verzonden'].includes(project.status)
+      ? () => projectsApi.revertPaklijst(id)
+      : naar[project.status]
     if (!fn) return
     doe('Fase terugdraaien', 'Eén fase teruggedraaid', fn)
   }
@@ -271,8 +279,10 @@ export function useProjectActies(
       case 'opdracht-versturen':
         return
       case 'paklijst-maken': {
-        const gelukt = doe('Paklijst aanmaken', 'Paklijst aangemaakt van wat klaarligt', () => projectsApi.createPaklijst(id))
-        if (gelukt) naarTab('documenten')
+        // Een concept met de regels die helemaal klaar zijn; aanpassen doe je
+        // daarna in de tabel op de Pakbonnen-tab (2026-10-02).
+        const gelukt = doe('Nieuwe pakbon maken', 'Nieuwe pakbon aangemaakt', () => projectsApi.createPaklijst(id))
+        if (gelukt) naarTab('pakbonnen')
         return
       }
       case 'paklijst-versturen':
@@ -489,7 +499,11 @@ export function useProjectActies(
           : projectsApi.uncheckStap(id, orderId, stapId),
       ),
     meldStuksGereed,
-    maakPaklijst: () => doe('Paklijst aanmaken', 'Paklijst aangemaakt', () => projectsApi.createPaklijst(id)),
+    maakPaklijst: () => doe('Nieuwe pakbon maken', 'Nieuwe pakbon aangemaakt', () => projectsApi.createPaklijst(id)),
+    wijzigPaklijst: (paklijstId, regels) =>
+      doe(`${paklijstId} aanpassen`, `${paklijstId} aangepast`, () => projectsApi.wijzigPaklijst(id, paklijstId, regels)),
+    verwijderPaklijst: (paklijstId) =>
+      doe(`${paklijstId} verwijderen`, `${paklijstId} verwijderd`, () => projectsApi.verwijderPaklijst(id, paklijstId)),
     verzendPaklijst: (paklijstId) =>
       doe(`${paklijstId} versturen`, `${paklijstId} verzonden`, () => projectsApi.verzendPaklijst(id, paklijstId)),
     maakFactuur: () => doe('Factuur aanmaken', 'Factuur aangemaakt', () => projectsApi.createFactuur(id)),

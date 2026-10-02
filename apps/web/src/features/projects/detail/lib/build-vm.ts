@@ -9,7 +9,7 @@
  */
 
 import type { Project, Relatie, Todo } from '@stockmanager/shared'
-import { gefactureerdInclBtw, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
+import { aantalDeelleveringen, berekenVoortgang, gefactureerdInclBtw, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import type { ZaagReservation } from '../../../../api/reservations'
 import { houdtVast } from '../../../../api/reservations'
@@ -24,8 +24,8 @@ const STATUS_LABEL: Record<Project['status'], string> = {
   offerte: 'Offerte',
   bevestigd: 'Bevestigd',
   productie: 'Productie',
-  paklijst: 'Paklijst',
-  verzonden: 'Verzonden',
+  paklijst: 'Gereed voor levering',
+  verzonden: 'Geleverd',
   gefactureerd: 'Gefactureerd',
   on_hold: 'On hold',
   geannuleerd: 'Geannuleerd',
@@ -55,11 +55,17 @@ function faseHerkomst(p: Project): string {
       const o = geaccepteerdeOfferte(p)
       return o ? `door acceptatie ${o.id}` : ''
     }
-    case 'productie':
+    case 'productie': {
       // Sinds 2026-09-30 door vrijgeven; een afmelding op een order in
-      // voorbereiding geeft hem ook vrij, dus dit dekt beide.
+      // voorbereiding geeft hem ook vrij, dus dit dekt beide. Is er al iets
+      // geleverd terwijl er nog gemaakt wordt, dan zegt dat meer (2026-10-02).
+      const n = aantalDeelleveringen(p)
+      if (n > 0) return `${n} ${n === 1 ? 'deellevering' : 'deelleveringen'} verstuurd`
       return 'door vrijgave aan de hal'
+    }
     case 'paklijst':
+      // Gereed voor levering komt van de productie, niet van een pakbon.
+      return 'alles is gereedgemeld'
     case 'verzonden': {
       const pl = laatstePaklijst(p)
       return pl ? `door ${pl.id}` : ''
@@ -192,6 +198,18 @@ export function bouwSamenvatting(p: Project, relatie: Relatie | null): string {
  * `bouwTabStanden`. Twee bronnen voor één kleur leverde tabs op die groen
  * kleurden terwijl hun stand amber was.
  */
+/** Het tabje Pakbonnen: een concept dat nog weg moet, wat er klaarligt, of hoeveel er de deur uit zijn. */
+function pakbonBadge(p: Project): TabBadge {
+  const concepten = p.paklijsten.filter((pl) => !pl.verzondenOp).length
+  if (concepten > 0) return { tekst: `${concepten} concept`, kleur: 'warn' }
+  const klaar = berekenVoortgang(p).klaar
+  if (klaar > 0) return { tekst: `${klaar} klaar`, kleur: 'accent' }
+  if (p.paklijsten.length === 0) return { tekst: '—' }
+  return p.status === 'verzonden' || p.status === 'gefactureerd'
+    ? { tekst: `${p.paklijsten.length} ✓`, kleur: 'ok' }
+    : { tekst: `${p.paklijsten.length}` }
+}
+
 export function bouwTabBadges(
   p: Project,
   nacalc: ProjectNacalculatie | null,
@@ -242,6 +260,7 @@ export function bouwTabBadges(
         ? { tekst: 'voorlopig', kleur: 'warn' }
         : // Zelfde oordeel als de tabel: goedkoper groen, duurder rood.
           { tekst: pct(afw), kleur: kleurClass(afw) || undefined },
+    pakbonnen: pakbonBadge(p),
     documenten: p.facturen.some((f) => f.soort !== 'credit' && f.verzondenOp)
       ? { tekst: `${documenten}/4 ✓`, kleur: 'ok' }
       : { tekst: `${documenten}/4` },

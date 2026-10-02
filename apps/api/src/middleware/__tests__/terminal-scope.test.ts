@@ -55,6 +55,10 @@ describe('terminalScope', () => {
     expect(doe('terminal', 'POST', '/projects/PRJ-1/orders/PROD-1/stap/stap_1/check')).toBeUndefined()
   })
 
+  it('laat een terminal deels gereed melden (2026-10-02)', () => {
+    expect(doe('terminal', 'POST', '/projects/PRJ-1/orders/PROD-1/deels-gereed')).toBeUndefined()
+  })
+
   it('laat de terminal niet méér dan gereedmelden op een stap', () => {
     // Terugzetten en herplannen zijn kantoorbeslissingen.
     for (const pad of [

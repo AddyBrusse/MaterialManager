@@ -21,6 +21,7 @@ import { OffertesTab } from './tabs/OffertesTab'
 import { OpdrachtTab } from './tabs/OpdrachtTab'
 import { ProductieTab } from './tabs/ProductieTab'
 import { NacalculatieTab } from './tabs/NacalculatieTab'
+import { PakbonnenTab } from './tabs/PakbonnenTab'
 import { DocumentenTab } from './tabs/DocumentenTab'
 import { FinancieelTab } from './tabs/FinancieelTab'
 import { ReserveringenTab } from './tabs/ReserveringenTab'
@@ -51,6 +52,7 @@ const TAB_IDS: TabId[] = [
   'offertes',
   'opdracht',
   'productie',
+  'pakbonnen',
   'nacalculatie',
   'documenten',
   'financieel',
@@ -375,6 +377,17 @@ export function ProjectDetailPage() {
               onStuks={acties.meldStuksGereed}
             />
           )}
+          {tab === 'pakbonnen' && (
+            <PakbonnenTab
+              project={project}
+              voortgang={voortgang}
+              geblokkeerd={geblokkeerd}
+              onNieuw={acties.maakPaklijst}
+              onWijzig={acties.wijzigPaklijst}
+              onVerzend={acties.verzendPaklijst}
+              onVerwijder={acties.verwijderPaklijst}
+            />
+          )}
           {tab === 'nacalculatie' && <NacalculatieTab nacalc={nacalc} />}
           {tab === 'financieel' && <FinancieelTab geld={bouwGeld(project, nacalc)} />}
           {tab === 'reserveringen' && <ReserveringenTab items={reserveringVMs} />}
@@ -387,7 +400,7 @@ export function ProjectDetailPage() {
               onOpenen={(doc) => nogNiet(`${doc} openen`)}
               onMaken={(doc) =>
                 doc === 'Paklijst'
-                  ? acties.maakPaklijst()
+                  ? kiesTab('pakbonnen')
                   : doc === 'Factuur'
                     ? acties.maakFactuur()
                     : // Offerte en opdracht maak je op hun eigen tab.

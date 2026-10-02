@@ -66,6 +66,8 @@ export function tabActie(p: Project, v: ProjectVoortgang, tab: TabId, keuze: Tab
       return opdrachtActie(p, openVersie)
     case 'productie':
       return vrijgevenActie(p, keuze) ?? productieActie(p, v)
+    case 'pakbonnen':
+      return pakbonnenActie(p, v)
     case 'documenten':
       return documentenActie(p, v)
     default:
@@ -168,14 +170,17 @@ function vrijgevenActie(p: Project, keuze: TabKeuze): TabActie | null {
  */
 function productieActie(p: Project, v: ProjectVoortgang): TabActie {
   if (p.productieOrders.length === 0) {
-    return uit('Paklijst maken', 'Er zijn nog geen productieorders — die ontstaan bij het accepteren.')
+    return uit('Naar pakbonnen', 'Er zijn nog geen productieorders — die ontstaan bij het accepteren.')
   }
-  if (v.klaar > 0) return kan(`Paklijst maken (${v.klaar} klaar)`, { soort: 'paklijst-maken' })
+  // Pakbonnen maak je op hun eigen tab (2026-10-02).
+  if (v.klaar > 0 || p.paklijsten.some((pl) => !pl.verzondenOp)) {
+    return kan(v.klaar > 0 ? `Naar pakbonnen (${v.klaar} klaar)` : 'Naar pakbonnen', { soort: 'naar', tab: 'pakbonnen' })
+  }
   if (v.teMaken === 0 && v.geleverd > 0) return kan('Naar documenten', { soort: 'naar', tab: 'documenten' })
   const { gereed, totaal } = stapTelling(p.productieOrders)
   const openStappen = totaal - gereed
   return uit(
-    'Paklijst maken',
+    'Naar pakbonnen',
     v.teMaken > 0
       ? `Er ligt nog niets klaar om te leveren — ${v.teMaken} nog te maken.`
       : openStappen > 0
@@ -185,20 +190,39 @@ function productieActie(p: Project, v: ProjectVoortgang): TabActie {
 }
 
 /**
+ * De Pakbonnen-tab: eerst het concept dat er ligt de deur uit, dan een nieuwe
+ * pakbon als er iets klaarligt. Een leeg concept versturen kan niet; de knop
+ * zegt dan wat er eerst moet.
+ */
+function pakbonnenActie(p: Project, v: ProjectVoortgang): TabActie {
+  const concept = p.paklijsten.find((pl) => !pl.verzondenOp)
+  if (concept) {
+    return concept.regels.length > 0
+      ? kan(`Pakbon ${concept.id} versturen`, { soort: 'paklijst-versturen', paklijstId: concept.id })
+      : uit(`Pakbon ${concept.id} versturen`, `${concept.id} heeft nog geen regels. Voeg eerst toe wat er mee moet.`)
+  }
+  if (v.klaar > 0) return kan(`Nieuwe pakbon (${v.klaar} klaar)`, { soort: 'paklijst-maken' })
+  if (v.besteld > 0 && v.teMaken === 0 && v.geleverd >= v.besteld) {
+    return kan('Naar documenten', { soort: 'naar', tab: 'documenten' })
+  }
+  return uit('Nieuwe pakbon', 'Er ligt nog niets klaar om te leveren. Meld eerst stuks gereed op de Productie-tab.')
+}
+
+/**
  * Paklijst en factuur, in de volgorde waarin ze de deur uit gaan. Wat al klaar
  * ligt om te versturen gaat voor wat nog gemaakt moet worden.
  */
 function documentenActie(p: Project, v: ProjectVoortgang): TabActie {
   const pl = laatstePaklijst(p)
-  if (pl && !pl.verzondenOp) return kan(`Paklijst ${pl.id} versturen`, { soort: 'paklijst-versturen', paklijstId: pl.id })
+  if (pl && !pl.verzondenOp) return kan(`Pakbon ${pl.id} versturen`, { soort: 'paklijst-versturen', paklijstId: pl.id })
   const f = laatsteFactuur(p)
   if (f && !f.verzondenOp) return kan(`Factuur ${f.id} versturen`, { soort: 'factuur-versturen', factuurId: f.id })
   if (v.teFactureren > 0 && p.paklijsten.some((x) => x.verzondenOp)) {
     return kan(`Factuur maken (${v.teFactureren} stuks)`, { soort: 'factuur-maken' })
   }
-  if (v.klaar > 0) return kan(`Paklijst maken (${v.klaar} klaar)`, { soort: 'paklijst-maken' })
+  if (v.klaar > 0) return kan(`Naar pakbonnen (${v.klaar} klaar)`, { soort: 'naar', tab: 'pakbonnen' })
   if (v.besteld > 0 && v.gefactureerd >= v.besteld) {
     return uit('Project afgerond', 'Alles is geleverd, gefactureerd en verstuurd — dit project is rond.')
   }
-  return uit('Paklijst maken', 'Er ligt nog niets klaar om te leveren.')
+  return uit('Naar pakbonnen', 'Er ligt nog niets klaar om te leveren.')
 }
