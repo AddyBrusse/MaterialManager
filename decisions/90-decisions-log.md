@@ -1573,3 +1573,38 @@ gebruikt" en "niet gecalculeerd — calculatie: Haas VF4" waren niet te lezen.
   gemaakt volgens de klokregels", klokregel als "Draaien · Bart · 6 stuks" met
   dag en tijdvak eronder. Een gecorrigeerde regel toont de gemeten tijd
   doorgestreept naast de bijgestelde.
+
+## 2026-10-02 — Leveren in delen: pakbonvenster, status volgt de voortgang, deels gereed op de terminal
+
+**Status.** Het project sprong op "Paklijst" bij de eerste pakbon, ook bij een
+deellevering terwijl de helft nog gemaakt moest worden. Nu bepaalt
+`statusNaLevering` (`packages/shared/calc/levering.ts`) de status in de lever-
+fase, en gebruiken alle handelingen (stap afvinken, order gereed, deels gereed,
+pakbon maken, versturen, intrekken) die ene regel:
+
+- **Productie** — er moet nog iets gemaakt worden, ook na een deellevering
+  ("1 deellevering verstuurd" onder de fase).
+- **Gereed voor levering** (waarde `paklijst`) — alles gemaakt, nog niet alles
+  verstuurd.
+- **Geleverd** (waarde `verzonden`) — alles op een verstuurde pakbon.
+
+Geen migratie: de waarden blijven, de betekenis en het label veranderen.
+
+**Pakbonvenster.** "Pakbon maken" opent een venster over de volle breedte met
+per regel besteld, gemaakt, al geleverd, klaar en "nu leveren". Standaard alles
+wat klaarligt; uitvinken of een lager aantal geeft een deellevering — een deel
+van de regels, en van een regel een deel van de stuks. **Meer dan klaarligt kan
+niet** (`waaromNietPakbon`, scherm én server, `409 VOORWAARDE`): wat de deur uit
+gaat moet eerst gereed gemeld zijn, anders klopt "gemaakt" niet meer.
+
+**Intrekken.** Een niet verstuurde pakbon trek je eerst in, in welke fase ook —
+een open pakbon kan nu midden in de productie liggen. "Gereed voor levering"
+zonder pakbon draai je terug op de Productie-tab, niet met de terugknop.
+
+**Deels gereed op de terminal.** Op de laatste stap van een order: "deels
+klaar" met het totaal dat nu klaar is (`POST /orders/:id/deels-gereed`, één
+extra route in `terminal-scope.ts`). Alleen omhoog en niet tot het volle aantal
+(`waaromNietDeelsGereed`): lager gaat via kantoor, en alles klaar is "stap
+klaar", dat ook de klok afrondt en het materiaal afboekt.
+
+Pakbon als pdf en per mail volgt als aparte stap.

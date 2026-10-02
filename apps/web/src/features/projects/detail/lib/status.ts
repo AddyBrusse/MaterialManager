@@ -91,8 +91,8 @@ export function faseLabel(f: Fase): string {
     offerte: 'Offerte',
     bevestigd: 'Bevestigd',
     productie: 'Productie',
-    paklijst: 'Paklijst',
-    verzonden: 'Verzonden',
+    paklijst: 'Gereed voor levering',
+    verzonden: 'Geleverd',
     gefactureerd: 'Gefactureerd',
     on_hold: 'On hold',
     geannuleerd: 'Geannuleerd',
@@ -120,6 +120,19 @@ export function terugActie(p: Project): TerugVM | null {
     .flatMap((o) => o.stappen)
     .filter((s) => s.gereedOp)
     .sort((a, b) => String(b.gereedOp).localeCompare(String(a.gereedOp)))[0]
+
+  // Een pakbon die nog niet verstuurd is, trek je eerst in — in welke fase het
+  // project ook staat. Sinds deelleveringen (2026-10-02) kan dat ook midden in
+  // de productie, en dan zou "terug naar Bevestigd" iets heel anders doen.
+  const laatstePakbon = p.paklijsten[p.paklijsten.length - 1]
+  if (laatstePakbon && !laatstePakbon.verzondenOp && ['productie', 'paklijst', 'verzonden'].includes(p.status)) {
+    return {
+      label: `Pakbon ${laatstePakbon.id} intrekken`,
+      naar: p.status,
+      blokkades,
+      gevolgen: ['De pakbon vervalt; de stuks erop liggen weer klaar om te leveren.'],
+    }
+  }
 
   switch (p.status) {
     case 'offerte':
@@ -156,7 +169,10 @@ export function terugActie(p: Project): TerugVM | null {
     }
 
     case 'paklijst':
-      gevolgen.push('De paklijst vervalt.')
+      // Gereed voor levering komt van de productie, niet van een pakbon.
+      blokkades.push(
+        'Alles is gereedgemeld; dat zet je terug op de Productie-tab, door een stap of aantal terug te zetten.',
+      )
       return { label: 'Terugdraaien naar Productie', naar: 'productie', blokkades, gevolgen }
 
     case 'verzonden':
@@ -168,7 +184,7 @@ export function terugActie(p: Project): TerugVM | null {
             : `Er zijn al ${p.facturen.length} facturen voor dit project.`,
         )
       }
-      return { label: 'Terugdraaien naar Paklijst', naar: 'paklijst', blokkades, gevolgen }
+      return { label: 'Verzending intrekken', naar: 'paklijst', blokkades, gevolgen }
 
     case 'gefactureerd':
       blokkades.push('Een verstuurde factuur draai je niet terug.')

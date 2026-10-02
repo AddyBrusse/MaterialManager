@@ -168,14 +168,14 @@ function vrijgevenActie(p: Project, keuze: TabKeuze): TabActie | null {
  */
 function productieActie(p: Project, v: ProjectVoortgang): TabActie {
   if (p.productieOrders.length === 0) {
-    return uit('Paklijst maken', 'Er zijn nog geen productieorders — die ontstaan bij het accepteren.')
+    return uit('Pakbon maken', 'Er zijn nog geen productieorders — die ontstaan bij het accepteren.')
   }
-  if (v.klaar > 0) return kan(`Paklijst maken (${v.klaar} klaar)`, { soort: 'paklijst-maken' })
+  if (v.klaar > 0) return kan(`Pakbon maken (${v.klaar} klaar)`, { soort: 'paklijst-maken' })
   if (v.teMaken === 0 && v.geleverd > 0) return kan('Naar documenten', { soort: 'naar', tab: 'documenten' })
   const { gereed, totaal } = stapTelling(p.productieOrders)
   const openStappen = totaal - gereed
   return uit(
-    'Paklijst maken',
+    'Pakbon maken',
     v.teMaken > 0
       ? `Er ligt nog niets klaar om te leveren — ${v.teMaken} nog te maken.`
       : openStappen > 0
@@ -190,15 +190,15 @@ function productieActie(p: Project, v: ProjectVoortgang): TabActie {
  */
 function documentenActie(p: Project, v: ProjectVoortgang): TabActie {
   const pl = laatstePaklijst(p)
-  if (pl && !pl.verzondenOp) return kan(`Paklijst ${pl.id} versturen`, { soort: 'paklijst-versturen', paklijstId: pl.id })
+  if (pl && !pl.verzondenOp) return kan(`Pakbon ${pl.id} versturen`, { soort: 'paklijst-versturen', paklijstId: pl.id })
   const f = laatsteFactuur(p)
   if (f && !f.verzondenOp) return kan(`Factuur ${f.id} versturen`, { soort: 'factuur-versturen', factuurId: f.id })
   if (v.teFactureren > 0 && p.paklijsten.some((x) => x.verzondenOp)) {
     return kan(`Factuur maken (${v.teFactureren} stuks)`, { soort: 'factuur-maken' })
   }
-  if (v.klaar > 0) return kan(`Paklijst maken (${v.klaar} klaar)`, { soort: 'paklijst-maken' })
+  if (v.klaar > 0) return kan(`Pakbon maken (${v.klaar} klaar)`, { soort: 'paklijst-maken' })
   if (v.besteld > 0 && v.gefactureerd >= v.besteld) {
     return uit('Project afgerond', 'Alles is geleverd, gefactureerd en verstuurd — dit project is rond.')
   }
-  return uit('Paklijst maken', 'Er ligt nog niets klaar om te leveren.')
+  return uit('Pakbon maken', 'Er ligt nog niets klaar om te leveren.')
 }

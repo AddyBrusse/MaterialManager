@@ -9,6 +9,7 @@ import type {
 import {
   berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken, obInhoud,
   isVrijgegeven, orderStatusNaStappen, vrijgeven, terugNaarVoorbereiding, waaromNietTerugNaarVoorbereiding,
+  statusNaLevering, waaromNietPakbon,
 } from '@stockmanager/shared'
 import { apiFetch, ApiFout } from './client'
 import { meldFout } from '../utils/fout-melding-toon'
@@ -738,6 +739,21 @@ export const projectsApi = {
    * De server rondt in dezelfde transactie een nog lopende klok af; zou dat
    * hier gebeuren, dan kon het ertussenuit vallen.
    */
+  /**
+   * Deels gereed melden vanaf de terminal: het totaal dat nu klaar is
+   * (2026-10-02). Net als `meldStapGereed` gewacht en niet optimistisch: de
+   * operator loopt weg zodra het scherm het bevestigt.
+   */
+  async meldDeelsGereed(projectId: string, orderId: string, aantal: number): Promise<Project> {
+    const { data } = await apiFetch<Project>(
+      `/projects/${projectId}/orders/${orderId}/deels-gereed`,
+      { method: 'POST', body: JSON.stringify({ aantal }) },
+    )
+    cache = cache.map(p => (p.id === projectId ? data : p))
+    saveLocal(cache)
+    return data
+  },
+
   async meldStapGereed(
     projectId: string, orderId: string, stapId: string,
     userName: string, aantalStuks: number | null,
@@ -870,7 +886,8 @@ export const projectsApi = {
     const keuze = regels ?? voortgang.regels
       .filter(r => r.klaar > 0)
       .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.klaar }))
-    if (keuze.length === 0) throw new Error('Er ligt niets klaar om te leveren')
+    const nee = waaromNietPakbon(p, keuze)
+    if (nee) throw new Weigering(nee)
 
     const orderVan = (regelId: string) => p.productieOrders.find(o => o.offerteRegelId === regelId)
     const regelVan = (regelId: string) => basisRegels(p).find(r => r.id === regelId)
@@ -893,9 +910,11 @@ export const projectsApi = {
       verzondenOp: null,
       createdAt: now(),
     }
-    const updated = updateCache(projectId, p => ({
-      ...p, paklijsten: [...p.paklijsten, paklijst], status: 'paklijst', updatedAt: now(),
-    }))
+    // Status volgt de voortgang (2026-10-02): bij een deellevering blijft het project in productie.
+    const updated = updateCache(projectId, p => {
+      const next = { ...p, paklijsten: [...p.paklijsten, paklijst], updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
+    })
     syncProject(
       projectId,
       apiFetch<Project>(`/projects/${projectId}/paklijst`, {
@@ -912,11 +931,9 @@ export const projectsApi = {
       const paklijsten = p.paklijsten.map(x =>
         x.id === paklijstId ? { ...x, verzondenOp: now() } : x,
       )
-      // 'verzonden' pas als er niets meer ligt of komt — bij een deellevering
-      // zou die status liegen.
-      const na = berekenVoortgang({ ...p, paklijsten })
-      const status = na.klaar === 0 && na.teMaken === 0 ? 'verzonden' as const : p.status
-      return { ...p, paklijsten, status, updatedAt: now() }
+      // "Geleverd" pas als alles op een verstuurde pakbon staat (statusNaLevering).
+      const next = { ...p, paklijsten, updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
     })
     syncProject(
       projectId,
@@ -1150,12 +1167,8 @@ export const projectsApi = {
       const laatste = p.paklijsten[p.paklijsten.length - 1]
       if (!laatste) throw new Error('Er is geen pakbon om terug te nemen')
       if (laatste.verzondenOp) throw new Error('Pakbon is al verzonden')
-      const paklijsten = p.paklijsten.filter(x => x.id !== laatste.id)
-      return {
-        ...p, paklijsten,
-        status: paklijsten.length > 0 ? p.status : 'productie' as const,
-        updatedAt: now(),
-      }
+      const next = { ...p, paklijsten: p.paklijsten.filter(x => x.id !== laatste.id), updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
     })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/paklijst`, { method: 'POST' }), 'Terugkeren naar productie')
     return updated
@@ -1165,11 +1178,12 @@ export const projectsApi = {
     const updated = updateCache(projectId, p => {
       const laatste = [...p.paklijsten].reverse().find(x => x.verzondenOp)
       if (!laatste) throw new Error('Er is geen verzonden pakbon')
-      return {
+      const next = {
         ...p, status: 'paklijst' as const,
         paklijsten: p.paklijsten.map(x => x.id === laatste.id ? { ...x, verzondenOp: null } : x),
         updatedAt: now(),
       }
+      return { ...next, status: statusNaLevering(next) }
     })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/revert/verzonden`, { method: 'POST' }), 'Terugkeren naar paklijst')
     return updated

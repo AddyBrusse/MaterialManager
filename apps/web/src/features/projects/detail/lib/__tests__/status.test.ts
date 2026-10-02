@@ -117,7 +117,7 @@ describe('tabActie: Productie', () => {
       ],
     })
     const uit = actie(p)
-    expect(uit.label).toBe('Paklijst maken')
+    expect(uit.label).toBe('Pakbon maken')
     expect(uit.kan).toBe(false)
     expect(uit.reden).toBe('2 van de 3 productiestappen zijn nog niet gereed.')
   })
@@ -193,11 +193,25 @@ describe('tabActie: Productie', () => {
       status: 'paklijst',
       paklijsten: [{ id: 'PL-1', projectId: 'PRJ-2026-001', regels: [], notities: '', verzondenOp: null, createdAt: '2026-09-10T10:00:00Z' }],
     })
-    expect(actie(p, 'documenten')).toMatchObject({ label: 'Paklijst PL-1 versturen', stap: { soort: 'paklijst-versturen', paklijstId: 'PL-1' } })
+    expect(actie(p, 'documenten')).toMatchObject({ label: 'Pakbon PL-1 versturen', stap: { soort: 'paklijst-versturen', paklijstId: 'PL-1' } })
   })
 })
 
 describe('terugActie', () => {
+  // Sinds deelleveringen (2026-10-02) kan een open pakbon ook midden in de productie liggen.
+  it('trekt eerst een niet verstuurde pakbon in, ook in Productie', () => {
+    const t = terugActie(project({
+      status: 'productie',
+      paklijsten: [{ id: 'PL-1', projectId: 'PRJ-2026-001', regels: [], notities: '', verzondenOp: null, createdAt: '2026-09-10T10:00:00Z' }],
+    }))
+    expect(t).toMatchObject({ label: 'Pakbon PL-1 intrekken', blokkades: [] })
+  })
+
+  it('zegt bij Gereed voor levering zonder pakbon dat het via de Productie-tab terug moet', () => {
+    const t = terugActie(project({ status: 'paklijst', paklijsten: [] }))
+    expect(t?.blokkades[0]).toContain('Productie-tab')
+  })
+
   it('blokkeert terug naar concept zodra een offerte geaccepteerd is', () => {
     const p = project({
       status: 'offerte',

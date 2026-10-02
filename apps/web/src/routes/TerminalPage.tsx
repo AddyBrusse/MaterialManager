@@ -5,7 +5,7 @@ import {
   IconUser, IconPlayerPause, IconPlayerPlay, IconCheck, IconMoon,
   IconArrowRight, IconAlertTriangle, IconX,
 } from '@tabler/icons-react'
-import { secondenNaarKlok, secondenNaarUren, type TijdSoort } from '@stockmanager/shared'
+import { secondenNaarKlok, secondenNaarUren, type ProductieOrder, type TijdSoort } from '@stockmanager/shared'
 import { usersApi } from '../api/users'
 import { articlesApi } from '../api/articles'
 import { reservationsApi } from '../api/reservations'
@@ -15,6 +15,7 @@ import { useLopendeTijd, useTijdActies, useKlok } from '../hooks/useTijdregistra
 import { useUserStore } from '../stores/user'
 import { bepaalMachineId, bepaalToewijzing, hoortBijMachine } from '../utils/terminal-wachtrij'
 import { TE_LANG_SECONDEN } from '../components/tijd/ActieveRegistratie'
+import { DeelsGereed } from '../components/tijd/DeelsGereed'
 
 /**
  * Een melding op formaat werkvloer.
@@ -136,6 +137,8 @@ export function TerminalPage() {
       geplandOp: string | null
       volgorde: number; totaalStappen: number; positie: number
       routing: { naam: string; gereed: boolean }[]
+      /** Voor "deels klaar" op de laatste stap. */
+      order: Pick<ProductieOrder, 'id' | 'qty' | 'eenheid' | 'aantalGereed' | 'status'>
     }[] = []
     for (const p of projecten ?? []) {
       for (const o of p.productieOrders ?? []) {
@@ -154,6 +157,7 @@ export function TerminalPage() {
             volgorde: i + 1, totaalStappen: stappen.length,
             routing: stappen.map((st) => ({ naam: st.naam, gereed: !!st.gereedOp })),
             positie: s.queuePosition ?? Number.MAX_SAFE_INTEGER,
+            order: { id: o.id, qty: o.qty, eenheid: o.eenheid, aantalGereed: o.aantalGereed ?? 0, status: o.status },
           })
         })
       }
@@ -603,6 +607,11 @@ export function TerminalPage() {
                   Ook zonder lopende klok te gebruiken: wie vergeet te klokken
                   moet het werk alsnog kunnen afmelden — anders blijft de order
                   eeuwig open en klopt de planning niet meer. */}
+              {/* Deels klaar alleen op de laatste stap: dáár komen de stuks
+                  vandaan die op een pakbon kunnen (2026-10-02). */}
+              {!bevestigGereed && huidig.volgorde === huidig.totaalStappen && (
+                <DeelsGereed key={huidig.stapId} projectId={huidig.projectId} order={huidig.order} onMelding={melding} />
+              )}
               {!bevestigGereed ? (
                 <button
                   className="tr-tbtn is-primair is-klaar"
