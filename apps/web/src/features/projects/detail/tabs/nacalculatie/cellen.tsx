@@ -1,10 +1,36 @@
 import type { ReactNode } from 'react'
 import { IconChevronDown, IconChevronRight } from '@tabler/icons-react'
+import { minToHm, secondenNaarUren } from '@stockmanager/shared'
 import { eur, pct } from '../../lib/format'
 import { DEV_BREEDTE, devBalk, devKleurVar, kleurClass } from '../../lib/nacalculatie'
 
-/** Kolommen van de boom: omschrijving · tijd · gecalculeerd · werkelijk · verschil · % · afwijking. */
-export const KOLOMMEN = 7
+/**
+ * Kolommen: omschrijving · tijd gecalculeerd · tijd werkelijk · kosten
+ * gecalculeerd · kosten werkelijk · verschil · % · afwijking. Gecalculeerd en
+ * werkelijk elk in een eigen kolom (2026-10-02): "1:00 u → 0:45 u" in één cel
+ * was niet te lezen.
+ */
+export const KOLOMMEN = 8
+
+/** Tijd gecalculeerd (minuten) en werkelijk (seconden), of een streepje. */
+export function TijdCellen({ gecalcMin, werkSec }: { gecalcMin: number | null; werkSec: number | null }) {
+  return (
+    <>
+      <td className="num">{gecalcMin === null ? '—' : minToHm(gecalcMin)}</td>
+      <td className="num">{werkSec === null ? '—' : secondenNaarUren(werkSec)}</td>
+    </>
+  )
+}
+
+/** Kosten gecalculeerd en werkelijk. */
+export function KostenCellen({ gecalc, werk }: { gecalc: number | null; werk: number | null }) {
+  return (
+    <>
+      <td className="num">{gecalc === null ? '—' : eur(gecalc)}</td>
+      <td className="num">{werk === null ? '—' : eur(werk)}</td>
+    </>
+  )
+}
 
 export function DevBalk({ pctWaarde }: { pctWaarde: number | null }) {
   const b = devBalk(pctWaarde)

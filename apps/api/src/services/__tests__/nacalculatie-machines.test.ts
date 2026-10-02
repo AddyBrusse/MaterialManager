@@ -79,15 +79,34 @@ describe('bouwMachineNacalculatie', () => {
     expect(dmg.klokregels.map((k) => k.kosten)).toEqual([40, 80, 45])
   })
 
-  it('toont de gecalculeerde machine én de machine waar het werkelijk op draaide', () => {
-    const m = bouwMachineNacalculatie(gecalc, [klok({ machineNaam: 'Mazak' })], tarief)
+  it('geeft de vervangende machine de calculatie van de machine waar niet op geklokt is', () => {
+    const m = bouwMachineNacalculatie(gecalc, [
+      klok({ id: '1', machineNaam: 'DMG CTX' }),
+      klok({ id: '2', machineNaam: 'Mazak' }),
+    ], tarief)
+    // Doosan was gecalculeerd en is niet gebruikt: die valt weg, Mazak neemt hem over.
+    expect(m.map((x) => x.naam)).toEqual(['DMG CTX', 'Mazak'])
+    const mazak = m.find((x) => x.sleutel === 'mazak')!
+    const doosan = gecalc.find((x) => x.sleutel === 'doosan')!
+    expect(mazak.gecalculeerdOp).toBe('Doosan')
+    expect(mazak.gecalculeerdTotaal).toBeCloseTo(doosan.instelKosten + doosan.draaienKosten, 6)
+    expect(mazak.tariefOnbekend).toBe(true)
+    // Het gecalculeerde bedrag blijft in de som.
+    const som = m.reduce((s, x) => s + x.gecalculeerdTotaal, 0)
+    expect(som).toBeCloseTo(gecalc.reduce((s, x) => s + x.instelKosten + x.draaienKosten, 0), 6)
+  })
+
+  it('laat een gecalculeerde machine staan als er niets is om hem aan te koppelen', () => {
+    const m = bouwMachineNacalculatie(gecalc, [klok({ machineNaam: 'DMG CTX' })], tarief)
     const doosan = m.find((x) => x.sleutel === 'doosan')!
     expect(doosan.werkelijk).toBeNull()
     expect(doosan.verschilPct).toBeNull()
-    const mazak = m.find((x) => x.sleutel === 'mazak')!
-    expect(mazak.gecalculeerd).toBeNull()
-    expect(mazak.tariefOnbekend).toBe(true)
-    expect(mazak.klokregels).toHaveLength(1)
+    expect(doosan.gecalculeerdOp).toBeNull()
+  })
+
+  it('koppelt niets zolang er nergens op geklokt is', () => {
+    const m = bouwMachineNacalculatie(gecalc, [], tarief)
+    expect(m.map((x) => x.naam)).toEqual(['DMG CTX', 'Doosan'])
   })
 
   it('zet lopende klokken erbij zonder ze mee te tellen', () => {
