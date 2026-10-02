@@ -285,6 +285,11 @@ export interface MachineNacalculatie {
   } | null
   /** Geklokt op een naam die geen machine uit de lijst is: dan is er geen tarief. */
   tariefOnbekend: boolean
+  /**
+   * Het werk ging naar deze machine, maar de calculatie rekende met een andere
+   * waar niet op geklokt is: die naam. `gecalculeerd` is dan die van de andere.
+   */
+  gecalculeerdOp: string | null
   gecalculeerdTotaal: number
   werkelijkTotaal: number
   verschil: number
@@ -295,10 +300,11 @@ export interface MachineNacalculatie {
 /**
  * Calculatie en klokregels per machine naast elkaar.
  *
- * Een machine uit de calculatie waar niet op geklokt is blijft staan ("niet
- * gebruikt"), en een machine waar wel op geklokt is maar die niet gecalculeerd
- * was komt erbij. Zo zie je allebei als het werk naar een andere machine ging —
- * anders verdwijnt de gecalculeerde machine en lijkt de andere duur zonder reden.
+ * Een machine waar wel op geklokt is maar die niet gecalculeerd was, neemt de
+ * calculatie over van een gecalculeerde machine waar niet op geklokt is
+ * (`gecalculeerdOp`); die laatste valt dan weg. Blijft er een gecalculeerde
+ * machine over zonder klokregels, dan staat hij er nog — anders verdwijnt zijn
+ * bedrag uit de som.
  *
  * Alleen afgeronde regels tellen mee, net als in `telUren`; lopende staan erbij
  * zodat je ziet dat er nog iets komt. `tarief` geeft het uurtarief van een
@@ -311,7 +317,7 @@ export function bouwMachineNacalculatie(
 ): MachineNacalculatie[] {
   const uit = new Map<string, MachineNacalculatie>()
   const leeg = (sleutel: string, naam: string): MachineNacalculatie => ({
-    sleutel, naam, gecalculeerd: null, werkelijk: null, tariefOnbekend: false,
+    sleutel, naam, gecalculeerd: null, werkelijk: null, tariefOnbekend: false, gecalculeerdOp: null,
     gecalculeerdTotaal: 0, werkelijkTotaal: 0, verschil: 0, verschilPct: null, klokregels: [],
   })
 
@@ -350,6 +356,21 @@ export function bouwMachineNacalculatie(
     m.werkelijk = w
   }
 
+  // Ging het werk naar een andere machine, dan krijgt die de calculatie van de
+  // machine waar niet op geklokt is (besloten 2026-10-02). Eén rij met "let op,
+  // gecalculeerd met de Haas" zegt meer dan twee halve rijen, en het bedrag
+  // blijft in de som. Gekoppeld in volgorde: de eerste ongebruikte bij de eerste
+  // niet-gecalculeerde. Is nergens op geklokt, dan valt er niets te koppelen.
+  const rijen = [...uit.values()]
+  const ongebruikt = rijen.filter((m) => m.gecalculeerd && !m.werkelijk && m.klokregels.length === 0)
+  const vervangers = rijen.filter((m) => !m.gecalculeerd && m.klokregels.length > 0)
+  const weg = new Set<string>()
+  for (let i = 0; i < Math.min(ongebruikt.length, vervangers.length); i++) {
+    vervangers[i].gecalculeerd = ongebruikt[i].gecalculeerd
+    vervangers[i].gecalculeerdOp = ongebruikt[i].naam
+    weg.add(ongebruikt[i].sleutel)
+  }
+
   for (const m of uit.values()) {
     m.gecalculeerdTotaal = m.gecalculeerd ? m.gecalculeerd.instelKosten + m.gecalculeerd.draaienKosten : 0
     m.werkelijkTotaal = m.werkelijk ? m.werkelijk.instelKosten + m.werkelijk.draaienKosten : 0
@@ -358,5 +379,5 @@ export function bouwMachineNacalculatie(
     // ongebruikte machine of "∞" bij een niet-gecalculeerde zegt niets.
     m.verschilPct = m.gecalculeerd && m.werkelijk ? pct(m.verschil, m.gecalculeerdTotaal) : null
   }
-  return [...uit.values()]
+  return rijen.filter((m) => !weg.has(m.sleutel))
 }

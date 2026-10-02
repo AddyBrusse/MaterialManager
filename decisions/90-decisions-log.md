@@ -1555,3 +1555,21 @@ die orderregel af die nog openstaan, in dezelfde transactie
 Daarbij gevonden: de nacalculatie telde materiaal per project + artikel. Stond
 hetzelfde artikel op twee regels, dan telde elke order de bonnen van beide. Nu
 per orderregel, met dezelfde regel als hierboven.
+
+## 2026-10-02 — Nacalculatie: kolommen en tekst die zichzelf uitleggen
+
+Na het eerste gebruik: "1:00 u → 0:45 u" in één cel en labels als "niet
+gebruikt" en "niet gecalculeerd — calculatie: Haas VF4" waren niet te lezen.
+
+- **Kolommen:** tijd en kosten elk gecalculeerd en werkelijk in een eigen kolom,
+  onder een kopje Tijd / Kosten / Verschil. Ook in de samenvatting.
+- **Een machine waar niet op geklokt is, staat er niet.** Ging het werk naar een
+  andere machine, dan neemt die de calculatie over en staat eronder "Let op! Er
+  is gecalculeerd met de Haas VF4 SS" (`gecalculeerdOp`). Zo blijft het bedrag
+  in de som en vergelijk je wat gecalculeerd was met wat er gebeurde.
+  Gekoppeld in volgorde; blijft er een gecalculeerde machine over zonder
+  vervanger, dan staat hij er met "Gecalculeerd, nog geen uren op geklokt".
+- **Teksten als zin:** "Afgeboekt van de staaf: 1 zaagbon", "10 besteld · 10
+  gemaakt volgens de klokregels", klokregel als "Draaien · Bart · 6 stuks" met
+  dag en tijdvak eronder. Een gecorrigeerde regel toont de gemeten tijd
+  doorgestreept naast de bijgestelde.

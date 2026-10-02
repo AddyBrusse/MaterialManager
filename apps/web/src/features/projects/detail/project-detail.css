@@ -1231,3 +1231,17 @@
   color: var(--text3);
   font-style: italic;
 }
+/* Kolomgroepen Tijd / Kosten / Verschil boven de kolommen gecalculeerd en werkelijk. */
+.pdv2-tbl th.pdv2-groep {
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 2px;
+}
+.pdv2-tbl thead tr:first-child th[rowspan] {
+  vertical-align: bottom;
+}
+/* "Let op!" onder een machine: het werk ging naar een andere machine. */
+.pdv2-tbl .sub.pdv2-let {
+  color: var(--warn);
+  font-weight: 600;
+}

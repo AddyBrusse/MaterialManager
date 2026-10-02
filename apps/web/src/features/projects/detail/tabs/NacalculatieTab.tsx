@@ -1,54 +1,32 @@
 import { useState } from 'react'
-import type { NacalculatieRegel } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import { Card } from '../components/Card'
 import { eur, pct } from '../lib/format'
 import { DEV_BREEDTE, kleurClass } from '../lib/nacalculatie'
-import { DevBalk, VerschilCellen } from './nacalculatie/cellen'
+import { DevBalk, KostenCellen, TijdCellen, VerschilCellen } from './nacalculatie/cellen'
 import { OrderRijen } from './nacalculatie/OrderRijen'
+import { NOG_NIET, telPosten, tijdPerPost } from './nacalculatie/posten'
 
 const BRON =
-  'Werkelijke uren komen alleen uit afgeronde tijdregistraties — lopend werk telt nog niet ' +
-  'mee. Materiaal komt uit afgeboekte zaagbonnen. Groen: goedkoper gemaakt dan berekend; rood: duurder.'
-
-/** Zo zegt de kern dat er voor een post (nog) niets gemeten of afgeboekt is. */
-const NIET_GEMETEN = new Set(['nog niet gemeten', 'nog niet afgeboekt', 'geen afwijking geregistreerd'])
-
-type Post = NacalculatieRegel & { gemeten: boolean }
-
-/** Vier posten over alle orders heen opgeteld: materiaal, instellen, draaien, extern. */
-function telPosten(nacalc: ProjectNacalculatie): Post[] {
-  const perPost = new Map<string, Post>()
-  for (const order of nacalc.orders) {
-    for (const r of order.regels) {
-      const gemeten = !NIET_GEMETEN.has(r.toelichting)
-      const bestaand = perPost.get(r.post)
-      if (!bestaand) {
-        perPost.set(r.post, { ...r, gemeten })
-        continue
-      }
-      bestaand.gecalculeerd += r.gecalculeerd
-      bestaand.werkelijk += r.werkelijk
-      bestaand.verschil += r.verschil
-      bestaand.gemeten ||= gemeten
-      bestaand.verschilPct =
-        bestaand.gecalculeerd === 0 ? null : (bestaand.verschil / bestaand.gecalculeerd) * 100
-      bestaand.toelichting = `uit ${nacalc.orders.length} orders`
-    }
-  }
-  return [...perPost.values()]
-}
+  'Werkelijke uren komen uit afgeronde klokregels — een klok die nog loopt telt pas mee als hij ' +
+  'stopt. Materiaal komt uit afgeboekte zaagbonnen. Groen: goedkoper gemaakt dan berekend; rood: duurder.'
 
 function KopRij({ eerste }: { eerste: string }) {
   return (
     <thead>
       <tr>
-        <th>{eerste}</th>
-        <th className="num" style={{ width: 120 }}>Tijd</th>
-        <th className="num" style={{ width: 100 }}>Gecalculeerd</th>
-        <th className="num" style={{ width: 100 }}>Werkelijk</th>
-        <th className="num" style={{ width: 90 }}>Verschil</th>
-        <th className="num" style={{ width: 70 }}>%</th>
+        <th rowSpan={2}>{eerste}</th>
+        <th colSpan={2} className="pdv2-groep">Tijd</th>
+        <th colSpan={2} className="pdv2-groep">Kosten</th>
+        <th colSpan={3} className="pdv2-groep">Verschil</th>
+      </tr>
+      <tr>
+        <th className="num" style={{ width: 80 }}>Gecalculeerd</th>
+        <th className="num" style={{ width: 80 }}>Werkelijk</th>
+        <th className="num" style={{ width: 90 }}>Gecalculeerd</th>
+        <th className="num" style={{ width: 90 }}>Werkelijk</th>
+        <th className="num" style={{ width: 84 }}>€</th>
+        <th className="num" style={{ width: 62 }}>%</th>
         <th style={{ width: DEV_BREEDTE + 20 }}>Afwijking</th>
       </tr>
     </thead>
@@ -102,18 +80,16 @@ export function NacalculatieTab({ nacalc }: { nacalc: ProjectNacalculatie | null
               <tr key={r.post}>
                 <td>
                   {r.label}
-                  {r.toelichting && <span className="sub">· {r.toelichting}</span>}
+                  {!r.gemeten && <span className="sub">{NOG_NIET[r.post]}</span>}
                 </td>
-                <td />
-                <td className="num">{eur(r.gecalculeerd)}</td>
-                <td className="num" style={r.gemeten ? undefined : { color: 'var(--text3)' }}>
-                  {r.gemeten ? eur(r.werkelijk) : 'nog niet gemeten'}
-                </td>
+                <TijdCellen {...tijdPerPost(nacalc, r.post)} />
+                <KostenCellen gecalc={r.gecalculeerd} werk={r.gemeten ? r.werkelijk : null} />
                 <VerschilCellen verschil={r.gemeten ? r.verschil : null} pctWaarde={r.verschilPct} />
               </tr>
             ))}
             <tr className="totaal">
               <td>Kostprijs totaal</td>
+              <td />
               <td />
               <td className="num">{eur(nacalc.gecalculeerdTotaal)}</td>
               <td className="num">{eur(nacalc.werkelijkTotaal)}</td>
