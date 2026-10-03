@@ -11,7 +11,7 @@
  */
 
 import type { Project } from '@stockmanager/shared'
-import { berekenVoortgang } from '@stockmanager/shared'
+import { berekenVoortgang, isVervallen, openstaandBedrag } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import type { TabId } from '../types'
 import { dagenTot } from './format'
@@ -112,6 +112,15 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
       : p.status === 'verzonden' || p.status === 'gefactureerd'
         ? 'gereed'
         : p.paklijsten.length > 0 || berekenVoortgang(p).klaar > 0
+          ? 'bezig'
+          : 'leeg',
+
+    // Vervallen of een concept vraagt iets; alles gefactureerd én betaald is af.
+    facturen: p.facturen.some((f) => isVervallen(f) || !f.verzondenOp)
+      ? 'aandacht'
+      : p.facturen.some((f) => f.soort === 'factuur') && openstaandBedrag(p) === 0 && berekenVoortgang(p).teFactureren === 0
+        ? 'gereed'
+        : p.facturen.length > 0 || berekenVoortgang(p).teFactureren > 0
           ? 'bezig'
           : 'leeg',
 

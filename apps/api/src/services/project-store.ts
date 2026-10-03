@@ -179,6 +179,8 @@ export function serialize(row: ProjectRow): Project {
       notities: f.notities,
       vervaldatum: f.vervaldatum,
       verzondenOp: f.verzondenOp,
+      naarEmail: f.naarEmail,
+      betaaldOp: f.betaaldOp,
       createdAt: f.createdAt.toISOString(),
     })),
     createdAt: row.createdAt.toISOString(),
@@ -453,6 +455,8 @@ export async function persist(tx: Db, next: Project): Promise<void> {
       notities: f.notities,
       vervaldatum: f.vervaldatum,
       verzondenOp: f.verzondenOp,
+      naarEmail: f.naarEmail,
+      betaaldOp: f.betaaldOp,
     }
     await tx.factuur.upsert({
       where: { id: f.id },

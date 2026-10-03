@@ -15,7 +15,7 @@ import { basisRegels, berekenVoortgang } from './projectvoortgang'
  */
 
 /** De statussen die deze regel bepaalt; de rest (offerte, factuur, on hold) blijft. */
-const LEVERFASE: ProjectStatus[] = ['bevestigd', 'productie', 'paklijst', 'verzonden']
+const LEVERFASE: ProjectStatus[] = ['bevestigd', 'productie', 'paklijst', 'verzonden', 'gefactureerd']
 
 /**
  * De status na een handeling in de productie- of leverfase.
@@ -23,6 +23,7 @@ const LEVERFASE: ProjectStatus[] = ['bevestigd', 'productie', 'paklijst', 'verzo
  * | productie  | er moet nog iets gemaakt worden, ook na een deellevering
  * | paklijst   | "Gereed voor levering": alles gemaakt, nog niet alles verstuurd
  * | verzonden  | "Geleverd": alles op een verstuurde pakbon
+ * | gefactureerd | alles geleverd én op een verstuurde factuur
  *
  * Een bevestigd project zonder enig gemaakt stuk blijft bevestigd.
  */
@@ -31,7 +32,13 @@ export function statusNaLevering(p: Project): ProjectStatus {
   const v = berekenVoortgang(p)
   if (v.besteld === 0) return p.status
   const allesVerstuurd = v.teMaken === 0 && v.klaar === 0 && p.paklijsten.every(pl => pl.verzondenOp)
-  if (allesVerstuurd) return 'verzonden'
+  if (allesVerstuurd) {
+    // Gefactureerd pas als alles op een verstúúrde factuur staat (2026-10-03):
+    // een concept is nog niet bij de klant.
+    const allesGefactureerd = v.teFactureren === 0 && p.facturen.some(f => f.soort === 'factuur')
+      && p.facturen.every(f => f.verzondenOp)
+    return allesGefactureerd ? 'gefactureerd' : 'verzonden'
+  }
   if (v.teMaken === 0) return 'paklijst'
   if (p.status === 'bevestigd' && v.gemaakt === 0 && v.geleverd === 0) return 'bevestigd'
   return 'productie'

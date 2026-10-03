@@ -14,6 +14,9 @@ import {
   waaromNietVrijgeven, waaromNietTerugNaarVoorbereiding,
   statusNaLevering, waaromNietPakbon, waaromNietDeelsGereed,
   voorstelPakbon, pakbonRegels, waaromNietPakbonVersturen, waaromNietPakbonWijzigen,
+  BTW_PCT, factuurBedragen, factuurRegels, factuurMailadres, voorstelFactuur, voorstelCredit,
+  waaromNietFactuur, waaromNietCredit, waaromNietFactuurWijzigen, waaromNietFactuurVersturen,
+  waaromNietBetaald, vervaldatumVanaf,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
@@ -1128,193 +1131,185 @@ router.post(
   }),
 )
 
-// ── Factuur ────────────────────────────────────────────────────────────────────
+// ── Facturen (Facturen-tab, 2026-10-03) ─────────────────────────────────────────
 
-// Factureren gaat over wat er GELEVERD is en nog niet gefactureerd. Dat is bij
-// een deellevering minder dan de hele offerte; de rest volgt op de volgende
-// factuur.
-const CreateFactuurSchema = z.object({
-  btwPct: z.number().optional(),
-  regels: z.array(z.object({
-    offerteRegelId: z.string(),
-    qty: z.number().positive(),
-  })).optional(),
+// Factureren staat los van de pakbonnen: een nieuwe factuur neemt alles wat
+// verstuurd en nog niet gefactureerd is, als concept. Aantal en prijs zijn aan
+// te passen zolang hij concept is; een verstuurde factuur corrigeer je met een
+// credit. Alle voorwaarden staan in packages/shared/calc/factuur.ts.
+const FactuurRegelInvoer = z.object({
+  offerteRegelId: z.string(),
+  qty: z.number(),
+  verkoopprijs: z.number(),
 })
 
-function geldbedragen(regels: { totaal: number }[], btwPct: number) {
-  const subtotaal = Math.round(regels.reduce((s, r) => s + r.totaal, 0) * 100) / 100
-  const btwBedrag = Math.round(subtotaal * (btwPct / 100) * 100) / 100
-  return { subtotaal, btwBedrag, totaalInclBtw: Math.round((subtotaal + btwBedrag) * 100) / 100 }
+/** Naar wie de factuur gaat: factuuradres van de klant, contactpersoon, algemeen adres. */
+async function standaardMailadres(tx: Prisma.TransactionClient, p: Project) {
+  if (!p.relatieId) return { naar: null as string | null, termijn: null as number | null }
+  const r = await tx.relatie.findUnique({ where: { id: p.relatieId } })
+  const contacten = (r?.contacten ?? []) as { id: string; email?: string | null }[]
+  return {
+    naar: factuurMailadres(r, contacten.find(c => c.id === p.contactId)),
+    termijn: r?.betalingstermijn ?? null,
+  }
 }
+
+function nieuweFactuur(
+  p: Project, id: string, soort: Factuur['soort'], regels: Factuur['regels'], naar: string | null, crediteert: Factuur | null,
+): Factuur {
+  return {
+    id,
+    soort,
+    crediteertFactuurId: crediteert?.id ?? null,
+    projectId: p.id,
+    offerteId: crediteert?.offerteId ?? p.opdrachtbevestiging?.offerteId ?? p.offertes.find(o => o.status === 'geaccepteerd')?.id ?? '',
+    regels,
+    btwPct: BTW_PCT,
+    ...factuurBedragen(regels, BTW_PCT),
+    notities: '',
+    vervaldatum: null,
+    verzondenOp: null,
+    naarEmail: naar,
+    betaaldOp: null,
+    createdAt: now(),
+  }
+}
+
+const metStatus = (p: Project): Project => ({ ...p, status: statusNaLevering(p), updatedAt: now() })
 
 router.post(
   '/:id/factuur',
   asyncHandler(async (req, res) => {
-    const { btwPct = 21, regels: gevraagd } = CreateFactuurSchema.parse(req.body ?? {})
+    const body = z.object({ regels: z.array(FactuurRegelInvoer).optional() }).parse(req.body ?? {})
     const updated = await withProject(req.params.id, async (p, tx) => {
-      const accepted = p.offertes.find(o => o.status === 'geaccepteerd')
-      if (!accepted) throw new AppError(409, 'VOORWAARDE', 'Kan niet factureren: er is nog geen geaccepteerde offerte.')
-
-      const voortgang = berekenVoortgang(p)
-      const openPerRegel = new Map(voortgang.regels.map(r => [r.offerteRegelId, r.teFactureren]))
-
-      const keuze = gevraagd ?? voortgang.regels
-        .filter(r => r.teFactureren > 0)
-        .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.teFactureren }))
-
-      if (keuze.length === 0) {
-        throw new AppError(409, 'VOORWAARDE', 'Kan geen factuur maken: alles wat geleverd is, is al gefactureerd.')
-      }
-      for (const g of keuze) {
-        const open = openPerRegel.get(g.offerteRegelId) ?? 0
-        if (g.qty > open) {
-          throw new AppError(
-            409, 'VOORWAARDE',
-            `Kan geen factuur maken: voor regel ${regelNaam(p, g.offerteRegelId)} worden er ${g.qty} gefactureerd, maar er staan er maar ${open} open.`,
-          )
-        }
-      }
-
-      const bron = basisRegels(p)
-      const regels = keuze.map(g => {
-        const r = bron.find(x => x.id === g.offerteRegelId)
-        const prijs = r?.verkoopprijs ?? 0
-        return {
-          offerteRegelId: g.offerteRegelId,
-          naam: r?.naam ?? g.offerteRegelId,
-          qty: g.qty,
-          eenheid: r?.eenheid ?? 'st',
-          verkoopprijs: prijs,
-          totaal: Math.round(g.qty * prijs * 100) / 100,
-        }
-      })
-
-      const vervalDate = new Date()
-      vervalDate.setDate(vervalDate.getDate() + 30)
-
-      const factuur: Factuur = {
-        id: await nextDocId(tx, 'FACT'),
-        soort: 'factuur',
-        crediteertFactuurId: null,
-        projectId: p.id,
-        offerteId: accepted.id,
-        regels,
-        btwPct,
-        ...geldbedragen(regels, btwPct),
-        notities: '',
-        vervaldatum: vervalDate.toISOString().split('T')[0],
-        verzondenOp: null,
-        createdAt: now(),
-      }
-
-      const facturen = [...p.facturen, factuur]
-      // Pas 'gefactureerd' als er niets meer openstaat — anders zegt de status
-      // dat het project klaar is terwijl er nog een tweede levering aankomt.
-      const na = berekenVoortgang({ ...p, facturen })
-      const status = na.teFactureren === 0 && na.teMaken === 0 && na.klaar === 0
-        ? 'gefactureerd' : p.status
-
-      return { ...p, facturen, status, updatedAt: now() }
+      const keuze = body.regels ?? voorstelFactuur(p)
+      const nee = waaromNietFactuur(p, keuze)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      const { naar } = await standaardMailadres(tx, p)
+      const f = nieuweFactuur(p, await nextDocId(tx, 'FACT'), 'factuur', factuurRegels(p, keuze), naar, null)
+      return metStatus({ ...p, facturen: [...p.facturen, f] })
     })
     res.status(201).json({ data: updated })
   }),
 )
-
-// ── Creditfactuur ─────────────────────────────────────────────────────────────
-
-// Een credit is geen negatieve factuur: de factuur die hij crediteert is
-// verstuurd en blijft staan. De credit is een eigen document dat ernaast telt.
-const CreateCreditSchema = z.object({
-  factuurId: z.string(),
-  regels: z.array(z.object({
-    offerteRegelId: z.string(),
-    qty: z.number().positive(),
-  })).optional(),
-  notities: z.string().optional(),
-})
 
 router.post(
   '/:id/credit',
   asyncHandler(async (req, res) => {
-    const body = CreateCreditSchema.parse(req.body)
+    const body = z.object({ factuurId: z.string(), regels: z.array(FactuurRegelInvoer).optional() }).parse(req.body)
     const updated = await withProject(req.params.id, async (p, tx) => {
-      const bron = p.facturen.find(f => f.id === body.factuurId)
-      if (!bron) throw new AppError(404, 'NOT_FOUND', 'Deze factuur bestaat niet (meer). Ververs de pagina.')
-      if (bron.soort === 'credit') {
-        throw new AppError(409, 'VOORWAARDE', 'Een creditfactuur kun je niet crediteren. Maak zo nodig een nieuwe factuur.')
-      }
-
-      // Wat er van deze factuur nog te crediteren valt: de gefactureerde
-      // aantallen min wat er eerder al gecrediteerd is.
-      const eerder = new Map<string, number>()
-      for (const c of p.facturen.filter(f => f.crediteertFactuurId === bron.id)) {
-        for (const r of c.regels) {
-          eerder.set(r.offerteRegelId, (eerder.get(r.offerteRegelId) ?? 0) + r.qty)
-        }
-      }
-      const openPerRegel = new Map(bron.regels.map(r =>
-        [r.offerteRegelId, r.qty - (eerder.get(r.offerteRegelId) ?? 0)]))
-
-      const keuze = body.regels ?? bron.regels
-        .map(r => ({ offerteRegelId: r.offerteRegelId, qty: openPerRegel.get(r.offerteRegelId) ?? 0 }))
-        .filter(r => r.qty > 0)
-
-      if (keuze.length === 0) {
-        throw new AppError(409, 'VOORWAARDE', 'Kan niet crediteren: deze factuur is al volledig gecrediteerd.')
-      }
-      for (const g of keuze) {
-        const open = openPerRegel.get(g.offerteRegelId) ?? 0
-        if (g.qty > open) {
-          throw new AppError(
-            409, 'VOORWAARDE',
-            `Kan niet crediteren: voor regel ${regelNaam(p, g.offerteRegelId)} worden er ${g.qty} gecrediteerd, maar er valt er maar ${open} te crediteren.`,
-          )
-        }
-      }
-
+      const keuze = body.regels ?? voorstelCredit(p, body.factuurId)
+      const nee = waaromNietCredit(p, body.factuurId, keuze)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      const bron = p.facturen.find(f => f.id === body.factuurId)!
       const regels = keuze.map(g => {
-        const r = bron.regels.find(x => x.offerteRegelId === g.offerteRegelId)
-        const prijs = r?.verkoopprijs ?? 0
-        return {
-          offerteRegelId: g.offerteRegelId,
-          naam: r?.naam ?? g.offerteRegelId,
-          qty: g.qty,
-          eenheid: r?.eenheid ?? 'st',
-          verkoopprijs: prijs,
-          totaal: Math.round(g.qty * prijs * 100) / 100,
-        }
+        const r = bron.regels.find(x => x.offerteRegelId === g.offerteRegelId)!
+        return { ...r, qty: g.qty, verkoopprijs: g.verkoopprijs, totaal: Math.round(g.qty * g.verkoopprijs * 100) / 100 }
       })
-
-      const credit: Factuur = {
-        id: await nextDocId(tx, 'CRED'),
-        soort: 'credit',
-        crediteertFactuurId: bron.id,
-        projectId: p.id,
-        offerteId: bron.offerteId,
-        regels,
-        btwPct: bron.btwPct,
-        ...geldbedragen(regels, bron.btwPct),
-        notities: body.notities ?? '',
-        vervaldatum: null,
-        verzondenOp: null,
-        createdAt: now(),
-      }
-
-      return { ...p, facturen: [...p.facturen, credit], updatedAt: now() }
+      // Naar hetzelfde adres als de factuur die hij crediteert.
+      const c = nieuweFactuur(p, await nextDocId(tx, 'CRED'), 'credit', regels, bron.naarEmail, bron)
+      return metStatus({ ...p, facturen: [...p.facturen, c] })
     })
     res.status(201).json({ data: updated })
   }),
 )
 
+/** Een concept aanpassen: regels (aantal en prijs), mailadres, opmerking. */
+router.patch(
+  '/:id/factuur/:factuurId',
+  asyncHandler(async (req, res) => {
+    const body = z.object({
+      regels: z.array(FactuurRegelInvoer).optional(),
+      naarEmail: z.string().max(200).nullable().optional(),
+      notities: z.string().max(2000).optional(),
+    }).parse(req.body ?? {})
+    const updated = await withProject(req.params.id, (p) => {
+      const id = req.params.factuurId
+      const f = p.facturen.find(x => x.id === id)
+      const nee = waaromNietFactuurWijzigen(p, id) ?? (body.regels
+        ? f!.soort === 'credit'
+          ? waaromNietCredit(p, f!.crediteertFactuurId ?? '', body.regels, { creditId: id, leegMag: true })
+          : waaromNietFactuur(p, body.regels, { factuurId: id, leegMag: true })
+        : null)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      const facturen = p.facturen.map(x => {
+        if (x.id !== id) return x
+        const regels = body.regels
+          ? x.soort === 'credit'
+            ? body.regels.map(g => {
+                const r = x.regels.find(y => y.offerteRegelId === g.offerteRegelId)
+                  ?? p.facturen.find(b => b.id === x.crediteertFactuurId)!.regels.find(y => y.offerteRegelId === g.offerteRegelId)!
+                return { ...r, qty: g.qty, verkoopprijs: g.verkoopprijs, totaal: Math.round(g.qty * g.verkoopprijs * 100) / 100 }
+              })
+            : factuurRegels(p, body.regels)
+          : x.regels
+        return {
+          ...x,
+          regels,
+          ...factuurBedragen(regels, x.btwPct),
+          naarEmail: body.naarEmail !== undefined ? (body.naarEmail?.trim() || null) : x.naarEmail,
+          notities: body.notities ?? x.notities,
+        }
+      })
+      return metStatus({ ...p, facturen })
+    })
+    res.json({ data: updated })
+  }),
+)
+
+/** Een concept weggooien. Het nummer is dan weg; een concept is nog nergens heen gegaan. */
+router.delete(
+  '/:id/factuur/:factuurId',
+  asyncHandler(async (req, res) => {
+    const updated = await withProject(req.params.id, (p) => {
+      const nee = waaromNietFactuurWijzigen(p, req.params.factuurId)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      return metStatus({ ...p, facturen: p.facturen.filter(f => f.id !== req.params.factuurId) })
+    })
+    res.json({ data: updated })
+  }),
+)
+
+/**
+ * Vastleggen dat hij verstuurd is (de mail gaat via Outlook). Het adres komt
+ * mee en blijft op de factuur staan; de vervaldatum rekent vanaf vandaag met
+ * de betalingstermijn van de klant.
+ */
 router.post(
   '/:id/factuur/:factuurId/verzend',
   asyncHandler(async (req, res) => {
-    const updated = await withProject(req.params.id, (p) => {
+    const body = z.object({ naarEmail: z.string().max(200).nullable().optional() }).parse(req.body ?? {})
+    const updated = await withProject(req.params.id, async (p, tx) => {
       const f = p.facturen.find(x => x.id === req.params.factuurId)
-      if (!f) throw new AppError(404, 'NOT_FOUND', 'Deze factuur bestaat niet (meer). Ververs de pagina.')
+      const naar = body.naarEmail !== undefined ? body.naarEmail : (f?.naarEmail ?? null)
+      const nee = waaromNietFactuurVersturen(p, req.params.factuurId, naar)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      const { termijn } = await standaardMailadres(tx, p)
+      const nu = new Date()
+      const facturen = p.facturen.map(x => x.id === f!.id
+        ? {
+            ...x,
+            verzondenOp: nu.toISOString(),
+            naarEmail: naar,
+            vervaldatum: x.soort === 'factuur' ? vervaldatumVanaf(nu, termijn) : null,
+          }
+        : x)
+      return metStatus({ ...p, facturen })
+    })
+    res.json({ data: updated })
+  }),
+)
+
+/** Betaald (of toch niet): alleen een verstuurde factuur. */
+router.post(
+  '/:id/factuur/:factuurId/betaald',
+  asyncHandler(async (req, res) => {
+    const { betaald } = z.object({ betaald: z.boolean() }).parse(req.body ?? {})
+    const updated = await withProject(req.params.id, (p) => {
+      const nee = waaromNietBetaald(p, req.params.factuurId)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
       const facturen = p.facturen.map(x =>
-        x.id === f.id ? { ...x, verzondenOp: now() } : x,
-      )
+        x.id === req.params.factuurId ? { ...x, betaaldOp: betaald ? now() : null } : x)
       return { ...p, facturen, updatedAt: now() }
     })
     res.json({ data: updated })
@@ -1493,12 +1488,7 @@ router.post(
       if (p.facturen.some(f => f.crediteertFactuurId === laatste.id)) {
         throw new AppError(409, 'VOORWAARDE', 'Kan de factuur niet intrekken: er hangt al een creditfactuur aan.')
       }
-      return {
-        ...p,
-        facturen: p.facturen.filter(f => f.id !== laatste.id),
-        status: 'verzonden',
-        updatedAt: now(),
-      }
+      return metStatus({ ...p, facturen: p.facturen.filter(f => f.id !== laatste.id) })
     })
     res.json({ data: updated })
   }),

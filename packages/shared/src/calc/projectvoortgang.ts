@@ -31,13 +31,15 @@ export type RegelVoortgang = {
   besteld: number
   gemaakt: number
   geleverd: number
+  /** Op een verstuurde pakbon — de klant heeft het. Hierover wordt gefactureerd. */
+  verstuurd: number
   gefactureerd: number
   gecrediteerd: number
   /** Gemaakt maar nog niet geleverd — ligt in de hal. */
   klaar: number
   /** Besteld maar nog niet gemaakt. */
   teMaken: number
-  /** Geleverd en nog niet gefactureerd — hier staat nog geld tegenover. */
+  /** Verstuurd en nog niet gefactureerd — hier staat nog geld tegenover. */
   teFactureren: number
   /** In geld: `teFactureren` maal de stukprijs van de offerteregel. */
   teFacturerenBedrag: number
@@ -50,6 +52,7 @@ export type ProjectVoortgang = {
   besteld: number
   gemaakt: number
   geleverd: number
+  verstuurd: number
   gefactureerd: number
   gecrediteerd: number
   klaar: number
@@ -101,12 +104,16 @@ export function berekenVoortgang(project: Project): ProjectVoortgang {
   }
 
   const geleverd = new Map<string, number>()
+  const verstuurd = new Map<string, number>()
   const perPakbon = new Map<string, { paklijstId: string; qty: number }[]>()
   for (const pl of paklijsten) {
     for (const r of pl.regels) {
       const id = regelVanLevering(r, orders)
       if (!id) continue
       geleverd.set(id, (geleverd.get(id) ?? 0) + r.qty)
+      // Factureren gaat over wat de klant héeft (2026-10-03): een concept-pakbon
+      // houdt stuks apart, maar is nog niet de deur uit.
+      if (pl.verzondenOp) verstuurd.set(id, (verstuurd.get(id) ?? 0) + r.qty)
       const lijst = perPakbon.get(id) ?? []
       lijst.push({ paklijstId: pl.id, qty: r.qty })
       perPakbon.set(id, lijst)
@@ -132,7 +139,8 @@ export function berekenVoortgang(project: Project): ProjectVoortgang {
     // Nooit meer gecrediteerd dan gefactureerd: crediteren doe je op een
     // factuur, dus verder kan het niet gaan.
     const cred = Math.min(gecrediteerd.get(r.id) ?? 0, fact)
-    const teFactureren = Math.max(0, lev - fact)
+    const verst = Math.min(verstuurd.get(r.id) ?? 0, lev)
+    const teFactureren = Math.max(0, verst - fact)
     return {
       offerteRegelId: r.id,
       naam: r.naam,
@@ -143,6 +151,7 @@ export function berekenVoortgang(project: Project): ProjectVoortgang {
       // ging, is gemaakt, ook als niemand het aantal invulde.
       gemaakt: Math.max(g, lev),
       geleverd: lev,
+      verstuurd: verst,
       gefactureerd: fact,
       gecrediteerd: cred,
       klaar: Math.max(0, Math.max(g, lev) - lev),
@@ -159,6 +168,7 @@ export function berekenVoortgang(project: Project): ProjectVoortgang {
     besteld: som(r => r.besteld),
     gemaakt: som(r => r.gemaakt),
     geleverd: som(r => r.geleverd),
+    verstuurd: som(r => r.verstuurd),
     gefactureerd: som(r => r.gefactureerd),
     gecrediteerd: som(r => r.gecrediteerd),
     klaar: som(r => r.klaar),

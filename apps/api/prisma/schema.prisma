@@ -727,6 +727,10 @@ model Factuur {
   notities      String   @default("")
   vervaldatum   String?
   verzondenOp   String?  @map("verzonden_op")
+  /// Aan wie hij ging; vaak administratie@… in plaats van de contactpersoon.
+  naarEmail     String?  @map("naar_email")
+  /// Wanneer hij betaald is; null = nog open.
+  betaaldOp     String?  @map("betaald_op")
   createdAt     DateTime @map("created_at")
 
   crediteertFactuurId String? @map("crediteert_factuur_id")
