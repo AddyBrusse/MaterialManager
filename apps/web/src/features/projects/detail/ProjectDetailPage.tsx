@@ -22,6 +22,8 @@ import { OpdrachtTab } from './tabs/OpdrachtTab'
 import { ProductieTab } from './tabs/ProductieTab'
 import { NacalculatieTab } from './tabs/NacalculatieTab'
 import { PakbonnenTab } from './tabs/PakbonnenTab'
+import { FacturenTab } from './tabs/FacturenTab'
+import { useFactuurDocument } from './tabs/facturen/useFactuurDocument'
 import { DocumentenTab } from './tabs/DocumentenTab'
 import { FinancieelTab } from './tabs/FinancieelTab'
 import { ReserveringenTab } from './tabs/ReserveringenTab'
@@ -53,6 +55,7 @@ const TAB_IDS: TabId[] = [
   'opdracht',
   'productie',
   'pakbonnen',
+  'facturen',
   'nacalculatie',
   'documenten',
   'financieel',
@@ -189,6 +192,7 @@ export function ProjectDetailPage() {
   const acties = useProjectActies(project, (t) => kiesTab(t as TabId))
   // Op de pagina, niet in de tab: "Opdracht versturen" kan ook vanuit de footer.
   const obDoc = useObDocument(project, acties.verzendOB)
+  const factuurDoc = useFactuurDocument(project, acties.verzendFactuur)
 
   // Mislukt een opslag, dan zet syncProject het project terug naar wat er op
   // de server staat. Opnieuw lezen maakt dat zichtbaar — ook voor wijzigingen
@@ -388,6 +392,20 @@ export function ProjectDetailPage() {
               onVerwijder={acties.verwijderPaklijst}
             />
           )}
+          {tab === 'facturen' && (
+            <FacturenTab
+              project={project}
+              voortgang={voortgang}
+              geblokkeerd={geblokkeerd}
+              onNieuw={acties.maakFactuur}
+              onWijzig={acties.wijzigFactuur}
+              onPdf={factuurDoc.openen}
+              onVerstuur={factuurDoc.klaarzetten}
+              onVerwijder={acties.verwijderFactuur}
+              onCrediteer={acties.crediteer}
+              onBetaald={acties.markeerBetaald}
+            />
+          )}
           {tab === 'nacalculatie' && <NacalculatieTab nacalc={nacalc} />}
           {tab === 'financieel' && <FinancieelTab geld={bouwGeld(project, nacalc)} />}
           {tab === 'reserveringen' && <ReserveringenTab items={reserveringVMs} />}
@@ -402,7 +420,7 @@ export function ProjectDetailPage() {
                 doc === 'Paklijst'
                   ? kiesTab('pakbonnen')
                   : doc === 'Factuur'
-                    ? acties.maakFactuur()
+                    ? kiesTab('facturen')
                     : // Offerte en opdracht maak je op hun eigen tab.
                       kiesTab(doc === 'Opdrachtbevestiging' ? 'opdracht' : 'offertes')
               }
@@ -417,6 +435,10 @@ export function ProjectDetailPage() {
         onPrimair={() => {
           if (!actie?.stap) return
           if (actie.stap.soort === 'opdracht-versturen') obDoc.klaarzetten()
+          if (actie.stap.soort === 'factuur-versturen') {
+            const f = project.facturen.find((x) => x.id === (actie.stap as { factuurId: string }).factuurId)
+            if (f) factuurDoc.klaarzetten(f)
+          }
           else acties.voerUit(actie.stap)
         }}
         onMenu={(i) => {
@@ -428,6 +450,7 @@ export function ProjectDetailPage() {
       />
       {acties.dialoog}
       {obDoc.dialoog}
+      {factuurDoc.dialoog}
     </div>
   )
 }

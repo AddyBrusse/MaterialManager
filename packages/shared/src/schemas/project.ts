@@ -182,6 +182,14 @@ export const FactuurSchema = z.object({
   notities: z.string(),
   vervaldatum: z.string().nullable(),
   verzondenOp: z.string().nullable(),
+  /**
+   * Aan wie hij gaat, vastgelegd op de factuur zelf (2026-10-03). Facturen gaan
+   * vaak naar administratie@… en niet naar de contactpersoon van de order; een
+   * later gewijzigd adres bij de klant verandert een verstuurde factuur niet.
+   */
+  naarEmail: z.string().nullable().default(null),
+  /** Wanneer hij betaald is; null = nog open. Alleen bij een factuur, niet bij een credit. */
+  betaaldOp: z.string().nullable().default(null),
   createdAt: z.string(),
 })
 export type Factuur = z.infer<typeof FactuurSchema>

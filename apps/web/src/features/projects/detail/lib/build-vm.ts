@@ -9,7 +9,7 @@
  */
 
 import type { Project, Relatie, Todo } from '@stockmanager/shared'
-import { aantalDeelleveringen, berekenVoortgang, gefactureerdInclBtw, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
+import { aantalDeelleveringen, berekenVoortgang, gefactureerdInclBtw, isVervallen, openstaandBedrag, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import type { ZaagReservation } from '../../../../api/reservations'
 import { houdtVast } from '../../../../api/reservations'
@@ -133,16 +133,17 @@ export function bouwFacetten(
     // De vervaldatum is die van de meest urgente openstaande factuur, want dát
     // is de datum waar iemand naar handelt.
     const metDatum = p.facturen
-      .filter((f) => f.soort !== 'credit' && f.vervaldatum)
+      .filter((f) => f.soort !== 'credit' && f.vervaldatum && !f.betaaldOp)
       .sort((a, b) => String(a.vervaldatum).localeCompare(String(b.vervaldatum)))
     const eerste = metDatum[0] ?? null
     const n = dagenTot(eerste?.vervaldatum)
     const credits = p.facturen.filter((f) => f.soort === 'credit').length
+    const aantal = p.facturen.length - credits
     facetten.push({
       label: 'Factuur',
       waarde: eur(gefactureerdInclBtw(p)),
       sub: [
-        p.facturen.length > 1 ? `${p.facturen.length} facturen` : laatsteFactuur(p)?.id,
+        aantal > 1 ? `${aantal} facturen` : laatsteFactuur(p)?.id,
         credits > 0 ? `${credits} credit${credits > 1 ? 's' : ''}` : null,
         eerste ? `vervalt ${datumKort(eerste.vervaldatum)}` : null,
       ]
@@ -210,6 +211,19 @@ function pakbonBadge(p: Project): TabBadge {
     : { tekst: `${p.paklijsten.length}` }
 }
 
+/** Het tabje Facturen: vervallen gaat voor, dan een concept, dan wat open is. */
+function factuurBadge(p: Project): TabBadge {
+  const vervallen = p.facturen.filter((f) => isVervallen(f)).length
+  if (vervallen > 0) return { tekst: `${vervallen} vervallen`, kleur: 'dgr' }
+  if (p.facturen.some((f) => !f.verzondenOp)) return { tekst: 'concept', kleur: 'warn' }
+  const open = openstaandBedrag(p)
+  if (open > 0) return { tekst: `${eur(open)} open`, kleur: 'accent' }
+  const te = berekenVoortgang(p).teFacturerenBedrag
+  if (te > 0) return { tekst: `${eur(te)} te factureren`, kleur: 'accent' }
+  if (p.facturen.some((f) => f.soort === 'factuur')) return { tekst: 'betaald ✓', kleur: 'ok' }
+  return { tekst: '—' }
+}
+
 export function bouwTabBadges(
   p: Project,
   nacalc: ProjectNacalculatie | null,
@@ -261,6 +275,7 @@ export function bouwTabBadges(
         : // Zelfde oordeel als de tabel: goedkoper groen, duurder rood.
           { tekst: pct(afw), kleur: kleurClass(afw) || undefined },
     pakbonnen: pakbonBadge(p),
+    facturen: factuurBadge(p),
     documenten: p.facturen.some((f) => f.soort !== 'credit' && f.verzondenOp)
       ? { tekst: `${documenten}/4 ✓`, kleur: 'ok' }
       : { tekst: `${documenten}/4` },

@@ -1622,3 +1622,43 @@ extra route in `terminal-scope.ts`). Alleen omhoog en niet tot het volle aantal
 klaar", dat ook de klok afrondt en het materiaal afboekt.
 
 Pakbon als pdf en per mail volgt als aparte stap.
+
+## 2026-10-03 — Facturen-tab: los van pakbonnen, deelfactuur en credit
+
+**Factureren gaat over verstuurde stuks, niet over pakbonnen.** De factuur gaat
+vaak pas de deur uit als alles geleverd is, dus een factuur hoort niet bij één
+pakbon. `berekenVoortgang` telt per regel `verstuurd` (op een verstuurde
+pakbon) en `teFactureren = verstuurd − gefactureerd`. Een concept-factuur telt
+al als gefactureerd, zodat twee concepten niet dezelfde stuks pakken.
+
+**Facturen-tab** (na Pakbonnen, opbouw als de Offertes-tab):
+
+- Bovenaan "Te factureren": per regel besteld, verstuurd, gefactureerd,
+  gecrediteerd, te factureren en bedrag; teller met openstaand en vervallen.
+- **Nieuwe factuur** zet er alles op wat verstuurd en niet gefactureerd is
+  (`voorstelFactuur`). Aantal **en prijs** zijn in het concept aan te passen,
+  een regel kan eraf of erbij — een deelfactuur is dus gewoon minder erop.
+  Meer dan verstuurd en open kan niet (`waaromNietFactuur`, scherm én server,
+  `409 VOORWAARDE`).
+- **Btw altijd 21 %** (`BTW_PCT`), geen keuze per factuur.
+- **Crediteren** kan alleen op een verstuurde factuur en maakt een concept-credit
+  met wat er van die factuur nog niet gecrediteerd is (`creditOpen`). Een credit
+  staat ingesprongen onder zijn factuur, bedragen negatief.
+- **Ander mailadres.** Bij het aanmaken komt het adres uit `factuurMailadres`:
+  het factuurmailadres van de relatie (administratie@…), anders de contactpersoon,
+  anders het algemene adres. Zolang het concept is, pas je het in de rij aan. De
+  aanhef is alleen persoonlijk als de mail naar de contactpersoon zelf gaat.
+- **Versturen** zoals de opdrachtbevestiging: `.eml` met de pdf, en pas bij "Ja,
+  verstuurd" legt de server `verzondenOp`, het adres en de vervaldatum vast
+  (vandaag + betalingstermijn van de relatie, standaard 30 dagen). Daarna staat
+  hij vast.
+- **Betaald** zet `betaaldOp` (terugzetten kan). Een verstuurde, onbetaalde
+  factuur voorbij de vervaldatum heet **Vervallen** (`isVervallen`), afgeleid,
+  niet opgeslagen.
+
+**Status Gefactureerd** komt uit `statusNaLevering`: alleen als alles verstuurd
+is, er niets meer te factureren valt en elke factuur verstuurd is. Anders blijft
+het Geleverd.
+
+Migratie `20261003090000_factuur_mail_betaald`: `facturen.naar_email` en
+`facturen.betaald_op`.
