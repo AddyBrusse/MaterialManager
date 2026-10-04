@@ -2,6 +2,7 @@ import { IconTrash } from '@tabler/icons-react'
 import { creditOpen, factuurVoortgang, type Factuur, type FactuurRegelKeuze, type Project } from '@stockmanager/shared'
 import { eur, getal } from '../../lib/format'
 import { CelGetal } from '../OfferteRegels'
+import { artikelVanRegel, TekeningCel, VoorbeeldCel } from '../OfferteRegelCellen'
 
 interface Props {
   project: Project
@@ -48,7 +49,9 @@ export function FactuurRegels({ project, factuur: f, bewerkbaar, onWijzig }: Pro
       <table className="pdv2-tbl">
         <thead>
           <tr>
+            <th style={{ width: 60 }}>Voorbeeld</th>
             <th>Regel</th>
+            <th style={{ width: 120 }}>Tekening</th>
             <th className="num" style={{ width: 110 }}>Aantal</th>
             <th className="num" style={{ width: 110 }}>Prijs/st</th>
             <th className="num" style={{ width: 110 }}>Totaal</th>
@@ -59,9 +62,13 @@ export function FactuurRegels({ project, factuur: f, bewerkbaar, onWijzig }: Pro
           {f.regels.length === 0 && (
             <tr><td colSpan={99} className="pdv2-empty">Nog geen regels. Voeg hieronder toe wat er gefactureerd wordt.</td></tr>
           )}
-          {f.regels.map((r) => (
+          {f.regels.map((r) => {
+            const artikel = artikelVanRegel(project, r.offerteRegelId)
+            return (
             <tr key={r.offerteRegelId}>
+              <VoorbeeldCel artikel={artikel} size={48} />
               <td>{r.naam}</td>
+              <TekeningCel artikel={artikel} />
               <td className="num">
                 {bewerkbaar ? <CelGetal waarde={r.qty} onKlaar={(n) => zet(r.offerteRegelId, { qty: n })} /> : getal(r.qty)} {r.eenheid}
               </td>
@@ -81,9 +88,10 @@ export function FactuurRegels({ project, factuur: f, bewerkbaar, onWijzig }: Pro
                 </td>
               )}
             </tr>
-          ))}
+            )
+          })}
           <tr className="totaal">
-            <td colSpan={3}>Subtotaal · btw {f.btwPct}% · <strong>totaal incl. btw</strong></td>
+            <td colSpan={5}>Subtotaal · btw {f.btwPct}% · <strong>totaal incl. btw</strong></td>
             <td className="num">
               {eur(teken * f.subtotaal)} · {eur(teken * f.btwBedrag)} · <strong>{eur(teken * f.totaalInclBtw)}</strong>
             </td>

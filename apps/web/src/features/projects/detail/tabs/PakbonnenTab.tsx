@@ -48,7 +48,7 @@ export function PakbonnenTab({ project, voortgang, geblokkeerd, onNieuw, onWijzi
 
   return (
     <>
-      <KlaarKaart v={voortgang} />
+      <KlaarKaart project={project} v={voortgang} />
       <Card
         titel="Pakbonnen"
         teller={pakbonnen.length === 0 ? undefined : `${pakbonnen.length} ${pakbonnen.length === 1 ? 'pakbon' : 'pakbonnen'} · ${verstuurd} verstuurd`}

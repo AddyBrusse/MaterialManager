@@ -1,6 +1,7 @@
 import { isVervallen, openstaandBedrag, type Project, type ProjectVoortgang } from '@stockmanager/shared'
 import { Card } from '../../components/Card'
 import { eur, getal } from '../../lib/format'
+import { artikelVanRegel, TekeningCel, VoorbeeldCel } from '../OfferteRegelCellen'
 
 /**
  * Bovenaan de Facturen-tab: per regel wat de klant heeft (verstuurd), wat al
@@ -20,7 +21,9 @@ export function TeFacturerenKaart({ project: p, v }: { project: Project; v: Proj
       <table className="pdv2-tbl">
         <thead>
           <tr>
+            <th style={{ width: 88 }}>Voorbeeld</th>
             <th>Regel</th>
+            <th style={{ width: 120 }}>Tekening</th>
             <th className="num" style={{ width: 80 }}>Besteld</th>
             <th className="num" style={{ width: 90 }}>Verstuurd</th>
             <th className="num" style={{ width: 100 }}>Gefactureerd</th>
@@ -30,14 +33,18 @@ export function TeFacturerenKaart({ project: p, v }: { project: Project; v: Proj
           </tr>
         </thead>
         <tbody>
-          {v.regels.map((r) => (
+          {v.regels.map((r) => {
+            const artikel = artikelVanRegel(p, r.offerteRegelId)
+            return (
             <tr key={r.offerteRegelId} className={r.teFactureren === 0 && r.gefactureerd >= r.besteld ? 'vervallen' : undefined}>
+              <VoorbeeldCel artikel={artikel} />
               <td>
                 {r.naam}
                 {r.teFactureren === 0 && r.verstuurd < r.besteld && (
                   <span className="sub">Nog niet alles verstuurd — {getal(r.besteld - r.verstuurd)} {r.eenheid} komt nog</span>
                 )}
               </td>
+              <TekeningCel artikel={artikel} />
               <td className="num">{getal(r.besteld)} {r.eenheid}</td>
               <td className="num">{getal(r.verstuurd)}</td>
               <td className="num">{getal(r.gefactureerd)}</td>
@@ -45,7 +52,8 @@ export function TeFacturerenKaart({ project: p, v }: { project: Project; v: Proj
               <td className="num"><strong>{getal(r.teFactureren)}</strong></td>
               <td className="num">{r.teFactureren > 0 ? eur(r.teFacturerenBedrag) : '—'}</td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </Card>

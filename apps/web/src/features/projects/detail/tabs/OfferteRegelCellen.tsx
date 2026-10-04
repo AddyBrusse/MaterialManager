@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import type { OfferteRegel } from '@stockmanager/shared'
-import type { Article } from '../../../../api/articles'
+import { basisRegels, type OfferteRegel, type Project } from '@stockmanager/shared'
+import { articlesApi, type Article } from '../../../../api/articles'
 import { ArtikelPreviewThumb } from '../../../../components/projecten/ArtikelPreviewThumb'
 import { buildEstimateCtx, computeEstimateTotals } from '../../../../api/estimate'
 import { gradesApi } from '../../../../api/grades'
@@ -18,12 +18,20 @@ import { eur } from '../lib/format'
 
 /** Voorbeeld: STEP-render als die er is, anders de pdf-tekening. Bij hover
  *  een groter beeld, en bij een STEP een draaibaar 3D-model. */
-export function VoorbeeldCel({ artikel }: { artikel: Article | null }) {
+export function VoorbeeldCel({ artikel, size = 72 }: { artikel: Article | null; size?: number }) {
   return (
     <td className="pdv2-voorbeeld">
-      <ArtikelPreviewThumb article={artikel} size={72} />
+      <ArtikelPreviewThumb article={artikel} size={size} />
     </td>
   )
+}
+
+/** Het artikel achter een opdrachtregel. Pakbon- en factuurregels dragen
+ *  alleen het id van die regel; het artikel staat op de regel zelf. */
+export function artikelVanRegel(project: Project, offerteRegelId: string | null | undefined): Article | null {
+  if (!offerteRegelId) return null
+  const id = basisRegels(project).find((r) => r.id === offerteRegelId)?.artikelId
+  return id ? articlesApi.get(id) : null
 }
 
 /** Naam, omschrijving, en het artikelnummer als weg naar het artikel zelf —

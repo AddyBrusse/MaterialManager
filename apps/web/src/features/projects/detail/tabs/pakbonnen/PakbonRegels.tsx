@@ -2,6 +2,7 @@ import { IconTrash } from '@tabler/icons-react'
 import { leverVoortgang, type Paklijst, type PakbonRegelKeuze, type Project } from '@stockmanager/shared'
 import { getal } from '../../lib/format'
 import { CelGetal } from '../OfferteRegels'
+import { artikelVanRegel, TekeningCel, VoorbeeldCel } from '../OfferteRegelCellen'
 
 interface Props {
   project: Project
@@ -38,7 +39,9 @@ export function PakbonRegels({ project, pakbon, bewerkbaar, onWijzig }: Props) {
       <table className="pdv2-tbl">
         <thead>
           <tr>
+            <th style={{ width: 60 }}>Voorbeeld</th>
             <th>Regel</th>
+            <th style={{ width: 120 }}>Tekening</th>
             <th className="num" style={{ width: 80 }}>Besteld</th>
             {vol && <th className="num" style={{ width: 80 }}>Gemaakt</th>}
             {vol && <th className="num" style={{ width: 130 }}>Op andere pakbonnen</th>}
@@ -58,14 +61,20 @@ export function PakbonRegels({ project, pakbon, bewerkbaar, onWijzig }: Props) {
           {pakbon.regels.map((r) => {
             const rv = v.regels.find((x) => x.offerteRegelId === r.offerteRegelId)
             const teVeel = rv ? r.qty > rv.klaar : false
+            const artikel = artikelVanRegel(
+              project,
+              r.offerteRegelId ?? project.productieOrders.find((o) => o.id === r.productieOrderId)?.offerteRegelId,
+            )
             return (
               <tr key={r.offerteRegelId ?? r.productieOrderId}>
+                <VoorbeeldCel artikel={artikel} size={48} />
                 <td>
                   {r.artikelNaam}
                   {bewerkbaar && teVeel && rv && (
                     <span className="sub pdv2-let">Er liggen er maar {getal(rv.klaar)} klaar</span>
                   )}
                 </td>
+                <TekeningCel artikel={artikel} />
                 <td className="num">{rv ? getal(rv.besteld) : '—'}</td>
                 {vol && <td className="num">{rv ? getal(rv.gemaakt) : '—'}</td>}
                 {vol && <td className="num">{rv ? getal(rv.geleverd) : '—'}</td>}
