@@ -68,6 +68,8 @@ export function tabActie(p: Project, v: ProjectVoortgang, tab: TabId, keuze: Tab
       return vrijgevenActie(p, keuze) ?? productieActie(p, v)
     case 'pakbonnen':
       return pakbonnenActie(p, v)
+    case 'facturen':
+      return facturenActie(p, v)
     case 'documenten':
       return documentenActie(p, v)
     default:
@@ -202,10 +204,29 @@ function pakbonnenActie(p: Project, v: ProjectVoortgang): TabActie {
       : uit(`Pakbon ${concept.id} versturen`, `${concept.id} heeft nog geen regels. Voeg eerst toe wat er mee moet.`)
   }
   if (v.klaar > 0) return kan(`Nieuwe pakbon (${v.klaar} klaar)`, { soort: 'paklijst-maken' })
+  if (v.teFactureren > 0) return kan('Naar facturen', { soort: 'naar', tab: 'facturen' })
   if (v.besteld > 0 && v.teMaken === 0 && v.geleverd >= v.besteld) {
-    return kan('Naar documenten', { soort: 'naar', tab: 'documenten' })
+    return kan('Naar facturen', { soort: 'naar', tab: 'facturen' })
   }
   return uit('Nieuwe pakbon', 'Er ligt nog niets klaar om te leveren. Meld eerst stuks gereed op de Productie-tab.')
+}
+
+/**
+ * De Facturen-tab: eerst een concept de deur uit, dan een nieuwe factuur als
+ * er iets verstuurd en nog niet gefactureerd is.
+ */
+function facturenActie(p: Project, v: ProjectVoortgang): TabActie {
+  const concept = p.facturen.find((f) => !f.verzondenOp)
+  if (concept) {
+    return concept.regels.length > 0
+      ? kan(`${concept.soort === 'credit' ? 'Credit' : 'Factuur'} ${concept.id} versturen`, { soort: 'factuur-versturen', factuurId: concept.id })
+      : uit(`${concept.id} versturen`, `${concept.id} heeft nog geen regels. Voeg eerst toe wat er gefactureerd wordt.`)
+  }
+  if (v.teFactureren > 0) return kan(`Nieuwe factuur (${v.teFactureren} te factureren)`, { soort: 'factuur-maken' })
+  if (v.besteld > 0 && v.gefactureerd >= v.besteld) {
+    return uit('Project afgerond', 'Alles is geleverd en gefactureerd.')
+  }
+  return uit('Nieuwe factuur', 'Er is niets verstuurd dat nog niet gefactureerd is. Verstuur eerst een pakbon op de Pakbonnen-tab.')
 }
 
 /**
@@ -216,10 +237,7 @@ function documentenActie(p: Project, v: ProjectVoortgang): TabActie {
   const pl = laatstePaklijst(p)
   if (pl && !pl.verzondenOp) return kan(`Pakbon ${pl.id} versturen`, { soort: 'paklijst-versturen', paklijstId: pl.id })
   const f = laatsteFactuur(p)
-  if (f && !f.verzondenOp) return kan(`Factuur ${f.id} versturen`, { soort: 'factuur-versturen', factuurId: f.id })
-  if (v.teFactureren > 0 && p.paklijsten.some((x) => x.verzondenOp)) {
-    return kan(`Factuur maken (${v.teFactureren} stuks)`, { soort: 'factuur-maken' })
-  }
+  if ((f && !f.verzondenOp) || v.teFactureren > 0) return kan('Naar facturen', { soort: 'naar', tab: 'facturen' })
   if (v.klaar > 0) return kan(`Naar pakbonnen (${v.klaar} klaar)`, { soort: 'naar', tab: 'pakbonnen' })
   if (v.besteld > 0 && v.gefactureerd >= v.besteld) {
     return uit('Project afgerond', 'Alles is geleverd, gefactureerd en verstuurd — dit project is rond.')

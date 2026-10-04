@@ -4,15 +4,18 @@ import type {
   ProductieOrder,
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
-  OpdrachtWijziging, PakbonRegelKeuze,
+  OpdrachtWijziging, PakbonRegelKeuze, FactuurRegelKeuze,
 } from '@stockmanager/shared'
 import {
   berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken, obInhoud,
   isVrijgegeven, orderStatusNaStappen, vrijgeven, terugNaarVoorbereiding, waaromNietTerugNaarVoorbereiding,
   statusNaLevering, waaromNietPakbon, voorstelPakbon, pakbonRegels, waaromNietPakbonWijzigen,
+  BTW_PCT, factuurBedragen, factuurRegels, factuurMailadres, voorstelFactuur, voorstelCredit, waaromNietFactuur,
+  waaromNietCredit, waaromNietFactuurWijzigen, waaromNietFactuurVersturen, waaromNietBetaald, vervaldatumVanaf,
   waaromNietPakbonVersturen,
 } from '@stockmanager/shared'
 import { apiFetch, ApiFout } from './client'
+import { relatiesApi } from './relaties'
 import { meldFout } from '../utils/fout-melding-toon'
 import type { LaadFout } from '../utils/fout-melding'
 import { Weigering } from '../utils/fout-melding'
@@ -970,158 +973,142 @@ export const projectsApi = {
     return updated
   },
 
-  // ── Factuur ───────────────────────────────────────────────────────────────
-  // Factureren gaat over wat er GELEVERD is en nog niet gefactureerd.
+  // ── Facturen (Facturen-tab, 2026-10-03) ───────────────────────────────────
+  // Voorwaarden en bedragen komen uit packages/shared/calc/factuur.ts, net als
+  // op de server; het scherm loopt vooruit, syncProject zet recht.
 
-  createFactuur(
-    projectId: string,
-    btwPct = 21,
-    regels?: { offerteRegelId: string; qty: number }[],
-  ): Project {
+  /** Concept met alles wat verstuurd en nog niet gefactureerd is. */
+  createFactuur(projectId: string): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
-    const accepted = p.offertes.find(o => o.status === 'geaccepteerd')
-    if (!accepted) throw new Error('Geen geaccepteerde offerte')
-
-    const voortgang = berekenVoortgang(p)
-    const keuze = regels ?? voortgang.regels
-      .filter(r => r.teFactureren > 0)
-      .map(r => ({ offerteRegelId: r.offerteRegelId, qty: r.teFactureren }))
-    if (keuze.length === 0) throw new Error('Er staat niets open om te factureren')
-
-    const bron = basisRegels(p)
-    const factuurRegels = keuze.map(g => {
-      const r = bron.find(x => x.id === g.offerteRegelId)
-      const prijs = r?.verkoopprijs ?? 0
-      return {
-        offerteRegelId: g.offerteRegelId,
-        naam: r?.naam ?? g.offerteRegelId,
-        qty: g.qty,
-        eenheid: r?.eenheid ?? 'st',
-        verkoopprijs: prijs,
-        totaal: Math.round(g.qty * prijs * 100) / 100,
-      }
-    })
-
-    const vervalDate = new Date()
-    vervalDate.setDate(vervalDate.getDate() + 30)
-
-    const factuur: Factuur = {
-      id: nextLocalDocId('FACT'),
-      soort: 'factuur',
-      crediteertFactuurId: null,
-      projectId,
-      offerteId: accepted.id,
-      regels: factuurRegels,
-      btwPct,
-      ...geldbedragen(factuurRegels, btwPct),
-      notities: '',
-      vervaldatum: vervalDate.toISOString().split('T')[0],
-      verzondenOp: null,
-      createdAt: now(),
+    const keuze = voorstelFactuur(p)
+    const nee = waaromNietFactuur(p, keuze)
+    if (nee) throw new Weigering(nee)
+    const relatie = p.relatieId ? relatiesApi.listSync().find(r => r.id === p.relatieId) ?? null : null
+    const regels = factuurRegels(p, keuze)
+    const f: Factuur = {
+      id: nextLocalDocId('FACT'), soort: 'factuur', crediteertFactuurId: null, projectId,
+      offerteId: p.opdrachtbevestiging?.offerteId ?? '', regels, btwPct: BTW_PCT, ...factuurBedragen(regels),
+      notities: '', vervaldatum: null, verzondenOp: null, betaaldOp: null, createdAt: now(),
+      naarEmail: factuurMailadres(relatie, relatie?.contacten.find(c => c.id === p.contactId)),
     }
-
     const updated = updateCache(projectId, p => {
-      const facturen = [...p.facturen, factuur]
-      const na = berekenVoortgang({ ...p, facturen })
-      const status = na.teFactureren === 0 && na.teMaken === 0 && na.klaar === 0
-        ? 'gefactureerd' as const : p.status
-      return { ...p, facturen, status, updatedAt: now() }
+      const next = { ...p, facturen: [...p.facturen, f], updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
     })
-    syncProject(
-      projectId,
-      apiFetch<Project>(`/projects/${projectId}/factuur`, {
-        method: 'POST', body: JSON.stringify({ btwPct, regels: keuze }),
-      }),
-      'Factuur aanmaken',
-    )
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur`, { method: 'POST', body: '{}' }), 'Factuur aanmaken')
     return updated
   },
 
-  verzendFactuur(projectId: string, factuurId: string): Project {
-    const updated = updateCache(projectId, p => {
-      if (!p.facturen.some(f => f.id === factuurId)) throw new Error('Geen factuur')
-      const facturen = p.facturen.map(f =>
-        f.id === factuurId ? { ...f, verzondenOp: now() } : f,
-      )
-      return { ...p, facturen, updatedAt: now() }
+  /** Concept-credit op een verstuurde factuur, met alles wat er nog te crediteren valt. */
+  createCredit(projectId: string, factuurId: string): Project {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const keuze = voorstelCredit(p, factuurId)
+    const nee = waaromNietCredit(p, factuurId, keuze)
+    if (nee) throw new Weigering(nee)
+    const bron = p.facturen.find(f => f.id === factuurId)!
+    const regels = keuze.map(g => {
+      const r = bron.regels.find(x => x.offerteRegelId === g.offerteRegelId)!
+      return { ...r, qty: g.qty, totaal: Math.round(g.qty * g.verkoopprijs * 100) / 100 }
     })
-    syncProject(
-      projectId,
-      apiFetch<Project>(`/projects/${projectId}/factuur/${factuurId}/verzend`, { method: 'POST' }),
-      'Factuur versturen',
-    )
+    const c: Factuur = {
+      id: nextLocalDocId('CRED'), soort: 'credit', crediteertFactuurId: factuurId, projectId,
+      offerteId: bron.offerteId, regels, btwPct: bron.btwPct, ...factuurBedragen(regels, bron.btwPct),
+      notities: '', vervaldatum: null, verzondenOp: null, betaaldOp: null, naarEmail: bron.naarEmail, createdAt: now(),
+    }
+    const updated = updateCache(projectId, p => ({ ...p, facturen: [...p.facturen, c], updatedAt: now() }))
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/credit`, {
+      method: 'POST', body: JSON.stringify({ factuurId }),
+    }), 'Creditfactuur aanmaken')
     return updated
   },
 
-  // ── Creditfactuur ─────────────────────────────────────────────────────────
-  // Geen negatieve factuur: de gecrediteerde factuur is verstuurd en blijft
-  // staan, de credit telt er als eigen document naast.
-
-  createCredit(
-    projectId: string,
-    factuurId: string,
-    regels?: { offerteRegelId: string; qty: number }[],
-    notities = '',
+  /** Een concept (factuur of credit) aanpassen: regels, mailadres. */
+  wijzigFactuur(
+    projectId: string, factuurId: string,
+    patch: { regels?: FactuurRegelKeuze[]; naarEmail?: string | null },
   ): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
-    const bron = p.facturen.find(f => f.id === factuurId)
-    if (!bron) throw new Error('Factuur niet gevonden')
-    if (bron.soort === 'credit') throw new Error('Een creditfactuur crediteren kan niet')
-
-    const eerder = new Map<string, number>()
-    for (const c of p.facturen.filter(f => f.crediteertFactuurId === bron.id)) {
-      for (const r of c.regels) {
-        eerder.set(r.offerteRegelId, (eerder.get(r.offerteRegelId) ?? 0) + r.qty)
-      }
-    }
-    const keuze = regels ?? bron.regels
-      .map(r => ({
-        offerteRegelId: r.offerteRegelId,
-        qty: r.qty - (eerder.get(r.offerteRegelId) ?? 0),
-      }))
-      .filter(r => r.qty > 0)
-    if (keuze.length === 0) throw new Error('Deze factuur is al volledig gecrediteerd')
-
-    const creditRegels = keuze.map(g => {
-      const r = bron.regels.find(x => x.offerteRegelId === g.offerteRegelId)
-      const prijs = r?.verkoopprijs ?? 0
-      return {
-        offerteRegelId: g.offerteRegelId,
-        naam: r?.naam ?? g.offerteRegelId,
-        qty: g.qty,
-        eenheid: r?.eenheid ?? 'st',
-        verkoopprijs: prijs,
-        totaal: Math.round(g.qty * prijs * 100) / 100,
-      }
+    const f = p.facturen.find(x => x.id === factuurId)
+    const nee = waaromNietFactuurWijzigen(p, factuurId) ?? (patch.regels && f
+      ? f.soort === 'credit'
+        ? waaromNietCredit(p, f.crediteertFactuurId ?? '', patch.regels, { creditId: factuurId, leegMag: true })
+        : waaromNietFactuur(p, patch.regels, { factuurId, leegMag: true })
+      : null)
+    if (nee) throw new Weigering(nee)
+    const updated = updateCache(projectId, p => {
+      const facturen = p.facturen.map(x => {
+        if (x.id !== factuurId) return x
+        const bron = p.facturen.find(b => b.id === x.crediteertFactuurId)
+        const regels = !patch.regels ? x.regels : x.soort === 'credit'
+          ? patch.regels.map(g => {
+              const r = x.regels.find(y => y.offerteRegelId === g.offerteRegelId) ?? bron!.regels.find(y => y.offerteRegelId === g.offerteRegelId)!
+              return { ...r, qty: g.qty, verkoopprijs: g.verkoopprijs, totaal: Math.round(g.qty * g.verkoopprijs * 100) / 100 }
+            })
+          : factuurRegels(p, patch.regels)
+        return {
+          ...x, regels, ...factuurBedragen(regels, x.btwPct),
+          naarEmail: patch.naarEmail !== undefined ? (patch.naarEmail?.trim() || null) : x.naarEmail,
+        }
+      })
+      const next = { ...p, facturen, updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
     })
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur/${factuurId}`, {
+      method: 'PATCH', body: JSON.stringify(patch),
+    }), 'Factuur aanpassen')
+    return updated
+  },
 
-    const credit: Factuur = {
-      id: nextLocalDocId('CRED'),
-      soort: 'credit',
-      crediteertFactuurId: bron.id,
-      projectId,
-      offerteId: bron.offerteId,
-      regels: creditRegels,
-      btwPct: bron.btwPct,
-      ...geldbedragen(creditRegels, bron.btwPct),
-      notities,
-      vervaldatum: null,
-      verzondenOp: null,
-      createdAt: now(),
-    }
+  verwijderFactuur(projectId: string, factuurId: string): Project {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const nee = waaromNietFactuurWijzigen(p, factuurId)
+    if (nee) throw new Weigering(nee)
+    const updated = updateCache(projectId, p => {
+      const next = { ...p, facturen: p.facturen.filter(f => f.id !== factuurId), updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
+    })
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur/${factuurId}`, { method: 'DELETE' }), 'Factuur verwijderen')
+    return updated
+  },
 
+  /** Vastleggen dat hij verstuurd is, naar dit adres. De mail zelf ging via Outlook. */
+  verzendFactuur(projectId: string, factuurId: string, naarEmail: string | null): Project {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const nee = waaromNietFactuurVersturen(p, factuurId, naarEmail)
+    if (nee) throw new Weigering(nee)
+    const relatie = p.relatieId ? relatiesApi.listSync().find(r => r.id === p.relatieId) ?? null : null
+    const nu = new Date()
+    const updated = updateCache(projectId, p => {
+      const facturen = p.facturen.map(x => x.id === factuurId
+        ? { ...x, verzondenOp: nu.toISOString(), naarEmail, vervaldatum: x.soort === 'factuur' ? vervaldatumVanaf(nu, relatie?.betalingstermijn) : null }
+        : x)
+      const next = { ...p, facturen, updatedAt: now() }
+      return { ...next, status: statusNaLevering(next) }
+    })
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur/${factuurId}/verzend`, {
+      method: 'POST', body: JSON.stringify({ naarEmail }),
+    }), 'Factuur versturen')
+    return updated
+  },
+
+  markeerBetaald(projectId: string, factuurId: string, betaald: boolean): Project {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const nee = waaromNietBetaald(p, factuurId)
+    if (nee) throw new Weigering(nee)
     const updated = updateCache(projectId, p => ({
-      ...p, facturen: [...p.facturen, credit], updatedAt: now(),
+      ...p,
+      facturen: p.facturen.map(x => x.id === factuurId ? { ...x, betaaldOp: betaald ? now() : null } : x),
+      updatedAt: now(),
     }))
-    syncProject(
-      projectId,
-      apiFetch<Project>(`/projects/${projectId}/credit`, {
-        method: 'POST', body: JSON.stringify({ factuurId, regels: keuze, notities }),
-      }),
-      'Creditfactuur aanmaken',
-    )
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur/${factuurId}/betaald`, {
+      method: 'POST', body: JSON.stringify({ betaald }),
+    }), betaald ? 'Factuur betaald' : 'Betaling terugzetten')
     return updated
   },
 

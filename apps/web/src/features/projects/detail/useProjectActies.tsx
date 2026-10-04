@@ -2,7 +2,7 @@ import { useCallback, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { notifications } from '@mantine/notifications'
-import type { OpdrachtWijziging, PakbonRegelKeuze, Project, UpdateProject } from '@stockmanager/shared'
+import type { FactuurRegelKeuze, OpdrachtWijziging, PakbonRegelKeuze, Project, UpdateProject } from '@stockmanager/shared'
 import {
   volgendeVersie,
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
@@ -78,8 +78,12 @@ export interface ProjectActies {
   verwijderPaklijst: (paklijstId: string) => void
   verzendPaklijst: (paklijstId: string) => void
   maakFactuur: () => void
-  verzendFactuur: (factuurId: string) => void
+  /** Na "Ja, verstuurd": vastleggen, met het adres waar hij heen ging. */
+  verzendFactuur: (factuurId: string, naar: string | null) => void
   crediteer: (factuurId: string) => void
+  wijzigFactuur: (factuurId: string, patch: { regels?: FactuurRegelKeuze[]; naarEmail?: string | null }) => boolean
+  verwijderFactuur: (factuurId: string) => void
+  markeerBetaald: (factuurId: string, betaald: boolean) => void
   bewerkRegel: (
     offerteId: string,
     regelId: string,
@@ -176,6 +180,9 @@ export function useProjectActies(
     maakFactuur: () => {},
     verzendFactuur: () => {},
     crediteer: () => {},
+    wijzigFactuur: () => false,
+    verwijderFactuur: () => {},
+    markeerBetaald: () => {},
     bewerkRegel: () => {},
     verwijderRegel: () => {},
     werkPrijzenBij: () => {},
@@ -289,12 +296,14 @@ export function useProjectActies(
         return doe(`${stap.paklijstId} versturen`, `${stap.paklijstId} verzonden`, () =>
           projectsApi.verzendPaklijst(id, stap.paklijstId),
         )
-      case 'factuur-maken':
-        return doe('Factuur aanmaken', 'Factuur aangemaakt over het geleverde', () => projectsApi.createFactuur(id))
+      case 'factuur-maken': {
+        const gelukt = doe('Nieuwe factuur maken', 'Nieuwe factuur aangemaakt', () => projectsApi.createFactuur(id))
+        if (gelukt) naarTab('facturen')
+        return
+      }
       case 'factuur-versturen':
-        return doe(`${stap.factuurId} versturen`, `${stap.factuurId} verstuurd`, () =>
-          projectsApi.verzendFactuur(id, stap.factuurId),
-        )
+        // Gaat via de mail in Outlook (useFactuurDocument op de pagina).
+        return
       case 'hervatten':
         return doe('Project hervatten', 'Project hervat', () => projectsApi.hervatProject(id))
       case 'vrijgeven':
@@ -506,11 +515,20 @@ export function useProjectActies(
       doe(`${paklijstId} verwijderen`, `${paklijstId} verwijderd`, () => projectsApi.verwijderPaklijst(id, paklijstId)),
     verzendPaklijst: (paklijstId) =>
       doe(`${paklijstId} versturen`, `${paklijstId} verzonden`, () => projectsApi.verzendPaklijst(id, paklijstId)),
-    maakFactuur: () => doe('Factuur aanmaken', 'Factuur aangemaakt', () => projectsApi.createFactuur(id)),
-    verzendFactuur: (factuurId) =>
-      doe(`${factuurId} versturen`, `${factuurId} verstuurd`, () => projectsApi.verzendFactuur(id, factuurId)),
+    maakFactuur: () => doe('Nieuwe factuur maken', 'Nieuwe factuur aangemaakt', () => projectsApi.createFactuur(id)),
+    verzendFactuur: (factuurId, naar) =>
+      doe(`${factuurId} versturen`, `${factuurId} staat als verstuurd${naar ? ` aan ${naar}` : ''}`, () =>
+        projectsApi.verzendFactuur(id, factuurId, naar)),
     crediteer: (factuurId) =>
-      doe(`Creditnota op ${factuurId} maken`, `Creditnota op ${factuurId} aangemaakt`, () => projectsApi.createCredit(id, factuurId)),
+      doe(`Creditfactuur op ${factuurId} maken`, `Creditfactuur op ${factuurId} aangemaakt`, () => projectsApi.createCredit(id, factuurId)),
+    wijzigFactuur: (factuurId, patch) =>
+      doe(`${factuurId} aanpassen`, `${factuurId} aangepast`, () => projectsApi.wijzigFactuur(id, factuurId, patch)),
+    verwijderFactuur: (factuurId) =>
+      doe(`${factuurId} verwijderen`, `${factuurId} verwijderd`, () => projectsApi.verwijderFactuur(id, factuurId)),
+    markeerBetaald: (factuurId, betaald) =>
+      doe(betaald ? `${factuurId} betaald melden` : `Betaling van ${factuurId} terugzetten`,
+        betaald ? `${factuurId} staat als betaald` : `${factuurId} staat weer open`,
+        () => projectsApi.markeerBetaald(id, factuurId, betaald)),
     // Regels aanpassen gebeurt cel voor cel. Daar hoort geen groene melding bij:
     // die zou bij het invullen van een offerte om de paar seconden verschijnen.
     // Fout gaat wel de deur uit, want dan staat er iets anders op het scherm dan
