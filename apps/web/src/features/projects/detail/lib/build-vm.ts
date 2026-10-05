@@ -291,7 +291,7 @@ export function bouwTabBadges(
 
 /** Verstuurde facturen min verstuurde credits, incl. btw; null als er nog niets weg is.
  *  Een concept is nog geen geld dat de klant schuldig is. */
-function verstuurdGefactureerd(p: Project): number | null {
+export function verstuurdGefactureerd(p: Project): number | null {
   const verstuurd = p.facturen.filter((f) => f.verzondenOp)
   if (verstuurd.length === 0) return null
   return Math.round(verstuurd.reduce((s, f) => s + (f.soort === 'credit' ? -1 : 1) * f.totaalInclBtw, 0) * 100) / 100
