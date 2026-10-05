@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import { IconChevronDown, IconChevronRight, IconTrash } from '@tabler/icons-react'
+import { IconChecklist, IconChevronDown, IconChevronRight, IconFileTypePdf, IconTrash } from '@tabler/icons-react'
 import type { Paklijst, PakbonRegelKeuze, Project, ProjectVoortgang } from '@stockmanager/shared'
 import { Card } from '../components/Card'
 import { BevestigModal } from '../components/BevestigModal'
@@ -15,6 +15,10 @@ interface Props {
   onWijzig: (paklijstId: string, regels: PakbonRegelKeuze[]) => boolean | void
   onVerzend: (paklijstId: string) => void
   onVerwijder: (paklijstId: string) => void
+  /** De pakbon zoals hij met de zending meegaat. */
+  onPdf: (pl: Paklijst) => void
+  /** Dezelfde pakbon om mee te pakken: locatie en afvinkvak, geen prijzen of adres. */
+  onPicklist: (pl: Paklijst) => void
 }
 
 const stuks = (pl: Paklijst) => pl.regels.reduce((s, r) => s + r.qty, 0)
@@ -25,7 +29,7 @@ const stuks = (pl: Paklijst) => pl.regels.reduce((s, r) => s + r.qty, 0)
  * concept pas je in de tabel aan; een verstuurde pakbon ligt bij de klant en
  * staat vast. Bovenaan wat er klaarligt, zodat je ziet wat er nog mee kan.
  */
-export function PakbonnenTab({ project, voortgang, geblokkeerd, onNieuw, onWijzig, onVerzend, onVerwijder }: Props) {
+export function PakbonnenTab({ project, voortgang, geblokkeerd, onNieuw, onWijzig, onVerzend, onVerwijder, onPdf, onPicklist }: Props) {
   const pakbonnen = [...project.paklijsten].reverse()
   const [open, setOpen] = useState<string | null>(pakbonnen.find((pl) => !pl.verzondenOp)?.id ?? null)
   const [weg, setWeg] = useState<Paklijst | null>(null)
@@ -67,7 +71,7 @@ export function PakbonnenTab({ project, voortgang, geblokkeerd, onNieuw, onWijzi
                 <th>Status</th>
                 <th style={{ width: 100 }}>Verstuurd</th>
                 <th className="num" style={{ width: 160 }}>Inhoud</th>
-                <th style={{ width: 210 }} />
+                <th style={{ width: 330 }} />
               </tr>
             </thead>
             <tbody>
@@ -96,16 +100,24 @@ export function PakbonnenTab({ project, voortgang, geblokkeerd, onNieuw, onWijzi
                         {pl.regels.length} {pl.regels.length === 1 ? 'regel' : 'regels'} · {getal(stuks(pl))} stuks
                       </td>
                       <td className="pdv2-acties">
-                        {concept && (
-                          <div className="pdv2-acties-rij pdv2-pakbon-acties">
-                            <button type="button" className="pdv2-btn s primair" disabled={geblokkeerd} onClick={() => onVerzend(pl.id)}>
-                              Versturen
-                            </button>
-                            <button type="button" className="pdv2-btn s" disabled={geblokkeerd} onClick={() => setWeg(pl)}>
-                              <IconTrash size={12} /> Verwijderen
-                            </button>
-                          </div>
-                        )}
+                        <div className="pdv2-acties-rij pdv2-pakbon-acties">
+                          <button type="button" className="pdv2-btn s stil" title="Pakbon (pdf)" aria-label={`Pakbon ${pl.id} als pdf`} onClick={() => onPdf(pl)}>
+                            <IconFileTypePdf size={13} />
+                          </button>
+                          <button type="button" className="pdv2-btn s" title="Lijst om te pakken: locatie en afvinkvak" onClick={() => onPicklist(pl)}>
+                            <IconChecklist size={12} /> Picklist
+                          </button>
+                          {concept && (
+                            <>
+                              <button type="button" className="pdv2-btn s primair" disabled={geblokkeerd} onClick={() => onVerzend(pl.id)}>
+                                Versturen
+                              </button>
+                              <button type="button" className="pdv2-btn s" disabled={geblokkeerd} onClick={() => setWeg(pl)}>
+                                <IconTrash size={12} /> Verwijderen
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                     {uit && (

@@ -1,8 +1,9 @@
 import type jsPDF from 'jspdf'
 import type { Project, User } from '@stockmanager/shared'
-import { relatiesApi } from '../../../../api/relaties'
 import { companyApi } from '../../../../api/company'
-import { buildOpdrachtbevestigingPdf } from '../../../../services/opdrachtbevestiging-pdf'
+import { documentAssets } from '../../../../services/document/assets'
+import { opdrachtDocument } from '../../../../services/document/documenten'
+import { klantPartij, klantVan, prijsRegel } from './document-gegevens'
 import { pdfToBase64 } from '../../../../services/graph-mail'
 import type { EmlMail } from '../../../../services/eml'
 import { datum } from './format'
@@ -12,12 +13,6 @@ import { datum } from './format'
  * klant brengt. Eén plek, zodat openen, downloaden en mailen dezelfde pdf
  * opleveren — wat je in het venster ziet is wat de klant krijgt.
  */
-
-function klantVan(p: Project) {
-  const relatie = p.relatieId ? relatiesApi.listSync().find(r => r.id === p.relatieId) ?? null : null
-  const contact = relatie?.contacten.find(c => c.id === p.contactId) ?? null
-  return { relatie, contact }
-}
 
 /** "OFF-2026-026 v4" — het nummer dat de klant van de offerte kent. */
 export function offerteLabel(p: Project): string | null {
@@ -30,17 +25,20 @@ export function offerteLabel(p: Project): string | null {
 export function obPdf(p: Project): jsPDF {
   const ob = p.opdrachtbevestiging
   if (!ob) throw new Error('Er is nog geen opdrachtbevestiging op dit project.')
-  const { relatie, contact } = klantVan(p)
-  return buildOpdrachtbevestigingPdf(
+  return opdrachtDocument(
     {
-      id: p.id,
-      naam: p.naam,
-      klantNaam: relatie?.naam,
-      contactNaam: contact?.naam,
-      levertijdDatum: p.levertijdDatum,
-      offerteLabel: offerteLabel(p) ?? undefined,
+      nummer: ob.id,
+      datum: ob.createdAt,
+      offerte: offerteLabel(p),
+      klant: klantPartij(p),
+      opdrachtRef: ob.opdrachtRef,
+      levertijd: p.levertijdDatum,
+      project: p.naam,
+      regels: ob.regels.map(prijsRegel),
+      notities: ob.notities,
     },
-    ob,
+    companyApi.getSync(),
+    documentAssets(),
   )
 }
 
