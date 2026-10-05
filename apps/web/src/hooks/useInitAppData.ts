@@ -10,6 +10,7 @@ import { loadCompany } from '../api/company'
 import { laadGevolg } from '../utils/fout-melding'
 import { laadMetHerhaling } from '../utils/laad-met-herhaling'
 import { meldFout } from '../utils/fout-melding-toon'
+import { laadDocumentAssets } from '../services/document/assets'
 
 // Shared by AppLayout (main window) and PopoutShell (detached windows) —
 // each is its own separate page load / React tree, so each needs to run
@@ -26,6 +27,9 @@ export function useInitAppData(): void {
     // Invalidate every query relying on these caches so they pick up the
     // real DB data as soon as it's in, instead of getting stuck showing
     // whatever was cached/seeded before this load.
+    // Lettertypes en logo voor de documenten: vooraf, want de pdf wordt
+    // synchroon gemaakt (services/document/assets.ts).
+    void laadDocumentAssets()
     let gestopt = false
     const ververs = () => {
       qc.invalidateQueries({ queryKey: ['machines'] })

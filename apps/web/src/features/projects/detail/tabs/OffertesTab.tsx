@@ -55,6 +55,7 @@ interface Props {
   onKopieer: (offerteId: string) => void
   onReferentie: (offerteId: string, ref: string) => void
   onVerzend: (offerteId: string) => void
+  onPdf: (o: Offerte) => void
   onAccepteer: (offerteId: string) => void
   onGewijzigd: () => void
   onRegel: (offerteId: string, regelId: string, patch: { qty?: number; verkoopprijs?: number }) => void
@@ -76,6 +77,7 @@ export function OffertesTab({
   onKopieer,
   onReferentie,
   onVerzend,
+  onPdf,
   onAccepteer,
   onGewijzigd,
   onRegel,
@@ -157,7 +159,7 @@ export function OffertesTab({
             <th className="num" style={{ width: 104 }}>
               Totaal
             </th>
-            <th style={{ width: 344 }} />
+            <th style={{ width: 380 }} />
           </tr>
         </thead>
         <tbody>
@@ -221,6 +223,7 @@ export function OffertesTab({
                     erIsGeaccepteerd={Boolean(acc)}
                     geblokkeerd={geblokkeerd}
                     onVerzend={() => onVerzend(o.id)}
+                    onPdf={() => onPdf(o)}
                     onAccepteer={() => onAccepteer(o.id)}
                     onKopieer={() => onKopieer(o.id)}
                     onNaarProject={() => setNaarProject(o.id)}

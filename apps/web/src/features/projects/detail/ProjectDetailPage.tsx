@@ -24,6 +24,9 @@ import { NacalculatieTab } from './tabs/NacalculatieTab'
 import { PakbonnenTab } from './tabs/PakbonnenTab'
 import { FacturenTab } from './tabs/FacturenTab'
 import { useFactuurDocument } from './tabs/facturen/useFactuurDocument'
+import { useOfferteDocument } from './tabs/offertes/useOfferteDocument'
+import { toonDocument } from './lib/toon-document'
+import { pakbonBestandsnaam, pakbonPdf, picklistBestandsnaam, picklistPdf } from './lib/pakbon-document'
 import { DocumentenTab } from './tabs/DocumentenTab'
 
 import { berekenVoortgang } from '@stockmanager/shared'
@@ -191,6 +194,7 @@ export function ProjectDetailPage() {
   // Op de pagina, niet in de tab: "Opdracht versturen" kan ook vanuit de footer.
   const obDoc = useObDocument(project, acties.verzendOB)
   const factuurDoc = useFactuurDocument(project, acties.verzendFactuur)
+  const offerteDoc = useOfferteDocument(project, acties.verzendOfferte)
 
   // Mislukt een opslag, dan zet syncProject het project terug naar wat er op
   // de server staat. Opnieuw lezen maakt dat zichtbaar — ook voor wijzigingen
@@ -329,7 +333,11 @@ export function ProjectDetailPage() {
               onNieuweVersie={acties.nieuweOfferteVersie}
               onKopieer={acties.kopieerOfferte}
               onReferentie={acties.zetReferentie}
-              onVerzend={acties.verzendOfferte}
+              onVerzend={(offerteId) => {
+                const o = project.offertes.find((x) => x.id === offerteId)
+                if (o) offerteDoc.klaarzetten(o)
+              }}
+              onPdf={offerteDoc.openen}
               onAccepteer={acties.accepteerOfferte}
               onGewijzigd={acties.ververs}
               onRegel={acties.bewerkRegel}
@@ -388,6 +396,18 @@ export function ProjectDetailPage() {
               onWijzig={acties.wijzigPaklijst}
               onVerzend={acties.verzendPaklijst}
               onVerwijder={acties.verwijderPaklijst}
+              onPdf={(pl) =>
+                toonDocument(`Pakbon ${pl.id} openen`, () => pakbonPdf(project, pl), {
+                  titel: `Pakbon ${pl.id} — ${project.naam}`,
+                  bestandsnaam: pakbonBestandsnaam(pl),
+                })
+              }
+              onPicklist={(pl) =>
+                toonDocument(`Picklist ${pl.id} openen`, () => picklistPdf(project, pl), {
+                  titel: `Picklist ${pl.id} — ${project.naam}`,
+                  bestandsnaam: picklistBestandsnaam(pl),
+                })
+              }
             />
           )}
           {tab === 'facturen' && (
@@ -429,12 +449,16 @@ export function ProjectDetailPage() {
         terug={terug}
         onPrimair={() => {
           if (!actie?.stap) return
-          if (actie.stap.soort === 'opdracht-versturen') obDoc.klaarzetten()
-          if (actie.stap.soort === 'factuur-versturen') {
-            const f = project.facturen.find((x) => x.id === (actie.stap as { factuurId: string }).factuurId)
+          const stap = actie.stap
+          if (stap.soort === 'opdracht-versturen') obDoc.klaarzetten()
+          else if (stap.soort === 'factuur-versturen') {
+            const f = project.facturen.find((x) => x.id === stap.factuurId)
             if (f) factuurDoc.klaarzetten(f)
-          }
-          else acties.voerUit(actie.stap)
+          } else if (stap.soort === 'offerte-versturen') {
+            // Via de mail, net als opdracht en factuur (2026-10-05).
+            const o = project.offertes.find((x) => x.id === stap.offerteId)
+            if (o) offerteDoc.klaarzetten(o)
+          } else acties.voerUit(stap)
         }}
         onMenu={(i) => {
           const keuze = actie?.menu?.[i]
@@ -446,6 +470,7 @@ export function ProjectDetailPage() {
       {acties.dialoog}
       {obDoc.dialoog}
       {factuurDoc.dialoog}
+      {offerteDoc.dialoog}
     </div>
   )
 }

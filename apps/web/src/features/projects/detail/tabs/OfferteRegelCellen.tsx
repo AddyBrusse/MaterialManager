@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
-import { basisRegels, type OfferteRegel, type Project } from '@stockmanager/shared'
-import { articlesApi, type Article } from '../../../../api/articles'
+import type { OfferteRegel } from '@stockmanager/shared'
+import type { Article } from '../../../../api/articles'
 import { ArtikelPreviewThumb } from '../../../../components/projecten/ArtikelPreviewThumb'
 import { buildEstimateCtx, computeEstimateTotals } from '../../../../api/estimate'
 import { gradesApi } from '../../../../api/grades'
@@ -26,13 +26,7 @@ export function VoorbeeldCel({ artikel, size = 72 }: { artikel: Article | null; 
   )
 }
 
-/** Het artikel achter een opdrachtregel. Pakbon- en factuurregels dragen
- *  alleen het id van die regel; het artikel staat op de regel zelf. */
-export function artikelVanRegel(project: Project, offerteRegelId: string | null | undefined): Article | null {
-  if (!offerteRegelId) return null
-  const id = basisRegels(project).find((r) => r.id === offerteRegelId)?.artikelId
-  return id ? articlesApi.get(id) : null
-}
+export { artikelVanRegel } from '../lib/document-gegevens'
 
 /** Naam, omschrijving, en het artikelnummer als weg naar het artikel zelf —
  *  daar pas je de calculatie of de tekening aan. `returnTo` brengt je daarna

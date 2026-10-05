@@ -579,7 +579,7 @@
    Kopieer in elke rij op dezelfde plek staat. */
 .pdv2-acties-rij {
   display: inline-grid;
-  grid-template-columns: 96px auto 118px;
+  grid-template-columns: 30px 96px auto 118px;
   gap: 6px;
   align-items: center;
 }

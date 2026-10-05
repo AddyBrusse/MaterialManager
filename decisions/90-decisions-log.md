@@ -1689,3 +1689,39 @@ staat op **Algemeen** (ontwerp eerst als mockup op een canvas, daarna gebouwd).
 - **Betaald is af**: een betaalde factuur geeft geen aandachtspunt meer, en de
   zin "of er betaald is, weet dit scherm niet" is weg — sinds de Facturen-tab
   weet het scherm dat wel.
+
+## 2026-10-05 — Documenten in de huisstijl van het offertetemplate
+
+Het template in `01-design files claude design/design_handoff_offerte/` geldt
+voor alle documenten: offerte, opdrachtbevestiging, factuur/creditfactuur,
+pakbon, picklist en (klaargezet) inkooporder.
+
+- **Eén opmaak**: `apps/web/src/services/document/opmaak.ts` bouwt het
+  template na in jsPDF — logo, titel met meta rechts, rode lijn, partijblok
+  links en kenmerken rechts, tabel (# · Omschrijving · Materiaal · Aantal ·
+  Stukprijs · Totaal), totalen, voettekst met bedrijfsgegevens uit
+  Instellingen, lopende voetregel. Maten staan in CSS-px zoals de README.
+  Kolomkoppen herhalen per pagina, een regel breekt nooit; paginanummer alleen
+  bij meer dan één pagina. Per document verschillen kop, partij, kolommen en
+  wat er onder de tabel staat (`documenten.ts`).
+- **Waarom jsPDF en niet de browser laten printen**: de pdf moet als bijlage in
+  de `.eml`; afdrukken levert geen bestand op.
+- **Lettertypes ingebouwd**: IBM Plex Sans, IBM Plex Mono en Space Grotesk
+  (OFL, `assets/fonts/`), als vaste gewichten en beperkt tot westerse tekens
+  — samen ±300 kB, een pdf ±145 kB met logo. Ze laden bij het starten
+  (`assets.ts`); tot dan Helvetica zonder logo, nooit een lege pdf.
+- **Materiaal** komt uit de artikelcalculatie (kwaliteit); de regel eronder is
+  omschrijving plus tekening en revisie. Leeg als het artikel dat niet heeft.
+- **Factuur** toont het factuuradres (en het btw-nummer van de klant), niet de
+  contactpersoon; offerte en opdracht wel contactpersoon en e-mail.
+- **Offerte** gaat nu echt de deur uit: knop Pdf per versie, en Versturen zet
+  een `.eml` met de pdf klaar, net als opdracht en factuur. Pas na "Ja,
+  verstuurd" staat hij als verzonden. Eerder zette Versturen alleen de status.
+  Adres: `emailOfferte` van de klant, anders contactpersoon, anders algemeen.
+- **Pakbon**: afleveradres, geen prijzen, kolommen Besteld · Geleverd · Nog te
+  leveren (tot en met déze pakbon), en een ontvangstblok om te tekenen.
+- **Picklist**: dezelfde pakbon om mee te pakken — locatie van het artikel en
+  een vak om af te vinken, met "gepakt door / gecontroleerd door". Knoppen op
+  de Pakbonnen-tab, ook bij een verstuurde pakbon.
+- **Inkooporder**: opmaak klaar (`inkooporderDocument`, met of zonder
+  prijzen), nog niet aangesloten — er is nog geen inkoopmodule.

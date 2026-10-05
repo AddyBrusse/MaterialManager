@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { IconChevronDown, IconCopy, IconTrash } from '@tabler/icons-react'
+import { IconChevronDown, IconCopy, IconFileTypePdf, IconTrash } from '@tabler/icons-react'
 import type { Offerte } from '@stockmanager/shared'
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   erIsGeaccepteerd: boolean
   geblokkeerd: boolean
   onVerzend: () => void
+  /** De pdf zoals de klant hem krijgt (2026-10-05). */
+  onPdf: () => void
   onAccepteer: () => void
   onKopieer: () => void
   onNaarProject: () => void
@@ -28,6 +30,7 @@ export function OfferteActies({
   erIsGeaccepteerd,
   geblokkeerd,
   onVerzend,
+  onPdf,
   onAccepteer,
   onKopieer,
   onNaarProject,
@@ -86,6 +89,9 @@ export function OfferteActies({
   return (
     <td className="pdv2-acties">
       <div className="pdv2-acties-rij">
+        <button type="button" className="pdv2-btn s stil" title="Pdf bekijken" aria-label={`Pdf van v${o.versie} bekijken`} onClick={onPdf}>
+          <IconFileTypePdf size={13} />
+        </button>
         {vooruit}
         <KopieerKnop versie={o.versie} geblokkeerd={geblokkeerd} onKopieer={onKopieer} onNaarProject={onNaarProject} />
         {weg}

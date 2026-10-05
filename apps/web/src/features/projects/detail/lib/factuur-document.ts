@@ -1,8 +1,9 @@
 import type jsPDF from 'jspdf'
 import type { Factuur, Project, User } from '@stockmanager/shared'
-import { relatiesApi } from '../../../../api/relaties'
 import { companyApi } from '../../../../api/company'
-import { buildFactuurPdf } from '../../../../services/factuur-pdf'
+import { documentAssets } from '../../../../services/document/assets'
+import { factuurDocument } from '../../../../services/document/documenten'
+import { artikelVanRegel, factuurAdres, klantVan, materiaalVan, notitieVan } from './document-gegevens'
 import { pdfToBase64 } from '../../../../services/graph-mail'
 import type { EmlMail } from '../../../../services/eml'
 import { datum, eur } from './format'
@@ -12,34 +13,42 @@ import { datum, eur } from './format'
  * Eén plek, zodat openen, downloaden en mailen dezelfde pdf opleveren.
  */
 
-function klantVan(p: Project) {
-  const relatie = p.relatieId ? relatiesApi.listSync().find(r => r.id === p.relatieId) ?? null : null
-  const contact = relatie?.contacten.find(c => c.id === p.contactId) ?? null
-  return { relatie, contact }
-}
-
-/** Het factuuradres: apart ingevuld bij de klant, anders het vestigingsadres. */
-function factuurAdres(r: ReturnType<typeof klantVan>['relatie']): string[] {
-  if (!r) return []
-  const apart = r.factuurAdresZelfde === false
-  const straat = apart ? r.factuurStraat : r.straat
-  const pc = apart ? r.factuurPostcode : r.postcode
-  const stad = apart ? r.factuurStad : r.stad
-  const land = apart ? r.factuurLand : r.land
-  return [straat, [pc, stad].filter(Boolean).join('  '), land && land !== 'Nederland' ? land : null]
-    .filter((x): x is string => Boolean(x))
-}
-
 export function factuurPdf(p: Project, f: Factuur): jsPDF {
   const { relatie } = klantVan(p)
-  return buildFactuurPdf(f, {
-    naam: relatie?.naam ?? null,
-    adres: factuurAdres(relatie),
-    btw: relatie?.btw ?? null,
-    referentie: p.opdrachtbevestiging?.opdrachtRef || p.klantRef || null,
-    projectLabel: `${p.id} — ${p.naam}`,
-    crediteert: f.crediteertFactuurId,
-  })
+  return factuurDocument(
+    {
+      soort: f.soort,
+      nummer: f.id,
+      datum: f.verzondenOp ?? f.createdAt,
+      vervaldatum: f.vervaldatum,
+      crediteert: f.crediteertFactuurId,
+      klant: {
+        naam: relatie?.naam ?? p.naam,
+        regels: [...factuurAdres(relatie), relatie?.btw ? `BTW ${relatie.btw}` : null].filter((x): x is string => Boolean(x)),
+      },
+      referentie: p.opdrachtbevestiging?.opdrachtRef || p.klantRef || null,
+      project: p.naam,
+      regels: f.regels.map((r) => {
+        const artikel = artikelVanRegel(p, r.offerteRegelId)
+        return {
+          naam: r.naam,
+          notitie: notitieVan(null, artikel),
+          materiaal: materiaalVan(artikel),
+          qty: r.qty,
+          eenheid: r.eenheid,
+          prijs: r.verkoopprijs,
+          totaal: r.totaal,
+        }
+      }),
+      btwPct: f.btwPct,
+      subtotaal: f.subtotaal,
+      btw: f.btwBedrag,
+      totaal: f.totaalInclBtw,
+      notities: f.notities,
+    },
+    companyApi.getSync(),
+    documentAssets(),
+  )
 }
 
 export function factuurBestandsnaam(f: Factuur): string {
