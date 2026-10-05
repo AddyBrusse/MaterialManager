@@ -358,7 +358,7 @@ describe('tabActie: per tab een eigen knop', () => {
 
   it('tabs zonder eigen document hebben geen knop', () => {
     const p = project({ status: 'productie', offertes: [geaccepteerd] })
-    for (const tab of ['algemeen', 'nacalculatie', 'financieel', 'reserveringen', 'aandacht'] as const) {
+    for (const tab of ['algemeen', 'nacalculatie'] as const) {
       expect(tabActie(p, berekenVoortgang(p), tab, { openVersie: null, gekozenOrders: [], regelsZonderMateriaal: [] })).toBeNull()
     }
   })

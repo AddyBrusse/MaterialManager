@@ -141,7 +141,10 @@ export function bouwFacetten(
     const aantal = p.facturen.length - credits
     facetten.push({
       label: 'Factuur',
-      waarde: eur(gefactureerdInclBtw(p)),
+      // Zelfde getal als de Geld-kaart op Algemeen: wat verstuurd is. Pas als er
+      // nog niets weg is, het concept — anders staat er € 0,00 zodra er een
+      // concept-credit klaarstaat die de klant nog nooit zag.
+      waarde: eur(verstuurdGefactureerd(p) ?? gefactureerdInclBtw(p)),
       sub: [
         aantal > 1 ? `${aantal} facturen` : laatsteFactuur(p)?.id,
         credits > 0 ? `${credits} credit${credits > 1 ? 's' : ''}` : null,
@@ -227,7 +230,7 @@ function factuurBadge(p: Project): TabBadge {
 export function bouwTabBadges(
   p: Project,
   nacalc: ProjectNacalculatie | null,
-  extra: { reserveringen: number; aandacht: number },
+  aandacht: { totaal: number; rood: number },
 ): Record<TabId, TabBadge | null> {
   const { gereed, totaal } = stapTelling(p.productieOrders)
   const acc = geaccepteerdeOfferte(p)
@@ -243,7 +246,11 @@ export function bouwTabBadges(
   const voorbereiding = p.productieOrders.filter((o) => o.status === 'voorbereiding').length
 
   return {
-    algemeen: null,
+    // Aandacht staat sinds 2026-10-05 op Algemeen; het getal moet dus hier.
+    algemeen:
+      aandacht.totaal === 0
+        ? null
+        : { tekst: `${aandacht.totaal} aandacht`, kleur: aandacht.rood > 0 ? 'dgr' : 'warn' },
     offertes:
       p.offertes.length === 0
         ? { tekst: 'geen' }
@@ -279,30 +286,43 @@ export function bouwTabBadges(
     documenten: p.facturen.some((f) => f.soort !== 'credit' && f.verzondenOp)
       ? { tekst: `${documenten}/4 ✓`, kleur: 'ok' }
       : { tekst: `${documenten}/4` },
-    financieel: { tekst: eur(offerteTotaal(p)) },
-    reserveringen: { tekst: extra.reserveringen === 0 ? 'geen' : `${extra.reserveringen}` },
-    aandacht: { tekst: extra.aandacht === 0 ? 'geen' : `${extra.aandacht}` },
   }
+}
+
+/** Verstuurde facturen min verstuurde credits, incl. btw; null als er nog niets weg is.
+ *  Een concept is nog geen geld dat de klant schuldig is. */
+function verstuurdGefactureerd(p: Project): number | null {
+  const verstuurd = p.facturen.filter((f) => f.verzondenOp)
+  if (verstuurd.length === 0) return null
+  return Math.round(verstuurd.reduce((s, f) => s + (f.soort === 'credit' ? -1 : 1) * f.totaalInclBtw, 0) * 100) / 100
 }
 
 export function bouwGeld(p: Project, nacalc: ProjectNacalculatie | null): GeldVM {
   const verkoop = offerteTotaal(p)
+  const gefactureerd = verstuurdGefactureerd(p)
+  // Over welke orders de kostprijs gaat (keuze 2026-10-05: alleen die mét
+  // calculatie, en dat erbij zeggen — orders zonder calculatie als € 0
+  // meetellen maakt de marge mooier dan hij is).
+  const orders = p.productieOrders.filter((o) => o.status !== 'gestopt').length
+  const metCalc = nacalc?.orders.length ?? 0
+  const basis = !nacalc || metCalc === 0
+    ? null
+    : metCalc >= orders
+      ? null
+      : `Kostprijs over ${metCalc} van ${orders} orders met calculatie${
+          nacalc.verkoopTotaal != null ? ` (${eur(nacalc.verkoopTotaal)} verkoop)` : ''
+        }`
   return {
     offertetotaal: verkoop,
+    gefactureerd,
+    openstaand: openstaandBedrag(p),
     kostprijsCalculatie: nacalc?.gecalculeerdTotaal ?? null,
     kostprijsWerkelijk: nacalc?.werkelijkTotaal ?? null,
     verschil: nacalc?.verschilTotaal ?? null,
     verschilPct: nacalc?.verschilPct ?? null,
     margeWerkelijkPct: nacalc?.margeWerkelijkPct ?? null,
     margeCalculatiePct: nacalc?.margeGecalculeerdPct ?? null,
-    notitie:
-      p.facturen.length > 0
-        ? `${
-            p.facturen.length === 1
-              ? 'Factuur incl. btw'
-              : `${p.facturen.length} facturen incl. btw, credits eraf`
-          }: ${eur(gefactureerdInclBtw(p))} — of er betaald is, weet dit scherm niet.`
-        : null,
+    basis,
   }
 }
 
@@ -329,6 +349,7 @@ export function bouwTodos(todos: Todo[]): TodoVM[] {
     .map((t) => ({
       id: t.id,
       titel: t.title,
+      materiaal: t.soort === 'materiaal_selecteren',
       herkomst: [
         t.soort === 'materiaal_selecteren' ? 'Materiaal kiezen' : null,
         `aangemaakt ${datumKort(t.createdAt)}`,
@@ -383,6 +404,5 @@ export function bouwActiviteit(p: Project): ActiviteitVM[] {
 
   return uit
     .sort((a, b) => b.iso.localeCompare(a.iso))
-    .slice(0, 8)
     .map((r) => ({ tijd: `${datumKort(r.iso)} ${tijdstip(r.iso)}`, tekst: r.tekst }))
 }

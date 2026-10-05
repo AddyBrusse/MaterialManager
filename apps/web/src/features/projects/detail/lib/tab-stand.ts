@@ -36,8 +36,6 @@ export interface TabStandBron {
   nacalc: ProjectNacalculatie | null
   /** Open todo's van dít project. */
   openTodos: number
-  /** Reserveringen van dit project: hoeveel er zijn, en hoeveel er wachten. */
-  reserveringen: { totaal: number; wacht: number }
   /** Aandachtspunten: hoeveel er zijn, en hoeveel daarvan rood. */
   aandacht: { totaal: number; rood: number }
 }
@@ -57,7 +55,7 @@ function wachtOpMateriaal(p: Project): boolean {
 }
 
 export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
-  const { project: p, nacalc, openTodos, reserveringen, aandacht } = bron
+  const { project: p, nacalc, openTodos, aandacht } = bron
   const acc = geaccepteerdeOfferte(p)
   const geldend = geldendeOfferte(p)
   const ob = p.opdrachtbevestiging
@@ -75,7 +73,14 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
   const teDuur = Boolean(nacalc?.gemeten) && afwijkingKleur(afw) === 'dgr'
 
   return {
-    algemeen: p.notities.trim() ? 'bezig' : 'leeg',
+    // Aandacht, todo's, geld en materiaal staan sinds 2026-10-05 op Algemeen
+    // (de eigen tabs zijn weg). Rood maakt deze tab dus rood.
+    algemeen:
+      aandacht.rood > 0
+        ? 'aandacht'
+        : aandacht.totaal > 0 || openTodos > 0 || p.notities.trim()
+          ? 'bezig'
+          : 'leeg',
 
     offertes: p.offertes.length === 0 ? 'leeg' : vervaltBinnenkort ? 'aandacht' : acc ? 'gereed' : 'bezig',
 
@@ -132,29 +137,5 @@ export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {
           : geldend
             ? 'bezig'
             : 'leeg',
-
-    // Financieel deelt de drempel met Nacalculatie: hetzelfde verschil hoort
-    // niet op de ene tab amber te zijn en op de andere niet.
-    financieel: !geldend
-      ? 'leeg'
-      : teDuur
-        ? 'aandacht'
-        : p.facturen.length > 0
-          ? 'gereed'
-          : 'bezig',
-
-    // Een reservering die op materiaal wacht is geduld, geen actie — zie
-    // `wachtOpMateriaal` hierboven, dezelfde redenering.
-    reserveringen:
-      reserveringen.totaal === 0 ? 'leeg' : reserveringen.wacht > 0 ? 'wacht' : 'gereed',
-
-    // Deze tab ís het aandachtssignaal; hij kent dus maar twee standen plus
-    // leeg. Rood of amber bepaalt `bouwAandacht`, niet deze functie.
-    aandacht:
-      aandacht.totaal === 0 && openTodos === 0
-        ? 'leeg'
-        : aandacht.rood > 0
-          ? 'aandacht'
-          : 'bezig',
   }
 }

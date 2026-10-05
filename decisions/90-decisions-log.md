@@ -1662,3 +1662,30 @@ het Geleverd.
 
 Migratie `20261003090000_factuur_mail_betaald`: `facturen.naar_email` en
 `facturen.betaald_op`.
+
+## 2026-10-05 — Algemeen-tab: aandacht, geld en materiaal op één blad
+
+De tabs **Financieel**, **Reserveringen** en **Aandacht** zijn weg; hun inhoud
+staat op **Algemeen** (ontwerp eerst als mockup op een canvas, daarna gebouwd).
+
+- Links het project: één kaart "Project" (gegevens + notities, die geen eigen
+  kaart meer is), de mail-import, en "Recente activiteit" — de laatste vijf,
+  "Alles tonen" voor de rest. Rechts de stand: "Wat moet er gebeuren"
+  (aandachtspunten en open todo's in één lijst; een todo "materiaal kiezen"
+  staat al als aandachtspunt en komt er niet twee keer op), "Geld" en
+  "Materiaal". Smal schuift rechts onder links.
+- De Algemeen-tab draagt nu het aandachtsignaal: badge "n aandacht", rood als
+  er iets roods is. Een oude link `?tab=financieel|reserveringen|aandacht` komt
+  op Algemeen uit; "naar reserveringen" op de Opdracht-tab gaat naar de pagina
+  Reserveringen.
+- **Marge over dezelfde orders als de kostprijs** (keuze a). De nacalculatie
+  telt alleen orders met een calculatie, de verkoopwaarde is het hele project.
+  Daardoor stond er −800 % marge naast € 470 verkoop. Nu staat erbij waar het
+  over gaat ("Kostprijs over 1 van 3 orders met calculatie (€ 50,00 verkoop)").
+  Orders zonder calculatie als € 0 meetellen is afgewezen: dan lijkt de marge
+  beter dan hij is.
+- **Gefactureerd = wat verstuurd is**, credits eraf; ook in de kop. Een
+  concept-credit maakte de kop € 0,00 terwijl de klant nog niets kreeg.
+- **Betaald is af**: een betaalde factuur geeft geen aandachtspunt meer, en de
+  zin "of er betaald is, weet dit scherm niet" is weg — sinds de Facturen-tab
+  weet het scherm dat wel.
