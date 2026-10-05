@@ -19,7 +19,9 @@ interface Props {
   /** Openen, pdf en versturen — van de pagina, zodat de footer ook kan versturen. */
   doc: ReturnType<typeof useObDocument>
   onZetOB: (patch: { notities?: string; opdrachtRef?: string | null; levertijdDatum?: string | null }) => void
-  onNaarTab: (tab: 'offertes' | 'productie' | 'reserveringen') => void
+  onNaarTab: (tab: 'offertes' | 'productie') => void
+  /** De pagina Reserveringen; de eigen tab is sinds 2026-10-05 weg. */
+  onNaarReserveringen: () => void
   onWijzig: (w: OpdrachtWijziging) => Promise<boolean>
 }
 
@@ -68,7 +70,7 @@ export function OpdrachtTab(props: Props) {
         reserveringen={props.reserveringen}
         geblokkeerd={geblokkeerd}
         onKiesMateriaal={setKies}
-        onNaarReserveringen={() => props.onNaarTab('reserveringen')}
+        onNaarReserveringen={props.onNaarReserveringen}
         onNaarOrder={() => props.onNaarTab('productie')}
         onWijzig={wijzig}
         onToevoegen={() => setPicker(true)}

@@ -69,6 +69,8 @@ export interface TodoVM {
   id: string
   titel: string
   herkomst: string
+  /** Materiaal kiezen: staat al als aandachtspunt, dus niet twee keer tonen. */
+  materiaal: boolean
 }
 
 export interface TabBadge {
@@ -85,17 +87,23 @@ export type TabId =
   | 'facturen'
   | 'nacalculatie'
   | 'documenten'
-  | 'financieel'
-  | 'reserveringen'
-  | 'aandacht'
 
 export interface GeldVM {
   offertetotaal: number | null
+  /** Verstuurde facturen min verstuurde credits, incl. btw. Null: nog niets verstuurd. */
+  gefactureerd: number | null
+  /** Verstuurd en nog niet betaald, credits eraf. */
+  openstaand: number
   kostprijsCalculatie: number | null
   kostprijsWerkelijk: number | null
   verschil: number | null
   verschilPct: number | null
   margeWerkelijkPct: number | null
   margeCalculatiePct: number | null
-  notitie: string | null
+  /**
+   * Waar kostprijs en marge over gaan. De nacalculatie telt alleen orders met
+   * een calculatie; de verkoopwaarde erboven is het hele project. Zonder deze
+   * zin staat er een marge van −800 % naast € 470 verkoop (gezien 2026-10-05).
+   */
+  basis: string | null
 }

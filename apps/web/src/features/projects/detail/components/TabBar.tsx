@@ -10,9 +10,6 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'facturen', label: 'Facturen' },
   { id: 'nacalculatie', label: 'Nacalculatie' },
   { id: 'documenten', label: 'Documenten' },
-  { id: 'financieel', label: 'Financieel' },
-  { id: 'reserveringen', label: 'Reserveringen' },
-  { id: 'aandacht', label: 'Aandacht' },
 ]
 
 /** Wat de kleur van de indicatie betekent — ook als titel op het element. */

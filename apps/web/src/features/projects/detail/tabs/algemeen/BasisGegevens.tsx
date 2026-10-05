@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Project, Relatie, UpdateProject } from '@stockmanager/shared'
 import { relatiesApi } from '../../../../../api/relaties'
 import { meldFout } from '../../../../../utils/fout-melding-toon'
@@ -17,6 +17,8 @@ interface Props {
   onZet: (patch: UpdateProject) => void
   /** Na een nieuwe klant of contactpersoon: de relatielijst opnieuw lezen. */
   onRelatiesGewijzigd: () => void
+  /** Onder de velden, over de volle breedte (de notities). */
+  children?: ReactNode
 }
 
 /**
@@ -25,7 +27,7 @@ interface Props {
  * (gevonden 2026-10-01). Kiezen slaat meteen op, tekst bij het verlaten van
  * het veld.
  */
-export function BasisGegevens({ project: p, relaties, geblokkeerd, onZet, onRelatiesGewijzigd }: Props) {
+export function BasisGegevens({ project: p, relaties, geblokkeerd, onZet, onRelatiesGewijzigd, children }: Props) {
   const relatie = relaties.find((r) => r.id === p.relatieId) ?? null
   const contact = relatie?.contacten?.find((c) => c.id === p.contactId) ?? null
   const [wissel, setWissel] = useState<{ relatieId: string | null; tekst: string } | null>(null)
@@ -95,7 +97,7 @@ export function BasisGegevens({ project: p, relaties, geblokkeerd, onZet, onRela
   }
 
   return (
-    <Card titel="Basisgegevens">
+    <Card titel="Project">
       <div className="pdv2-form">
         <div className="pdv2-form-grid">
           <div className="pdv2-veld breed">
@@ -163,6 +165,7 @@ export function BasisGegevens({ project: p, relaties, geblokkeerd, onZet, onRela
             />
             <div className="hint">{relatieveDagen(p.levertijdDatum) || 'Dezelfde datum als op de Opdracht-tab.'}</div>
           </div>
+          {children}
         </div>
         <div className="pdv2-meta">
           Aangemaakt {datum(p.createdAt)} · laatst gewijzigd {datum(p.updatedAt)}

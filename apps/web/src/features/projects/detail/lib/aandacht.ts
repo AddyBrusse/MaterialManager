@@ -86,7 +86,8 @@ export function bouwAandacht(bron: AandachtBron): AandachtVM[] {
   // het is, en dat is het enige wat je wilt weten om te bellen. Creditnota's
   // hebben geen vervaldatum die iemand moet bewaken.
   for (const f of p.facturen) {
-    if (f.soort === 'credit' || !f.vervaldatum) continue
+    // Betaald is af (sinds de Facturen-tab, 2026-10-03, weet het scherm dat).
+    if (f.soort === 'credit' || !f.vervaldatum || f.betaaldOp) continue
     const n = dagenTot(f.vervaldatum)
     if (n === null) continue
     if (n < 0) {
@@ -99,7 +100,7 @@ export function bouwAandacht(bron: AandachtBron): AandachtVM[] {
       uit.push({
         ernst: 'amber',
         titel: `Factuur ${f.id} open tot ${datum(f.vervaldatum)}`,
-        toelichting: 'of er betaald is, weet dit scherm niet',
+        toelichting: 'nog niet als betaald gemarkeerd op de Facturen-tab',
       })
     }
   }

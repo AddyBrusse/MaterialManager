@@ -25,9 +25,6 @@ import { PakbonnenTab } from './tabs/PakbonnenTab'
 import { FacturenTab } from './tabs/FacturenTab'
 import { useFactuurDocument } from './tabs/facturen/useFactuurDocument'
 import { DocumentenTab } from './tabs/DocumentenTab'
-import { FinancieelTab } from './tabs/FinancieelTab'
-import { ReserveringenTab } from './tabs/ReserveringenTab'
-import { AandachtTab } from './tabs/AandachtTab'
 
 import { berekenVoortgang } from '@stockmanager/shared'
 import { useProjectActies } from './useProjectActies'
@@ -58,13 +55,14 @@ const TAB_IDS: TabId[] = [
   'facturen',
   'nacalculatie',
   'documenten',
-  'financieel',
-  'reserveringen',
-  'aandacht',
 ]
+
+/** Tabs die sinds 2026-10-05 op Algemeen staan; een oude link komt daar uit. */
+const NAAR_ALGEMEEN = ['financieel', 'reserveringen', 'aandacht']
 
 function leesTab(waarde: string | null, status: string | undefined): TabId {
   if (waarde && (TAB_IDS as string[]).includes(waarde)) return waarde as TabId
+  if (waarde && NAAR_ALGEMEEN.includes(waarde)) return 'algemeen'
   // Een project dat in productie staat open je om de productie te zien; alles
   // ervóór begint bij Algemeen.
   return status === 'productie' ? 'productie' : 'algemeen'
@@ -275,22 +273,16 @@ export function ProjectDetailPage() {
     nacalculatieAfwijkingPct: nacalc?.verschilPct ?? null,
     opslagMislukt: saveState === 'error',
   })
-  const badges = bouwTabBadges(project, nacalc, {
-    reserveringen: reserveringVMs.length,
-    aandacht: aandacht.length,
-  })
+  const aandachtTelling = {
+    totaal: aandacht.length,
+    rood: aandacht.filter((a) => a.ernst === 'rood').length,
+  }
+  const badges = bouwTabBadges(project, nacalc, aandachtTelling)
   const tabStanden = bouwTabStanden({
     project,
     nacalc,
     openTodos: projectTodos.filter((t) => !t.done).length,
-    reserveringen: {
-      totaal: reserveringVMs.length,
-      wacht: reserveringVMs.filter((r) => r.wacht).length,
-    },
-    aandacht: {
-      totaal: aandacht.length,
-      rood: aandacht.filter((a) => a.ernst === 'rood').length,
-    },
+    aandacht: aandachtTelling,
   })
 
   return (
@@ -321,6 +313,11 @@ export function ProjectDetailPage() {
               onZet={acties.zetProject}
               onRelatiesGewijzigd={() => qc.invalidateQueries({ queryKey: ['relaties'] })}
               activiteit={bouwActiviteit(project)}
+              aandacht={aandacht}
+              todos={todoVMs}
+              geld={bouwGeld(project, nacalc)}
+              reserveringen={reserveringVMs}
+              onNaarReserveringen={() => navigate('/reserveringen')}
               geblokkeerd={geblokkeerd}
               onGewijzigd={acties.ververs}
             />
@@ -364,6 +361,7 @@ export function ProjectDetailPage() {
               doc={obDoc}
               onZetOB={acties.zetOB}
               onNaarTab={kiesTab}
+              onNaarReserveringen={() => navigate('/reserveringen')}
               onWijzig={acties.wijzigOpdracht}
             />
           )}
@@ -407,9 +405,6 @@ export function ProjectDetailPage() {
             />
           )}
           {tab === 'nacalculatie' && <NacalculatieTab nacalc={nacalc} />}
-          {tab === 'financieel' && <FinancieelTab geld={bouwGeld(project, nacalc)} />}
-          {tab === 'reserveringen' && <ReserveringenTab items={reserveringVMs} />}
-          {tab === 'aandacht' && <AandachtTab aandacht={aandacht} todos={todoVMs} />}
           {tab === 'documenten' && (
             <DocumentenTab
               project={project}
