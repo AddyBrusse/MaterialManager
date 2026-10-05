@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *{ box-sizing: border-box; }
+    body { margin: 0; background: #E7E5E0; font-family: "IBM Plex Sans", sans-serif; -webkit-font-smoothing: antialiased; }
+    .doc { box-sizing: border-box; max-width: 8.27in; margin: 0 auto; background: #fff;
+           box-shadow: 0 2px 16px rgba(0,0,0,0.10); padding: 56px clamp(24px, 5vw, 0.75in) 72px; }
+    .doc-frame { width: 100%; border-collapse: collapse; }
+    .doc-frame > tbody > tr > td, .doc-frame > thead > tr > td, .doc-frame > tfoot > tr > td { padding: 0; }
+    .running-ftr, .hdr-space, .ftr-space { display: none; }
+    h1, h2, h3 { text-wrap: balance; }
+    p, li { text-wrap: pretty; }
+    @page { size: A4; margin: 0; }
+    @media print {
+      html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html, body { margin: 0; padding: 0; background: #fff; }
+      .doc { max-width: none !important; margin: 0 !important; padding: 0 0.75in !important;
+             box-shadow: none !important; border: none !important; }
+      #dc-root, .sc-host { height: auto !important; }
+      .hdr-space, .ftr-space { display: table-cell; height: 0.6in !important; }
+      .running-ftr { display: flex !important; justify-content: space-between; align-items: baseline;
+             position: fixed !important; left: 0; right: 0; bottom: 0; margin: 0 !important;
+             padding: 0 0.75in 0.3in !important; font-family: 'IBM Plex Mono', monospace;
+             font-size: 9px; letter-spacing: 0.04em; color: #9A948A; }
+      tr, .totals-block, .footer-block { break-inside: avoid; }
+      .parts-table thead { display: table-header-group; }
+    }
+  </style>
+</helmet>
+
+<main class="doc">
+  <table class="doc-frame" role="presentation">
+    <thead><tr><td class="hdr-space"></td></tr></thead>
+    <tbody><tr><td>
+
+      <!-- header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 32px;">
+        <img src="logo-boers.png" alt="Boers Metaalbewerking Engineering" style="height: 74px; width: auto; display: block;">
+        <div style="text-align: right; flex: none;">
+          <div style="font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; letter-spacing: 0.02em; color: #1A1A1A; line-height: 1;">OFFERTE</div>
+          <div style="display: grid; grid-template-columns: auto auto; gap: 3px 16px; margin-top: 14px; justify-content: end; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: #555;">
+            <span style="color: #8A857C;">Offertenr.</span><span style="color: #1A1A1A; text-align: right;">2026-0418</span>
+            <span style="color: #8A857C;">Datum</span><span style="color: #1A1A1A; text-align: right;">19-06-2026</span>
+            <span style="color: #8A857C;">Geldig tot</span><span style="color: #1A1A1A; text-align: right;">19-07-2026</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 2px; background: #E1251B; margin: 26px 0 24px;"></div>
+
+      <!-- klant -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px 40px; margin-bottom: 30px;">
+        <div>
+          <div style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #8A857C; margin-bottom: 5px;">Klant</div>
+          <div style="font-size: 15px; font-weight: 600; color: #1A1A1A;">Van Dijk Machinebouw B.V.</div>
+          <div style="font-size: 13.5px; color: #555; margin-top: 2px;">ing. M. van Dijk</div>
+          <div style="font-size: 13.5px; color: #555;">inkoop@vandijkmb.nl</div>
+        </div>
+        <div style="display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-content: start;">
+          <span style="font-size: 12.5px; color: #8A857C;">Referentie / PO</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: #1A1A1A; text-align: right;">PO-2026-0774</span>
+          <span style="font-size: 12.5px; color: #8A857C;">Gewenste leverdatum</span><span style="font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: #1A1A1A; text-align: right;">14-08-2026</span>
+        </div>
+      </div>
+
+      <!-- table -->
+      <table class="parts-table" style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+        <thead>
+          <tr style="font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #8A857C; text-align: left;">
+            <th style="width: 38px; padding: 0 0 9px 0; font-weight: 600;">#</th>
+            <th style="padding: 0 0 9px 0; font-weight: 600;">Omschrijving</th>
+            <th style="width: 118px; padding: 0 0 9px 0; font-weight: 600;">Materiaal</th>
+            <th style="width: 56px; padding: 0 0 9px 0; font-weight: 600; text-align: right;">Aantal</th>
+            <th style="width: 84px; padding: 0 0 9px 0; font-weight: 600; text-align: right;">Stukprijs</th>
+            <th style="width: 96px; padding: 0 0 9px 0; font-weight: 600; text-align: right;">Totaal</th>
+          </tr>
+        </thead>
+        <tbody style="font-size: 13.5px; color: #1A1A1A;">
+          <tr style="border-top: 1px solid #ECEAE5;">
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; color: #B0AAA0; font-size: 12px; vertical-align: top;">001</td>
+            <td style="padding: 11px 12px 11px 0; vertical-align: top;"><div style="font-weight: 500;">Flensplaat &Oslash;180</div><div style="font-size: 11.5px; color: #9A948A; margin-top: 2px;">Lasersnijden + kanten &middot; tek. 2024-114 rev. B</div></td>
+            <td style="padding: 11px 0; color: #555; vertical-align: top;">Staal S235JR</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">25</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">&euro; 18,50</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top; font-weight: 500;">&euro; 462,50</td>
+          </tr>
+          <tr style="border-top: 1px solid #ECEAE5;">
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; color: #B0AAA0; font-size: 12px; vertical-align: top;">002</td>
+            <td style="padding: 11px 12px 11px 0; vertical-align: top;"><div style="font-weight: 500;">Steunbeugel L-profiel</div><div style="font-size: 11.5px; color: #9A948A; margin-top: 2px;">Boren 4&times; &Oslash;8,5</div></td>
+            <td style="padding: 11px 0; color: #555; vertical-align: top;">RVS 304</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">40</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">&euro; 12,75</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top; font-weight: 500;">&euro; 510,00</td>
+          </tr>
+          <tr style="border-top: 1px solid #ECEAE5;">
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; color: #B0AAA0; font-size: 12px; vertical-align: top;">003</td>
+            <td style="padding: 11px 12px 11px 0; vertical-align: top;"><div style="font-weight: 500;">Asbus gedraaid</div><div style="font-size: 11.5px; color: #9A948A; margin-top: 2px;">Draaiwerk &middot; Ra 1,6</div></td>
+            <td style="padding: 11px 0; color: #555; vertical-align: top;">Aluminium 6082</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">60</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">&euro; 7,90</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top; font-weight: 500;">&euro; 474,00</td>
+          </tr>
+          <tr style="border-top: 1px solid #ECEAE5;">
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; color: #B0AAA0; font-size: 12px; vertical-align: top;">004</td>
+            <td style="padding: 11px 12px 11px 0; vertical-align: top;"><div style="font-weight: 500;">Afdekplaat geperst</div><div style="font-size: 11.5px; color: #9A948A; margin-top: 2px;">Persen &middot; verzinkt</div></td>
+            <td style="padding: 11px 0; color: #555; vertical-align: top;">Staal DC01</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">100</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">&euro; 4,35</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top; font-weight: 500;">&euro; 435,00</td>
+          </tr>
+          <tr style="border-top: 1px solid #ECEAE5;">
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; color: #B0AAA0; font-size: 12px; vertical-align: top;">005</td>
+            <td style="padding: 11px 12px 11px 0; vertical-align: top;"><div style="font-weight: 500;">Lasframe gelast</div><div style="font-size: 11.5px; color: #9A948A; margin-top: 2px;">MIG gelast &middot; stralen SA 2.5</div></td>
+            <td style="padding: 11px 0; color: #555; vertical-align: top;">Staal S355</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">8</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">&euro; 96,00</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top; font-weight: 500;">&euro; 768,00</td>
+          </tr>
+          <tr style="border-top: 1px solid #ECEAE5;">
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; color: #B0AAA0; font-size: 12px; vertical-align: top;">006</td>
+            <td style="padding: 11px 12px 11px 0; vertical-align: top;"><div style="font-weight: 500;">Bevestigingsstrip</div><div style="font-size: 11.5px; color: #9A948A; margin-top: 2px;">Kantwerk 2&times; 90&deg;</div></td>
+            <td style="padding: 11px 0; color: #555; vertical-align: top;">RVS 316</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">50</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">&euro; 9,20</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top; font-weight: 500;">&euro; 460,00</td>
+          </tr>
+          <tr style="border-top: 1px solid #ECEAE5;">
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; color: #B0AAA0; font-size: 12px; vertical-align: top;">007</td>
+            <td style="padding: 11px 12px 11px 0; vertical-align: top;"><div style="font-weight: 500;">Eindkap gefreesd</div><div style="font-size: 11.5px; color: #9A948A; margin-top: 2px;">Frezen &middot; anodiseren E6/EV1</div></td>
+            <td style="padding: 11px 0; color: #555; vertical-align: top;">Aluminium 5083</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">30</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top;">&euro; 14,60</td>
+            <td style="padding: 11px 0; font-family: 'IBM Plex Mono', monospace; text-align: right; vertical-align: top; font-weight: 500;">&euro; 438,00</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- totals -->
+      <div class="totals-block" style="display: flex; justify-content: flex-end; margin-top: 22px;">
+        <div style="width: 280px;">
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #555; padding: 5px 0;"><span>Subtotaal</span><span>&euro; 3.547,50</span></div>
+          <div style="display: flex; justify-content: space-between; font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: #555; padding: 5px 0; border-bottom: 1px solid #ECEAE5;"><span>BTW 21%</span><span>&euro; 744,98</span></div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0 0;"><span style="font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 15px; color: #1A1A1A;">Totaal incl. BTW</span><span style="font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 18px; color: #1A1A1A;">&euro; 4.292,48</span></div>
+        </div>
+      </div>
+
+      <!-- footer -->
+      <div class="footer-block" style="margin-top: 40px; padding-top: 16px; border-top: 1px solid #ECEAE5; font-size: 11px; line-height: 1.7; color: #9A948A; text-align: center;">
+        Boers Metaalbewerking | Engineering &nbsp;&middot;&nbsp; Industrieweg 12, 7461 AB Rijssen &nbsp;&middot;&nbsp; +31 (0)548 12 34 56 &nbsp;&middot;&nbsp; info@boersmetaal.nl<br>
+        KvK 09183746 &nbsp;&middot;&nbsp; BTW NL8123.45.678.B01 &nbsp;&middot;&nbsp; IBAN NL21 RABO 0123 4567 89 &nbsp;&middot;&nbsp; Levering volgens onze algemene voorwaarden
+      </div>
+
+    </td></tr></tbody>
+    <tfoot><tr><td class="ftr-space"></td></tr></tfoot>
+  </table>
+
+  <div class="running-ftr">
+    <span>Boers Metaalbewerking | Engineering</span>
+    <span>Offerte 2026-0418</span>
+  </div>
+</main>
+</x-dc>
+</body>
+</html>

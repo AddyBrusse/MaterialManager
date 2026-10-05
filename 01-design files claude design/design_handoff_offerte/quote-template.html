@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Offerte — {{QUOTE_NUMBER}}</title>
+<!--
+  ============================================================
+  BOERS METAALBEWERKING — OFFERTE / QUOTE TEMPLATE
+  ============================================================
+  Framework-agnostic reference. Plain HTML + CSS.
+  {{ ... }} markers = data bindings to replace with your
+  template engine / component props.
+  The single <tr class="part-row"> is the repeat unit —
+  loop it over your parts array.
+  Screen = one continuous page. Print / Save-as-PDF = auto
+  A4 pagination, repeating column headers, no broken rows.
+  ============================================================
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* ---- Design tokens ---- */
+    --ink:        #1A1A1A;   /* headings, key figures        */
+    --body:       #555555;   /* secondary text, materials    */
+    --label:      #8A857C;   /* uppercase labels, meta keys  */
+    --note:       #9A948A;   /* per-part note line, footer   */
+    --partno:     #B0AAA0;   /* position number cell         */
+    --hairline:   #ECEAE5;   /* row separators               */
+    --brand-red:  #E1251B;   /* accent rule, brand           */
+    --page-bg:    #E7E5E0;   /* screen background            */
+    --card-bg:    #FFFFFF;
+
+    --font-display: "Space Grotesk", sans-serif; /* OFFERTE title, total label */
+    --font-body:    "IBM Plex Sans", sans-serif; /* labels, names, body        */
+    --font-mono:    "IBM Plex Mono", monospace;  /* ALL numbers, dates, codes  */
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page-bg); font-family: var(--font-body);
+         color: var(--ink); -webkit-font-smoothing: antialiased; }
+
+  /* ---- Page shell (A4 document) ---- */
+  .doc { box-sizing: border-box; max-width: 8.27in; margin: 0 auto; background: var(--card-bg);
+         box-shadow: 0 2px 16px rgba(0,0,0,0.10); padding: 56px clamp(24px, 5vw, 0.75in) 72px; }
+  .doc-frame { width: 100%; border-collapse: collapse; }
+  .doc-frame > tbody > tr > td,
+  .doc-frame > thead > tr > td,
+  .doc-frame > tfoot > tr > td { padding: 0; }
+  .running-ftr, .hdr-space, .ftr-space { display: none; }
+
+  /* ---- Header ---- */
+  .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 32px; }
+  .head__logo { height: 74px; width: auto; display: block; }
+  .head__right { text-align: right; flex: none; }
+  .doc-title { font-family: var(--font-display); font-size: 32px; font-weight: 700;
+               letter-spacing: 0.02em; color: var(--ink); line-height: 1; }
+  .meta { display: grid; grid-template-columns: auto auto; gap: 3px 16px; margin-top: 14px;
+          justify-content: end; font-family: var(--font-mono); font-size: 12.5px; }
+  .meta .k { color: var(--label); }
+  .meta .v { color: var(--ink); text-align: right; }
+
+  .rule { height: 2px; background: var(--brand-red); margin: 26px 0 24px; }
+
+  /* ---- Customer block ---- */
+  .klant { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 40px; margin-bottom: 30px; }
+  .eyebrow { font-size: 10.5px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+             color: var(--label); margin-bottom: 5px; }
+  .klant__name { font-size: 15px; font-weight: 600; color: var(--ink); }
+  .klant__line { font-size: 13.5px; color: var(--body); }
+  .klant__line + .klant__line { margin-top: 0; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; align-content: start; }
+  .kv .k { font-size: 12.5px; color: var(--label); }
+  .kv .v { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); text-align: right; }
+
+  /* ---- Parts table ---- */
+  .parts { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .parts thead tr { font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em;
+                    text-transform: uppercase; color: var(--label); text-align: left; }
+  .parts thead th { padding: 0 0 9px 0; font-weight: 600; }
+  .parts tbody { font-size: 13.5px; color: var(--ink); }
+  .parts tbody td { padding: 11px 0; vertical-align: top; }
+  .part-row { border-top: 1px solid var(--hairline); }
+  .col-pos   { width: 38px; }
+  .col-mat   { width: 118px; }
+  .col-qty   { width: 56px;  text-align: right; }
+  .col-price { width: 84px;  text-align: right; }
+  .col-total { width: 96px;  text-align: right; }
+  .cell-pos    { font-family: var(--font-mono); color: var(--partno); font-size: 12px; }
+  .cell-desc   { padding-right: 12px; }
+  .cell-desc .name { font-weight: 500; }
+  .cell-desc .note { font-size: 11.5px; color: var(--note); margin-top: 2px; }
+  .cell-mat    { color: var(--body); }
+  .cell-num    { font-family: var(--font-mono); text-align: right; }
+  .cell-total  { font-family: var(--font-mono); text-align: right; font-weight: 500; }
+
+  /* ---- Totals ---- */
+  .totals-block { display: flex; justify-content: flex-end; margin-top: 22px; }
+  .totals { width: 280px; }
+  .totals__row { display: flex; justify-content: space-between; font-family: var(--font-mono);
+                 font-size: 13px; color: var(--body); padding: 5px 0; }
+  .totals__row--btw { border-bottom: 1px solid var(--hairline); }
+  .totals__grand { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0 0; }
+  .totals__grand .label { font-family: var(--font-display); font-weight: 600; font-size: 15px; color: var(--ink); }
+  .totals__grand .value { font-family: var(--font-mono); font-weight: 600; font-size: 18px; color: var(--ink); }
+
+  /* ---- Footer ---- */
+  .footer-block { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--hairline);
+                  font-size: 11px; line-height: 1.7; color: var(--note); text-align: center; }
+
+  /* ---- Print: A4 pagination ---- */
+  @page { size: A4; margin: 0; }
+  @media print {
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    html, body { margin: 0; padding: 0; background: #fff; }
+    .doc { max-width: none !important; margin: 0 !important; padding: 0 0.75in !important;
+           box-shadow: none !important; }
+    .hdr-space, .ftr-space { display: table-cell; height: 0.6in !important; }
+    .running-ftr { display: flex !important; justify-content: space-between; align-items: baseline;
+           position: fixed !important; left: 0; right: 0; bottom: 0; margin: 0 !important;
+           padding: 0 0.75in 0.3in !important; font-family: var(--font-mono);
+           font-size: 9px; letter-spacing: 0.04em; color: var(--note); }
+    tr, .totals-block, .footer-block { break-inside: avoid; }
+    .parts thead { display: table-header-group; }  /* repeat column headers per page */
+  }
+</style>
+</head>
+<body>
+
+<main class="doc">
+  <table class="doc-frame" role="presentation">
+    <!-- thead/tfoot spacers create the per-page top/bottom margin at print -->
+    <thead><tr><td class="hdr-space"></td></tr></thead>
+    <tbody><tr><td>
+
+      <!-- ============ HEADER ============ -->
+      <div class="head">
+        <img class="head__logo" src="logo-boers.png" alt="Boers Metaalbewerking | Engineering">
+        <div class="head__right">
+          <div class="doc-title">OFFERTE</div>
+          <div class="meta">
+            <span class="k">Offertenr.</span><span class="v">{{QUOTE_NUMBER}}</span>
+            <span class="k">Datum</span><span class="v">{{QUOTE_DATE}}</span>
+            <span class="k">Geldig tot</span><span class="v">{{VALID_UNTIL}}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rule"></div>
+
+      <!-- ============ KLANT ============ -->
+      <div class="klant">
+        <div>
+          <div class="eyebrow">Klant</div>
+          <div class="klant__name">{{CUSTOMER_COMPANY}}</div>
+          <div class="klant__line">{{CUSTOMER_CONTACT}}</div>
+          <div class="klant__line">{{CUSTOMER_EMAIL}}</div>
+        </div>
+        <div class="kv">
+          <span class="k">Referentie / PO</span><span class="v">{{REFERENCE}}</span>
+          <span class="k">Gewenste leverdatum</span><span class="v">{{DELIVERY_DATE}}</span>
+        </div>
+      </div>
+
+      <!-- ============ ONDERDELEN ============ -->
+      <table class="parts">
+        <thead>
+          <tr>
+            <th class="col-pos">#</th>
+            <th>Omschrijving</th>
+            <th class="col-mat">Materiaal</th>
+            <th class="col-qty">Aantal</th>
+            <th class="col-price">Stukprijs</th>
+            <th class="col-total">Totaal</th>
+          </tr>
+        </thead>
+        <tbody>
+
+          <!-- ===== REPEAT .part-row PER PART ===== -->
+          <tr class="part-row">
+            <td class="cell-pos">{{POS}}</td>
+            <td class="cell-desc">
+              <div class="name">{{PART_NAME}}</div>
+              <div class="note">{{PART_NOTE}}</div>   <!-- omit element if empty -->
+            </td>
+            <td class="cell-mat">{{MATERIAL}}</td>
+            <td class="cell-num">{{QTY}}</td>
+            <td class="cell-num">&euro; {{UNIT_PRICE}}</td>
+            <td class="cell-total">&euro; {{LINE_TOTAL}}</td>
+          </tr>
+          <!-- ===== /REPEAT ===== -->
+
+        </tbody>
+      </table>
+
+      <!-- ============ TOTALEN ============ -->
+      <div class="totals-block">
+        <div class="totals">
+          <div class="totals__row"><span>Subtotaal</span><span>&euro; {{SUBTOTAL}}</span></div>
+          <div class="totals__row totals__row--btw"><span>BTW 21%</span><span>&euro; {{VAT}}</span></div>
+          <div class="totals__grand">
+            <span class="label">Totaal incl. BTW</span>
+            <span class="value">&euro; {{GRAND_TOTAL}}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ FOOTER ============ -->
+      <div class="footer-block">
+        {{COMPANY_NAME}} &nbsp;&middot;&nbsp; {{COMPANY_ADDRESS}} &nbsp;&middot;&nbsp; {{COMPANY_PHONE}} &nbsp;&middot;&nbsp; {{COMPANY_EMAIL}}<br>
+        KvK {{KVK}} &nbsp;&middot;&nbsp; BTW {{VAT_ID}} &nbsp;&middot;&nbsp; IBAN {{IBAN}} &nbsp;&middot;&nbsp; Levering volgens onze algemene voorwaarden
+      </div>
+
+    </td></tr></tbody>
+    <tfoot><tr><td class="ftr-space"></td></tr></tfoot>
+  </table>
+
+  <!-- Print-only running footer (repeats on every page) -->
+  <div class="running-ftr">
+    <span>{{COMPANY_NAME}}</span>
+    <span>Offerte {{QUOTE_NUMBER}}</span>
+  </div>
+</main>
+
+</body>
+</html>
