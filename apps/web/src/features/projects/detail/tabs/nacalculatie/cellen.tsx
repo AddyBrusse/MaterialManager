@@ -68,23 +68,29 @@ export function VerschilCellen({ verschil, pctWaarde }: { verschil: number | nul
  * als er iets onder zit. De hele cel is de knop, niet alleen het pijltje — op
  * een rij van 11 px mik je anders mis.
  */
-export function BoomCel({ diepte, open, onToggle, children }: {
+export function BoomCel({ diepte, open, onToggle, beeld, children }: {
   diepte: number
   /** Undefined: niets om uit te klappen. */
   open?: boolean
   onToggle?: () => void
+  /** Voorbeeld vóór de knop, niet erin: de hover heeft een link, en die mag
+   *  niet in een knop staan (en een klik op het plaatje klapt dan niets in). */
+  beeld?: ReactNode
   children: ReactNode
 }) {
   const inspring = { paddingLeft: 10 + diepte * 18 }
   if (open === undefined || !onToggle) {
     return <td style={{ ...inspring, paddingLeft: inspring.paddingLeft + 18 }}>{children}</td>
   }
+  const knop = (
+    <button type="button" className="pdv2-boom-knop" onClick={onToggle} aria-expanded={open}>
+      {open ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}
+      <span>{children}</span>
+    </button>
+  )
   return (
     <td style={inspring}>
-      <button type="button" className="pdv2-boom-knop" onClick={onToggle} aria-expanded={open}>
-        {open ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}
-        <span>{children}</span>
-      </button>
+      {beeld ? <div className="pdv2-boom-beeld">{beeld}{knop}</div> : knop}
     </td>
   )
 }

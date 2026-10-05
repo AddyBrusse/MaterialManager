@@ -1,4 +1,6 @@
 import type { OrderNacalculatie } from '../../../../../api/nacalculatie'
+import { articlesApi } from '../../../../../api/articles'
+import { ArtikelPreviewThumb } from '../../../../../components/projecten/ArtikelPreviewThumb'
 import { BoomCel, KostenCellen, TijdCellen, VerschilCellen } from './cellen'
 import { MachineRijen } from './MachineRijen'
 
@@ -48,14 +50,17 @@ export function OrderRijen({ o, isOpen, onToggle }: Props) {
   const telt = o.gemeten || o.zaagbonnen.afgeboekt > 0
   const afgeboekt = o.zaagbonnen.afgeboekt > 0
   const tijd = tijdVan(o)
+  const artikel = o.artikelId ? articlesApi.get(o.artikelId) : null
+  const tekening = artikel?.tekening ? `${artikel.tekening}${artikel.rev ? ` rev ${artikel.rev}` : ''} · ` : ''
 
   return (
     <>
       <tr className="pdv2-boom-0">
-        <BoomCel diepte={0} open={open} onToggle={() => onToggle(sleutel)}>
+        <BoomCel diepte={0} open={open} onToggle={() => onToggle(sleutel)}
+          beeld={<ArtikelPreviewThumb article={artikel} size={48} />}>
           <strong>{o.artikelNaam}</strong>
           <span className="sub">
-            {o.qty} besteld · {o.gemeten ? `${o.gemaakteStuks} gemaakt volgens de klokregels` : 'nog geen uren geklokt'}
+            {tekening}{o.qty} besteld · {o.gemeten ? `${o.gemaakteStuks} gemaakt volgens de klokregels` : 'nog geen uren geklokt'}
           </span>
         </BoomCel>
         <TijdCellen gecalcMin={tijd.gecalcMin} werkSec={tijd.werkSec} />

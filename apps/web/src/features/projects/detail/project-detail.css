@@ -1269,3 +1269,10 @@
 .pdv2-tbl tr.pdv2-credit-rij .pdv2-uitklap svg:first-child {
   color: var(--text3);
 }
+
+/* Nacalculatie: voorbeeld van het artikel vóór de orderrij in de boom (2026-10-05). */
+.pdv2-boom-beeld {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
