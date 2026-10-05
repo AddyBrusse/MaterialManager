@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { notifications } from '@mantine/notifications'
 
 import { projectsApi, herlaadProject } from '../../../api/projects'
 import { relatiesApi } from '../../../api/relaties'
@@ -26,6 +25,7 @@ import { FacturenTab } from './tabs/FacturenTab'
 import { useFactuurDocument } from './tabs/facturen/useFactuurDocument'
 import { useOfferteDocument } from './tabs/offertes/useOfferteDocument'
 import { toonDocument } from './lib/toon-document'
+import { openDocument } from './lib/open-document'
 import { pakbonBestandsnaam, pakbonPdf, picklistBestandsnaam, picklistPdf } from './lib/pakbon-document'
 import { DocumentenTab } from './tabs/DocumentenTab'
 
@@ -238,14 +238,6 @@ export function ProjectDetailPage() {
     setKopIngeklapt((v) => !v)
   }
 
-  function nogNiet(wat: string) {
-    notifications.show({
-      color: 'blue',
-      title: 'Nog niet aangesloten in v2',
-      message: `${wat} werkt op het bestaande scherm — deze pagina is voorlopig de indeling, niet de bediening.`,
-    })
-  }
-
   if (isPending) return <div className="pdv2-empty">Laden…</div>
   if (!project) return <div className="pdv2-empty">Project niet gevonden.</div>
 
@@ -430,9 +422,9 @@ export function ProjectDetailPage() {
               project={project}
               voortgang={voortgang}
               geblokkeerd={geblokkeerd}
-              onOpenen={(doc) => nogNiet(`${doc} openen`)}
+              onOpenen={(d) => openDocument(project, d)}
               onMaken={(doc) =>
-                doc === 'Paklijst'
+                doc === 'Pakbon'
                   ? kiesTab('pakbonnen')
                   : doc === 'Factuur'
                     ? kiesTab('facturen')

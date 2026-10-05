@@ -1725,3 +1725,14 @@ pakbon, picklist en (klaargezet) inkooporder.
   de Pakbonnen-tab, ook bij een verstuurde pakbon.
 - **Inkooporder**: opmaak klaar (`inkooporderDocument`, met of zonder
   prijzen), nog niet aangesloten — er is nog geen inkoopmodule.
+
+## 2026-10-05 — Documenten-tab: Openen toont de pdf
+
+"Openen" op de Documenten-tab gaf nog "nog niet aangesloten". Nu opent het per
+rij dezelfde pdf als de knop op de eigen tab, in hetzelfde documentvenster
+(`lib/open-document.ts`): de geldende offerteversie, de opdrachtbevestiging,
+elke pakbon (plus een knop Picklist) en elke factuur/creditfactuur. Eerdere
+offerteversies blijven op de Offertes-tab. De tab zegt nu "Pakbon" in plaats
+van "Paklijst", en de losse kaarten "Paklijstregels" eronder zijn weg — de
+inhoud staat in de pdf en op de Pakbonnen-tab. De kopregel Facturen telt, net
+als de projectkop, alleen wat verstuurd is.

@@ -1,9 +1,8 @@
 import type { Factuur, Paklijst, Project, ProjectVoortgang } from '@stockmanager/shared'
-import { gefactureerdInclBtw } from '@stockmanager/shared'
 import { Card } from '../components/Card'
-import { datum, eur, getal, relatieveDagen, dagenTot } from '../lib/format'
+import { datum, eur, relatieveDagen, dagenTot } from '../lib/format'
 import { geaccepteerdeOfferte, geldendeOfferte } from '../lib/status'
-import { offerteTotaal } from '../lib/build-vm'
+import { offerteTotaal, verstuurdGefactureerd } from '../lib/build-vm'
 
 /**
  * §5.6 — de route van het project als één tabel. Dit is waar het principe
@@ -18,7 +17,19 @@ import { offerteTotaal } from '../lib/build-vm'
  * onder in plaats van verstopt.
  */
 
+/** Welk document Openen toont (2026-10-05: de pdf in het documentvenster). */
+export type DocVerwijzing =
+  | { soort: 'offerte'; id: string }
+  | { soort: 'opdracht' }
+  | { soort: 'pakbon'; id: string }
+  | { soort: 'picklist'; id: string }
+  | { soort: 'factuur'; id: string }
+
 interface StapRij {
+  /** Wat Openen toont; leeg bij een kopregel of een document dat nog niet bestaat. */
+  open?: DocVerwijzing
+  /** Tweede knop naast Openen — de picklist bij een pakbon. */
+  extra?: { label: string; open: DocVerwijzing }
   document: string
   nummer: string
   status: string
@@ -38,13 +49,21 @@ function BtnCel({
 }: {
   rij: StapRij
   geblokkeerd: boolean
-  onOpenen: (doc: string) => void
+  onOpenen: (doc: DocVerwijzing) => void
   onMaken: (doc: string) => void
 }) {
-  return rij.bestaat ? (
-    <button type="button" className="pdv2-btn s" onClick={() => onOpenen(rij.document)}>
-      Openen
-    </button>
+  const open = rij.open
+  return rij.bestaat && open ? (
+    <div className="pdv2-pakbon-acties">
+      {rij.extra && (
+        <button type="button" className="pdv2-btn s stil" onClick={() => onOpenen(rij.extra!.open)}>
+          {rij.extra.label}
+        </button>
+      )}
+      <button type="button" className="pdv2-btn s" onClick={() => onOpenen(open)}>
+        Openen
+      </button>
+    </div>
   ) : (
     <button
       type="button"
@@ -66,7 +85,7 @@ function Rij({
 }: {
   rij: StapRij
   geblokkeerd: boolean
-  onOpenen: (doc: string) => void
+  onOpenen: (doc: DocVerwijzing) => void
   onMaken: (doc: string) => void
   inspringen?: boolean
 }) {
@@ -82,7 +101,7 @@ function Rij({
       <td className="mono">{rij.datumTekst}</td>
       <td className="num">{rij.bedrag}</td>
       <td style={{ color: 'var(--text3)' }}>{rij.herkomst}</td>
-      <td>
+      <td className="pdv2-acties">
         <BtnCel rij={rij} geblokkeerd={geblokkeerd} onOpenen={onOpenen} onMaken={onMaken} />
       </td>
     </tr>
@@ -91,6 +110,8 @@ function Rij({
 
 function paklijstRij(pl: Paklijst): StapRij {
   return {
+    open: { soort: 'pakbon', id: pl.id },
+    extra: { label: 'Picklist', open: { soort: 'picklist', id: pl.id } },
     document: pl.id,
     nummer: pl.id,
     status: pl.verzondenOp ? 'Verzonden' : 'Concept',
@@ -110,6 +131,7 @@ function factuurRij(f: Factuur): StapRij {
   const credit = f.soort === 'credit'
   const n = dagenTot(f.vervaldatum)
   return {
+    open: { soort: 'factuur', id: f.id },
     document: credit ? `${f.id} (credit)` : f.id,
     nummer: f.id,
     status: f.verzondenOp ? 'Verzonden' : 'Concept',
@@ -138,7 +160,7 @@ export function DocumentenTab({
   project: Project
   voortgang: ProjectVoortgang
   geblokkeerd: boolean
-  onOpenen: (doc: string) => void
+  onOpenen: (doc: DocVerwijzing) => void
   onMaken: (doc: string) => void
 }) {
   const geldend = geldendeOfferte(p)
@@ -146,6 +168,7 @@ export function DocumentenTab({
   const ietsVerzonden = p.paklijsten.some((pl) => pl.verzondenOp)
 
   const offerte: StapRij = {
+    open: geldend ? { soort: 'offerte', id: geldend.id } : undefined,
     document: 'Offerte geldend',
     nummer: geldend?.documentNr ?? geldend?.id ?? '—',
     status: geldend ? (acc ? 'Geaccepteerd' : geldend.status) : 'Nog niet',
@@ -164,6 +187,7 @@ export function DocumentenTab({
   }
 
   const ob: StapRij = {
+    open: p.opdrachtbevestiging ? { soort: 'opdracht' } : undefined,
     document: 'Opdrachtbevestiging',
     nummer: p.opdrachtbevestiging?.id ?? '—',
     status: p.opdrachtbevestiging
@@ -185,7 +209,7 @@ export function DocumentenTab({
   // eronder dragen zichzelf. Zonder documenten is de kop gewoon de lege rij
   // die de spec beschrijft, mét de voorwaarde erin.
   const paklijstKop: StapRij = {
-    document: p.paklijsten.length > 1 ? `Paklijsten (${p.paklijsten.length})` : 'Paklijst',
+    document: p.paklijsten.length > 1 ? `Pakbonnen (${p.paklijsten.length})` : 'Pakbon',
     nummer: p.paklijsten.length === 0 ? '—' : '',
     status: p.paklijsten.length === 0 ? 'Nog niet' : ietsVerzonden ? 'Verzonden' : 'Concept',
     statusKleur: ietsVerzonden ? 'ok' : '',
@@ -203,17 +227,19 @@ export function DocumentenTab({
   }
 
   const facturen = p.facturen
+  // Zelfde getal als de kop en de Geld-kaart: wat verstuurd is, credits eraf.
+  const verstuurd = verstuurdGefactureerd(p)
   const factuurKop: StapRij = {
     document: facturen.length > 1 ? `Facturen (${facturen.length})` : 'Factuur',
     nummer: facturen.length === 0 ? '—' : '',
-    status: facturen.length === 0 ? 'Nog niet' : 'Verzonden',
-    statusKleur: facturen.length > 0 ? 'ok' : '',
+    status: facturen.length === 0 ? 'Nog niet' : verstuurd !== null ? 'Verzonden' : 'Concept',
+    statusKleur: verstuurd !== null ? 'ok' : '',
     datumTekst: facturen.length === 0 ? '—' : '',
-    bedrag: facturen.length === 0 ? '—' : eur(gefactureerdInclBtw(p)),
+    bedrag: verstuurd === null ? '—' : eur(verstuurd),
     herkomst:
       facturen.length === 0
         ? 'ontstaat als er geleverd is'
-        : 'totaal incl. btw, creditnota’s eraf',
+        : 'verstuurd incl. btw, creditnota’s eraf',
     bestaat: facturen.length > 0,
     kan: ietsVerzonden && v.teFactureren > 0,
   }
@@ -232,7 +258,7 @@ export function DocumentenTab({
                 Bedrag
               </th>
               <th>Ontstaat doordat</th>
-              <th style={{ width: 92 }} />
+              <th style={{ width: 170 }} />
             </tr>
           </thead>
           <tbody>
@@ -243,7 +269,7 @@ export function DocumentenTab({
               rij={{ ...paklijstKop, bestaat: false, document: paklijstKop.document }}
               geblokkeerd={geblokkeerd}
               onOpenen={onOpenen}
-              onMaken={() => onMaken('Paklijst')}
+              onMaken={() => onMaken('Pakbon')}
             />
             {p.paklijsten.map((pl) => (
               <Rij
@@ -276,37 +302,6 @@ export function DocumentenTab({
         </table>
       </Card>
 
-      {p.paklijsten.map((pl) => (
-        <Card
-          key={pl.id}
-          titel={`Paklijstregels — ${pl.id}`}
-          teller={pl.verzondenOp ? `verzonden ${datum(pl.verzondenOp)}` : 'concept'}
-          plat
-        >
-          <table className="pdv2-tbl">
-            <thead>
-              <tr>
-                <th style={{ width: 130 }}>Productieorder</th>
-                <th>Artikel</th>
-                <th className="num" style={{ width: 90 }}>
-                  Aantal
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {pl.regels.map((r, i) => (
-                <tr key={`${r.productieOrderId}-${i}`}>
-                  <td className="mono">{r.productieOrderId}</td>
-                  <td>{r.artikelNaam}</td>
-                  <td className="num">
-                    {getal(r.qty)} {r.eenheid}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      ))}
     </>
   )
 }
