@@ -24,22 +24,31 @@ export function FilterFormulier({ soort, keuzes, nabelDagen, onKlaar }: {
   const [b, setB] = useState('')
   const [periode, setPeriode] = useState<'voorbij' | 'week' | 'maand' | 'tussen'>('voorbij')
   const [dagen, setDagen] = useState(String(nabelDagen))
+  // Klant, contact en status kun je ook uitsluiten: "alles behalve deze klant".
+  const [niet, setNiet] = useState(false)
+  const nietVlag = niet ? ({ niet: true } as const) : {}
 
   const getal = (s: string) => (s.trim() === '' ? undefined : Number(s.replace(',', '.')))
   let filter: Filter | null = null
-  if (soort === 'klant' && a) filter = { soort, relatieId: a }
-  if (soort === 'contact' && a) filter = { soort, contactId: a }
-  if (soort === 'status' && a) filter = { soort, status: a as ProjectStatus }
+  if (soort === 'klant' && a) filter = { soort, relatieId: a, ...nietVlag }
+  if (soort === 'contact' && a) filter = { soort, contactId: a, ...nietVlag }
+  if (soort === 'status' && a) filter = { soort, status: a as ProjectStatus, ...nietVlag }
   if (soort === 'levertijd') filter = periode === 'tussen' ? (a || b ? { soort, periode, van: a || undefined, tot: b || undefined } : null) : { soort, periode }
   if (soort === 'offerteLeeftijd' && Number(dagen) > 0) filter = { soort, dagen: Math.round(Number(dagen)) }
   if (soort === 'bedrag' && (getal(a) != null || getal(b) != null)) filter = { soort, min: getal(a), max: getal(b) }
   if (soort === 'aangemaakt' && (a || b)) filter = { soort, van: a || undefined, tot: b || undefined }
 
   const kies = (opties: { id: string; naam: string }[], leeg: string) => (
-    <select className="st-input" value={a} onChange={(e) => setA(e.target.value)} autoFocus>
-      <option value="">{leeg}</option>
-      {opties.map((o) => <option key={o.id} value={o.id}>{o.naam}</option>)}
-    </select>
+    <>
+      <div className="prj-ff-rij">
+        <label className="prj-ff-radio"><input type="radio" checked={!niet} onChange={() => setNiet(false)} />is</label>
+        <label className="prj-ff-radio"><input type="radio" checked={niet} onChange={() => setNiet(true)} />is niet</label>
+      </div>
+      <select className="st-input" value={a} onChange={(e) => setA(e.target.value)} autoFocus>
+        <option value="">{leeg}</option>
+        {opties.map((o) => <option key={o.id} value={o.id}>{o.naam}</option>)}
+      </select>
+    </>
   )
   const datums = (
     <div className="prj-ff-rij">

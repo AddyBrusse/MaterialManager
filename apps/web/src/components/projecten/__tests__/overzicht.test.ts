@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Factuur, Offerte, Paklijst, Project, ProductieOrder } from '@stockmanager/shared'
 import { signalenVan, stappenVan, heeftSignaal } from '../overzicht/signalen'
-import { filterLabel, past, wisselSignaal, type FilterCtx } from '../overzicht/filters'
+import { snelleFilters } from '../overzicht/snelle-filters'
+import { filterLabel, past, voegToe, wisselSignaal, type FilterCtx } from '../overzicht/filters'
 
 const NU = new Date('2026-10-05T12:00:00')
 
@@ -116,5 +117,43 @@ describe('filters', () => {
     expect(filterLabel({ soort: 'klant', relatieId: 'R1' }, ctx)).toBe('Klant: VL Machinebouw')
     expect(filterLabel({ soort: 'signaal', signaal: 'geenReactie' }, ctx)).toBe('Geen reactie op offerte')
     expect(filterLabel({ soort: 'levertijd', periode: 'tussen', van: '2026-10-01', tot: '2026-10-31' }, ctx)).toBe('Levertijd: 01-10-2026 t/m 31-10-2026')
+  })
+
+  it('draait een filter om met niet, en toont dat op de chip', () => {
+    const p = project()
+    expect(past(p, { soort: 'klant', relatieId: 'R1', niet: true }, ctx)).toBe(false)
+    expect(past(p, { soort: 'klant', relatieId: 'R2', niet: true }, ctx)).toBe(true)
+    expect(filterLabel({ soort: 'klant', relatieId: 'R1', niet: true }, ctx)).toBe('Klant ≠ VL Machinebouw')
+    expect(filterLabel({ soort: 'signaal', signaal: 'teFactureren', niet: true }, ctx)).toBe('Niet: Te factureren')
+  })
+
+  it('vervangt de tegenpool in plaats van beide te zetten', () => {
+    const is = { soort: 'klant', relatieId: 'R1' } as const
+    const niet = { soort: 'klant', relatieId: 'R1', niet: true } as const
+    expect(voegToe([is], niet)).toEqual([niet])
+    expect(voegToe([niet], niet)).toEqual([niet])
+    expect(voegToe([{ soort: 'klant', relatieId: 'R2' }], niet)).toHaveLength(2)
+  })
+})
+
+describe('snelleFilters (rechtermuisknop)', () => {
+  const basis = { nu: NU, klantNaam: 'VL Machinebouw', contactNaam: '', statusLabel: 'Offerte' }
+
+  it('biedt alleen wat voor de rij geldt, met de aangeklikte kolom eerst', () => {
+    const p = project({ status: 'offerte' })
+    const s = signalenVan(p, NU, 21)
+    const opStatus = snelleFilters(p, { ...basis, kolomId: 'status', signalen: s, actief: [] })
+    expect(opStatus[0].label).toBe('Status: Offerte')
+    expect(opStatus.map((x) => x.label)).toContain('Klant: VL Machinebouw')
+    // Geen contactpersoon op dit project, dus ook geen contactfilter.
+    expect(opStatus.some((x) => x.label.startsWith('Contact'))).toBe(false)
+    // De offerte staat sinds 1 september uit: het signaal staat erbij.
+    expect(opStatus.map((x) => x.label)).toContain('Geen reactie op offerte')
+  })
+
+  it('laat weg wat al als chip aanstaat', () => {
+    const p = project()
+    const lijst = snelleFilters(p, { ...basis, kolomId: null, signalen: signalenVan(p, NU, 21), actief: [{ soort: 'klant', relatieId: 'R1' }] })
+    expect(lijst.some((x) => x.label.startsWith('Klant'))).toBe(false)
   })
 })

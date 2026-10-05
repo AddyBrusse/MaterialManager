@@ -122,3 +122,37 @@ export function projectNaIntrekken(p: Project): Project {
   return p.status === 'offerte' && !nogUit ? { ...p, status: 'concept' } : p
 }
 
+
+/**
+ * Een heel project verwijderen (2026-10-05). Tot dan verwijderde de server elk
+ * project zonder te kijken, met verstuurde facturen en pakbonnen en al — en
+ * wat de klant gekregen heeft hoort in de administratie te blijven. Zodra er
+ * iets de deur uit is, of er in de hal aan gewerkt is, annuleer je het project:
+ * dan blijft alles staan en verdwijnt het alleen uit de planning.
+ *
+ * De zwaarste reden gaat voor: een factuur zegt meer dan een offerte.
+ */
+export function waaromNietProjectVerwijderen(p: Project | undefined): string | null {
+  if (!p) return 'Kan project niet verwijderen: het bestaat niet (meer). Ververs de pagina.'
+  const annuleer = 'Annuleer het project in plaats van het te verwijderen.'
+  const factuur = p.facturen.find((f) => f.verzondenOp)
+  if (factuur) {
+    return `Kan ${p.id} niet verwijderen: ${factuur.id} is al verstuurd en hoort in de administratie. ${annuleer}`
+  }
+  const pakbon = p.paklijsten.find((x) => x.verzondenOp)
+  if (pakbon) return `Kan ${p.id} niet verwijderen: pakbon ${pakbon.id} is al verstuurd. ${annuleer}`
+  const gewerkt = p.productieOrders.find(
+    (o) => o.status === 'in_productie' || o.status === 'gereed' || (o.aantalGereed ?? 0) > 0,
+  )
+  if (gewerkt) {
+    return `Kan ${p.id} niet verwijderen: aan ${gewerkt.id} is al gewerkt, en de uren horen bij de nacalculatie. ${annuleer}`
+  }
+  if (p.opdrachtbevestiging?.verzondenOp) {
+    return `Kan ${p.id} niet verwijderen: de opdrachtbevestiging is al naar de klant. ${annuleer}`
+  }
+  const offerte = p.offertes.find((o) => o.verzondenOp || o.status !== 'concept')
+  if (offerte) {
+    return `Kan ${p.id} niet verwijderen: de klant heeft offerte v${offerte.versie} al gekregen. ${annuleer}`
+  }
+  return null
+}

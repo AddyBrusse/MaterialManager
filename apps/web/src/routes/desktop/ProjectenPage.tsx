@@ -2,11 +2,9 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconPlus, IconDownload, IconDots, IconTrash, IconFolder,
+  IconPlus, IconDownload, IconDots, IconFolder,
   IconArrowUp, IconArrowDown, IconUsers,
 } from '@tabler/icons-react'
-import { Menu } from '@mantine/core'
-import { notifications } from '@mantine/notifications'
 import { projectsApi, herlaadProjecten } from '../../api/projects'
 import { relatiesApi } from '../../api/relaties'
 import { useUserPreference } from '../../hooks/useUserPreference'
@@ -20,7 +18,10 @@ import {
 import { PROJECT_TABLE_PREFS_KEY, type ProjectTablePrefs, type Project } from '@stockmanager/shared'
 import { companyApi } from '../../api/company'
 import { heeftSignaal, signalenVan, type Signalen, type SignaalId } from '../../components/projecten/overzicht/signalen'
-import { pastAlle, wisselSignaal, type Filter, type FilterCtx } from '../../components/projecten/overzicht/filters'
+import { pastAlle, voegToe, wisselSignaal, type Filter, type FilterCtx } from '../../components/projecten/overzicht/filters'
+import { snelleFilters } from '../../components/projecten/overzicht/snelle-filters'
+import { RijMenu, type MenuPlek } from '../../components/projecten/overzicht/RijMenu'
+import { useRijActies } from '../../components/projecten/overzicht/useRijActies'
 import { ProjectTegels, type TegelTellingen } from '../../components/projecten/overzicht/ProjectTegels'
 import { FilterBalk } from '../../components/projecten/overzicht/FilterBalk'
 import { getProjectSubtotaal } from '../../api/projects'
@@ -67,8 +68,6 @@ function SortIndicator({ dir }: { dir: 'asc' | 'desc' }) {
 export function ProjectenPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [, forceUpdate] = useState(0)
-  const rerender = () => { forceUpdate(n => n + 1); qc.invalidateQueries({ queryKey: ['projects'] }) }
 
   // projectsApi.list() reads a synchronous in-memory cache that's only
   // populated once the background initProjects() fetch resolves — without
@@ -231,12 +230,26 @@ export function ProjectenPage() {
     setSelected(next)
   }
 
-  function handleDelete(p: Project) {
-    if (!window.confirm(`Project ${p.id} (${p.naam}) verwijderen?`)) return
-    projectsApi.remove(p.id)
-    notifications.show({ color: 'orange', message: `Project ${p.id} verwijderd` })
-    rerender()
-  }
+  // Rechtermuisknop of ⋯ op een rij (2026-10-05). Zit de rij in de selectie,
+  // dan werken de acties op de hele selectie; anders op alleen deze rij.
+  const [menu, setMenu] = useState<MenuPlek | null>(null)
+  const acties = useRijActies(ids => setSelected(s => new Set([...s].filter(id => !ids.includes(id)))))
+  const doel = menu
+    ? selected.has(menu.project.id) && selected.size > 1
+      ? projects.filter(p => selected.has(p.id))
+      : [menu.project]
+    : []
+  const snel = useMemo(() => menu
+    ? snelleFilters(menu.project, {
+        kolomId: menu.kolomId,
+        signalen: filterCtx.signalen(menu.project),
+        nu: new Date(),
+        actief: filters,
+        klantNaam: ctx.klantNaam(menu.project),
+        contactNaam: ctx.contactNaam(menu.project),
+        statusLabel: PROJECT_STATUS_CONFIG[menu.project.status]?.label ?? menu.project.status,
+      })
+    : [], [menu, filterCtx, filters, ctx])
 
   return (
     <>
@@ -247,11 +260,7 @@ export function ProjectenPage() {
         </div>
         <div className="st-page-actions">
           <button className="st-btn"><IconDownload size={14} />Exporteer</button>
-          <button className="st-btn primary" onClick={() => {
-            const p = projectsApi.create({ naam: 'Nieuw project', relatieId: null, contactId: null, klantRef: null, levertijdDatum: null, notities: '' })
-            qc.invalidateQueries({ queryKey: ['projects'] })
-            navigate(`/projecten/${p.id}`)
-          }}>
+          <button className="st-btn primary" onClick={() => acties.nieuwProject()}>
             <IconPlus size={14} />Nieuw project
           </button>
         </div>
@@ -359,7 +368,13 @@ export function ProjectenPage() {
                 <tr
                   key={p.id}
                   data-selected={selected.has(p.id)}
+                  data-menu={menu?.project.id === p.id || undefined}
                   onClick={() => navigate(`/projecten/${p.id}`)}
+                  onContextMenu={e => {
+                    e.preventDefault()
+                    const kolom = (e.target as HTMLElement).closest('td')?.dataset.kolom ?? null
+                    setMenu({ x: e.clientX, y: e.clientY, project: p, kolomId: kolom })
+                  }}
                 >
                   <td className="col-checkbox" onClick={e => e.stopPropagation()}>
                     <span className="st-ck" data-on={selected.has(p.id)} onClick={() => toggleOne(p.id)} />
@@ -367,6 +382,7 @@ export function ProjectenPage() {
                   {columns.map(col => (
                     <td
                       key={col.id}
+                      data-kolom={col.id}
                       data-tint={prefs.colors[col.id] || undefined}
                       className={col.align === 'right' ? 'cell-num' : undefined}
                     >
@@ -374,23 +390,16 @@ export function ProjectenPage() {
                     </td>
                   ))}
                   <td onClick={e => e.stopPropagation()}>
-                    <Menu position="bottom-end" withinPortal shadow="md">
-                      <Menu.Target>
-                        <button className="st-icon-btn" title="Acties"><IconDots size={15} /></button>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item leftSection={<IconFolder size={14} />} onClick={() => navigate(`/projecten/${p.id}`)}>
-                          Openen
-                        </Menu.Item>
-                        <Menu.Item
-                          color="red"
-                          leftSection={<IconTrash size={14} />}
-                          onClick={() => handleDelete(p)}
-                        >
-                          Verwijderen
-                        </Menu.Item>
-                      </Menu.Dropdown>
-                    </Menu>
+                    <button
+                      className="st-icon-btn"
+                      title="Acties"
+                      onClick={e => {
+                        const r = e.currentTarget.getBoundingClientRect()
+                        setMenu({ x: r.left, y: r.bottom, project: p, kolomId: null })
+                      }}
+                    >
+                      <IconDots size={15} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -411,6 +420,18 @@ export function ProjectenPage() {
           {selected.size > 0 && <span style={{ color: 'var(--text)' }}>· {selected.size} geselecteerd</span>}
         </div>
       </div>
+      <RijMenu
+        plek={menu}
+        doel={doel}
+        snel={snel}
+        klantNaam={menu ? ctx.klantNaam(menu.project) : ''}
+        acties={acties}
+        onFilter={f => setFilters(fs => voegToe(fs, f))}
+        onOpen={p => navigate(`/projecten/${p.id}`)}
+        onWisSelectie={() => setSelected(new Set())}
+        onSluit={() => setMenu(null)}
+      />
+      {acties.dialoog}
     </>
   )
 }
