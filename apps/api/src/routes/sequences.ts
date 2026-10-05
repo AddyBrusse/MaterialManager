@@ -1,33 +1,41 @@
 import { Router } from 'express'
-import { z } from 'zod'
-import { prisma } from '../db/client'
+import { DOC_PREFIXEN, NummerWijzigSchema } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
+import { requireAdmin } from '../middleware/require-admin'
+import { AppError } from '../middleware/error'
+import { reeksWijzigingen, standVanReeksen, zetVolgendNummer, type DocPrefix } from '../services/doc-nummer'
 
 const router = Router()
 
-const VALID_PREFIXES = ['PRJ', 'OFF', 'PROD', 'PL', 'FACT'] as const
-type DocPrefix = typeof VALID_PREFIXES[number]
+/**
+ * De stand van de nummerreeksen van dit jaar (Instellingen → Nummering).
+ * Nummers uitgeven doet alleen de server zelf, bij het aanmaken van het
+ * document (`services/doc-nummer.ts`); hier stond eerder een `POST /next` die
+ * niemand gebruikte en die nog de oude jaarloze teller ophoogde.
+ */
+router.get(
+  '/',
+  asyncHandler(async (_req, res) => {
+    res.json({ data: await standVanReeksen() })
+  }),
+)
 
-const NextSchema = z.object({
-  prefix: z.enum(VALID_PREFIXES),
-})
+router.get(
+  '/wijzigingen',
+  asyncHandler(async (_req, res) => {
+    res.json({ data: await reeksWijzigingen() })
+  }),
+)
 
-function formatDocId(prefix: DocPrefix, n: number): string {
-  const year = new Date().getFullYear()
-  return `${prefix}-${year}-${String(n).padStart(3, '0')}`
-}
-
-router.post(
-  '/next',
+/** Het volgende nummer van dit jaar met de hand zetten — alleen een admin. */
+router.put(
+  '/:prefix',
+  requireAdmin,
   asyncHandler(async (req, res) => {
-    const { prefix } = NextSchema.parse(req.body)
-    const result = await prisma.$queryRaw<{ last_n: number }[]>`
-      INSERT INTO doc_sequences (prefix, last_n) VALUES (${prefix}, 1)
-      ON CONFLICT (prefix) DO UPDATE SET last_n = doc_sequences.last_n + 1
-      RETURNING last_n
-    `
-    const n = result[0].last_n
-    res.json({ data: { id: formatDocId(prefix, n), n } })
+    const prefix = req.params.prefix as DocPrefix
+    if (!DOC_PREFIXEN.includes(prefix)) throw new AppError(404, 'NOT_FOUND', `Onbekende nummerreeks ${req.params.prefix}.`)
+    const body = NummerWijzigSchema.parse(req.body)
+    res.json({ data: await zetVolgendNummer(prefix, body, req.user?.name ?? 'onbekend') })
   }),
 )
 

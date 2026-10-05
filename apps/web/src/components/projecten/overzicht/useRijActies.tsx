@@ -7,6 +7,7 @@ import { waaromNietProjectVerwijderen, type Project } from '@stockmanager/shared
 import { projectsApi, wachtOpOpslag } from '../../../api/projects'
 import { meldFout } from '../../../utils/fout-melding-toon'
 import { Weigering } from '../../../utils/fout-melding'
+import { ApiFout } from '../../../api/client'
 
 type Stop = 'on_hold' | 'geannuleerd'
 
@@ -51,13 +52,24 @@ export function useRijActies(onVerwijderd: (ids: string[]) => void): RijActies {
     else if (n > 0) notifications.show({ color: 'orange', message: `${n} van ${ids.length} gelukt; zie de rode melding voor de rest.` })
   }
 
+  // Wacht op de server: die geeft het projectnummer (per jaar, 2026-10-05).
   const nieuwProject = (voor?: Project) => {
-    const p = projectsApi.create({
+    projectsApi.create({
       naam: 'Nieuw project', relatieId: voor?.relatieId ?? null, contactId: voor?.contactId ?? null,
       klantRef: null, levertijdDatum: null, notities: '',
-    })
-    ververs()
-    navigate(`/projecten/${p.id}`)
+    }).then(
+      (p) => {
+        ververs()
+        navigate(`/projecten/${p.id}`)
+      },
+      (fout) => meldFout({
+        actie: 'Nieuw project aanmaken',
+        fout,
+        gevolg: fout instanceof ApiFout && fout.code === 'TIMEOUT'
+          ? 'Onbekend of het project is aangemaakt: de server antwoordde niet op tijd. Ververs de lijst voor je het opnieuw doet.'
+          : 'Er is geen project aangemaakt. Probeer het opnieuw.',
+      }),
+    )
   }
 
   const kopieerNummers = (ps: Project[]) => {

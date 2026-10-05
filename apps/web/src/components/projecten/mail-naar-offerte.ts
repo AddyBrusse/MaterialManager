@@ -138,7 +138,7 @@ export async function neemRegelsOver({
   let werkProject = project
   let offerte = werkProject.offertes[werkProject.offertes.length - 1]
   if (!offerte) {
-    werkProject = projectsApi.addOfferte(werkProject.id)
+    werkProject = await projectsApi.addOfferte(werkProject.id)
     offerte = werkProject.offertes[werkProject.offertes.length - 1]
   }
 

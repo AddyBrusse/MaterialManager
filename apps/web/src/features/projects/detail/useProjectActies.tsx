@@ -152,6 +152,34 @@ export function useProjectActies(
     [project, ververs],
   )
 
+  /**
+   * Als `doe`, maar voor een handeling die op de server wacht (een nieuwe
+   * offerte: de server geeft het nummer, 2026-10-05). Er staat niets op het
+   * scherm tot de server antwoordt, dus bij een fout is er niets terug te zetten.
+   */
+  const doeEnWacht = useCallback(
+    (actie: string, gelukt: string, fn: () => Promise<unknown> | void): void => {
+      if (!project) return
+      Promise.resolve()
+        .then(fn)
+        .then(() => {
+          ververs()
+          notifications.show({ color: 'green', message: gelukt })
+        })
+        .catch((fout: unknown) => {
+          ververs()
+          meldFout({
+            actie,
+            fout,
+            gevolg: fout instanceof ApiFout && fout.code === 'TIMEOUT'
+              ? 'Onbekend of het gelukt is: de server antwoordde niet op tijd. Ververs de pagina voor je het opnieuw doet.'
+              : 'Er is niets aangemaakt. Probeer het opnieuw.',
+          })
+        })
+    },
+    [project, ververs],
+  )
+
   const leeg: ProjectActies = {
     dialoog: null,
     ververs,
@@ -273,7 +301,7 @@ export function useProjectActies(
       case 'naar':
         return naarTab(stap.tab)
       case 'offerte-maken':
-        return doe('Nieuwe offerte aanmaken', 'Nieuwe offerte aangemaakt', () => projectsApi.addOfferte(id))
+        return doeEnWacht('Nieuwe offerte aanmaken', 'Nieuwe offerte aangemaakt', () => projectsApi.addOfferte(id))
       case 'offerte-versturen': {
         const o = project.offertes.find((x) => x.id === stap.offerteId)
         return doe(`Offerte v${o?.versie ?? '?'} versturen`, `Offerte v${o?.versie ?? '?'} verstuurd`, () => {
@@ -293,9 +321,8 @@ export function useProjectActies(
         return
       }
       case 'paklijst-versturen':
-        return doe(`${stap.paklijstId} versturen`, `${stap.paklijstId} verzonden`, () =>
-          projectsApi.verzendPaklijst(id, stap.paklijstId),
-        )
+        // Gaat via de mail in Outlook (usePakbonDocument op de pagina, 2026-10-05).
+        return
       case 'factuur-maken': {
         const gelukt = doe('Nieuwe factuur maken', 'Nieuwe factuur aangemaakt', () => projectsApi.createFactuur(id))
         if (gelukt) naarTab('facturen')
@@ -405,7 +432,7 @@ export function useProjectActies(
     annuleer: () => stop('geannuleerd'),
     terug,
     nieuweOfferteVersie: () =>
-      doe('Nieuwe offerteversie aanmaken', 'Nieuwe offerteversie aangemaakt', () => projectsApi.addOfferte(id)),
+      doeEnWacht('Nieuwe offerteversie aanmaken', 'Nieuwe offerteversie aangemaakt', () => projectsApi.addOfferte(id)),
     // Stil, net als een regel bewerken: een groene melding bij elk ingevuld
     // veld is ruis. Fout gaat wel de deur uit — dat meldt syncProject zelf.
     zetReferentie: (offerteId, ref) => {
@@ -414,7 +441,7 @@ export function useProjectActies(
     },
     kopieerOfferte: (offerteId) => {
       const bron = project.offertes.find((o) => o.id === offerteId)
-      doe(
+      doeEnWacht(
         `v${bron?.versie ?? '?'} kopiëren`,
         `v${volgendeVersie(project.offertes)} gemaakt op basis van v${bron?.versie ?? '?'}`,
         () => projectsApi.addOfferte(id, offerteId),
@@ -463,10 +490,10 @@ export function useProjectActies(
       }
     },
     maakDirecteOpdracht: () =>
-      doe('Directe opdracht beginnen', 'Directe opdracht begonnen — voeg de bestelde artikelen toe', () => {
+      doeEnWacht('Directe opdracht beginnen', 'Directe opdracht begonnen — voeg de bestelde artikelen toe', () => {
         const al = project.offertes.find((o) => o.direct && o.status === 'concept')
         if (al) return
-        projectsApi.addOfferte(id, undefined, { direct: true })
+        return projectsApi.addOfferte(id, undefined, { direct: true })
       }),
     verzendOB: (naar) =>
       doe(

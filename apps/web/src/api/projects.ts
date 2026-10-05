@@ -47,43 +47,11 @@ function saveLocal(data: Project[]): void {
 
 let cache: Project[] = loadLocal()
 
-// The PRJ/OFF/PROD/PL/FACT counters below are per-browser (localStorage), but
-// IDs must be unique across the whole shop. A fresh browser profile, a
-// cleared cache, or simply a different machine starts every counter back at
-// 0 — which immediately collides with whatever the server already has (e.g.
-// generating "PRJ-2026-001" again when that ID was used months ago) and the
-// create request fails with a Postgres unique-constraint error. Re-seed every
-// counter from the actual IDs already on the server on every load, so the
-// next locally-generated ID is always ahead of anything that exists.
-function seedSequenceCounters(projects: Project[]): void {
-  const maxByPrefix = new Map<string, number>()
-  const track = (id: string) => {
-    const m = /^([A-Z]+)-\d{4}-(\d+)$/.exec(id)
-    if (!m) return
-    const n = parseInt(m[2], 10)
-    if (n > (maxByPrefix.get(m[1]) ?? 0)) maxByPrefix.set(m[1], n)
-  }
-  for (const p of projects) {
-    track(p.id)
-    for (const o of p.offertes) track(o.id)
-    if (p.opdrachtbevestiging) track(p.opdrachtbevestiging.id)
-    for (const o of p.productieOrders) track(o.id)
-    for (const pl of p.paklijsten) track(pl.id)
-    for (const f of p.facturen) track(f.id)
-  }
-  for (const [prefix, max] of maxByPrefix) {
-    const key = `sm_seq_${prefix.toLowerCase()}`
-    const current = parseInt(localStorage.getItem(key) ?? '0', 10)
-    if (current < max) localStorage.setItem(key, String(max))
-  }
-}
-
 export async function initProjects(): Promise<LaadFout | null> {
   try {
     const { data } = await apiFetch<Project[]>('/projects')
     cache = data
     saveLocal(data)
-    seedSequenceCounters(data)
     return null
   } catch (fout) {
     cache = loadLocal()
@@ -313,12 +281,15 @@ export function getProjectSaveState(id: string): ProjectSaveState {
 // keys and passed as props into open dialogs like ArtikelPickerModal) could
 // force-remount components and silently drop in-progress user input.
 
-function nextLocalDocId(prefix: string): string {
-  const year = new Date().getFullYear()
-  const key = `sm_seq_${prefix.toLowerCase()}`
-  const n = parseInt(localStorage.getItem(key) ?? '0') + 1
-  localStorage.setItem(key, String(n))
-  return `${prefix}-${year}-${String(n).padStart(3, '0')}`
+/**
+ * Een id voor het moment tussen klikken en het antwoord van de server. Het
+ * echte nummer geeft alleen de server (per jaar, 2026-10-05); het antwoord
+ * vervangt dit id. Bewust herkenbaar als tijdelijk: tot 2026-10-05 kwam hier
+ * een nummer uit een teller per browser, dat eruitzag als een echt nummer en
+ * soms een ander bleek te worden.
+ */
+function tijdelijkId(prefix: string): string {
+  return `${prefix}-nieuw-${Math.random().toString(36).slice(2, 7)}`
 }
 
 // ── Public API ─────────────────────────────────────────────────────────────────
@@ -339,31 +310,16 @@ export const projectsApi = {
     return p
   },
 
-  create(body: CreateProject): Project {
-    const id = nextLocalDocId('PRJ')
-    const p: Project = {
-      id,
-      naam: body.naam,
-      relatieId: body.relatieId,
-      contactId: body.contactId,
-      klantRef: body.klantRef,
-      status: 'concept',
-      statusReden: null,
-      statusVorige: null,
-      levertijdDatum: body.levertijdDatum,
-      notities: body.notities,
-      offertes: [],
-      opdrachtbevestiging: null,
-      productieOrders: [],
-      paklijsten: [],
-      facturen: [],
-      createdAt: now(),
-      updatedAt: now(),
-    }
-    cache = [...cache, p]
+  /**
+   * Nieuw project. Wacht op de server, want die geeft het nummer (2026-10-05):
+   * vroeger koos de browser het met een eigen teller per pc, en die liep uit de
+   * pas met andere pc's en begon nooit opnieuw per jaar.
+   */
+  async create(body: CreateProject): Promise<Project> {
+    const r = await apiFetch<Project>('/projects', { method: 'POST', body: JSON.stringify(body) })
+    cache = [...cache.filter(p => p.id !== r.data.id), r.data]
     saveLocal(cache)
-    syncProject(id, apiFetch<Project>('/projects', { method: 'POST', body: JSON.stringify({ ...body, id }) }), `Project ${id} aanmaken`)
-    return p
+    return r.data
   },
 
   update(id: string, patch: UpdateProject): Project {
@@ -390,50 +346,16 @@ export const projectsApi = {
    * Nieuwe offerteversie. Met `vanOfferteId` een kopie van die versie — zie
    * `kopieerOfferte` in de gedeelde kern voor wat er meegaat — anders leeg.
    */
-  addOfferte(projectId: string, vanOfferteId?: string, opts: { direct?: boolean } = {}): Project {
-    const p = cache.find(p => p.id === projectId)
-    if (!p) throw new Error('Project niet gevonden')
-    const id = nextLocalDocId('OFF')
-    // Een nieuwe versie vervángt de vorige, dus draagt ze hetzelfde nummer.
-    // Hier stond eerder alleen `id`, waardoor v2 een ander nummer kreeg dan v1
-    // terwijl `versie` wél doortelde: twee tellingen die iets anders zeiden.
-    const eerste = p.offertes[0]
-    const documentNr = eerste ? eerste.documentNr : id
-    const versie = volgendeVersie(p.offertes)
-
-    const bron = vanOfferteId ? p.offertes.find(o => o.id === vanOfferteId) : undefined
-    if (vanOfferteId && !bron) throw new Error('Te kopiëren offerteversie niet gevonden')
-    // De regel-id's maken we hier en sturen ze mee, zodat een aanpassing direct
-    // na het kopiëren dezelfde regel raakt als de server straks kent.
-    const regelIds = bron
-      ? bron.regels.map((_, i) => `regel_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`)
-      : undefined
-
-    const off: Offerte = bron
-      // Een kopie herziet déze versie en draagt dus haar nummer — zie de API.
-      ? kopieerOfferte(bron, { id, documentNr: bron.documentNr, versie, regelIds, nu: now() })
-      : {
-          id,
-          documentNr,
-          projectId,
-          versie,
-          status: 'concept',
-          regels: [],
-          notities: '',
-          externeRef: null,
-          direct: opts.direct ?? false,
-          vervallenDoor: null,
-          geldigTot: null,
-          verzondenOp: null,
-          geaccepteerdOp: null,
-          createdAt: now(),
-          updatedAt: now(),
-        }
-    const updated = updateCache(projectId, p => ({ ...p, offertes: [...p.offertes, off], updatedAt: now() }))
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/offertes`, {
-      method: 'POST', body: JSON.stringify({ id, vanOfferteId, regelIds, direct: opts.direct }),
-    }), bron ? 'Offerte kopiëren' : 'Nieuwe offerte aanmaken')
-    return updated
+  async addOfferte(projectId: string, vanOfferteId?: string, opts: { direct?: boolean } = {}): Promise<Project> {
+    // Wacht op de server: die geeft het offertenummer (per jaar, 2026-10-05).
+    // Een tijdelijk nummer op het scherm zou een regel die je meteen toevoegt
+    // naar een offerte sturen die de server niet kent.
+    const r = await apiFetch<Project>(`/projects/${projectId}/offertes`, {
+      method: 'POST', body: JSON.stringify({ vanOfferteId, direct: opts.direct }),
+    })
+    cache = cache.map(p => p.id === projectId ? r.data : p)
+    saveLocal(cache)
+    return r.data
   },
 
   /** Een concept weg. Alleen een concept — zie `waaromNietVerwijderen`. */
@@ -477,7 +399,6 @@ export const projectsApi = {
     })
     cache = cache.map(p => (p.id === data.id ? data : p))
     saveLocal(cache)
-    seedSequenceCounters(cache)
     return data
   },
 
@@ -499,7 +420,6 @@ export const projectsApi = {
     saveLocal(cache)
     // De server koos PRJ- en OFF-nummer; zonder dit geeft "Nieuw project" in
     // deze browser straks hetzelfde nummer nog eens uit.
-    seedSequenceCounters(cache)
     return data
   },
 
@@ -646,7 +566,7 @@ export const projectsApi = {
         : []
 
       return {
-        id: nextLocalDocId('PROD'),
+        id: tijdelijkId('PROD'),
         projectId,
         offerteRegelId: regel.id,
         artikelId: regel.artikelId,
@@ -663,7 +583,7 @@ export const projectsApi = {
     })
 
     const ob: Opdrachtbevestiging | null = acceptedOfferte ? {
-      id: nextLocalDocId('OB'),
+      id: tijdelijkId('OB'),
       projectId,
       offerteId,
       regels: acceptedOfferte.regels,
@@ -891,7 +811,7 @@ export const projectsApi = {
     if (!p) throw new Error('Project niet gevonden')
     const keuze = voorstelPakbon(p)
     const paklijst: Paklijst = {
-      id: nextLocalDocId('PL'),
+      id: tijdelijkId('PL'),
       projectId,
       regels: pakbonRegels(p, keuze),
       notities: '',
@@ -986,7 +906,7 @@ export const projectsApi = {
     const relatie = p.relatieId ? relatiesApi.listSync().find(r => r.id === p.relatieId) ?? null : null
     const regels = factuurRegels(p, keuze)
     const f: Factuur = {
-      id: nextLocalDocId('FACT'), soort: 'factuur', crediteertFactuurId: null, projectId,
+      id: tijdelijkId('FACT'), soort: 'factuur', crediteertFactuurId: null, projectId,
       offerteId: p.opdrachtbevestiging?.offerteId ?? '', regels, btwPct: BTW_PCT, ...factuurBedragen(regels),
       notities: '', vervaldatum: null, verzondenOp: null, betaaldOp: null, createdAt: now(),
       naarEmail: factuurMailadres(relatie, relatie?.contacten.find(c => c.id === p.contactId)),
@@ -1012,7 +932,7 @@ export const projectsApi = {
       return { ...r, qty: g.qty, totaal: Math.round(g.qty * g.verkoopprijs * 100) / 100 }
     })
     const c: Factuur = {
-      id: nextLocalDocId('CRED'), soort: 'credit', crediteertFactuurId: factuurId, projectId,
+      id: tijdelijkId('CRED'), soort: 'credit', crediteertFactuurId: factuurId, projectId,
       offerteId: bron.offerteId, regels, btwPct: bron.btwPct, ...factuurBedragen(regels, bron.btwPct),
       notities: '', vervaldatum: null, verzondenOp: null, betaaldOp: null, naarEmail: bron.naarEmail, createdAt: now(),
     }

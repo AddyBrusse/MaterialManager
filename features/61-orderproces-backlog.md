@@ -219,7 +219,7 @@ mutatie, geen reservering, in de hele keten niet.
 - [x] **15. Factuur-PDF** — *gedaan 2026-10-03, huisstijl 2026-10-05*
   Idem (`FactuurTab.tsx`). Zelfde patroon als `buildOffertePdf`.
 
-- [ ] **16. Mailflow voor paklijst en factuur**
+- [x] **16. Mailflow voor paklijst en factuur** — *factuur 2026-10-03, pakbon 2026-10-05 (naar de contactpersoon van de order)*
   Offerte en OB gaan via `sendViaMicrosoft365` met PDF-bijlage. Bij paklijst
   en factuur zet `verzend` alleen een timestamp — je moet zelf handmatig
   mailen terwijl het systeem doet alsof het verzonden is.
@@ -236,7 +236,7 @@ mutatie, geen reservering, in de hele keten niet.
 
 ## Los
 
-- [ ] **18. Documentnummering per jaar resetten**
+- [x] **18. Documentnummering per jaar resetten** — *gedaan 2026-10-05: teller per soort per jaar; nummers alleen nog van de server. Boekhouder bevestigt dat FACT-2027-001 akkoord is*
   `nextDocId` maakt `${prefix}-${year}-${n}`, maar `doc_sequences.last_n`
   loopt globaal door per prefix en wordt nooit gereset. De eerste offerte van
   2027 wordt `OFF-2027-042`.

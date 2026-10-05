@@ -440,6 +440,22 @@ model DocSequence {
   @@map("doc_sequences")
 }
 
+/// Handmatige wijziging van een nummerreeks (Instellingen → Nummering,
+/// 2026-10-05). Wie, wanneer, van welk volgend nummer naar welk, en waarom —
+/// zodat een gat in de factuurnummers later te verklaren is.
+model DocReeksWijziging {
+  id        String   @id @default(uuid())
+  sleutel   String   // bv. FACT-2026
+  van       Int      // het volgende nummer vóór de wijziging
+  naar      Int      // het volgende nummer erna
+  reden     String
+  door      String   // naam van de gebruiker op het moment van wijzigen
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("doc_reeks_wijzigingen")
+}
+
 // Het project is de kop: klant, referentie, status. De documenten die eraan
 // hangen (offerte, opdrachtbevestiging, productieorders, paklijst, factuur)
 // staan in eigen tabellen — zie de beslissing van 2026-09-09 in

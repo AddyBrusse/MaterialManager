@@ -23,6 +23,7 @@ import { NacalculatieTab } from './tabs/NacalculatieTab'
 import { PakbonnenTab } from './tabs/PakbonnenTab'
 import { FacturenTab } from './tabs/FacturenTab'
 import { useFactuurDocument } from './tabs/facturen/useFactuurDocument'
+import { usePakbonDocument } from './tabs/pakbonnen/usePakbonDocument'
 import { useOfferteDocument } from './tabs/offertes/useOfferteDocument'
 import { toonDocument } from './lib/toon-document'
 import { openDocument } from './lib/open-document'
@@ -32,7 +33,7 @@ import { DocumentenTab } from './tabs/DocumentenTab'
 import { berekenVoortgang } from '@stockmanager/shared'
 import { useProjectActies } from './useProjectActies'
 import { actiesGeblokkeerd, geldendeOfferte, terugActie } from './lib/status'
-import { tabActie } from './lib/tab-actie'
+import { tabActie, type Stap } from './lib/tab-actie'
 import { useObDocument } from './tabs/opdracht/useObDocument'
 import { bouwAandacht } from './lib/aandacht'
 import { bouwTabStanden } from './lib/tab-stand'
@@ -194,6 +195,7 @@ export function ProjectDetailPage() {
   // Op de pagina, niet in de tab: "Opdracht versturen" kan ook vanuit de footer.
   const obDoc = useObDocument(project, acties.verzendOB)
   const factuurDoc = useFactuurDocument(project, acties.verzendFactuur)
+  const pakbonDoc = usePakbonDocument(project, acties.verzendPaklijst)
   const offerteDoc = useOfferteDocument(project, acties.verzendOfferte)
 
   // Mislukt een opslag, dan zet syncProject het project terug naar wat er op
@@ -280,6 +282,21 @@ export function ProjectDetailPage() {
     openTodos: projectTodos.filter((t) => !t.done).length,
     aandacht: aandachtTelling,
   })
+
+  // Versturen loopt via de mail in Outlook (opdracht, factuur, offerte en sinds
+  // 2026-10-05 ook de pakbon); de rest doet useProjectActies. Hoofdknop en menu
+  // gaan hier allebei langs, zodat geen van beide de mail kan overslaan.
+  const doeStap = (stap: Stap) => {
+    if (stap.soort === 'opdracht-versturen') obDoc.klaarzetten()
+    else if (stap.soort === 'paklijst-versturen') pakbonDoc.klaarzetten(stap.paklijstId)
+    else if (stap.soort === 'factuur-versturen') {
+      const f = project.facturen.find((x) => x.id === stap.factuurId)
+      if (f) factuurDoc.klaarzetten(f)
+    } else if (stap.soort === 'offerte-versturen') {
+      const o = project.offertes.find((x) => x.id === stap.offerteId)
+      if (o) offerteDoc.klaarzetten(o)
+    } else acties.voerUit(stap)
+  }
 
   return (
     <div className="pdv2">
@@ -386,7 +403,7 @@ export function ProjectDetailPage() {
               geblokkeerd={geblokkeerd}
               onNieuw={acties.maakPaklijst}
               onWijzig={acties.wijzigPaklijst}
-              onVerzend={acties.verzendPaklijst}
+              onVerzend={pakbonDoc.klaarzetten}
               onVerwijder={acties.verwijderPaklijst}
               onPdf={(pl) =>
                 toonDocument(`Pakbon ${pl.id} openen`, () => pakbonPdf(project, pl), {
@@ -439,29 +456,17 @@ export function ProjectDetailPage() {
       <FooterBar
         primair={actie ? { ...actie, kan: actieKan, menu: geblokkeerd ? undefined : actie.menu } : null}
         terug={terug}
-        onPrimair={() => {
-          if (!actie?.stap) return
-          const stap = actie.stap
-          if (stap.soort === 'opdracht-versturen') obDoc.klaarzetten()
-          else if (stap.soort === 'factuur-versturen') {
-            const f = project.facturen.find((x) => x.id === stap.factuurId)
-            if (f) factuurDoc.klaarzetten(f)
-          } else if (stap.soort === 'offerte-versturen') {
-            // Via de mail, net als opdracht en factuur (2026-10-05).
-            const o = project.offertes.find((x) => x.id === stap.offerteId)
-            if (o) offerteDoc.klaarzetten(o)
-          } else acties.voerUit(stap)
-        }}
+        onPrimair={() => actie?.stap && doeStap(actie.stap)}
         onMenu={(i) => {
           const keuze = actie?.menu?.[i]
-          if (!keuze) return
-          acties.voerUit(keuze.stap)
+          if (keuze) doeStap(keuze.stap)
         }}
         onTerug={acties.terug}
       />
       {acties.dialoog}
       {obDoc.dialoog}
       {factuurDoc.dialoog}
+      {pakbonDoc.dialoog}
       {offerteDoc.dialoog}
     </div>
   )

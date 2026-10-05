@@ -9,6 +9,7 @@ import { usersApi }            from '../../api/users'
 import { machinesApi }         from '../../api/machines'
 import type { Company, User, CreateUser } from '@stockmanager/shared'
 import { meldFout as meldFoutMetGevolg } from '../../utils/fout-melding-toon'
+import { NummeringTab } from '../../components/settings/NummeringTab'
 
 // ── shared primitives ─────────────────────────────────────────────────────────
 
@@ -518,27 +519,6 @@ function GebruikersTab() {
 
 // ── Remaining static tabs (unchanged) ────────────────────────────────────────
 
-function Nummering() {
-  return (
-    <div style={{ maxWidth: 720 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Nummerreeksen</h3>
-      <p style={{ color: 'var(--text-3)', margin: '0 0 12px', fontSize: 12.5 }}>Patronen voor automatisch genereren van nummers.</p>
-      <div style={{ borderTop: '1px solid var(--border)' }}>
-        {[
-          ['Artikelcode', 'Variabelen: {YYYY}, {SEQ:5}, {TYPE}', 'ST-{SEQ:5}'],
-          ['Ontvangst', 'Volgende: ONT-2026-0419', 'ONT-{YYYY}-{SEQ:4}'],
-          ['Werkorder', 'Volgende: WO-2026-0344', 'WO-{YYYY}-{SEQ:4}'],
-          ['Smeltnummer', 'Validatieformaat voor heatnummers bij ontvangst.', 'H{6}'],
-        ].map(([t, d, v]) => (
-          <SettingRow key={t} title={t} desc={d}>
-            <input className="st-input cell-mono" defaultValue={v} />
-          </SettingRow>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 function NotifRow({ title, desc, inapp: ia, email: em, sms: sm }: {
   title: string; desc: string; inapp: boolean; email: boolean; sms: boolean
 }) {
@@ -634,7 +614,7 @@ export function InstellingenPage() {
         {tab === 'gebruikers'      && <GebruikersTab />}
         {tab === 'materiaalbeheer' && <MateriaalbeheerPage />}
         {tab === 'bedrijfskosten'  && <OverheadPage />}
-        {tab === 'nummering'       && <Nummering />}
+        {tab === 'nummering'       && <NummeringTab />}
         {tab === 'meldingen'       && <Meldingen />}
       </div>
     </>

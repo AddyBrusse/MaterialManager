@@ -25,6 +25,7 @@ import { snapshotBijOrder } from '../services/prijs-snapshot'
 import { todosBijOpdracht } from '../services/materiaal-selectie'
 import { rondAfVoorStap } from '../services/tijdregistratie'
 import { boekAfBijGereed } from '../services/zaagbon'
+import { nextDocId } from '../services/doc-nummer'
 import type { Prisma } from '@prisma/client'
 
 const router = Router()
@@ -34,49 +35,6 @@ const router = Router()
 function now() { return new Date().toISOString() }
 
 type Db = typeof prisma | Prisma.TransactionClient
-
-type DocPrefix = 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT' | 'CRED' | 'OB'
-
-// Bestaat dit nummer al? Sinds de documenten eigen tabellen hebben is het id een
-// globale primary key, dus moet een uitgegeven nummer echt vrij zijn.
-async function docIdBezet(db: Db, prefix: DocPrefix, id: string): Promise<boolean> {
-  const waar = { where: { id }, select: { id: true } }
-  switch (prefix) {
-    case 'PRJ':  return !!(await db.project.findUnique(waar))
-    case 'OFF':  return !!(await db.offerte.findUnique(waar))
-    case 'OB':   return !!(await db.opdrachtbevestiging.findUnique(waar))
-    case 'PROD': return !!(await db.productieOrder.findUnique(waar))
-    case 'PL':   return !!(await db.paklijst.findUnique(waar))
-    // Credits delen de facturentabel maar hebben een eigen reeks: een
-    // creditnota die FACT-2026-002 heet, leest in de administratie als een
-    // tweede factuur.
-    case 'FACT':
-    case 'CRED': return !!(await db.factuur.findUnique(waar))
-  }
-}
-
-// De teller in doc_sequences is leidend, maar hij kan achterlopen op wat er in de
-// tabellen staat — na een teruggezette backup, of als er ooit handmatig een rij
-// bij is gezet. Vroeger was dat onschuldig (documenten zaten in de JSONB-kolom
-// van hun eigen project); nu zou het nummer botsen met een bestaand document.
-// Daarom doortellen tot er een vrij nummer ligt, met een bovengrens zodat een
-// kapotte teller niet in een oneindige lus eindigt.
-async function nextDocId(db: Db, prefix: DocPrefix): Promise<string> {
-  const year = new Date().getFullYear()
-  for (let poging = 0; poging < 50; poging++) {
-    const result = await db.$queryRaw<{ last_n: number }[]>`
-      INSERT INTO doc_sequences (prefix, last_n) VALUES (${prefix}, 1)
-      ON CONFLICT (prefix) DO UPDATE SET last_n = doc_sequences.last_n + 1
-      RETURNING last_n
-    `
-    const id = `${prefix}-${year}-${String(result[0].last_n).padStart(3, '0')}`
-    if (!(await docIdBezet(db, prefix, id))) return id
-  }
-  throw new AppError(
-    500, 'INTERNAL',
-    `Geen vrij ${prefix}-nummer gevonden; controleer de teller in doc_sequences`,
-  )
-}
 
 /** Een voorwaarde uit `offerte-voorwaarden` die niet klopt → 409 met die zin. */
 function eis(reden: string | null): void {
@@ -182,15 +140,12 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const body = CreateProjectSchema.parse(req.body)
-    // The client suggests an ID (its own locally-seeded counter) so the
-    // optimistic cache entry and the persisted row agree immediately. But
-    // that counter is per-browser and can drift behind the server's (e.g. a
-    // fresh profile, cleared storage) — if the suggested ID is already taken,
-    // fall back to the server's own sequence instead of failing the request.
+    // Het nummer geeft de server, per jaar (2026-10-05). Tot dan stelde de
+    // browser er een voor uit een eigen teller per pc; die liep uit de pas met
+    // andere pc's en begon nooit opnieuw in januari. Een meegestuurd id wordt
+    // genegeerd.
     const row = await prisma.$transaction(async (tx) => {
-      const reqId = (req.body as { id?: string }).id
-      const taken = reqId ? await tx.project.findUnique({ where: { id: reqId } }) : null
-      const id = (reqId && !taken) ? reqId : await nextDocId(tx, 'PRJ')
+      const id = await nextDocId(tx, 'PRJ')
       return tx.project.create({
         data: {
           id,
@@ -282,8 +237,9 @@ router.post(
 
 // ── Offerte operations ─────────────────────────────────────────────────────────
 
+// Geen `id` meer van de browser (2026-10-05): het nummer geeft de server, per
+// jaar. Een meegestuurd id wordt genegeerd (zod laat onbekende velden weg).
 const CreateOfferteSchema = z.object({
-  id: z.string().optional(),
   // Op basis van een bestaande versie: die wordt gekopieerd, anders begint de
   // nieuwe versie leeg. Zie `kopieerOfferte` voor wat er meegaat.
   vanOfferteId: z.string().optional(),
@@ -299,7 +255,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = CreateOfferteSchema.parse(req.body ?? {})
     const updated = await withProject(req.params.id, async (p, tx) => {
-      const id = body.id ?? await nextDocId(tx, 'OFF')
+      const id = await nextDocId(tx, 'OFF')
       // Een nieuwe versie VERVANGT de vorige, dus draagt ze hetzelfde nummer:
       // de klant kreeg offerte OFF-2026-014 en krijgt er een herziene versie
       // van, geen tweede offerte. Alleen de allereerste versie geeft een nieuw
