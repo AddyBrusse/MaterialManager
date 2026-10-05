@@ -1,10 +1,14 @@
 import type { Prisma } from '@prisma/client'
+import {
+  gatInFactuurnummers, waaromNietNummerZetten,
+  type DocPrefix, type DocReeksStand, type DocReeksWijziging, type NummerWijzig,
+} from '@stockmanager/shared'
 import { prisma } from '../db/client'
 import { AppError } from '../middleware/error'
 
 type Db = typeof prisma | Prisma.TransactionClient
 
-export type DocPrefix = 'PRJ' | 'OFF' | 'PROD' | 'PL' | 'FACT' | 'CRED' | 'OB'
+export type { DocPrefix }
 
 /** In de volgorde en met de namen van het overzicht in Instellingen → Nummering. */
 export const DOC_SOORTEN: { prefix: DocPrefix; naam: string }[] = [
@@ -69,20 +73,83 @@ export async function nextDocId(db: Db, prefix: DocPrefix, nu = new Date()): Pro
   )
 }
 
-/** De stand per soort voor dit jaar, om te lezen (Instellingen → Nummering). */
-export async function standVanReeksen(nu = new Date()) {
+/**
+ * Het hoogste volgnummer dat er dit jaar echt is, in de tabel van die soort.
+ * Kan hoger zijn dan de teller (na een teruggezette backup) — en dan is dít de
+ * ondergrens voor het volgende nummer, niet de teller.
+ */
+async function hoogsteBestaand(db: Db, prefix: DocPrefix, jaar: number): Promise<number> {
+  const waar = { where: { id: { startsWith: `${prefix}-${jaar}-` } }, select: { id: true } }
+  let ids: { id: string }[]
+  switch (prefix) {
+    case 'PRJ':  ids = await db.project.findMany(waar); break
+    case 'OFF':  ids = await db.offerte.findMany(waar); break
+    case 'OB':   ids = await db.opdrachtbevestiging.findMany(waar); break
+    case 'PROD': ids = await db.productieOrder.findMany(waar); break
+    case 'PL':   ids = await db.paklijst.findMany(waar); break
+    case 'FACT':
+    case 'CRED': ids = await db.factuur.findMany(waar); break
+  }
+  return ids.reduce((max, { id }) => {
+    const n = Number(id.slice(`${prefix}-${jaar}-`.length))
+    return Number.isInteger(n) && n > max ? n : max
+  }, 0)
+}
+
+/** De stand per soort voor dit jaar (Instellingen → Nummering). */
+export async function standVanReeksen(nu = new Date()): Promise<DocReeksStand[]> {
   const jaar = nu.getFullYear()
   const rijen = await prisma.docSequence.findMany({
     where: { prefix: { in: DOC_SOORTEN.map((s) => reeksSleutel(s.prefix, jaar)) } },
   })
-  return DOC_SOORTEN.map((s) => {
+  return Promise.all(DOC_SOORTEN.map(async (s) => {
     const laatste = rijen.find((r) => r.prefix === reeksSleutel(s.prefix, jaar))?.lastN ?? 0
+    const hoogste = await hoogsteBestaand(prisma, s.prefix, jaar)
+    // De server slaat bezette nummers over, dus "volgende" is wat er na de
+    // teller én na het hoogste bestaande nummer komt.
+    const volgendeN = Math.max(laatste, hoogste) + 1
     return {
       prefix: s.prefix,
       naam: s.naam,
       jaar,
       laatste: laatste > 0 ? docNummer(s.prefix, jaar, laatste) : null,
-      volgende: docNummer(s.prefix, jaar, laatste + 1),
+      volgende: docNummer(s.prefix, jaar, volgendeN),
+      volgendeN,
+      hoogsteBestaand: hoogste,
     }
+  }))
+}
+
+/**
+ * Het volgende nummer met de hand zetten (2026-10-05) — voor als er intern iets
+ * misging. Zelfde regels als het scherm (`waaromNietNummerZetten`); een gat in
+ * de factuurnummers alleen met `gatAkkoord`. Altijd met een regel in het logboek.
+ */
+export async function zetVolgendNummer(
+  prefix: DocPrefix, body: NummerWijzig, door: string, nu = new Date(),
+): Promise<DocReeksStand> {
+  const jaar = nu.getFullYear()
+  const sleutel = reeksSleutel(prefix, jaar)
+  await prisma.$transaction(async (tx) => {
+    // Vastzetten, zodat er tijdens het wijzigen geen nummer tussendoor uitgaat.
+    await tx.$executeRaw`INSERT INTO doc_sequences (prefix, last_n) VALUES (${sleutel}, 0) ON CONFLICT (prefix) DO NOTHING`
+    const [rij] = await tx.$queryRaw<{ last_n: number }[]>`SELECT last_n FROM doc_sequences WHERE prefix = ${sleutel} FOR UPDATE`
+    const hoogste = await hoogsteBestaand(tx, prefix, jaar)
+    const van = Math.max(rij.last_n, hoogste) + 1
+    const stand = { prefix, jaar, hoogsteBestaand: hoogste, volgendeN: van }
+    const reden = waaromNietNummerZetten(stand, body.volgende)
+    if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+    const gat = gatInFactuurnummers(stand, body.volgende)
+    if (gat && !body.gatAkkoord) throw new AppError(409, 'VOORWAARDE', `${gat} Bevestig dit eerst.`)
+    if (van === body.volgende) return
+    await tx.docSequence.update({ where: { prefix: sleutel }, data: { lastN: body.volgende - 1 } })
+    await tx.docReeksWijziging.create({ data: { sleutel, van, naar: body.volgende, reden: body.reden, door } })
   })
+  const stand = (await standVanReeksen(nu)).find((s) => s.prefix === prefix)
+  return stand!
+}
+
+export async function reeksWijzigingen(): Promise<DocReeksWijziging[]> {
+  const rijen = await prisma.docReeksWijziging.findMany({ orderBy: { createdAt: 'desc' }, take: 50 })
+  return rijen.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }))
 }

@@ -12,6 +12,7 @@ import type { ZodError, ZodIssue } from 'zod'
 /** Hoe een veld heet op het scherm. Onbekende velden vallen terug op hun naam. */
 const LABELS: Record<string, string> = {
   externeRef: 'Externe referentie',
+  volgende: 'Volgend nummer',
   qty: 'Aantal',
   verkoopprijs: 'Prijs per stuk',
   naam: 'Naam',

@@ -1831,6 +1831,14 @@ status.
   geen versies en lopen dus wel aaneengesloten.
 - Instellingen → Nummering toont de echte tellers (laatst uitgegeven,
   volgende). De invulvelden die er stonden deden niets.
+- **Het volgende nummer is met de hand te zetten**, voor als er intern iets
+  misging (`PUT /api/sequences/:prefix`, `zetVolgendNummer`). Alleen een
+  admin, alleen het lopende jaar, reden verplicht. Niet lager dan het hoogste
+  nummer dat dit jaar al bestaat (`waaromNietNummerZetten`): de server slaat
+  bezette nummers toch over. Bij factuur en credit mag een gat alleen na
+  bevestiging (`gatInFactuurnummers`), omdat factuurnummers aaneengesloten
+  horen te zijn. Elke wijziging komt in `doc_reeks_wijzigingen` (wie, wanneer,
+  van → naar, reden) en staat als logboek onder het overzicht.
 
 **Pakbon via Outlook** — Versturen op de Pakbonnen-tab maakt een `.eml` met de
 pakbon-pdf, aan de **contactpersoon van de order** (geen terugval op het
