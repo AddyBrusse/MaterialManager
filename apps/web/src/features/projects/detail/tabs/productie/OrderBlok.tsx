@@ -1,4 +1,6 @@
 import type { ProductieOrder } from '@stockmanager/shared'
+import { articlesApi } from '../../../../../api/articles'
+import { ArtikelPreviewThumb } from '../../../../../components/projecten/ArtikelPreviewThumb'
 import { datum, dagenTot } from '../../lib/format'
 import { StappenTabel } from './StappenTabel'
 
@@ -49,6 +51,8 @@ export function OrderBlok({
   const pill = orderPill(order)
   const wacht = wachtReden(order)
   const inVoorbereiding = order.status === 'voorbereiding'
+  // Zoals op de Opdracht-tab: het onderdeel herkennen zonder door te klikken.
+  const artikel = order.artikelId ? articlesApi.get(order.artikelId) : null
   const terugKan =
     (order.status === 'gepland' || order.status === 'in_productie') && gereed === 0 && stuks === 0
 
@@ -67,10 +71,17 @@ export function OrderBlok({
             onChange={(e) => onKies(order.id, e.currentTarget.checked)}
           />
         )}
+        <ArtikelPreviewThumb article={artikel} size={48} />
         <span className="mono" style={{ fontWeight: 600 }}>
           {order.id}
         </span>
         <span style={{ fontWeight: 600 }}>{order.artikelNaam}</span>
+        {artikel?.tekening && (
+          <span className="mono" style={{ fontSize: 11, color: 'var(--text2)' }}>
+            {artikel.tekening}
+            {artikel.rev && ` rev ${artikel.rev}`}
+          </span>
+        )}
         <span className="pdv2-count">
           <span className="mono">
             {stuks} / {order.qty}
