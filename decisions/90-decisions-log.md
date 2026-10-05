@@ -1736,3 +1736,44 @@ offerteversies blijven op de Offertes-tab. De tab zegt nu "Pakbon" in plaats
 van "Paklijst", en de losse kaarten "Paklijstregels" eronder zijn weg — de
 inhoud staat in de pdf en op de Pakbonnen-tab. De kopregel Facturen telt, net
 als de projectkop, alleen wat verstuurd is.
+
+## 2026-10-05 — Projectenoverzicht: tegels, filterbalk en bewaarde weergaven
+
+Het overzicht moest laten zien waar actie nodig is, niet alleen tellen per
+status.
+
+- **Vijf tegels**: Geen reactie op offerte, Over levertijd, Te leveren, Te
+  factureren (€ excl.), Openstaand (€ incl., rood met het aantal vervallen
+  facturen). Een klik zet het filter aan, nog een klik haalt het weg.
+- **Signalen** (`components/projecten/overzicht/signalen.ts`) zijn afgeleid
+  uit het project, nooit opgeslagen — net als de nacalculatie. Geld en stuks
+  komen uit `berekenVoortgang`/`openstaandBedrag`, niet uit een eigen som.
+- **Geen reactie op offerte**: een *verzonden* offerte zonder
+  opdrachtbevestiging, waarvan de oudste verzenddatum minstens N dagen terug
+  ligt. N staat in Instellingen → Projecten (`Company.offerteNabelDagen`,
+  standaard 21), voor iedereen gelijk — daarom op de server en niet per
+  gebruiker. Een nieuwere versie in concept telt niet als reactie: de klant
+  heeft nog steeds niets gezegd.
+- **Filterbalk** als rij chips in de volgorde waarin ze aangezet zijn, elk met
+  een ×; "+ Filter" voegt een eigenschap (klant, contact, status, levertijd,
+  offerteleeftijd, bedrag, aangemaakt, heeft…) of signaal toe. Filters
+  stapelen (EN).
+- **De tegels tellen over de lijst ná de eigenschapsfilters** maar vóór de
+  signaalfilters. Kies je een klant, dan zijn het de cijfers van die klant;
+  klik je een tegel aan, dan blijven de andere tegels hun eigen aantal tonen.
+- **Bewaarde weergaven** per gebruiker op de server
+  (`UserPreference` `projects.views`), zoals de kolomindeling. Dezelfde naam
+  overschrijft.
+- **Kolommen**: voortgang in vier stappen (Offerte · Productie · Levering ·
+  Factuur; half = deels, stippel = uit/n.v.t.; Factuur is pas klaar als alles
+  betaald is). Nieuw: Te factureren en Openstaand (standaard aan), Pakbonnen
+  en Facturen (standaard uit). "Paklijst" heet "Pakbon".
+- **Nieuwe standaard-verborgen kolommen bij een bestaande indeling**: de
+  indeling onthoudt welke kolommen de gebruiker al gezien heeft (`gezien`).
+  Een kolom die er nog niet bij stond en standaard uit is, komt verborgen
+  binnen; anders verscheen hij ineens bij iedereen met een opgeslagen indeling.
+- **Bedrijfsgegevens opslaan valt niet meer terug op de browser.**
+  `companyApi.update` ving elke fout af, bewaarde het in `localStorage` en
+  meldde groen — ook bij een 403 voor een niet-admin. Bij de nabeldagen zou
+  dat betekenen dat de waarde alleen op die ene pc geldt. Nu volgt een
+  melding met wat, waar en gevolg.

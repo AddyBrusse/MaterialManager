@@ -27,5 +27,11 @@ export const ProjectTablePrefsSchema = z.object({
   order: z.array(z.string()).default([]),
   hidden: z.array(z.string()).default([]),
   colors: z.record(z.string()).default({}),
+  /**
+   * De kolommen die deze indeling al kende (2026-10-05). Een nieuwe kolom die
+   * standaard verborgen is, blijft dan ook verborgen voor wie al een eigen
+   * indeling had — anders verschijnt hij ongevraagd.
+   */
+  gezien: z.array(z.string()).optional(),
 })
 export type ProjectTablePrefs = z.infer<typeof ProjectTablePrefsSchema>

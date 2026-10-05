@@ -75,6 +75,9 @@ model Company {
   /// als schroot afgeboekt; daarboven gaat het terug het rek in. Werkplaatsbreed
   /// omdat het over de voorraad gaat, niet over één machine.
   schrootDrempelMm Int      @default(200) @map("schroot_drempel_mm")
+  /// Na zoveel dagen zonder reactie telt een verstuurde offerte als "nabellen"
+  /// op het projectenoverzicht.
+  offerteNabelDagen Int     @default(21) @map("offerte_nabel_dagen")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("company")

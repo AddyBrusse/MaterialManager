@@ -19,6 +19,12 @@ export const CompanySchema = z.object({
   eigenDomeinen:  z.array(z.string()).default([]),
   /** Een zaagrestant korter dan dit is geen bruikbaar stuk staal meer. */
   schrootDrempelMm: z.number().int().nonnegative().default(200),
+  /**
+   * Na hoeveel dagen zonder reactie een verstuurde offerte op het
+   * projectenoverzicht als "nabellen" telt (2026-10-05). Bedrijfsbreed: het is
+   * een afspraak over hoe je met klanten omgaat, niet een voorkeur per persoon.
+   */
+  offerteNabelDagen: z.number().int().min(1, 'Minimaal 1 dag').max(365, 'Maximaal 365 dagen').default(21),
   updatedAt:      z.string(),
 })
 export type Company = z.infer<typeof CompanySchema>

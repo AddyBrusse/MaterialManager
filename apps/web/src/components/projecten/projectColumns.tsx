@@ -1,7 +1,8 @@
 import React, { type ReactNode } from 'react'
 import { IconFolder } from '@tabler/icons-react'
 import { formatBedrag, formatDate, getProjectSubtotaal } from '../../api/projects'
-import { OFFERTE_STATUSES, OB_STATUSES, laatstePaklijst, laatsteFactuur, gefactureerdInclBtw, type Project } from '@stockmanager/shared'
+import { OFFERTE_STATUSES, OB_STATUSES, laatstePaklijst, laatsteFactuur, berekenVoortgang, gefactureerdInclBtw, isVervallen, openstaandBedrag, type Project } from '@stockmanager/shared'
+import { stappenVan } from './overzicht/signalen'
 
 // ── Status display ────────────────────────────────────────────────────────────
 
@@ -24,20 +25,36 @@ export const STATUS_STAGE: Record<Project['status'], number> = {
   on_hold: -1, geannuleerd: -1,
 }
 
-export function MiniPipeline({ status }: { status: Project['status'] }) {
-  const activeIdx = STATUS_STAGE[status]
+/**
+ * De vier stappen van de projectpagina — Offerte, Productie, Levering, Factuur
+ * — uit de voortgang en niet uit de status (2026-10-05). Een halve bol is een
+ * stap die deels af is: een deellevering, een offerte die bij de klant ligt,
+ * of alles gefactureerd maar nog niet betaald.
+ */
+export function ProjectStappen({ project }: { project: Project }) {
+  const stappen = stappenVan(project)
+  const uitleg = stappen.map((s) => `${s.naam}: ${s.uitleg}`).join('\n')
   return (
-    <div className="prj-mp">
-      {Array.from({ length: 7 }, (_, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && (
-            <div className={`prj-mp-line ${i <= activeIdx ? 'done' : activeIdx === i - 1 ? 'active' : 'pend'}`} />
-          )}
-          <div className={`prj-mp-step ${i < activeIdx ? 'done' : i === activeIdx ? 'active' : 'pend'}`} />
+    <div className="prj-mp" title={uitleg} aria-label={uitleg}>
+      {stappen.map((s, i) => (
+        <React.Fragment key={s.naam}>
+          {i > 0 && <div className={`prj-mp-line ${s.toestand === 'klaar' || s.toestand === 'deels' ? 'done' : ''}`} />}
+          <div className={`prj-mp-step ${s.toestand === 'klaar' ? 'done' : s.toestand === 'deels' ? 'half' : s.toestand === 'uit' ? 'uit' : ''}`} />
         </React.Fragment>
       ))}
     </div>
   )
+}
+
+/** Volgorde in de voortgangskolom: hoeveel stappen af, een halve telt half. */
+function stappenSort(p: Project): number {
+  return stappenVan(p).reduce((t, s) => t + (s.toestand === 'klaar' ? 1 : s.toestand === 'deels' ? 0.5 : 0), 0)
+}
+
+/** De eerstvolgende vervaldatum van een open (verstuurde, onbetaalde) factuur. */
+function eersteVervaldatum(p: Project): string | null {
+  const open = p.facturen.filter((f) => f.soort === 'factuur' && f.verzondenOp && !f.betaaldOp && f.vervaldatum)
+  return open.map((f) => f.vervaldatum as string).sort()[0] ?? null
 }
 
 // ── Column model ──────────────────────────────────────────────────────────────
@@ -197,9 +214,9 @@ export const PROJECT_COLUMNS: ProjectColumn[] = [
   },
   {
     id: 'voortgang', label: 'Voortgang', width: 110, defaultVisible: true,
-    sortValue: p => stageSort(p.status),
+    sortValue: p => stappenSort(p),
     searchText: () => '',
-    render: p => <MiniPipeline status={p.status} />,
+    render: p => <ProjectStappen project={p} />,
   },
   {
     id: 'artikelen', label: 'Art.', longLabel: 'Aantal artikelen', align: 'right', width: 60, defaultVisible: true,
@@ -224,6 +241,31 @@ export const PROJECT_COLUMNS: ProjectColumn[] = [
     render: p => {
       const b = bedragInclusief(p)
       return b > 0 ? <span className="cell-mono">{formatBedrag(b)}</span> : muted
+    },
+  },
+  {
+    id: 'teFactureren', label: 'Te factureren', longLabel: 'Te factureren (verstuurd, nog niet gefactureerd; excl. btw)', align: 'right', width: 120, defaultVisible: true,
+    sortValue: p => berekenVoortgang(p).teFacturerenBedrag || null,
+    searchText: () => '',
+    render: p => {
+      const b = berekenVoortgang(p).teFacturerenBedrag
+      return b > 0 ? <span className="cell-mono">{formatBedrag(b)}</span> : muted
+    },
+  },
+  {
+    id: 'openstaand', label: 'Openstaand', longLabel: 'Openstaand (verstuurde facturen, niet betaald; incl. btw)', align: 'right', width: 120, defaultVisible: true,
+    sortValue: p => openstaandBedrag(p) || null,
+    searchText: () => '',
+    render: p => {
+      const b = openstaandBedrag(p)
+      if (b <= 0) return muted
+      const vervallen = p.facturen.filter(f => isVervallen(f)).length
+      return (
+        <span className="cell-mono" style={vervallen ? { color: 'var(--danger)', fontWeight: 500 } : undefined}
+              title={vervallen ? `${vervallen} ${vervallen === 1 ? 'factuur' : 'facturen'} over de vervaldatum` : undefined}>
+          {formatBedrag(b)}
+        </span>
+      )
     },
   },
   {
@@ -330,13 +372,40 @@ export const PROJECT_COLUMNS: ProjectColumn[] = [
     },
   },
   {
-    id: 'paklijstNr', label: 'Paklijst', longLabel: 'Paklijstnummer', width: 130, defaultVisible: false,
+    id: 'pakbonnen', label: 'Pakbonnen', longLabel: 'Pakbonnen (aantal · verstuurd)', width: 130, defaultVisible: false,
+    sortValue: p => countSort(p.paklijsten.length),
+    searchText: p => p.paklijsten.map(x => x.id).join(' '),
+    render: p => {
+      const n = p.paklijsten.length
+      if (n === 0) return muted
+      const weg = p.paklijsten.filter(x => x.verzondenOp).length
+      return <span className="cell-muted">{n} · {weg === n ? 'alle verstuurd' : `${weg} verstuurd`}</span>
+    },
+  },
+  {
+    id: 'facturen', label: 'Facturen', longLabel: 'Facturen (aantal · betaald)', width: 140, defaultVisible: false,
+    sortValue: p => countSort(p.facturen.filter(f => f.soort === 'factuur').length),
+    searchText: p => p.facturen.map(f => f.id).join(' '),
+    render: p => {
+      const echte = p.facturen.filter(f => f.soort === 'factuur')
+      if (echte.length === 0) return muted
+      const betaald = echte.filter(f => f.betaaldOp).length
+      const credits = p.facturen.length - echte.length
+      return (
+        <span className="cell-muted" style={betaald === echte.length ? { color: 'var(--success)' } : undefined}>
+          {echte.length} · {betaald === echte.length ? 'betaald ✓' : `${betaald} betaald`}{credits ? ` · ${credits} credit` : ''}
+        </span>
+      )
+    },
+  },
+  {
+    id: 'paklijstNr', label: 'Pakbon', longLabel: 'Laatste pakbon (nummer)', width: 130, defaultVisible: false,
     sortValue: p => laatstePaklijst(p)?.id ?? null,
     searchText: p => laatstePaklijst(p)?.id ?? '',
     render: p => (laatstePaklijst(p) ? <span className="cell-mono">{laatstePaklijst(p)!.id}</span> : muted),
   },
   {
-    id: 'paklijstVerzonden', label: 'Verzonden', longLabel: 'Paklijst verzonden op', width: 120, defaultVisible: false,
+    id: 'paklijstVerzonden', label: 'Verzonden', longLabel: 'Laatste pakbon verzonden op', width: 120, defaultVisible: false,
     sortValue: p => dateSort(laatstePaklijst(p)?.verzondenOp ?? null),
     searchText: p => dateSearch(laatstePaklijst(p)?.verzondenOp ?? null),
     render: p => dateCell(laatstePaklijst(p)?.verzondenOp ?? null),
@@ -348,10 +417,10 @@ export const PROJECT_COLUMNS: ProjectColumn[] = [
     render: p => (laatsteFactuur(p) ? <span className="cell-mono">{laatsteFactuur(p)!.id}</span> : muted),
   },
   {
-    id: 'factuurVervaldatum', label: 'Vervaldatum', longLabel: 'Factuur vervaldatum', width: 120, defaultVisible: false,
-    sortValue: p => dateSort(laatsteFactuur(p)?.vervaldatum ?? null),
-    searchText: p => dateSearch(laatsteFactuur(p)?.vervaldatum ?? null),
-    render: p => dateCell(laatsteFactuur(p)?.vervaldatum ?? null),
+    id: 'factuurVervaldatum', label: 'Vervaldatum', longLabel: 'Eerstvolgende vervaldatum van een open factuur', width: 120, defaultVisible: false,
+    sortValue: p => dateSort(eersteVervaldatum(p)),
+    searchText: p => dateSearch(eersteVervaldatum(p)),
+    render: p => dateCell(eersteVervaldatum(p)),
   },
   {
     id: 'notities', label: 'Notities', width: 200, defaultVisible: false,

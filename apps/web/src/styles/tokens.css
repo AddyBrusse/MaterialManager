@@ -2671,3 +2671,63 @@ table.st-tbl.ms-tbl tbody td { white-space: nowrap; overflow: hidden; text-overf
   background: var(--accent-soft); color: var(--accent); cursor: pointer;
 }
 .todo-actie:hover { background: var(--accent); color: var(--text-on-accent); }
+
+/* ===== Projectenoverzicht: tegels en filterbalk (2026-10-05) ===== */
+.st-stats.prj-tegels { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.prj-tegel {
+  text-align: left; font: inherit; color: inherit; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.prj-tegel:hover { border-color: var(--border-strong); background: var(--bg-hover); }
+.prj-tegel.warn { border-color: var(--warning-soft); }
+.prj-tegel.warn .st-stat-lbl, .prj-tegel.warn .st-stat-val { color: var(--warning); }
+.prj-tegel.dgr { border-color: var(--danger-soft); }
+.prj-tegel.dgr .st-stat-lbl { color: var(--danger); }
+.prj-tegel.aan { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.prj-tegel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.prj-filterbalk { display: contents; }
+.prj-filterbalk-lbl { font-size: 12px; color: var(--text-3); }
+.prj-filterchip { cursor: default; padding-right: 4px; }
+.prj-chip-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border: 0; border-radius: 999px;
+  background: transparent; color: var(--accent); cursor: pointer; padding: 0;
+}
+.prj-chip-x:hover { background: rgba(45, 109, 246, 0.18); }
+.prj-filterbalk-wis {
+  border: 0; background: none; font: inherit; font-size: 12px; color: var(--text-3);
+  cursor: pointer; padding: 0 4px; text-decoration: underline;
+}
+.prj-filterbalk-wis:hover { color: var(--text); }
+
+.prj-ft { display: flex; flex-direction: column; padding: 6px; min-width: 220px; max-height: 420px; overflow-y: auto; }
+.prj-ft-kop {
+  font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-3); padding: 8px 8px 4px;
+}
+.prj-ft-item, .prj-ff-optie {
+  border: 0; background: none; font: inherit; font-size: 13px; color: var(--text);
+  text-align: left; padding: 6px 8px; border-radius: var(--radius-sm); cursor: pointer;
+}
+.prj-ft-item:hover, .prj-ff-optie:hover { background: var(--bg-hover); }
+.prj-ft-terug {
+  display: inline-flex; align-items: center; gap: 4px; border: 0; background: none;
+  font: inherit; font-size: 12px; font-weight: 600; color: var(--text-2); padding: 6px 8px; cursor: pointer;
+}
+.prj-ft-weergave { display: flex; align-items: center; }
+.prj-ft-weergave .prj-ft-item { flex: 1; }
+.prj-ft-weg {
+  border: 0; background: none; color: var(--text-3); cursor: pointer; padding: 4px 6px; border-radius: var(--radius-sm);
+}
+.prj-ft-weg:hover { color: var(--danger); background: var(--danger-soft); }
+.prj-ft-leeg { font-size: 12px; color: var(--text-3); padding: 4px 8px 8px; }
+.prj-ff { display: flex; flex-direction: column; gap: 8px; padding: 4px 8px 8px; }
+.prj-ff-rij { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); }
+.prj-ff-rij label { display: inline-flex; align-items: center; gap: 6px; }
+.prj-ff-radio { cursor: pointer; }
+/* Halve stap: deels af (deellevering, offerte bij de klant, onbetaald). */
+.prj-mp-step.half { background: linear-gradient(90deg, var(--accent) 50%, var(--bg-chip) 50%); border-color: var(--accent); }
+.prj-mp-step.uit { border-style: dashed; background: transparent; }
+.prj-mp { gap: 0; }
+.prj-mp-line { width: 14px; }
