@@ -1808,3 +1808,33 @@ status.
 - **Verwijderen wacht op de server**: `projectsApi.remove` haalde het project
   meteen uit de lijst, en een weigering kwam daarna. Nu verdwijnt het pas na
   het antwoord van de server.
+
+## 2026-10-05 — Nummering per jaar, alleen van de server; pakbon via Outlook
+
+**Nummering**
+- Eén teller per soort **per jaar** in `doc_sequences` (sleutel `OFF-2026`,
+  `FACT-2027`, …; `services/doc-nummer.ts`). Op 1 januari begint elke reeks
+  vanzelf bij 001; niemand hoeft iets te resetten. Daarvoor liep de teller
+  globaal door en werd de eerste offerte van 2027 `OFF-2027-042`.
+- De migratie `20261005120000_nummering_per_jaar` zet de oude jaarloze
+  tellers over naar 2026, zodat de reeks van dit jaar doorloopt. Bewust het
+  vaste jaar 2026: draait hij pas in 2027, dan begint 2027 terecht bij 001.
+- **Nummers geeft alleen de server.** Projecten en offertes kregen hun nummer
+  uit een teller per browser (`localStorage`), die de server overnam als hij
+  vrij was. Die liep uit de pas tussen pc's en begon nooit opnieuw per jaar.
+  Nu wachten "Nieuw project" en "Nieuwe offerte" op de server; de andere
+  documenten tonen tot het antwoord een herkenbaar tijdelijk id
+  (`PL-nieuw-x8k2q`) in plaats van een nummer dat er echt uitzag.
+- Een nieuwe offerteversie verbruikt nog steeds een OFF-nummer als intern id
+  (het documentnummer blijft dat van v1). Daardoor zitten er gaten in de
+  zichtbare offertenummers. Voor offertes is dat niet erg; facturen hebben
+  geen versies en lopen dus wel aaneengesloten.
+- Instellingen → Nummering toont de echte tellers (laatst uitgegeven,
+  volgende). De invulvelden die er stonden deden niets.
+
+**Pakbon via Outlook** — Versturen op de Pakbonnen-tab maakt een `.eml` met de
+pakbon-pdf, aan de **contactpersoon van de order** (geen terugval op het
+algemene adres van de klant). Pas na "Ja, verstuurd" staat hij als verstuurd.
+Zonder contactpersoon of mailadres zegt de melding wat er eerst moet
+(`waaromGeenPakbonMail`). Hoofdknop en menu van de footer lopen via één
+`doeStap`, zodat geen van beide de mail kan overslaan.
