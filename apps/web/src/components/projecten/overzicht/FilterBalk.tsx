@@ -1,6 +1,6 @@
 import { IconX } from '@tabler/icons-react'
 import type { SignaalId } from './signalen'
-import { filterLabel, zelfde, type Filter } from './filters'
+import { filterLabel, voegToe, type Filter } from './filters'
 import { FilterToevoegen } from './FilterToevoegen'
 import { WeergavenMenu } from './WeergavenMenu'
 import type { Keuzes } from './FilterFormulier'
@@ -38,7 +38,7 @@ export function FilterBalk({ filters, onFilters, keuzes, nabelDagen, klantNaam, 
         keuzes={keuzes}
         nabelDagen={nabelDagen}
         actief={actief}
-        onVoegToe={(f) => !filters.some((x) => zelfde(x, f)) && onFilters([...filters, f])}
+        onVoegToe={(f) => onFilters(voegToe(filters, f))}
       />
       {filters.length > 0 && (
         <button type="button" className="prj-filterbalk-wis" onClick={() => onFilters([])}>

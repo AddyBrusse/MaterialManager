@@ -16,7 +16,7 @@ import {
   voorstelPakbon, pakbonRegels, waaromNietPakbonVersturen, waaromNietPakbonWijzigen,
   BTW_PCT, factuurBedragen, factuurRegels, factuurMailadres, voorstelFactuur, voorstelCredit,
   waaromNietFactuur, waaromNietCredit, waaromNietFactuurWijzigen, waaromNietFactuurVersturen,
-  waaromNietBetaald, vervaldatumVanaf,
+  waaromNietBetaald, vervaldatumVanaf, waaromNietProjectVerwijderen,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
@@ -220,6 +220,8 @@ router.patch(
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
+    // Wat de deur uit is, blijft (2026-10-05) — zie waaromNietProjectVerwijderen.
+    eis(waaromNietProjectVerwijderen(await getProject(req.params.id)))
     await prisma.project.delete({ where: { id: req.params.id } }).catch(() => {
       throw new AppError(404, 'NOT_FOUND', 'Dit project bestaat niet (meer). Ververs de pagina of ga terug naar de lijst.')
     })

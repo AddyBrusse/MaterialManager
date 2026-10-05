@@ -9,10 +9,10 @@ import { dagVan, heeftSignaal, SIGNAAL_LABEL, type SignaalId, type Signalen } fr
  * is (`projects.views`).
  */
 export type Filter =
-  | { soort: 'signaal'; signaal: SignaalId }
-  | { soort: 'status'; status: ProjectStatus }
-  | { soort: 'klant'; relatieId: string }
-  | { soort: 'contact'; contactId: string }
+  | { soort: 'signaal'; signaal: SignaalId; niet?: true }
+  | { soort: 'status'; status: ProjectStatus; niet?: true }
+  | { soort: 'klant'; relatieId: string; niet?: true }
+  | { soort: 'contact'; contactId: string; niet?: true }
   | { soort: 'levertijd'; periode: 'voorbij' | 'week' | 'maand' | 'tussen'; van?: string; tot?: string }
   | { soort: 'offerteLeeftijd'; dagen: number }
   | { soort: 'bedrag'; min?: number; max?: number }
@@ -53,7 +53,17 @@ function plusDagen(d: Date, n: number): string {
   return dagVan(x)
 }
 
+/** De soorten die je ook kunt omdraaien: "alles behalve deze klant". */
+export type OmkeerbaarFilter = Extract<Filter, { niet?: true }>
+export const isOmkeerbaar = (f: Filter): f is OmkeerbaarFilter =>
+  f.soort === 'signaal' || f.soort === 'status' || f.soort === 'klant' || f.soort === 'contact'
+
 export function past(p: Project, f: Filter, ctx: FilterCtx): boolean {
+  const ja = pastZonderNiet(p, f, ctx)
+  return isOmkeerbaar(f) && f.niet ? !ja : ja
+}
+
+function pastZonderNiet(p: Project, f: Filter, ctx: FilterCtx): boolean {
   switch (f.soort) {
     case 'signaal':
       return heeftSignaal(ctx.signalen(p), f.signaal)
@@ -98,15 +108,17 @@ export function pastAlle(p: Project, filters: Filter[], ctx: FilterCtx): boolean
 
 /** De tekst op de chip. */
 export function filterLabel(f: Filter, ctx: Pick<FilterCtx, 'klantNaam' | 'contactNaam'>): string {
+  // "≠" in plaats van ":" — een uitsluiting moet je op de chip zien staan.
+  const is = isOmkeerbaar(f) && f.niet ? ' ≠ ' : ': '
   switch (f.soort) {
     case 'signaal':
-      return SIGNAAL_LABEL[f.signaal]
+      return f.niet ? `Niet: ${SIGNAAL_LABEL[f.signaal]}` : SIGNAAL_LABEL[f.signaal]
     case 'status':
-      return `Status: ${PROJECT_STATUS_CONFIG[f.status]?.label ?? f.status}`
+      return `Status${is}${PROJECT_STATUS_CONFIG[f.status]?.label ?? f.status}`
     case 'klant':
-      return `Klant: ${ctx.klantNaam(f.relatieId) || 'onbekend'}`
+      return `Klant${is}${ctx.klantNaam(f.relatieId) || 'onbekend'}`
     case 'contact':
-      return `Contact: ${ctx.contactNaam(f.contactId) || 'onbekend'}`
+      return `Contact${is}${ctx.contactNaam(f.contactId) || 'onbekend'}`
     case 'levertijd':
       return f.periode === 'tussen'
         ? `Levertijd: ${datum(f.van)} t/m ${datum(f.tot)}`
@@ -129,10 +141,28 @@ export function filterLabel(f: Filter, ctx: Pick<FilterCtx, 'klantNaam' | 'conta
 /** Twee filters zijn hetzelfde als ze dezelfde inhoud hebben — dan zet je hem niet twee keer. */
 export const zelfde = (a: Filter, b: Filter) => JSON.stringify(a) === JSON.stringify(b)
 
+/** Hetzelfde filter, maar omgedraaid: "Klant: X" en "Klant ≠ X" sluiten elkaar uit. */
+function tegenpool(f: Filter): Filter | null {
+  if (!isOmkeerbaar(f)) return null
+  const { niet, ...rest } = f
+  return (niet ? rest : { ...rest, niet: true }) as Filter
+}
+
+/**
+ * Een filter erbij. Staat hij er al, dan verandert er niets; staat zijn
+ * tegenpool er ("Klant: X" bij "Klant ≠ X"), dan vervangt hij die — beide
+ * tegelijk laat altijd een lege lijst zien.
+ */
+export function voegToe(filters: Filter[], f: Filter): Filter[] {
+  if (filters.some((x) => zelfde(x, f))) return filters
+  const t = tegenpool(f)
+  return [...filters.filter((x) => !t || !zelfde(x, t)), f]
+}
+
 /** Tegel aan/uit: staat het signaal er, dan eruit; anders erbij. */
 export function wisselSignaal(filters: Filter[], signaal: SignaalId): Filter[] {
   const f: Filter = { soort: 'signaal', signaal }
-  return filters.some((x) => zelfde(x, f)) ? filters.filter((x) => !zelfde(x, f)) : [...filters, f]
+  return filters.some((x) => zelfde(x, f)) ? filters.filter((x) => !zelfde(x, f)) : voegToe(filters, f)
 }
 
 /** Een bewaarde weergave: een naam en een rij filters (`projects.views`, per gebruiker). */

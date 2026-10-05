@@ -372,17 +372,16 @@ export const projectsApi = {
     return updated
   },
 
-  remove(id: string): void {
+  /**
+   * Verwijderen wacht op de server (2026-10-05). Eerder ging het project meteen
+   * uit de lijst en kwam een weigering pas daarna — dan was het "weg" terwijl
+   * het nog bestond. De server weigert met 409 als er iets verstuurd is
+   * (`waaromNietProjectVerwijderen`); de fout gaat naar de aanroeper.
+   */
+  async remove(id: string): Promise<void> {
+    await apiFetch<void>(`/projects/${id}`, { method: 'DELETE' })
     cache = cache.filter(p => p.id !== id)
     saveLocal(cache)
-    apiFetch<void>(`/projects/${id}`, { method: 'DELETE' }).catch((fout: unknown) => {
-      meldFout({
-        actie: `Project ${id} verwijderen`,
-        fout,
-        gevolg: 'Het project is alleen uit de lijst in deze browser gehaald; op de server bestaat '
-          + 'het nog. Herlaad de pagina, dan staat het er weer.',
-      })
-    })
   },
 
   // ── Offerte operations ─────────────────────────────────────────────────────

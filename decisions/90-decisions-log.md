@@ -1777,3 +1777,34 @@ status.
   meldde groen — ook bij een 403 voor een niet-admin. Bij de nabeldagen zou
   dat betekenen dat de waarde alleen op die ene pc geldt. Nu volgt een
   melding met wat, waar en gevolg.
+
+## 2026-10-05 — Rechtermuisknopmenu op het projectenoverzicht
+
+- **Eén menu, twee ingangen**: rechtermuisknop op een rij, of het ⋯-knopje aan
+  het eind (`components/projecten/overzicht/RijMenu.tsx`). Het menu opent op de
+  plek van de muis.
+- **Snelle filters per rij** (`snelle-filters.ts`): klant, contact, status,
+  de periode van de levertijd en de signalen die op díe rij gelden. De kolom
+  waarop je klikte staat bovenaan; wat al als chip aanstaat, staat er niet
+  bij. Mantine 7 kent geen submenu's, dus per filter een ≠-knopje voor "alles
+  behalve".
+- **Uitsluiten** is een vlag `niet` op klant-, contact-, status- en
+  signaalfilters, met "≠" of "Niet:" op de chip. Ook via "+ Filter" (is / is
+  niet). Een filter en zijn tegenpool sluiten elkaar uit: de nieuwe vervangt
+  de oude (`voegToe`), anders blijft er altijd een lege lijst over.
+- **Selectie**: zit de rij in de selectie (meer dan één), dan werken de acties
+  op de hele selectie, zoals in een bestandsverkenner. Anders alleen op deze
+  rij.
+- **Acties**: nieuw project, nieuw project voor deze klant (klant en contact
+  ingevuld), projectnummer(s) kopiëren (met een terugval voor http://<ip>, waar
+  de klembord-API niet bestaat), on hold / hervatten / annuleren met één reden,
+  verwijderen.
+- **Verwijderen heeft een voorwaarde** (`waaromNietProjectVerwijderen`, scherm
+  én server, `409 VOORWAARDE`). De server verwijderde tot nu toe alles, ook een
+  project met verstuurde facturen. Nu kan het alleen zolang er niets de deur uit
+  is (offerte, opdrachtbevestiging, pakbon, factuur) en er niet aan gewerkt is
+  in de hal; anders annuleren. Bij een selectie toont het venster wat weg
+  mag en wat blijft, met de reden.
+- **Verwijderen wacht op de server**: `projectsApi.remove` haalde het project
+  meteen uit de lijst, en een weigering kwam daarna. Nu verdwijnt het pas na
+  het antwoord van de server.

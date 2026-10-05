@@ -2731,3 +2731,15 @@ table.st-tbl.ms-tbl tbody td { white-space: nowrap; overflow: hidden; text-overf
 .prj-mp-step.uit { border-style: dashed; background: transparent; }
 .prj-mp { gap: 0; }
 .prj-mp-line { width: 14px; }
+
+/* Rechtermuisknopmenu op een projectrij (2026-10-05) */
+table.st-tbl tbody tr[data-menu="true"] { outline: 1px solid var(--accent); outline-offset: -1px; }
+.prj-rijmenu { min-width: 240px; }
+.prj-rijmenu-niet {
+  border: 1px solid var(--border-strong); background: var(--bg-input); color: var(--text-2);
+  border-radius: 4px; font-size: 11px; line-height: 1; padding: 2px 6px; cursor: pointer;
+}
+.prj-rijmenu-niet:hover { border-color: var(--danger); color: var(--danger); }
+.prj-weg-lijst { margin: 0; padding-left: 18px; font-size: 12px; max-height: 220px; overflow: auto; }
+.prj-weg-lijst li { margin: 2px 0; }
+.prj-weg-lijst.niet { color: var(--text-2); }
