@@ -186,35 +186,37 @@ mutatie, geen reservering, in de hele keten niet.
 
 ## Fase 3 — levering en facturatie
 
-- [ ] **10. Deelleveringen: meerdere paklijsten per project**
+- [x] **10. Deelleveringen: meerdere paklijsten per project** — *gedaan 2026-10-02 (Pakbonnen-tab)*
   `createPaklijst` gooit een 409 bij een tweede paklijst. Openzetten en per
   regel bijhouden hoeveel er al geleverd is.
 
-- [ ] **11. Factuur uit de levering in plaats van uit de offerte**
+- [x] **11. Factuur uit de levering in plaats van uit de offerte** — *gedaan 2026-10-03 (factureren over verstuurde stuks)*
   `createFactuur` leest `offertes.find(o => o.status === 'geaccepteerd')`.
   Lever je 8 van 10 stuks, dan factureer je toch 10.
   *Hangt af van 10.*
 
-- [ ] **12. Betaalstatus op de factuur**
+- [x] **12. Betaalstatus op de factuur** — *gedaan 2026-10-03; bewaking op het overzicht 2026-10-05 (tegel Openstaand, signaal Vervallen)*
   `FactuurSchema` kent `verzondenOp` en `vervaldatum`, maar geen `betaaldOp`.
   De vervaldatum wordt berekend en verder nergens gebruikt — niets signaleert
   een te late betaling. Nodig: betaalstatus, bewaking, debiteurenoverzicht.
   Meteen meenemen: de KPI "Open facturen" op `ProjectenPage` telt projecten
   met status `verzonden`, dus wat er nog *gefactureerd* moet worden. Hernoemen
   naar "Nog te factureren" voordat er een tweede betekenis bij komt.
+  → Sinds 2026-10-05 twee tegels: **Te factureren** (verstuurd, nog niet
+  gefactureerd) en **Openstaand** (gefactureerd, nog niet betaald).
 
-- [ ] **13. Creditnota**
+- [x] **13. Creditnota** — *gedaan 2026-10-03*
   Een verzonden factuur kan nu alleen weg via `revertGefactureerd`, die hem
   gewoon weggooit — bij een verzonden factuur mag dat niet.
   *Hangt af van 0a en 12.*
 
 ## Fase 4 — documenten
 
-- [ ] **14. Paklijst-PDF**
+- [x] **14. Paklijst-PDF** — *gedaan 2026-10-05 (pakbon + picklist, huisstijl)*
   De knop staat er al, `disabled`, met de titel "PDF generatie beschikbaar na
   backend implementatie" (`PaklijstTab.tsx`).
 
-- [ ] **15. Factuur-PDF**
+- [x] **15. Factuur-PDF** — *gedaan 2026-10-03, huisstijl 2026-10-05*
   Idem (`FactuurTab.tsx`). Zelfde patroon als `buildOffertePdf`.
 
 - [ ] **16. Mailflow voor paklijst en factuur**

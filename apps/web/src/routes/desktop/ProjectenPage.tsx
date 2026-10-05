@@ -2,9 +2,8 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  IconPlus, IconDownload, IconFolder, IconDots, IconTrash,
-  IconArrowUp, IconArrowDown, IconUsers, IconClipboardList,
-  IconAlertTriangle, IconFileInvoice,
+  IconPlus, IconDownload, IconDots, IconTrash, IconFolder,
+  IconArrowUp, IconArrowDown, IconUsers,
 } from '@tabler/icons-react'
 import { Menu } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
@@ -19,6 +18,12 @@ import {
   type ProjectColumnCtx,
 } from '../../components/projecten/projectColumns'
 import { PROJECT_TABLE_PREFS_KEY, type ProjectTablePrefs, type Project } from '@stockmanager/shared'
+import { companyApi } from '../../api/company'
+import { heeftSignaal, signalenVan, type Signalen, type SignaalId } from '../../components/projecten/overzicht/signalen'
+import { pastAlle, wisselSignaal, type Filter, type FilterCtx } from '../../components/projecten/overzicht/filters'
+import { ProjectTegels, type TegelTellingen } from '../../components/projecten/overzicht/ProjectTegels'
+import { FilterBalk } from '../../components/projecten/overzicht/FilterBalk'
+import { getProjectSubtotaal } from '../../api/projects'
 
 // PROJECT_STATUS_CONFIG moved to components/projecten/projectColumns so the
 // column registry can own status display; re-exported here because the detail
@@ -31,11 +36,24 @@ const DEFAULT_PREFS: ProjectTablePrefs = { order: [], hidden: DEFAULT_HIDDEN, co
 
 const DEFAULT_SORT = { key: 'aangemaakt', dir: 'desc' as 'asc' | 'desc' }
 
+/** Kolommen die er vóór de `gezien`-lijst (2026-10-05) nog niet waren. */
+const NIEUW_2026_10_05 = ['teFactureren', 'openstaand', 'pakbonnen', 'facturen']
+
 /** A stored preference from an older shape (or hand-edited) shouldn't crash the page. */
 function normalizePrefs(raw: ProjectTablePrefs | null | undefined): ProjectTablePrefs {
+  const hidden = Array.isArray(raw?.hidden) ? raw.hidden : DEFAULT_HIDDEN
+  // Een nieuwe, standaard verborgen kolom is ook verborgen bij wie al een eigen
+  // indeling had. Wat de indeling kende staat in `gezien`; een oude indeling
+  // zonder die lijst kende alles behalve de kolommen van 2026-10-05.
+  const gezien = Array.isArray(raw?.gezien)
+    ? raw.gezien
+    : PROJECT_COLUMNS.map(c => c.id).filter(id => !NIEUW_2026_10_05.includes(id))
+  const nieuwVerborgen = raw
+    ? PROJECT_COLUMNS.filter(c => !c.defaultVisible && !gezien.includes(c.id) && !hidden.includes(c.id)).map(c => c.id)
+    : []
   return {
     order:  Array.isArray(raw?.order) ? raw.order : [],
-    hidden: Array.isArray(raw?.hidden) ? raw.hidden : DEFAULT_HIDDEN,
+    hidden: [...hidden, ...nieuwVerborgen],
     colors: (raw?.colors && typeof raw.colors === 'object' && !Array.isArray(raw.colors)) ? raw.colors : {},
   }
 }
@@ -75,11 +93,11 @@ export function ProjectenPage() {
   const prefs = normalizePrefs(rawPrefs)
   // Updaters see the normalised shape, never a malformed stored blob.
   const updatePrefs = (updater: (prev: ProjectTablePrefs) => ProjectTablePrefs) =>
-    setPrefs(prev => updater(normalizePrefs(prev)))
+    setPrefs(prev => ({ ...updater(normalizePrefs(prev)), gezien: PROJECT_COLUMNS.map(c => c.id) }))
 
   const [q, setQ] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [filterKlant, setFilterKlant] = useState('')
+  // De filterbalk (2026-10-05): tegels en "+ Filter" zetten er chips in.
+  const [filters, setFilters] = useState<Filter[]>([])
   const [sort, setSort] = useState(DEFAULT_SORT)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   // Header drag-to-reorder + the shared Kolommen panel, which a header menu can open.
@@ -109,23 +127,76 @@ export function ProjectenPage() {
     }
   }, [relaties])
 
-  const klantOptions = useMemo(() => {
+  const nabelDagen = companyApi.getSync().offerteNabelDagen ?? 21
+  const keuzes = useMemo(() => {
     const ids = [...new Set(projects.map(p => p.relatieId).filter(Boolean) as string[])]
-    return ids.map(id => ({ id, naam: relaties.find(r => r.id === id)?.naam ?? id }))
+    const klanten = ids.map(id => ({ id, naam: relaties.find(r => r.id === id)?.naam ?? id }))
+      .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'))
+    const contactIds = new Set(projects.map(p => p.contactId).filter(Boolean) as string[])
+    const contacten = relaties.flatMap(r => r.contacten
+      .filter(c => contactIds.has(c.id))
+      .map(c => ({ id: c.id, naam: `${c.naam} (${r.naam})` })))
+      .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'))
+    return { klanten, contacten }
   }, [projects, relaties])
 
-  const filtered = useMemo(() => {
+  // Eén keer per project uitgerekend: tegels, filters en kolommen lezen hieruit.
+  const signalen = useMemo(() => {
+    const nu = new Date()
+    return new Map(projects.map(p => [p.id, signalenVan(p, nu, nabelDagen)]))
+  }, [projects, nabelDagen])
+
+  const filterCtx: FilterCtx = useMemo(() => ({
+    nu: new Date(),
+    signalen: (p: Project) => signalen.get(p.id) ?? signalenVan(p, new Date(), nabelDagen),
+    bedrag: (p: Project) => getProjectSubtotaal(p),
+    klantNaam: (id: string) => relaties.find(r => r.id === id)?.naam ?? '',
+    contactNaam: (id: string) => {
+      for (const r of relaties) {
+        const c = r.contacten.find(x => x.id === id)
+        if (c) return c.naam
+      }
+      return ''
+    },
+  }), [signalen, relaties, nabelDagen])
+
+  // Zoeken en alle filters behalve de tegels: hierover tellen de tegels, zodat
+  // "Klant: X" ook de cijfers op de tegels naar die klant brengt.
+  const basis = useMemo(() => {
     let f = projects
     if (q) {
       const Q = q.toLowerCase()
-      // Search every column the registry knows about — including ones the user
-      // has hidden, so a hidden column never makes a project unfindable.
-      f = f.filter(p =>
-        PROJECT_COLUMNS.some(col => col.searchText(p, ctx).toLowerCase().includes(Q)),
-      )
+      f = f.filter(p => PROJECT_COLUMNS.some(col => col.searchText(p, ctx).toLowerCase().includes(Q)))
     }
-    if (filterStatus) f = f.filter(p => p.status === filterStatus)
-    if (filterKlant)  f = f.filter(p => p.relatieId === filterKlant)
+    const overig = filters.filter(x => x.soort !== 'signaal')
+    return overig.length ? f.filter(p => pastAlle(p, overig, filterCtx)) : f
+  }, [projects, q, filters, ctx, filterCtx])
+
+  const tellingen: TegelTellingen = useMemo(() => {
+    const met = (id: SignaalId) => basis.filter(p => heeftSignaal(signalen.get(p.id) as Signalen, id))
+    const som = (lijst: Project[], veld: 'teLeveren' | 'teFactureren' | 'openstaand') =>
+      lijst.reduce((t, p) => t + (signalen.get(p.id)?.[veld] ?? 0), 0)
+    const leveren = met('teLeveren')
+    const factureren = met('teFactureren')
+    const open = met('openstaand')
+    return {
+      geenReactie: met('geenReactie').length,
+      overLevertijd: met('overLevertijd').length,
+      teLeveren: { projecten: leveren.length, stuks: som(leveren, 'teLeveren') },
+      teFactureren: { projecten: factureren.length, bedrag: som(factureren, 'teFactureren') },
+      openstaand: {
+        projecten: open.length,
+        bedrag: som(open, 'openstaand'),
+        vervallen: basis.reduce((t, p) => t + (signalen.get(p.id)?.vervallen ?? 0), 0),
+      },
+    }
+  }, [basis, signalen])
+
+  const filtered = useMemo(() => {
+    // Zoeken loopt over alle kolommen, ook verborgen ones (in `basis`), zodat een
+    // verborgen kolom een project nooit onvindbaar maakt. Daarna de tegels.
+    const tegels = filters.filter(x => x.soort === 'signaal')
+    const f = tegels.length ? basis.filter(p => pastAlle(p, tegels, filterCtx)) : basis
 
     // Only sort by a column that's actually on screen — otherwise hiding the
     // sorted column leaves the rows in an order with no visible explanation.
@@ -142,14 +213,7 @@ export function ProjectenPage() {
         : String(av).localeCompare(String(bv), 'nl', { numeric: true })
       return sort.dir === 'asc' ? cmp : -cmp
     })
-  }, [projects, q, filterStatus, filterKlant, sort, ctx])
-
-  const stats = useMemo(() => ({
-    total:        projects.filter(p => p.status !== 'geannuleerd').length,
-    inProductie:  projects.filter(p => p.status === 'productie').length,
-    openOffertes: projects.filter(p => p.status === 'offerte').length,
-    openFacturen: projects.filter(p => p.status === 'verzonden').length,
-  }), [projects])
+  }, [basis, filters, filterCtx, sort, ctx, columns])
 
   function toggleSort(key: string) {
     setSort(s => s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' })
@@ -193,37 +257,12 @@ export function ProjectenPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="st-stats" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
-        <div className="st-stat">
-          <div className="st-stat-lbl"><IconClipboardList size={13} />Actieve projecten</div>
-          <div className="st-stat-val">{stats.total}</div>
-          <div className="st-stat-foot"><span>alle statussen</span></div>
-        </div>
-        <div className="st-stat">
-          <div className="st-stat-lbl"><IconFolder size={13} />In productie</div>
-          <div className="st-stat-val">{stats.inProductie}</div>
-          <div className="st-stat-foot"><span>stappen lopen</span></div>
-        </div>
-        <div className="st-stat" style={stats.openOffertes > 0 ? { borderColor: 'var(--warning-soft)' } : {}}>
-          <div className="st-stat-lbl" style={stats.openOffertes > 0 ? { color: 'var(--warning)' } : {}}>
-            <IconAlertTriangle size={13} />Open offertes
-          </div>
-          <div className="st-stat-val" style={stats.openOffertes > 0 ? { color: 'var(--warning)' } : {}}>
-            {stats.openOffertes}
-          </div>
-          <div className="st-stat-foot"><span>wacht op klant</span></div>
-        </div>
-        <div className="st-stat" style={stats.openFacturen > 0 ? { borderColor: 'var(--warning-soft)' } : {}}>
-          <div className="st-stat-lbl" style={stats.openFacturen > 0 ? { color: 'var(--warning)' } : {}}>
-            <IconFileInvoice size={13} />Open facturen
-          </div>
-          <div className="st-stat-val" style={stats.openFacturen > 0 ? { color: 'var(--warning)' } : {}}>
-            {stats.openFacturen}
-          </div>
-          <div className="st-stat-foot"><span>versturen</span></div>
-        </div>
-      </div>
+      <ProjectTegels
+        t={tellingen}
+        nabelDagen={nabelDagen}
+        actief={id => filters.some(f => f.soort === 'signaal' && f.signaal === id)}
+        onWissel={id => setFilters(f => wisselSignaal(f, id))}
+      />
 
       {/* Toolbar */}
       <div className="st-toolbar">
@@ -236,39 +275,14 @@ export function ProjectenPage() {
           />
         </div>
 
-        {/* Klant filter */}
-        <label className={`st-chip${filterKlant ? ' active' : ''}`}>
-          {!filterKlant && <IconPlus size={11} />}
-          <span>Klant</span>
-          {filterKlant && <span className="chip-val">: {klantOptions.find(k => k.id === filterKlant)?.naam}</span>}
-          <select value={filterKlant} onChange={e => setFilterKlant(e.target.value)}>
-            <option value="">Alle klanten</option>
-            {klantOptions.map(k => <option key={k.id} value={k.id}>{k.naam}</option>)}
-          </select>
-          {filterKlant && <span className="chip-x" onClick={e => { e.preventDefault(); setFilterKlant('') }}>×</span>}
-        </label>
-
-        {/* Status filter */}
-        <label className={`st-chip${filterStatus ? ' active' : ''}`}>
-          {!filterStatus && <IconPlus size={11} />}
-          <span>Status</span>
-          {filterStatus && <span className="chip-val">: {PROJECT_STATUS_CONFIG[filterStatus as Project['status']]?.label}</span>}
-          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">Alle statussen</option>
-            <option value="concept">Concept</option>
-            <option value="offerte">Offerte</option>
-            <option value="bevestigd">Bevestigd</option>
-            <option value="productie">Productie</option>
-            <option value="paklijst">Paklijst</option>
-            <option value="verzonden">Verzonden</option>
-            <option value="gefactureerd">Gefactureerd</option>
-            <option value="on_hold">On Hold</option>
-            <option value="geannuleerd">Geannuleerd</option>
-          </select>
-          {filterStatus && <span className="chip-x" onClick={e => { e.preventDefault(); setFilterStatus('') }}>×</span>}
-        </label>
-
-        <div style={{ flex: 1 }} />
+        <FilterBalk
+          filters={filters}
+          onFilters={setFilters}
+          keuzes={keuzes}
+          nabelDagen={nabelDagen}
+          klantNaam={filterCtx.klantNaam}
+          contactNaam={filterCtx.contactNaam}
+        />
 
         {/* Far right of the filter row, directly above the table it configures.
             Disabled until the saved layout has loaded — editing before then

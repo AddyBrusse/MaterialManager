@@ -8,6 +8,7 @@ import { companyApi }          from '../../api/company'
 import { usersApi }            from '../../api/users'
 import { machinesApi }         from '../../api/machines'
 import type { Company, User, CreateUser } from '@stockmanager/shared'
+import { meldFout as meldFoutMetGevolg } from '../../utils/fout-melding-toon'
 
 // ── shared primitives ─────────────────────────────────────────────────────────
 
@@ -63,7 +64,13 @@ function BedrijfTab() {
       notifications.show({ color: 'green', message: 'Bedrijfsgegevens opgeslagen' })
       setDirty(false)
     },
-    onError: meldFout('Opslaan mislukt'),
+    // Wat, waar en gevolg (CLAUDE.md): het formulier houdt je invoer vast.
+    onError: (fout) =>
+      meldFoutMetGevolg({
+        actie: 'Bedrijfsgegevens opslaan',
+        fout,
+        gevolg: 'Er is niets opgeslagen. Je wijzigingen staan nog in het formulier; probeer het opnieuw.',
+      }),
   })
 
   function field(key: keyof Company) {
@@ -115,6 +122,31 @@ function BedrijfTab() {
         </SettingRow>
         <SettingRow title="IBAN" desc="Voor betalingsinformatie op facturen.">
           <input className="st-input cell-mono" {...field('iban')} placeholder="NL02ABNA0123456789" />
+        </SettingRow>
+      </div>
+
+      <SectionHeader title="Projecten" desc="Afspraken die het projectenoverzicht gebruikt." />
+      <div style={{ borderTop: '1px solid var(--border)' }}>
+        <SettingRow
+          title="Offerte nabellen na"
+          desc="Een verstuurde offerte zonder reactie telt na zoveel dagen als 'nabellen' op het projectenoverzicht."
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              className="st-input cell-mono"
+              type="number"
+              min={1}
+              max={365}
+              style={{ width: 90 }}
+              value={form.offerteNabelDagen ?? 21}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                setForm((f) => ({ ...f, offerteNabelDagen: Number.isFinite(n) ? Math.round(n) : 21 }))
+                setDirty(true)
+              }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>dagen</span>
+          </div>
         </SettingRow>
       </div>
 

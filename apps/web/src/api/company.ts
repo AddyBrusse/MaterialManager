@@ -6,6 +6,7 @@ const LS_KEY = 'sm_company'
 const DEFAULTS: Company = {
   id:            'default',
   schrootDrempelMm: 200,
+  offerteNabelDagen: 21,
   naam:          'Boer Metaalbewerking',
   adres:         'Industrieweg 1',
   postcode:      '1234 AB',
@@ -43,15 +44,13 @@ export const companyApi = {
 
   getSync: (): Company => cache ?? loadLocal(),
 
+  // Geen terugval op de browser bij een fout: dan stond er "opgeslagen" terwijl
+  // de server weigerde (bijv. 403 voor een niet-admin), en gold de waarde alleen
+  // op deze pc. De fout gaat naar het scherm (meldFout in InstellingenPage).
   update: async (body: UpdateCompany): Promise<{ data: Company }> => {
     const result = await apiFetch<Company>('/settings/company', {
       method: 'PUT',
       body: JSON.stringify(body),
-    }).catch(() => {
-      const updated: Company = { ...loadLocal(), ...body, updatedAt: new Date().toISOString() }
-      saveLocal(updated)
-      cache = updated
-      return { data: updated }
     })
     cache = result.data
     saveLocal(result.data)

@@ -27,6 +27,7 @@ const LABELS: Record<string, string> = {
   reden: 'Reden',
   email: 'E-mailadres',
   telefoon: 'Telefoonnummer',
+  offerteNabelDagen: 'Offerte nabellen na (dagen)',
 }
 
 function label(pad: (string | number)[]): string {
