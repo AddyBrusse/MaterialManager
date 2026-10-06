@@ -311,6 +311,9 @@ model Machine {
   opspanlengteMm Int @default(30) @map("opspanlengte_mm")
   /// Wat de afsteekbeitel per stuk wegneemt.
   afsteekMm      Int @default(3) @map("afsteek_mm")
+  /// Draaibank met stangenlader (2026-10-06). Alleen dan rekent de calculatie
+  /// afsteek en opspanstukje mee in de bruto lengte (`bruto-lengte.ts`).
+  heeftStangenlader Boolean @default(false) @map("heeft_stangenlader")
 
   createdAt DateTime @default(now()) @map("created_at")
 

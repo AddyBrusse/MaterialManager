@@ -7,10 +7,13 @@ import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
 import { rawMaterialsApi, formatDimensions, computeWeightKg, type ProfileInfo, type RawMaterialRow } from '../../api/raw-materials'
 import { MaterialPickerModal } from './MaterialPickerModal'
+import { AcalcNum } from './AcalcNum'
+import { MateriaalRegel, type VoorraadStand } from './MateriaalRegel'
 import './article-calculator.css'
 import {
   buildEstimateCtx, computeEstimateTotals, materialCostPerPiece, machineRatePerHour, machineMinutes, minToHm,
-  type EstimateCtx,
+  brutoLengte, laderVan, nettoLengte,
+  type EstimateCtx, type LaderGegevens,
 } from '../../api/estimate'
 import { Ic, Icon } from './calc-icons'
 
@@ -35,21 +38,20 @@ function materialName(
   return [g.name, dimStr].filter(Boolean).join(' — ')
 }
 
-/** "Ø50 × 300 mm · 4,62 kg · € 1,85/kg" — material spec text per SPEC. */
-function materialSpec(node: EstimateNode, ctx: EstimateCtx, grades: { id: string; densityKgM3: number; pricePerKg?: number }[], profiles: ProfileShape[]): string {
+/** "Ø50 · 4,62 kg bruto · € 1,85/kg" — maat, gewicht over de bruto lengte (2026-10-06) en €/kg. */
+function materialSpec(node: EstimateNode, ctx: EstimateCtx, grades: { id: string; densityKgM3: number; pricePerKg?: number }[], profiles: ProfileShape[], lader: LaderGegevens | null): string {
   const g = grades.find(x => x.id === node.gradeId)
   if (!g) return '—'
   const nodeProfile = node.profileId ? profiles.find(p => p.id === node.profileId) : undefined
   const formula = (nodeProfile?.volumeFormula ?? ctx.profileFormula) as ProfileInfo['volumeFormula'] | undefined
   const dims = node.dimensions && Object.keys(node.dimensions).length > 0 ? node.dimensions : ctx.recipe?.dimensions
-  const len = node.lengthMm ?? ctx.recipe?.lengthPerPieceMm ?? 0
+  const len = brutoLengte(nettoLengte(node, ctx), lader).brutoMm
   const priceStr = `${eur(g.pricePerKg ?? 0)}/kg`
   if (!formula || !dims) return `0 kg · ${priceStr}`
   const kg = computeWeightKg(formula, dims, len, g.densityKgM3)
   const dimProfile = nodeProfile ?? (ctx.recipe?.profileId ? profiles.find(p => p.id === ctx.recipe!.profileId) : undefined)
   const dimStr = dimProfile ? formatDimensions(dimProfile, dims) : ''
-  const lenStr = len ? ` × ${len} mm` : ''
-  return `${dimStr}${lenStr} · ${num(kg)} kg · ${priceStr}`
+  return `${dimStr} · ${num(kg)} kg bruto · ${priceStr}`
 }
 
 // ── Configure popovers ──────────────────────────────────────────────────────
@@ -85,7 +87,7 @@ function MaterialConfig({ node, grades, profiles, stockRows, onChange, embedded 
   const previewGrade = grades.find(g => g.id === node.gradeId)
   const previewName = materialName(node.gradeId ?? null, node.profileId ?? null, node.dimensions ?? null, grades, profiles)
   const previewSpec = (previewGrade && activeProfile && node.dimensions && Object.keys(node.dimensions).length > 0 && node.lengthMm)
-    ? `${formatDimensions(activeProfile, node.dimensions)} × ${node.lengthMm} mm · ${num(computeWeightKg(activeProfile.volumeFormula, node.dimensions, node.lengthMm, previewGrade.densityKgM3))} kg · ${eur(computeWeightKg(activeProfile.volumeFormula, node.dimensions, node.lengthMm, previewGrade.densityKgM3) * (previewGrade.pricePerKg ?? 0))} / stuk`
+    ? `${formatDimensions(activeProfile, node.dimensions)} × ${node.lengthMm} mm netto · ${num(computeWeightKg(activeProfile.volumeFormula, node.dimensions, node.lengthMm, previewGrade.densityKgM3))} kg · ${eur(computeWeightKg(activeProfile.volumeFormula, node.dimensions, node.lengthMm, previewGrade.densityKgM3) * (previewGrade.pricePerKg ?? 0))} / stuk netto — de regel rekent met bruto lengte`
     : null
 
   return (
@@ -132,7 +134,7 @@ function MaterialConfig({ node, grades, profiles, stockRows, onChange, embedded 
       {activeProfile && (
         sizeOptions.length > 0 ? (
           <Select
-            label="Maat (uit voorraad)" size={size} clearable placeholder="Kies maat…"
+            label="Maat" size={size} clearable placeholder="Kies maat…"
             data={sizeOptions}
             value={currentDimsKey}
             onChange={v => {
@@ -146,12 +148,12 @@ function MaterialConfig({ node, grades, profiles, stockRows, onChange, embedded 
           />
         ) : (
           <div className="cell-muted" style={{ fontSize: embedded ? 12.5 : 11 }}>
-            Geen voorraad met deze kwaliteit/profiel — voeg toe via Voorraad.
+            Deze kwaliteit en vorm staan nog niet in de materiaallijst — voeg ze toe via "Materiaal kiezen" → Nieuw materiaal.
           </div>
         )
       )}
       <NumberInput
-        label="Lengte/stuk (mm)" size={size} min={0}
+        label="Netto lengte per stuk (mm)" size={size} min={0}
         value={node.lengthMm ?? ''}
         onChange={v => onChange({ lengthMm: v === '' ? null : Number(v) })}
       />
@@ -319,29 +321,6 @@ function NodeEditModal({ state, grades, profiles, machines, stockRows, onChange,
 }
 
 // ── Numeric row input + unit (restyle) ──────────────────────────────────────
-function AcalcNum({ value, onChange, unit, unitBefore, width, step = 1, min = 0 }: {
-  value: number
-  onChange: (v: number) => void
-  unit?: string
-  unitBefore?: boolean
-  width?: 'w56' | 'w72'
-  step?: number
-  min?: number
-}) {
-  const input = (
-    <input className={`acalc-num${width ? ' ' + width : ''}`} type="number" value={value} step={step} min={min}
-      onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
-      onChange={e => onChange(e.target.value === '' ? 0 : +e.target.value)} />
-  )
-  return (
-    <div className={unitBefore ? 'acalc-prijsgrp' : 'acalc-numgrp'}>
-      {unitBefore && unit ? <span className="acalc-unit">{unit}</span> : null}
-      {input}
-      {!unitBefore && unit ? <span className="acalc-unit">{unit}</span> : null}
-    </div>
-  )
-}
-
 // ── Calculator ───────────────────────────────────────────────────────────────
 export function ArticleCalculator({ article, est, onEstChange }: {
   article: Article
@@ -370,6 +349,17 @@ export function ArticleCalculator({ article, est, onEstChange }: {
     [grades, machines, profiles, article],
   )
   const totals = useMemo(() => computeEstimateTotals(est, ctx), [est, ctx])
+  // De draaibank met lader in de bewerkingen bepaalt de bruto lengte (2026-10-06).
+  const lader = useMemo(() => laderVan(est.nodes, ctx.machines), [est.nodes, ctx.machines])
+
+  /** Vrije mm van deze kwaliteit, vorm en maat, over alle staven samen. */
+  const voorraadVan = (node: EstimateNode): VoorraadStand => {
+    if (!node.gradeId || !node.profileId || !node.dimensions) return { vrijMm: null }
+    const key = dimsKey(node.dimensions)
+    const rijen = stockRows.filter(r => r.gradeId === node.gradeId && r.profileId === node.profileId && dimsKey(r.dimensions) === key)
+    if (rijen.length === 0) return { vrijMm: null }
+    return { vrijMm: rijen.reduce((t, r) => t + Math.max(0, Number(r.vrijMm) || 0), 0) }
+  }
 
   const isOpen = (id: string) => open[id] !== false
   const toggle = (id: string) => setOpen(o => ({ ...o, [id]: o[id] === undefined ? false : !o[id] }))
@@ -536,35 +526,39 @@ export function ArticleCalculator({ article, est, onEstChange }: {
         {sectionHead('g-mat', Icon.layers, 'Materialen', `${materialNodes.length} regels`, eur(totals.materialTotal))}
         {isOpen('g-mat') && (
           <>
-            <div className="acalc-mat-head acalc-colhead">
+            <div className="acalc-mat-head mat acalc-colhead">
               <span />
               <span className="nudge-name">Materiaal</span>
-              <span className="nudge-note">Omschrijving</span>
-              <span className="nudge-aantal">Aantal</span>
-              <span className="nudge-prijs">Prijs</span>
+              <span>Lengte per stuk</span>
+              <span>Aantal</span>
+              <span>Voorraad</span>
+              <span>Prijs</span>
               <span className="ta-r">Totaalprijs</span>
               <span />
             </div>
-            {materialNodes.map(node => {
-              const prijs = materialCostPerPiece(node, ctx)
-              const aantal = node.qty ?? 1
-              return (
-                <div className="acalc-mat-row" key={node.id} onDoubleClick={() => openEditNode(node)} {...dropProps(node)}>
-                  <span className="acalc-drag" title="Sleep om te ordenen" {...handleProps(node.id)}>⠿</span>
-                  {nameInput(node.id, node.name, v => updateNode(node.id, { name: v }))}
-                  <input className="acalc-note-inp" value={node.note ?? ''}
-                    placeholder={materialSpec(node, ctx, grades, profiles)}
+            {materialNodes.map(node => (
+              <MateriaalRegel
+                key={node.id}
+                node={node}
+                rijProps={dropProps(node)}
+                handvat={<span className="acalc-drag" title="Sleep om te ordenen" {...handleProps(node.id)}>⠿</span>}
+                naam={nameInput(node.id, node.name, v => updateNode(node.id, { name: v }))}
+                notitie={
+                  <input className="acalc-note-inp klein" value={node.note ?? ''}
+                    placeholder={materialSpec(node, ctx, grades, profiles, lader)}
                     onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
                     onChange={e => updateNode(node.id, { note: e.target.value })} />
-                  <AcalcNum value={aantal} unit="st" width="w56" onChange={v => updateNode(node.id, { qty: v })} />
-                  <AcalcNum value={prijs} unit="€" unitBefore width="w72" step={0.01} onChange={v => updateNode(node.id, { costOverride: v })} />
-                  <span className="acalc-total">{eur(aantal * prijs)}</span>
-                  {rowActions(node.id, () => removeNode(node.id), 'Materiaal verwijderen')}
-                </div>
-              )
-            })}
+                }
+                bruto={brutoLengte(nettoLengte(node, ctx), lader)}
+                voorraad={voorraadVan(node)}
+                berekend={materialCostPerPiece({ ...node, costOverride: null }, ctx, lader)}
+                onWijzig={p => updateNode(node.id, p)}
+                onBewerk={() => openEditNode(node)}
+                acties={rowActions(node.id, () => removeNode(node.id), 'Materiaal verwijderen')}
+              />
+            ))}
             <div className="acalc-addrow">
-              <button type="button" className="acalc-addlink" onClick={() => setMatPickerOpen(true)}><Ic d={Icon.plus} size={13} />Materiaal uit voorraad</button>
+              <button type="button" className="acalc-addlink" onClick={() => setMatPickerOpen(true)}><Ic d={Icon.plus} size={13} />Materiaal kiezen</button>
             </div>
           </>
         )}

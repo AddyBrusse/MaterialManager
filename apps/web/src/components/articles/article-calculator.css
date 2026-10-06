@@ -319,3 +319,29 @@
   color: var(--text-3);
   text-align: right;
 }
+
+/* ── Materiaalregel met netto/bruto, voorraad en vaste prijs (2026-10-06) ── */
+.acalc-mat-head.mat,
+.acalc-mat-row.mat {
+  grid-template-columns: 26px 1.1fr 1.7fr 84px 112px 128px 96px 58px;
+}
+.acalc-mat-row.mat { padding-top: 7px; padding-bottom: 7px; align-items: start; }
+.acalc-mat-row.mat > * { align-self: center; }
+.acalc-mat-naam { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.acalc-note-inp.klein { font-size: 11.5px; color: var(--text-3); padding-top: 0; padding-bottom: 0; }
+.acalc-mat-lengte { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.acalc-mat-lengte-rij { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.acalc-mat-bruto { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--text); }
+.acalc-mat-opbouw { font-size: 11px; color: var(--text-3); line-height: 1.35; }
+.acalc-mat-voorraad { font-family: var(--font-mono); font-size: 11.5px; }
+.acalc-mat-voorraad.ok { color: var(--success); }
+.acalc-mat-voorraad.tekort { color: var(--warning); }
+.acalc-mat-voorraad.onbekend { color: var(--text-4); font-family: var(--font-sans); }
+.acalc-mat-prijs { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+.acalc-mat-vast { display: flex; flex-direction: column; gap: 1px; align-items: flex-start; }
+.acalc-vast-badge {
+  font-size: 9.5px; font-weight: 600; letter-spacing: .04em; color: var(--warning);
+  background: var(--warning-soft); padding: 1px 6px; border-radius: 10px;
+}
+.acalc-linkbtn { font: inherit; font-size: 11px; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; }
+.acalc-linkbtn:hover { text-decoration: underline; }

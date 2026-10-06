@@ -1,6 +1,6 @@
 import {
   buildEstimateCtx, computeEstimateTotals,
-  type ArticleEstimate, type ArticleRecipe, type EstimateTotals,
+  type ArticleEstimate, type ArticleRecipe, type EstimateMachine, type EstimateTotals,
 } from './estimate'
 
 /**
@@ -15,7 +15,8 @@ import {
 export interface PrijsBronnen {
   grades: { id: string; densityKgM3: number; pricePerKg?: number }[]
   profiles: { id: string; volumeFormula: string }[]
-  machines: { id: string; name: string; machineRatePerHour: number; operatorRatePerHour: number }[]
+  /** Met de stangenladervelden: zie `EstimateMachine`. */
+  machines: (EstimateMachine & { name: string })[]
 }
 
 /** Het minimum dat je van een artikel nodig hebt om te rekenen. */

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconPlus, IconTrash, IconX } from '@tabler/icons-react'
 import { machinesApi, type Machine } from '../../api/machines'
+import { meldFout } from '../../utils/fout-melding-toon'
 import {
   overheadApi, computeMachineOverhead,
   DEFAULT_MACHINE_ROW,
@@ -145,7 +146,14 @@ export function OverheadTab() {
     persist({ ...cfg, machines: exists ? cfg.machines.map(r => r.machineId === id ? next : r) : [...cfg.machines, next] })
   }
   function saveMachine(id: string, patch: Parameters<typeof machinesApi.update>[1]) {
-    machinesApi.update(id, patch).then(() => qc.invalidateQueries({ queryKey: ['machines'] }))
+    machinesApi.update(id, patch).then(
+      () => qc.invalidateQueries({ queryKey: ['machines'] }),
+      (fout) => meldFout({
+        actie: `Machine ${machines.find(m => m.id === id)?.name ?? id} opslaan`,
+        fout,
+        gevolg: 'De wijziging is niet opgeslagen. Ververs de pagina en probeer het opnieuw.',
+      }),
+    )
   }
   function debouncedName(id: string, name: string) {
     clearTimeout(nameTimers.current[id])
@@ -303,6 +311,12 @@ export function OverheadTab() {
               {inputRow('Machine tarief',  (m) => m.machineRatePerHour,  (id, v) => saveMachine(id, { machineRatePerHour:  v ?? 0 }), { step: 1, ph: '0' })}
               {inputRow('Operator (€/u)',  (m) => m.operatorRatePerHour, (id, v) => saveMachine(id, { operatorRatePerHour: v ?? 0 }), { step: 1, ph: '0' })}
               {checkRow('Werkt in weekend', (m) => m.worksWeekends, (id, v) => saveMachine(id, { worksWeekends: v }), { title: 'Machine draait onbemand door op zaterdag/zondag' })}
+              {/* Stangenlader (2026-10-06): alleen dan telt de calculatie afsteek en opspanstukje mee. */}
+              {checkRow('Stangenlader', (m) => m.heeftStangenlader, (id, v) => saveMachine(id, { heeftStangenlader: v }), { title: 'Draaibank met stangenlader — de calculatie rekent dan afsteek en het opspanstukje per laderstang mee in de materiaallengte' })}
+              {inputRow('Lader max (mm)',     (m) => m.barloaderMaxMm, (id, v) => saveMachine(id, { barloaderMaxMm: Math.round(v ?? 0) }), { step: 10, ph: '1100', title: 'Langste stang die de lader pakt' })}
+              {inputRow('Lader min (mm)',     (m) => m.barloaderMinMm, (id, v) => saveMachine(id, { barloaderMinMm: Math.round(v ?? 0) }), { step: 10, ph: '500', title: 'Kortste stang die de lader pakt' })}
+              {inputRow('Opspanlengte (mm)',  (m) => m.opspanlengteMm, (id, v) => saveMachine(id, { opspanlengteMm: Math.round(v ?? 0) }), { step: 1, ph: '30', title: 'Staartje dat de lader niet meer pakt — één keer per laderstang' })}
+              {inputRow('Afsteek (mm)',       (m) => m.afsteekMm,      (id, v) => saveMachine(id, { afsteekMm: Math.round(v ?? 0) }),      { step: 1, ph: '3', title: 'Wat de afsteekbeitel per stuk wegneemt' })}
               {/* Totaal tarief row — warns when overhead < machine tarief */}
               <tr style={{ cursor: 'default' }}>
                 <L text="Totaal" bold />

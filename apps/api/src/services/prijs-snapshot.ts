@@ -41,6 +41,9 @@ export async function bronnenLaden(db: Db): Promise<PrijsBronnen> {
       name: m.name,
       machineRatePerHour: num(m.machineRatePerHour),
       operatorRatePerHour: num(m.operatorRatePerHour),
+      // Voor de bruto lengte in de calculatie (stangenlader, 2026-10-06).
+      heeftStangenlader: m.heeftStangenlader,
+      opspanlengteMm: m.opspanlengteMm, afsteekMm: m.afsteekMm, barloaderMaxMm: m.barloaderMaxMm,
     })),
   }
 }

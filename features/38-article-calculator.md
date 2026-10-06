@@ -24,6 +24,14 @@ Each node has an `id`, `type`, `name`, plus type-specific fields (see the
 `dimensions`/`lengthMm`/`qty`/`costOverride` for material, `machineId`/
 `setupMin`/`rateOverride`/`steps` for machine, `externalCost`/`note` for external).
 
+**Lengte is netto (2026-10-06).** `lengthMm` on a material node is the bare
+workpiece length. Cost is computed over the *bruto* length from
+`brutoLengte` in `packages/shared/calc/bruto-lengte.ts` (saw kerf + facing, plus
+parting-off and a share of the bar-loader stub when a machine node points at a
+machine with `heeftStangenlader`). Never store bruto. The material row is its
+own component, `MateriaalRegel.tsx` (netto input, bruto + breakdown, free stock
+in mm, price with "VASTE PRIJS" + reset when `costOverride` is set).
+
 ---
 
 ## Component structure
