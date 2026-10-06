@@ -64,3 +64,30 @@ describe('calculatie rekent met bruto lengte', () => {
     expect(met / zonder).toBeCloseTo((49 + 30 / 21) / 46, 6)
   })
 })
+
+describe('exoot rekent met de geleverde maat', () => {
+  // Alu-plaat 250 × 300 × 30, op maat geleverd: geen zaagsnede, geen vlak, geen lader.
+  const grades = [{ id: 'alu', densityKgM3: 2700, pricePerKg: 2.5 }]
+  const profiles = [{ id: 'plaat', volumeFormula: 'flat' }]
+  const machines = [{ id: 'dmg', name: 'DMG', machineRatePerHour: 0, operatorRatePerHour: 0, heeftStangenlader: true, opspanlengteMm: 30, afsteekMm: 3, barloaderMaxMm: 1100 }]
+  const ctx = buildEstimateCtx({ recipe: null }, grades, profiles, machines)
+  const plaat = (stuksUitEen: number | null): ArticleEstimate => ({
+    marginPct: 0, updatedAt: '',
+    nodes: [
+      { id: 'x', type: 'material', name: 'Alu plaat', exoot: true, stuksUitEen, gradeId: 'alu', profileId: 'plaat', dimensions: { width: 250, height: 30 }, lengthMm: 300, qty: 1 },
+      { id: 'b', type: 'machine', name: 'DMG', machineId: 'dmg', setupMin: 0, steps: [] },
+    ],
+  })
+  const kgPlaat = (250 * 30 * 300 / 1e9) * 2700 // 6,075 kg
+
+  it('een hele exoot per werkstuk: gewicht × €/kg, ook met een lader in de bewerkingen', () => {
+    expect(computeEstimateTotals(plaat(1), ctx).materialTotal).toBeCloseTo(kgPlaat * 2.5, 6)
+  })
+  it('twee werkstukken uit één exoot: de helft', () => {
+    expect(computeEstimateTotals(plaat(2), ctx).materialTotal).toBeCloseTo(kgPlaat * 2.5 / 2, 6)
+  })
+  it('leeg of onzin telt als één', () => {
+    expect(computeEstimateTotals(plaat(null), ctx).materialTotal).toBeCloseTo(kgPlaat * 2.5, 6)
+    expect(computeEstimateTotals(plaat(0), ctx).materialTotal).toBeCloseTo(kgPlaat * 2.5, 6)
+  })
+})

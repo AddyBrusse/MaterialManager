@@ -1,6 +1,7 @@
 export * from './schemas/user'
 export * from './schemas/company'
 export * from './schemas/nummering'
+export * from './schemas/leverancier-prijs'
 export * from './schemas/location'
 export * from './schemas/grade'
 export * from './schemas/profile'

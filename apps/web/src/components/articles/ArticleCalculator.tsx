@@ -9,6 +9,8 @@ import { rawMaterialsApi, formatDimensions, computeWeightKg, type ProfileInfo, t
 import { MaterialPickerModal } from './MaterialPickerModal'
 import { AcalcNum } from './AcalcNum'
 import { MateriaalRegel, type VoorraadStand } from './MateriaalRegel'
+import { ExootRegel } from './ExootRegel'
+import { ExootVenster } from './ExootVenster'
 import './article-calculator.css'
 import {
   buildEstimateCtx, computeEstimateTotals, materialCostPerPiece, machineRatePerHour, machineMinutes, minToHm,
@@ -45,13 +47,14 @@ function materialSpec(node: EstimateNode, ctx: EstimateCtx, grades: { id: string
   const nodeProfile = node.profileId ? profiles.find(p => p.id === node.profileId) : undefined
   const formula = (nodeProfile?.volumeFormula ?? ctx.profileFormula) as ProfileInfo['volumeFormula'] | undefined
   const dims = node.dimensions && Object.keys(node.dimensions).length > 0 ? node.dimensions : ctx.recipe?.dimensions
-  const len = brutoLengte(nettoLengte(node, ctx), lader).brutoMm
+  // Een exoot komt op maat: zijn eigen lengte, geen zaagsnede of lader.
+  const len = node.exoot ? (node.lengthMm ?? 0) : brutoLengte(nettoLengte(node, ctx), lader).brutoMm
   const priceStr = `${eur(g.pricePerKg ?? 0)}/kg`
   if (!formula || !dims) return `0 kg · ${priceStr}`
   const kg = computeWeightKg(formula, dims, len, g.densityKgM3)
   const dimProfile = nodeProfile ?? (ctx.recipe?.profileId ? profiles.find(p => p.id === ctx.recipe!.profileId) : undefined)
   const dimStr = dimProfile ? formatDimensions(dimProfile, dims) : ''
-  return `${dimStr} · ${num(kg)} kg bruto · ${priceStr}`
+  return `${dimStr} · ${num(kg)} kg${node.exoot ? ' per exoot' : ' bruto'} · ${priceStr}`
 }
 
 // ── Configure popovers ──────────────────────────────────────────────────────
@@ -340,6 +343,7 @@ export function ArticleCalculator({ article, est, onEstChange }: {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [modal, setModal] = useState<ModalState | null>(null)
   const [matPickerOpen, setMatPickerOpen] = useState(false)
+  const [exootOpen, setExootOpen] = useState(false)
   const [editRow, setEditRow] = useState<string | null>(null) // row whose name input is unlocked
   const [dragId, setDragId] = useState<string | null>(null)    // node being dragged
   const setEst = onEstChange
@@ -400,7 +404,11 @@ export function ArticleCalculator({ article, est, onEstChange }: {
   /** Build a material node from a chosen stock row. Grade/profile/dimensions
    *  come from the stock item; per-piece length defaults to the article recipe
    *  (the stock row's lengthMm is the bar length, not the per-piece cut). */
-  function addMaterialFromStock(row: RawMaterialRow) {
+  function addMaterialFromStock(row: RawMaterialRow, stuks = 1) {
+    // Een exoot rekent met zijn eigen maat en het aantal stuks eruit (2026-10-06).
+    const exoot: Partial<EstimateNode> = row.exoot
+      ? { exoot: true, rawMaterialId: row.id, lengthMm: Number(row.lengthMm), stuksUitEen: stuks }
+      : {}
     const node: EstimateNode = {
       id: uid('mat'), type: 'material',
       gradeId: row.gradeId, profileId: row.profileId,
@@ -408,6 +416,7 @@ export function ArticleCalculator({ article, est, onEstChange }: {
       lengthMm: article.recipe?.lengthPerPieceMm ?? null,
       qty: 1, costOverride: null,
       name: materialName(row.gradeId, row.profileId, row.dimensions, grades, profiles),
+      ...exoot,
     }
     setNodes(ns => [...ns, node])
   }
@@ -536,7 +545,25 @@ export function ArticleCalculator({ article, est, onEstChange }: {
               <span className="ta-r">Totaalprijs</span>
               <span />
             </div>
-            {materialNodes.map(node => (
+            {materialNodes.map(node => node.exoot ? (
+              <ExootRegel
+                key={node.id}
+                node={node}
+                rijProps={dropProps(node)}
+                handvat={<span className="acalc-drag" title="Sleep om te ordenen" {...handleProps(node.id)}>⠿</span>}
+                naam={nameInput(node.id, node.name, v => updateNode(node.id, { name: v }))}
+                notitie={
+                  <input className="acalc-note-inp klein" value={node.note ?? ''}
+                    placeholder={materialSpec(node, ctx, grades, profiles, lader)}
+                    onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
+                    onChange={e => updateNode(node.id, { note: e.target.value })} />
+                }
+                klant={stockRows.find(r => r.id === node.rawMaterialId)?.klant ?? null}
+                berekend={materialCostPerPiece({ ...node, costOverride: null }, ctx, lader)}
+                onWijzig={p => updateNode(node.id, p)}
+                acties={rowActions(node.id, () => removeNode(node.id), 'Exoot verwijderen')}
+              />
+            ) : (
               <MateriaalRegel
                 key={node.id}
                 node={node}
@@ -559,6 +586,7 @@ export function ArticleCalculator({ article, est, onEstChange }: {
             ))}
             <div className="acalc-addrow">
               <button type="button" className="acalc-addlink" onClick={() => setMatPickerOpen(true)}><Ic d={Icon.plus} size={13} />Materiaal kiezen</button>
+              <button type="button" className="acalc-addlink exoot" onClick={() => setExootOpen(true)}><Ic d={Icon.plus} size={13} />Exoot aanmaken</button>
             </div>
           </>
         )}
@@ -684,6 +712,16 @@ export function ArticleCalculator({ article, est, onEstChange }: {
         onPick={row => { addMaterialFromStock(row); setMatPickerOpen(false) }}
         onCreated={row => { addMaterialFromStock(row); setMatPickerOpen(false) }}
       />
+      {exootOpen && (
+        <ExootVenster
+          grades={grades}
+          profiles={profiles}
+          stockRows={stockRows}
+          artikel={{ id: article.id, naam: article.naam, relatieId: article.relatieId }}
+          onGemaakt={(row, stuks) => { addMaterialFromStock(row, stuks); setExootOpen(false) }}
+          onSluit={() => setExootOpen(false)}
+        />
+      )}
     </>
   )
 }

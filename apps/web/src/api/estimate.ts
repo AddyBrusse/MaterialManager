@@ -14,5 +14,6 @@ export {
   brutoLengte,
   laderVan,
   nettoLengte,
+  stuksUitEen,
 } from '@stockmanager/shared'
 export type { EstimateCtx, EstimateTotals, LaderGegevens, BrutoOpbouw } from '@stockmanager/shared'

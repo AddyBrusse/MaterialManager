@@ -161,6 +161,7 @@ model Grade {
   createdAt   DateTime @default(now()) @map("created_at")
 
   rawMaterials RawMaterial[]
+  leveranciersprijzen LeverancierPrijs[]
 
   @@map("grades")
 }
@@ -199,10 +200,19 @@ model RawMaterial {
   photoPath       String?  @map("photo_path")
   minStock        Decimal? @map("min_stock")
   currentStock    Decimal  @default(0) @map("current_stock")
+  /// Exoot (2026-10-06): materiaal buiten het vaste assortiment, op maat gezaagd
+  /// door de leverancier en voor één klant (bv. Alu 6082 plaat 250 × 300 × 30).
+  /// Staat gewoon in de materiaallijst, met een label.
+  exoot           Boolean  @default(false)
+  klantId         String?  @map("klant_id")
+  artikelId       String?  @map("artikel_id")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   grade          Grade          @relation(fields: [gradeId], references: [id])
+  klant          Relatie?       @relation("ExootKlant", fields: [klantId], references: [id], onDelete: SetNull)
+  artikel        Article?       @relation("ExootArtikel", fields: [artikelId], references: [id], onDelete: SetNull)
+  leveranciersprijzen LeverancierPrijs[]
   profile        Profile        @relation(fields: [profileId], references: [id])
   surfaceFinish  SurfaceFinish? @relation(fields: [surfaceFinishId], references: [id])
   locationSlot   LocationSlot?  @relation(fields: [locationSlotId], references: [id])
@@ -355,6 +365,9 @@ model Relatie {
   contacten          Json     @default("[]")
   createdAt          DateTime @default(now()) @map("created_at")
 
+  exoten             RawMaterial[]      @relation("ExootKlant")
+  prijzen            LeverancierPrijs[]
+
   @@map("relaties")
 }
 
@@ -382,6 +395,7 @@ model Article {
 
   reserveringen  ZaagReservering[]
   prijsSnapshots ArtikelPrijsSnapshot[]
+  exoten         RawMaterial[] @relation("ExootArtikel")
 
   @@map("articles")
 }
@@ -457,6 +471,36 @@ model DocReeksWijziging {
 
   @@index([createdAt])
   @@map("doc_reeks_wijzigingen")
+}
+
+/// Prijs van een leverancier (2026-10-06), voor één materiaal óf voor een hele
+/// kwaliteit ("alle Alu 6082 € 7,20/kg"). Gebruikt bij vergelijken en bestellen;
+/// de calculatie rekent met de €/kg van de kwaliteit. Per stuk alleen bij een
+/// materiaal: zonder maat zegt een stuksprijs niets.
+model LeverancierPrijs {
+  id                 String   @id @default(uuid())
+  leverancierId      String   @map("leverancier_id")
+  rawMaterialId      String?  @map("raw_material_id")
+  gradeId            String?  @map("grade_id")
+  /// 'per_kg' | 'per_stuk'
+  prijsSoort         String   @map("prijs_soort")
+  prijs              Decimal
+  zaagkostenPerSnede Decimal? @map("zaagkosten_per_snede")
+  minimumBedrag      Decimal? @map("minimum_bedrag")
+  levertijdDagen     Int?     @map("levertijd_dagen")
+  notitie            String?
+  bijgewerktDoor     String?  @map("bijgewerkt_door")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  leverancier Relatie      @relation(fields: [leverancierId], references: [id], onDelete: Cascade)
+  rawMaterial RawMaterial? @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+  grade       Grade?       @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+
+  @@index([rawMaterialId])
+  @@index([gradeId])
+  @@index([leverancierId])
+  @@map("leverancier_prijzen")
 }
 
 // Het project is de kop: klant, referentie, status. De documenten die eraan

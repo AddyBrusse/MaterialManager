@@ -11,6 +11,8 @@ import {
 } from '@tabler/icons-react'
 import { rawMaterialsApi, formatDimensions, formatLocation } from '../../api/raw-materials'
 import { RawMaterialForm } from '../../components/raw-materials/RawMaterialForm'
+import { LeverancierPrijzen } from '../../components/inkoop/LeverancierPrijzen'
+import { ExootLabel } from '../../components/inkoop/ExootLabel'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { surfaceFinishesApi } from '../../api/surface-finishes'
@@ -495,9 +497,13 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
               <span className="cell-mono" style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{row.code}</span>
               <span style={{ color: 'var(--text-4)' }}>·</span>
               <span style={{ fontSize: 12.5, color: 'var(--text-3)' }}>{row.grade.name}</span>
-              <span className={`st-badge ${st.cls}`} style={{ marginLeft: 2 }}>
-                <span className="dot" />{st.label}
-              </span>
+              {row.exoot
+                ? <ExootLabel klant={row.klant} />
+                : (
+                  <span className={`st-badge ${st.cls}`} style={{ marginLeft: 2 }}>
+                    <span className="dot" />{st.label}
+                  </span>
+                )}
             </div>
           </div>
           <button className="st-icon-btn" onClick={onClose}><IconX size={16} /></button>
@@ -543,6 +549,7 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
             <dt>Profiel</dt>    <dd>{row.profile.name}</dd>
             <dt>Afmeting</dt>   <dd className="cell-mono">{formatDimensions(row.profile, row.dimensions)}</dd>
             <dt>Afwerking</dt>  <dd>{row.surfaceFinish?.name ?? '—'}</dd>
+            {row.exoot && <><dt>Exoot voor</dt><dd>{row.klant?.naam ?? '—'}</dd></>}
             <dt>Orig. lengte</dt><dd className="cell-mono">{Number(row.lengthMm).toLocaleString('nl-NL')} mm</dd>
             <dt>Resterend</dt>  <dd className="cell-mono">{remaining.toLocaleString('nl-NL')} mm</dd>
             <dt>Gewicht</dt>    <dd className="cell-mono">{(row.weightKg * remaining / original).toFixed(2)} kg</dd>
@@ -596,6 +603,19 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
               ))}
             </div>
           )}
+
+          {/* ── leveranciers & prijzen ── */}
+          {/* Voor vergelijken en bestellen; de calculatie rekent met de €/kg
+              van de kwaliteit (afgesproken 2026-10-06). */}
+          <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--text-3)', marginBottom: 6 }}>Leveranciers &amp; prijzen</div>
+          <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid var(--border)' }}>
+            <LeverancierPrijzen
+              filter={{ rawMaterialId: row.id, gradeId: row.gradeId }}
+              keuze={{ materiaal: { id: row.id, gradeId: row.gradeId, naam: `${row.profile.name} ${formatDimensions(row.profile, row.dimensions)}`, gradeNaam: row.grade.name } }}
+              kolom="leverancier"
+              leeg="Nog geen leverancier gekoppeld aan dit materiaal of zijn kwaliteit."
+            />
+          </div>
 
           {/* ── historie ── */}
           {/* Echte voorraadmutaties. Hier stond een vaste lijst verzonnen
@@ -697,7 +717,8 @@ export function VoorraadPage() {
       const v = Number(r.currentStock), m = Number(r.minStock) || 0
       return v > 0 && v < m
     }).length
-    const out = source.filter(r => Number(r.currentStock) === 0).length
+    // Een exoot op 0 is nog niet besteld of binnen, niet op: die telt hier niet.
+    const out = source.filter(r => !r.exoot && Number(r.currentStock) === 0).length
     // top consumed row by length
     const topRow = [...source]
       .map(r => ({ r, consumed: Number(r.lengthMm) - Number(r.currentStock) }))
@@ -882,8 +903,8 @@ export function VoorraadPage() {
                             <TypeGlyph volumeFormula={row.profile.volumeFormula} />
                           </div>
                           <div style={{ minWidth: 0 }}>
-                            <div className="st-art-name">{row.profile.name}</div>
-                            <div className="st-art-desc">L{Number(row.lengthMm).toLocaleString('nl-NL')} mm</div>
+                            <div className="st-art-name">{row.profile.name}{row.exoot && <> <ExootLabel klant={row.klant} compact /></>}</div>
+                            <div className="st-art-desc">L{Number(row.lengthMm).toLocaleString('nl-NL')} mm{row.exoot && row.klant ? ` · ${row.klant.naam}` : ''}</div>
                           </div>
                         </div>
                       </td>
@@ -907,7 +928,10 @@ export function VoorraadPage() {
                       </td>
                       <td><span className="cell-muted">{formatLocation(row.locationSlot)}</span></td>
                       <td>
-                        <span className={`st-badge ${st.cls}`}><span className="dot" />{st.label}</span>
+                        {/* Een exoot op 0 is nog niet binnen, niet verbruikt. */}
+                        {row.exoot && remaining === 0
+                          ? <span className="st-badge exoot"><span className="dot" />Te bestellen</span>
+                          : <span className={`st-badge ${st.cls}`}><span className="dot" />{st.label}</span>}
                       </td>
                       <td>
                         <span className="cell-muted" style={{ fontSize: 11.5 }}>{formatRelative(row.updatedAt)}</span>

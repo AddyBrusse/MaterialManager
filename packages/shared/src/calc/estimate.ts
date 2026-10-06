@@ -43,6 +43,15 @@ export interface EstimateNode {
   steps?: EstimateStep[]
   externalCost?: number | null
   note?: string | null
+  /**
+   * Exoot (2026-10-06): op maat besteld bij de leverancier, voor één klant.
+   * Rekent met de geleverde maat zelf — geen zaagsnede, vlak of lader — en
+   * gedeeld door het aantal werkstukken dat uit één exoot komt.
+   */
+  exoot?: boolean
+  rawMaterialId?: string | null
+  /** Werkstukken uit één exoot; 1 als leeg. */
+  stuksUitEen?: number | null
 }
 
 export interface ArticleEstimate {
@@ -134,6 +143,8 @@ export function materialCostPerPiece(
     dimensions?: Record<string, number> | null
     lengthMm?: number | null
     costOverride?: number | null
+    exoot?: boolean
+    stuksUitEen?: number | null
   },
   ctx: EstimateCtx,
   lader: LaderGegevens | null = null,
@@ -150,9 +161,18 @@ export function materialCostPerPiece(
     ? node.dimensions
     : ctx.recipe?.dimensions
   if (!formula || !dims) return 0
+  if (node.exoot) {
+    const kg = computeWeightKg(formula, dims, node.lengthMm ?? 0, g.densityKgM3)
+    return (kg * (g.pricePerKg ?? 0)) / stuksUitEen(node)
+  }
   const len = brutoLengte(nettoLengte(node, ctx), lader).brutoMm
   const kg = computeWeightKg(formula, dims, len, g.densityKgM3)
   return kg * (g.pricePerKg ?? 0)
+}
+
+/** Werkstukken uit één exoot, minstens 1. */
+export function stuksUitEen(node: { stuksUitEen?: number | null }): number {
+  return Math.max(1, Math.floor(node.stuksUitEen ?? 1) || 1)
 }
 
 /** € per uur for a machine node: override, else machine + operator rate. */

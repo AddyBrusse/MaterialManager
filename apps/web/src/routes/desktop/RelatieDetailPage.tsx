@@ -9,6 +9,7 @@ import { TypeBadge } from './RelatiesPage'
 import { RelatieGegevensTab }  from '../../components/relaties/RelatieGegevensTab'
 import { RelatieContactenTab } from '../../components/relaties/RelatieContactenTab'
 import { RelatieArtikelenTab } from '../../components/relaties/RelatieArtikelenTab'
+import { RelatiePrijzenTab }   from '../../components/relaties/RelatiePrijzenTab'
 import { pageTabs } from '../../utils/pageTabs'
 
 // ── inline-editable bedrijfsnaam in de header ─────────────────────────────────
@@ -49,7 +50,7 @@ function InlineNaam({ relatie }: { relatie: Relatie }) {
 }
 
 // ── tabs ──────────────────────────────────────────────────────────────────────
-type Tab = 'gegevens' | 'contacten' | 'artikelen'
+type Tab = 'gegevens' | 'contacten' | 'artikelen' | 'prijzen'
 
 // ── page ──────────────────────────────────────────────────────────────────────
 export function RelatieDetailPage() {
@@ -104,6 +105,8 @@ export function RelatieDetailPage() {
       </>
     )
   }
+
+  const isLeverancier = relatie.type === 'leverancier' || relatie.type === 'beide'
 
   return (
     <>
@@ -185,12 +188,18 @@ export function RelatieDetailPage() {
             <span style={{ marginLeft: 5, opacity: 0.55, fontSize: 11 }}>({linkedArticles.length})</span>
           )}
         </button>
+        {isLeverancier && (
+          <button className={`st-tab-btn${tab === 'prijzen' ? ' active' : ''}`} onClick={() => setTab('prijzen')}>
+            Prijzen
+          </button>
+        )}
       </div>
 
       <div className="st-tab-content" style={{ padding: '20px 24px 40px', overflowY: 'auto', flex: 1 }}>
         {tab === 'gegevens'  && <RelatieGegevensTab  relatie={relatie} />}
         {tab === 'contacten' && <RelatieContactenTab relatie={relatie} />}
         {tab === 'artikelen' && <RelatieArtikelenTab relatieId={relatie.id} />}
+        {tab === 'prijzen' && isLeverancier && <RelatiePrijzenTab leverancierId={relatie.id} />}
       </div>
     </>
   )
