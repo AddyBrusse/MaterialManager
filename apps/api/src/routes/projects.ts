@@ -23,6 +23,7 @@ import { AppError } from '../middleware/error'
 import { PROJECT_INCLUDE, serialize, persist } from '../services/project-store'
 import { snapshotBijOrder } from '../services/prijs-snapshot'
 import { todosBijOpdracht } from '../services/materiaal-selectie'
+import { exootRegelsBijOpdracht } from '../services/bestellingen'
 import { rondAfVoorStap } from '../services/tijdregistratie'
 import { boekAfBijGereed } from '../services/zaagbon'
 import { nextDocId } from '../services/doc-nummer'
@@ -593,6 +594,12 @@ router.post(
         })),
         door: req.user.id,
       })
+      // Een exoot ligt nooit op voorraad: die gaat meteen op de bestellijst (2026-10-06).
+      await exootRegelsBijOpdracht(tx, {
+        projectId: p.id,
+        regels: acceptedOfferte.regels.map(r => ({ id: r.id, artikelId: r.artikelId, qty: r.qty })),
+        door: req.user.name,
+      })
 
       const newOrders: ProductieOrder[] = []
       for (const regel of acceptedOfferte.regels) {
@@ -770,12 +777,23 @@ router.post(
             .map(r => ({ id: r.id, artikelId: r.artikelId, naam: r.naam, qty: r.qty })),
           door: req.user.id,
         })
+        await exootRegelsBijOpdracht(tx, {
+          projectId: p.id,
+          regels: next.opdrachtbevestiging!.regels.filter(r => !oud.has(r.id))
+            .map(r => ({ id: r.id, artikelId: r.artikelId, qty: r.qty })),
+          door: req.user.name,
+        })
       }
       if (w.soort === 'weg') {
         // Materiaal kiezen voor een regel die er niet meer is, hoeft niet meer.
         // Reserveringen blijven staan: vrijgeven gaat alleen via Reserveringen.
         await tx.todo.deleteMany({
           where: { projectId: p.id, offerteRegelId: w.regelId, done: false, soort: 'materiaal_selecteren' },
+        })
+        // Net zo met een exoot die nog niet bij een leverancier is aangevraagd.
+        // Is hij dat wel, dan blijft hij staan: daar weet een leverancier al van.
+        await tx.bestelRegel.deleteMany({
+          where: { projectId: p.id, offerteRegelId: w.regelId, status: 'te_bestellen', bron: 'opdracht_exoot' },
         })
       }
 
@@ -1308,6 +1326,7 @@ router.post(
       // opdracht die er niet meer is, en telt de grafiek een verkoop die niet
       // doorging. Reserveringen blijven: vrijgeven gaat via Reserveringen.
       await tx.todo.deleteMany({ where: { projectId: p.id, soort: 'materiaal_selecteren', done: false } })
+      await tx.bestelRegel.deleteMany({ where: { projectId: p.id, status: 'te_bestellen', bron: 'opdracht_exoot' } })
       if (acc) await tx.artikelPrijsSnapshot.deleteMany({ where: { offerteId: acc.id, bron: 'order' } })
 
       const offertes = p.offertes.map(o => {

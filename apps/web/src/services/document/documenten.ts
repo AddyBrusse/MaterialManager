@@ -270,6 +270,47 @@ export function picklistDocument(d: PakbonDoc, co: Company, assets: DocumentAsse
   )
 }
 
+// ── Prijsaanvraag ──────────────────────────────────────────────────────────
+
+export interface PrijsaanvraagDoc {
+  nummer: string
+  datum: string
+  leverancier: DocPartij
+  regels: { materiaal: string; maat: string; lengte: string; qty: number; notitie: string | null }[]
+  /** Uiterlijk nodig, als een regel bij een project met leverdatum hoort. */
+  nodigVoor: string | null
+  notities: string | null
+}
+
+/**
+ * Prijsaanvraag aan een leverancier (2026-10-06): wat we willen hebben, zonder
+ * prijzen. Per regel de maat, lengte en het aantal stuks — ook een aangepaste
+ * lengte staat er zo, zodat ze zien dat het op maat gezaagd moet worden.
+ */
+export function prijsaanvraagDocument(d: PrijsaanvraagDoc, co: Company, assets: DocumentAssets): jsPDF {
+  const spec: DocumentSpec = {
+    titel: 'PRIJSAANVRAAG',
+    meta: [['Aanvraagnr.', d.nummer], ['Datum', datum(d.datum)]],
+    partij: { label: 'Leverancier', ...d.leverancier },
+    kenmerken: kenmerk('Uiterlijk nodig', d.nodigVoor ? datum(d.nodigVoor) : null),
+    kolommen: [
+      { kop: '#', breedte: 38, stijl: 'pos' },
+      { kop: 'Materiaal', stijl: 'omschrijving' },
+      { kop: 'Maat', breedte: 110, stijl: 'tekst' },
+      { kop: 'Lengte', breedte: 90, stijl: 'getal' },
+      { kop: 'Aantal', breedte: 70, stijl: 'totaal' },
+    ],
+    regels: d.regels.map((r, i) => ({ cellen: [positie(i), r.materiaal, r.maat, r.lengte, `${getal(r.qty)} st`], notitie: r.notitie })),
+    leeg: 'Geen regels.',
+    secties: [
+      { kop: 'Graag van u', tekst: 'Per regel uw prijs (per kg, per stuk of in totaal), eventuele zaagkosten per snede en de levertijd. Lengtes zijn op maat gezaagd, tenzij er een hele staaf staat.' },
+      ...sectie('Opmerking', d.notities),
+    ],
+    voetregel: `Prijsaanvraag ${d.nummer}`,
+  }
+  return maakDocument(spec, co, assets)
+}
+
 // ── Inkooporder ────────────────────────────────────────────────────────────
 
 export interface InkoopDoc {

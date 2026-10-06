@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { tekortRegel } from '../services/bestellingen'
 import { z } from 'zod'
 import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
@@ -460,6 +461,11 @@ router.post(
           tekortStuks: body.tekort.stuks,
           tekortMm: body.tekort.mm,
           door: req.user.id,
+        })
+        // En op de bestellijst, zodat het tekort ook echt besteld kan worden (2026-10-06).
+        await tekortRegel(tx, {
+          projectId: body.projectId, artikelId: artikel.id, offerteRegelId: body.offerteRegelId ?? null,
+          tekortMm: body.tekort.mm, door: req.user.name,
         })
       }
 

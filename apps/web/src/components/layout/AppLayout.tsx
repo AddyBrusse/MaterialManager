@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import { Menu, Tooltip } from '@mantine/core'
 import {
-  IconLayersLinked, IconInbox, IconSettings, IconList,
+  IconLayersLinked, IconInbox, IconSettings, IconList, IconTruckDelivery,
   IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
   IconClipboardList, IconChartBar, IconArrowsSort, IconCheck, IconLogout, IconFileText,
   IconChecklist, IconListNumbers, IconExternalLink, IconClock,
@@ -23,6 +23,8 @@ import { VoorraadPage } from '../../routes/desktop/VoorraadPage'
 import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
 import { ArtikelDetailPage } from '../../routes/desktop/ArtikelDetailPage'
 import { BinnenBoekenPage } from '../../routes/desktop/BinnenBoekenPage'
+import { BestellingenPage } from '../../routes/desktop/BestellingenPage'
+import { BestellingVergelijkPage } from '../../routes/desktop/BestellingVergelijkPage'
 import { InstellingenPage } from '../../routes/desktop/InstellingenPage'
 import { ZaagCalculatorPage } from '../../routes/desktop/ZaagCalculatorPage'
 import { ReserveringenPage } from '../../routes/desktop/ReserveringenPage'
@@ -38,6 +40,7 @@ import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
 import { todosApi } from '../../api/todos'
+import { bestelRegelsApi } from '../../api/bestellingen'
 import { GlobalTabs } from './GlobalTabs'
 import { pageTabs } from '../../utils/pageTabs'
 import { resolvePage, tabLabelFor } from './pageRegistry'
@@ -91,6 +94,10 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   const { data: todosData } = useQuery({ queryKey: ['todos'], queryFn: todosApi.list, refetchInterval: 20000 })
   const openTodoCount = todosData?.data?.filter(t => !t.done).length ?? 0
 
+  // Wat er nog besteld moet worden: te bestellen, of aangevraagd zonder bestelling.
+  const { data: bestelRegels } = useQuery({ queryKey: ['bestel-regels'], queryFn: () => bestelRegelsApi.list(), refetchInterval: 20000 })
+  const teBestellenCount = bestelRegels?.filter(r => r.status === 'te_bestellen' || r.status === 'aangevraagd').length ?? 0
+
   const NAV = [
     {
       label: 'Planning',
@@ -115,6 +122,7 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
       label: 'Materiaalbeheer',
       items: [
         { to: '/voorraad',       label: 'Voorraad',      Icon: IconLayersLinked, count: voorraadCount || null },
+        { to: '/bestellingen',   label: 'Bestellingen',  Icon: IconTruckDelivery, count: teBestellenCount || null },
         { to: '/reserveringen',  label: 'Reserveringen', Icon: IconBookmark,     count: reservationCount || null },
         { to: '/binnenboeken',   label: 'Binnen boeken', Icon: IconInbox,        count: null },
       ],
@@ -240,6 +248,7 @@ const ROUTE_LABELS: Record<string, [string, string]> = {
   '/zaagplanner':     ['Productie',      'Zaagplanner'],
   '/zaagflow':        ['Productie',      'ZaagFlow'],
   '/voorraad':        ['Materiaalbeheer', 'Voorraad'],
+  '/bestellingen':    ['Materiaalbeheer', 'Bestellingen'],
   '/reserveringen':   ['Materiaalbeheer', 'Reserveringen'],
   '/binnenboeken':    ['Materiaalbeheer', 'Binnen boeken'],
   '/artikelen':       ['Stamgegevens',   'Artikelen'],
@@ -319,6 +328,8 @@ export function AppLayout() {
             <Route index element={<Navigate to="/voorraad" replace />} />
             <Route path="/voorraad"        element={<VoorraadPage />} />
             <Route path="/binnenboeken"    element={<BinnenBoekenPage />} />
+            <Route path="/bestellingen"    element={<BestellingenPage />} />
+            <Route path="/bestellingen/vergelijk/:ids" element={<BestellingVergelijkPage />} />
             <Route path="/artikelen"       element={<ArtikelenPage />} />
             <Route path="/artikelen/:id"   element={<ArtikelDetailPage />} />
             <Route path="/instellingen"    element={<InstellingenPage />} />

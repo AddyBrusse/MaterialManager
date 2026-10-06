@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const DOC_PREFIXEN = ['PRJ', 'OFF', 'OB', 'PROD', 'PL', 'FACT', 'CRED'] as const
+export const DOC_PREFIXEN = ['PRJ', 'OFF', 'OB', 'PROD', 'PL', 'FACT', 'CRED', 'PA'] as const
 export type DocPrefix = typeof DOC_PREFIXEN[number]
 
 /**
