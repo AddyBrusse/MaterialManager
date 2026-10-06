@@ -13,6 +13,7 @@ import { rawMaterialsApi, formatDimensions, formatLocation } from '../../api/raw
 import { RawMaterialForm } from '../../components/raw-materials/RawMaterialForm'
 import { LeverancierPrijzen } from '../../components/inkoop/LeverancierPrijzen'
 import { ExootLabel } from '../../components/inkoop/ExootLabel'
+import { BestelRegelVenster } from '../../components/inkoop/bestellingen/BestelRegelVenster'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { surfaceFinishesApi } from '../../api/surface-finishes'
@@ -478,9 +479,19 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
   const st         = statusFor(remaining, min, original)
   const pct        = original > 0 ? Math.min(100, Math.max(0, (remaining / original) * 100)) : 0
   const lvlCls     = st.cls === 'ok' || st.cls === 'info' ? '' : st.cls
+  const [bestellen, setBestellen] = useState(false)
 
   return (
     <>
+      {bestellen && (
+        <BestelRegelVenster
+          onSluit={() => setBestellen(false)}
+          vooraf={{
+            gradeId: row.gradeId, profileId: row.profileId, dimensions: row.dimensions, lengteMm: original, stuks: 1,
+            bron: min > 0 && vrij < min ? 'lage_voorraad' : 'handmatig', rawMaterialId: row.exoot ? row.id : null,
+          }}
+        />
+      )}
       <div className="st-drawer-scrim" onClick={onClose} />
       <aside className="st-drawer">
 
@@ -630,6 +641,9 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
           {/* De knop "Geschiedenis — binnenkort beschikbaar" stond hier naast
               een lijst die nu de echte mutaties toont; die belofte was al
               ingelost. */}
+          <button className="st-btn" onClick={() => setBestellen(true)} title="Deze maat op de bestellijst zetten">
+            Op bestellijst
+          </button>
           <button className="st-btn" onClick={onEdit}>
             <IconEdit size={14} />Bewerken
           </button>

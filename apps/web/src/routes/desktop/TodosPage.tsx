@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Todo } from '@stockmanager/shared'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
@@ -14,6 +15,7 @@ import type { TodoAlert } from '../../utils/todoAlerts'
 
 export function TodosPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const user = useUserStore(s => s.user)
   const [settingAgendaId, setSettingAgendaId] = useState<string | null>(null)
   // De todo waarvoor het materiaalkeuzescherm openstaat.
@@ -109,7 +111,9 @@ export function TodosPage() {
             onDelete={() => removeMut.mutate(t.id)}
             onSetAgenda={() => handleSetAgenda(t.id)}
             settingAgenda={settingAgendaId === t.id}
-            onActie={t.soort === 'materiaal_selecteren' ? () => setSelectieTodo(t) : undefined}
+            onActie={t.soort === 'materiaal_selecteren' ? () => setSelectieTodo(t)
+              // Het tekort staat ook op de bestellijst (2026-10-06); daar bestel je het.
+              : t.soort === 'bestellen' ? () => navigate('/bestellingen') : undefined}
           />
         ))}
       </div>

@@ -162,6 +162,7 @@ model Grade {
 
   rawMaterials RawMaterial[]
   leveranciersprijzen LeverancierPrijs[]
+  bestelRegels BestelRegel[]
 
   @@map("grades")
 }
@@ -174,6 +175,7 @@ model Profile {
   createdAt       DateTime @default(now()) @map("created_at")
 
   rawMaterials RawMaterial[]
+  bestelRegels BestelRegel[]
 
   @@map("profiles")
 }
@@ -213,6 +215,7 @@ model RawMaterial {
   klant          Relatie?       @relation("ExootKlant", fields: [klantId], references: [id], onDelete: SetNull)
   artikel        Article?       @relation("ExootArtikel", fields: [artikelId], references: [id], onDelete: SetNull)
   leveranciersprijzen LeverancierPrijs[]
+  bestelRegels   BestelRegel[]
   profile        Profile        @relation(fields: [profileId], references: [id])
   surfaceFinish  SurfaceFinish? @relation(fields: [surfaceFinishId], references: [id])
   locationSlot   LocationSlot?  @relation(fields: [locationSlotId], references: [id])
@@ -367,6 +370,9 @@ model Relatie {
 
   exoten             RawMaterial[]      @relation("ExootKlant")
   prijzen            LeverancierPrijs[]
+  bestelKeuzes       BestelRegel[]      @relation("BestelKeuze")
+  aanvragen          PrijsaanvraagLeverancier[] @relation("AanvraagLeverancier")
+  antwoorden         PrijsaanvraagAntwoord[]    @relation("AanvraagAntwoord")
 
   @@map("relaties")
 }
@@ -501,6 +507,117 @@ model LeverancierPrijs {
   @@index([gradeId])
   @@index([leverancierId])
   @@map("leverancier_prijzen")
+}
+
+// Inkoop (2026-10-06). Een bestelregel gaat over een maat — kwaliteit, vorm,
+// afmeting, lengte × stuks — niet over een staaf; die bestaat pas als hij
+// binnen is. Een exoot wijst naar zijn eigen regel in de materiaallijst.
+// projectId/artikelId/offerteRegelId zijn losse verwijzingen, net als bij
+// todo's: een bestelling blijft staan als het project weg is.
+model BestelRegel {
+  id             String   @id @default(uuid())
+  /// 'te_bestellen' | 'aangevraagd' | 'besteld' | 'ontvangen' — gaat alleen vooruit
+  status         String   @default("te_bestellen")
+  /// 'opdracht_exoot' | 'tekort' | 'handmatig' | 'lage_voorraad'
+  bron           String
+  gradeId        String   @map("grade_id")
+  profileId      String   @map("profile_id")
+  dimensions     Json
+  lengteMm       Decimal  @map("lengte_mm")
+  stuks          Int
+  rawMaterialId  String?  @map("raw_material_id")
+  projectId      String?  @map("project_id")
+  artikelId      String?  @map("artikel_id")
+  offerteRegelId String?  @map("offerte_regel_id")
+  notitie        String?
+  // De keuze, met de prijs zoals die was bij het kiezen: een inkooporder mag
+  // niet meeschuiven als iemand later de prijslijst bijwerkt.
+  keuzeLeverancierId  String?   @map("keuze_leverancier_id")
+  /// 'prijslijst' | 'antwoord'
+  keuzeBron           String?   @map("keuze_bron")
+  keuzeAntwoordId     String?   @map("keuze_antwoord_id")
+  keuzeTotaal         Decimal?  @map("keuze_totaal")
+  keuzeUitleg         String?   @map("keuze_uitleg")
+  keuzeLevertijdDagen Int?      @map("keuze_levertijd_dagen")
+  keuzeOp             DateTime? @map("keuze_op")
+  keuzeDoor           String?   @map("keuze_door")
+  toegevoegdDoor String   @map("toegevoegd_door")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  grade            Grade        @relation(fields: [gradeId], references: [id])
+  profile          Profile      @relation(fields: [profileId], references: [id])
+  rawMaterial      RawMaterial? @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
+  keuzeLeverancier Relatie?     @relation("BestelKeuze", fields: [keuzeLeverancierId], references: [id], onDelete: SetNull)
+  aanvragen        PrijsaanvraagRegel[]
+  antwoorden       PrijsaanvraagAntwoord[]
+
+  @@index([status])
+  @@index([projectId])
+  @@map("bestel_regels")
+}
+
+/// PA-2026-001: één aanvraag aan één of meer leveranciers, elk met een eigen mail.
+model Prijsaanvraag {
+  id        String   @id
+  notitie   String?
+  createdBy String   @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  regels       PrijsaanvraagRegel[]
+  leveranciers PrijsaanvraagLeverancier[]
+  antwoorden   PrijsaanvraagAntwoord[]
+
+  @@map("prijsaanvragen")
+}
+
+model PrijsaanvraagRegel {
+  prijsaanvraagId String @map("prijsaanvraag_id")
+  bestelRegelId   String @map("bestel_regel_id")
+
+  prijsaanvraag Prijsaanvraag @relation(fields: [prijsaanvraagId], references: [id], onDelete: Cascade)
+  bestelRegel   BestelRegel   @relation(fields: [bestelRegelId], references: [id], onDelete: Cascade)
+
+  @@id([prijsaanvraagId, bestelRegelId])
+  @@map("prijsaanvraag_regels")
+}
+
+model PrijsaanvraagLeverancier {
+  prijsaanvraagId String    @map("prijsaanvraag_id")
+  leverancierId   String    @map("leverancier_id")
+  /// Pas gezet na "Ja, verstuurd" — een klaargezette mail is nog niet verstuurd.
+  verzondenOp     DateTime? @map("verzonden_op")
+  verzondenDoor   String?   @map("verzonden_door")
+
+  prijsaanvraag Prijsaanvraag @relation(fields: [prijsaanvraagId], references: [id], onDelete: Cascade)
+  leverancier   Relatie       @relation("AanvraagLeverancier", fields: [leverancierId], references: [id], onDelete: Cascade)
+
+  @@id([prijsaanvraagId, leverancierId])
+  @@map("prijsaanvraag_leveranciers")
+}
+
+model PrijsaanvraagAntwoord {
+  id                 String   @id @default(uuid())
+  prijsaanvraagId    String   @map("prijsaanvraag_id")
+  bestelRegelId      String   @map("bestel_regel_id")
+  leverancierId      String   @map("leverancier_id")
+  /// 'per_kg' | 'per_stuk' | 'totaal'
+  prijsSoort         String   @map("prijs_soort")
+  prijs              Decimal
+  zaagkostenPerSnede Decimal? @map("zaagkosten_per_snede")
+  levertijdDagen     Int?     @map("levertijd_dagen")
+  notitie            String?
+  bijgewerktDoor     String?  @map("bijgewerkt_door")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  prijsaanvraag Prijsaanvraag @relation(fields: [prijsaanvraagId], references: [id], onDelete: Cascade)
+  bestelRegel   BestelRegel   @relation(fields: [bestelRegelId], references: [id], onDelete: Cascade)
+  leverancier   Relatie       @relation("AanvraagAntwoord", fields: [leverancierId], references: [id], onDelete: Cascade)
+
+  @@unique([prijsaanvraagId, bestelRegelId, leverancierId])
+  @@index([bestelRegelId])
+  @@map("prijsaanvraag_antwoorden")
 }
 
 // Het project is de kop: klant, referentie, status. De documenten die eraan

@@ -1914,3 +1914,48 @@ Zonder contactpersoon of mailadres zegt de melding wat er eerst moet
   zodra iemand een prijs van een leverancier bijwerkt.
 - Te zien en te wijzigen in de voorraad (drawer, "Leveranciers & prijzen") en op
   de relatie (tab "Prijzen", alleen bij een leverancier).
+
+## 2026-10-06 — Inkoop deel 3a: bestelregels, prijsaanvragen, vergelijken
+
+- **Een bestelregel gaat over een maat**: kwaliteit, vorm, afmeting, lengte ×
+  stuks (`bestel_regels`). Niet over een staaf, want die bestaat pas als hij
+  binnen is. Een exoot wijst wel naar zijn eigen regel in de materiaallijst.
+  Bestellen gaat altijd in stuks × lengte (afgesproken): een hele staaf of een op
+  maat gezaagd stuk. Het gewicht wordt uitgerekend, nooit opgeslagen.
+- **Vier bronnen**:
+  - een exoot bij het omzetten naar een opdracht, met stuks =
+    ⌈orderaantal × aantal per stuk ÷ stuks uit één exoot⌉ (`exootRegelsBijOpdracht`);
+  - een tekort uit de materiaalselectie, als één stuk van de ontbrekende lengte,
+    naast de bestaande todo (`tekortRegel`);
+  - met de hand;
+  - "Op bestellijst" in de voorraad-drawer.
+
+  Vervalt een orderregel of wordt de opdracht teruggedraaid, dan gaan
+  exoot-regels die nog niet zijn aangevraagd mee weg; aangevraagde blijven staan.
+- **Status gaat alleen vooruit**: te bestellen → aangevraagd → besteld →
+  ontvangen. "Aangevraagd" komt pas na "Ja, verstuurd" bij een leverancier.
+  Maat en aantal wijzigen kan alleen zolang de regel nog niet is aangevraagd; anders
+  klopt het antwoord van de leverancier niet meer.
+- **Prijsaanvraag** (`PA-2026-001`, nummer van de server, eigen reeks in
+  Instellingen → Nummering): per leverancier een eigen `.eml` met een pdf zonder
+  prijzen, naar het e-mailadres van de relatie, anders naar de eerste
+  contactpersoon met een adres. Antwoorden vul je per leverancier in: per kg, per
+  stuk of totaal, met zagen per snede en levertijd.
+- **Vergelijken**: rijen zijn de regels, kolommen de leveranciers. Een antwoord
+  gaat voor de prijslijst. Uit de prijslijst telt een prijs voor een materiaal van
+  dezelfde maat voor een kwaliteitsprijs. Per stuk telt alleen voor de exoot zelf:
+  een prijs per stuk voor een staaf van 3 m zegt niets over een stuk van 1.250 mm.
+  Scherm en server rekenen met dezelfde functies (`celVoor`, `celBronnenVoor` in
+  `packages/shared/calc/bestelling.ts`).
+- **Kiezen legt de prijs vast** zoals hij op dat moment is (`keuze_*` op de
+  regel). De inkooporder in deel 3b mag niet meeschuiven als iemand later de
+  prijslijst bijwerkt. De server rekent de prijs zelf uit en weigert als hij
+  intussen veranderd is.
+- **Gekozen antwoord in de prijslijst** (vinkje, standaard aan, afgesproken):
+  - bij een exoot voor dat stuk (totaal wordt per stuk);
+  - bij gewoon materiaal alleen per kg: per stuk of totaal hoort bij die ene
+    lengte. Dat zegt het scherm dan ook.
+
+  Bestaat er al een eigen prijs voor een materiaal van dezelfde maat, dan wordt
+  díe bijgewerkt; anders zie je de nieuwe prijs nergens terug.
+- Nog niet in 3a: inkooporders per leverancier en ontvangen (deel 3b).

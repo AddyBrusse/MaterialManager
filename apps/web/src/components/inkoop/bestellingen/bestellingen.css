@@ -1,0 +1,38 @@
+/* ── Bestellingen (2026-10-06) ── */
+.bs-inhoud { padding: 16px 24px 40px; overflow-y: auto; flex: 1; }
+.bs-tel { margin-left: 5px; font-family: var(--font-mono); font-size: 10.5px; padding: 0 6px; border-radius: 10px; background: var(--bg-chip); color: var(--text-3); }
+.bs-balk { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 12.5px; color: var(--text-3); }
+.bs-tbl td { vertical-align: top; }
+.bs-tbl tbody tr { cursor: default; }
+.bs-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.bs-zacht { color: var(--text-3); }
+.bs-waarschuw { color: var(--warning); font-size: 12px; }
+.bs-acties { white-space: nowrap; text-align: right; }
+.bs-acties > * + * { margin-left: 4px; }
+.bs-venster-lijst { display: flex; flex-direction: column; gap: 6px; font-size: 12px; max-height: 220px; overflow: auto; padding: 8px 10px; background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 6px; }
+
+.bs-aanvragen { display: flex; flex-direction: column; gap: 14px; }
+.bs-kaart { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+.bs-kaart[data-open='true'] { border-color: var(--accent); }
+.bs-kaart-kop { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+
+.bs-antw { display: flex; flex-direction: column; }
+.bs-antw-kop, .bs-antw-rij { display: grid; grid-template-columns: minmax(0, 1.3fr) 96px 110px 110px 130px minmax(0, 1.2fr); gap: 8px; align-items: center; }
+.bs-antw-kop { font-size: 11px; font-weight: 500; color: var(--text-3); padding: 0 0 6px; border-bottom: 1px solid var(--border); }
+.bs-antw-rij { padding: 8px 0; border-bottom: 1px solid var(--border); }
+.ta-r { text-align: right; }
+
+.bs-vergelijk { padding: 16px 24px 40px; overflow-y: auto; flex: 1; }
+.bs-matrix { border: 1px solid var(--border); border-radius: 8px; overflow: auto; background: var(--bg); }
+.bs-matrix-rij { display: grid; gap: 0; border-bottom: 1px solid var(--border); }
+.bs-matrix-rij > * { padding: 10px 12px; border-right: 1px solid var(--border); min-width: 0; }
+.bs-matrix-rij > *:last-child { border-right: 0; }
+.bs-matrix-rij.kop { font-size: 11.5px; font-weight: 600; color: var(--text-3); background: var(--bg-sidebar); }
+.bs-cel { display: flex; flex-direction: column; gap: 2px; }
+.bs-cel.leeg { color: var(--text-4); font-size: 12px; }
+.bs-cel[data-gekozen='true'] { background: var(--success-soft); }
+.bs-cel-prijs { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+.bs-goedkoopst { font-size: 9.5px; font-weight: 700; letter-spacing: .04em; color: var(--success); background: var(--success-soft); padding: 1px 6px; border-radius: 10px; }
+.bs-cel-acties { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.bs-gekozen { font-size: 12px; font-weight: 600; color: var(--success); }
+.bs-samenvatting { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-sidebar); font-size: 12.5px; }
