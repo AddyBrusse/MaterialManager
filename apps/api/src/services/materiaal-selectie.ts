@@ -10,17 +10,16 @@
 // De rekenkern zelf staat in `@stockmanager/shared` (`calc/zaagplan.ts`) en is
 // puur; dit bestand haalt de gegevens erbij en schrijft het resultaat weg.
 import type { Prisma } from '@prisma/client'
-import { planZaagwerk, type PlanStaaf, type ZaagPlan, type ZaagParams } from '@stockmanager/shared'
+import { planZaagwerk, ZAAG_STANDAARD, type PlanStaaf, type ZaagPlan, type ZaagParams } from '@stockmanager/shared'
 import { AppError } from '../middleware/error'
 import { gereserveerdPerStaaf } from './voorraad'
 
 type Db = Prisma.TransactionClient
 
-/** Zaagsnede — hoort bij de zaag en niet bij de draaibank, dus voorlopig één
- *  waarde voor de werkplaats. Per zaagbon aan te passen in de calculator. */
-const STEEKBREEDTE_MM = 3
-/** Afvlakken per stuk, zelfde verhaal. */
-const VLAK_TOESLAG_MM = 3
+/** Zaagsnede en afvlakken: werkplaatsstandaard uit `bruto-lengte.ts`, dezelfde
+ *  waarden waarmee de calculatie rekent. Per zaagbon aan te passen. */
+const STEEKBREEDTE_MM = ZAAG_STANDAARD.steekbreedte
+const VLAK_TOESLAG_MM = ZAAG_STANDAARD.vlakToeslag
 
 export interface PlanContext {
   artikelId: string

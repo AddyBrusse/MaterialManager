@@ -11,5 +11,8 @@ export {
   machineMinutes,
   computeEstimateTotals,
   minToHm,
+  brutoLengte,
+  laderVan,
+  nettoLengte,
 } from '@stockmanager/shared'
-export type { EstimateCtx, EstimateTotals } from '@stockmanager/shared'
+export type { EstimateCtx, EstimateTotals, LaderGegevens, BrutoOpbouw } from '@stockmanager/shared'

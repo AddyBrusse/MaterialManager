@@ -12,6 +12,8 @@ export const MachineSchema = z.object({
   barloaderMaxMm: z.number().int().nonnegative().default(1100),
   opspanlengteMm: z.number().int().nonnegative().default(30),
   afsteekMm: z.number().int().nonnegative().default(3),
+  /** Draaibank met stangenlader — dan telt de calculatie afsteek en opspanstukje mee. */
+  heeftStangenlader: z.boolean().default(false),
   createdAt: z.string(),
 })
 export type Machine = z.infer<typeof MachineSchema>
@@ -26,6 +28,7 @@ export const CreateMachineSchema = z.object({
   barloaderMaxMm: z.number().int().nonnegative().optional(),
   opspanlengteMm: z.number().int().nonnegative().optional(),
   afsteekMm: z.number().int().nonnegative().optional(),
+  heeftStangenlader: z.boolean().optional(),
 })
 export type CreateMachine = z.infer<typeof CreateMachineSchema>
 

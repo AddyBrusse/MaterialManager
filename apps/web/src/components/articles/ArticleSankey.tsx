@@ -5,8 +5,8 @@
 // Layout algorithm ported from the design prototype; cost math reused from estimate.ts.
 
 import type { ArticleEstimate, EstimateNode } from '../../api/articles'
-import type { EstimateCtx, EstimateTotals } from '../../api/estimate'
-import { materialCostPerPiece, machineRatePerHour } from '../../api/estimate'
+import type { EstimateCtx, EstimateTotals, LaderGegevens } from '../../api/estimate'
+import { materialCostPerPiece, machineRatePerHour, laderVan } from '../../api/estimate'
 
 export const sankeyColors = {
   mat: '#2d6df6',
@@ -70,8 +70,8 @@ interface SLink {
 }
 
 /** Per-piece € value of a material node (qty × weight/override price). */
-function matVal(n: EstimateNode, ctx: EstimateCtx): number {
-  return (n.qty ?? 1) * materialCostPerPiece(n, ctx)
+function matVal(n: EstimateNode, ctx: EstimateCtx, lader: LaderGegevens | null): number {
+  return (n.qty ?? 1) * materialCostPerPiece(n, ctx, lader)
 }
 /** Machine setup cost = (setupMin/60) × rate. */
 function setupCostOf(n: EstimateNode, ctx: EstimateCtx): number {
@@ -102,12 +102,14 @@ export function buildSankey(est: ArticleEstimate, ctx: EstimateCtx, sell: number
   }
 
   const materials = est.nodes.filter(n => n.type === 'material')
+  // Dezelfde bruto lengte als de totalen (draaibank met lader, 2026-10-06).
+  const lader = laderVan(est.nodes, ctx.machines)
   const machines = est.nodes.filter(n => n.type === 'machine')
   const external = est.nodes.filter(n => n.type === 'external')
 
   // col1 group sums + margin computed up front so the marge band can start at
   // the chart's left edge (col0), aligned with the material/machine flows.
-  const gMat = materials.reduce((a, m) => a + matVal(m, ctx), 0)
+  const gMat = materials.reduce((a, m) => a + matVal(m, ctx, lader), 0)
   const gSetup = machines.reduce((a, m) => a + setupCostOf(m, ctx), 0)
   const gBew = machines.reduce((a, m) => a + cycleCostOf(m, ctx), 0)
   const gUit = external.reduce((a, e) => a + extVal(e), 0)
@@ -115,7 +117,7 @@ export function buildSankey(est: ArticleEstimate, ctx: EstimateCtx, sell: number
   const profit = Math.max(0, sell - cost)
 
   // col0 — line items (+ marge as its own band from the left edge)
-  materials.forEach(m => add('m_' + m.id, 0, matVal(m, ctx), 'Materiaal', C.mat))
+  materials.forEach(m => add('m_' + m.id, 0, matVal(m, ctx, lader), 'Materiaal', C.mat))
   machines.forEach(m => add('c_' + m.id, 0, setupCostOf(m, ctx) + cycleCostOf(m, ctx), m.name, C.bew))
   external.forEach(e => add('e_' + e.id, 0, extVal(e), 'Uitbestedingen', C.uit))
   if (profit > 0) add('mrg0', 0, profit, 'Marge', C.marge)
@@ -136,7 +138,7 @@ export function buildSankey(est: ArticleEstimate, ctx: EstimateCtx, sell: number
   add('sell', 3, sell, 'Verkoopprijs', C.sell)
 
   // links
-  materials.forEach(m => link('m_' + m.id, 'gMat', matVal(m, ctx), C.mat))
+  materials.forEach(m => link('m_' + m.id, 'gMat', matVal(m, ctx, lader), C.mat))
   machines.forEach(m => {
     link('c_' + m.id, 'gSetup', setupCostOf(m, ctx), C.setup)
     link('c_' + m.id, 'gBew', cycleCostOf(m, ctx), C.bew)

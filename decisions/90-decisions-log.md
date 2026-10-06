@@ -1846,3 +1846,36 @@ algemene adres van de klant). Pas na "Ja, verstuurd" staat hij als verstuurd.
 Zonder contactpersoon of mailadres zegt de melding wat er eerst moet
 (`waaromGeenPakbonMail`). Hoofdknop en menu van de footer lopen via één
 `doeStap`, zodat geen van beide de mail kan overslaan.
+
+## 2026-10-06 — Calculator: materiaal over de bruto lengte
+
+- **De calculatie rekende te weinig materiaal**: alleen de kale lengte van het
+  werkstuk, terwijl het zaagplan bij het aanmaken van de opdracht ook zaagsnede,
+  afvlakken, afsteken en het opspanstukje per laderstang telt. Bij een kort
+  draaideel scheelde dat ruim 20 %.
+- **Eén formule voor beide** (`packages/shared/calc/bruto-lengte.ts`):
+  - zonder lader: netto + vlak (3) + zaagsnede (3);
+  - met lader: netto + vlak + afsteek + zaagsnede, plus opspanlengte / stuks per
+    laderstang (⌊(lader max − opspan) / stuk⌋, minstens 1).
+  `ZAAG_STANDAARD` is ook wat het zaagplan gebruikt (`materiaal-selectie.ts`).
+- **De lader telt alleen bij een draaibank met stangenlader in de bewerkingen**
+  (`laderVan`): nieuw veld `Machine.heeftStangenlader`, in Instellingen →
+  Bedrijfskosten → Machines, samen met lader max/min, opspanlengte en afsteek
+  (die stonden al in de database maar waren nergens in te stellen). Staan er meer,
+  dan telt de eerste. **Standaard uit**, ook voor bestaande machines: in de lijst
+  staan ook zagen en freesmachines. De draaibanken met lader vink je aan.
+- **`lengthMm` op een materiaalregel is de netto lengte**; de bruto lengte wordt
+  nooit opgeslagen, maar uitgerekend (net als het gewicht). Server
+  (prijssnapshot, nacalculatie) en scherm rekenen met dezelfde kern en dezelfde
+  machinevelden.
+- **De materiaalregel toont** netto → bruto met de opbouw, de vrije voorraad in
+  mm (in plaats van "1800 st": de voorraad staat in mm en het was de fysieke
+  voorraad), en de prijs. Een prijs met de hand krijgt "VASTE PRIJS" en
+  "↺ berekend (€ …)": die rekent niet mee met lengte of €/kg, en dat moet je zien.
+- **Materiaal kiezen** toont de hele materiaallijst, ook wat niet op voorraad
+  ligt, met een vinkje "alleen op voorraad".
+- Gevolg: bestaande calculaties worden iets duurder (zaagsnede en afvlakken
+  tellen nu mee), artikelen met een draaibank met lader meer zodra die is
+  aangevinkt.
+- Opslaan van een machine viel stil terug op de browser bij een fout; nu een
+  melding (wat, waar, gevolg).

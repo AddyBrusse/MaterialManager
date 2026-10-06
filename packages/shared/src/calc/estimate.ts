@@ -9,6 +9,7 @@
  */
 
 import type { VolumeFormula } from '../schemas/profile'
+import { brutoLengte, laderVan, type LaderGegevens } from './bruto-lengte'
 export type { VolumeFormula }
 
 export interface ArticleRecipe {
@@ -50,9 +51,21 @@ export interface ArticleEstimate {
   updatedAt: string
 }
 
+export interface EstimateMachine {
+  id: string
+  name?: string
+  machineRatePerHour: number
+  operatorRatePerHour: number
+  heeftStangenlader?: boolean
+  opspanlengteMm?: number
+  afsteekMm?: number
+  barloaderMaxMm?: number
+}
+
 export interface EstimateCtx {
   grades: { id: string; densityKgM3: number; pricePerKg?: number }[]
-  machines: { id: string; machineRatePerHour: number; operatorRatePerHour: number }[]
+  /** Met de stangenladervelden rekent het materiaal met bruto lengte (`bruto-lengte.ts`). */
+  machines: EstimateMachine[]
   profiles?: { id: string; volumeFormula: string }[]
   recipe: ArticleRecipe | null
   profileFormula?: VolumeFormula // formula for recipe.profileId (resolved by caller)
@@ -101,8 +114,19 @@ export function computeWeightKg(
   return (volumeMm3 / 1e9) * densityKgM3
 }
 
-/** Per-piece material cost for a node: override, else weight × grade €/kg.
- *  Uses node-level profileId/dimensions when set; falls back to recipe. */
+/** De netto lengte per stuk: die van de regel, anders die van het recept. */
+export function nettoLengte(node: { lengthMm?: number | null }, ctx: EstimateCtx): number {
+  return node.lengthMm ?? ctx.recipe?.lengthPerPieceMm ?? 0
+}
+
+/**
+ * Per-piece material cost for a node: override, else weight × grade €/kg.
+ * Uses node-level profileId/dimensions when set; falls back to recipe.
+ *
+ * Sinds 2026-10-06 over de bruto lengte: netto plus zaagsnede en afvlakken, en
+ * bij een draaibank met lader ook afsteek en opspanstukje (`brutoLengte`).
+ * Geef `lader` mee (zie `laderVan`); `undefined` rekent zonder lader.
+ */
 export function materialCostPerPiece(
   node: {
     gradeId?: string | null
@@ -112,6 +136,7 @@ export function materialCostPerPiece(
     costOverride?: number | null
   },
   ctx: EstimateCtx,
+  lader: LaderGegevens | null = null,
 ): number {
   if (node.costOverride != null) return node.costOverride
   if (!node.gradeId) return 0
@@ -125,7 +150,7 @@ export function materialCostPerPiece(
     ? node.dimensions
     : ctx.recipe?.dimensions
   if (!formula || !dims) return 0
-  const len = node.lengthMm ?? ctx.recipe?.lengthPerPieceMm ?? 0
+  const len = brutoLengte(nettoLengte(node, ctx), lader).brutoMm
   const kg = computeWeightKg(formula, dims, len, g.densityKgM3)
   return kg * (g.pricePerKg ?? 0)
 }
@@ -145,7 +170,7 @@ export function buildEstimateCtx(
   article: { recipe: ArticleRecipe | null },
   grades: { id: string; densityKgM3: number; pricePerKg?: number }[],
   profiles: { id: string; volumeFormula: string }[],
-  machines: { id: string; machineRatePerHour: number; operatorRatePerHour: number }[],
+  machines: EstimateMachine[],
 ): EstimateCtx {
   return {
     grades, machines, profiles,
@@ -175,9 +200,10 @@ export function computeEstimateTotals(est: ArticleEstimate, ctx: EstimateCtx, qt
   let materialTotal = 0, cyclePerPiece = 0, setupTotal = 0, externalBatchTotal = 0, timeMin = 0
   let setupMin = 0, cycleMinPerPiece = 0
 
+  const lader = laderVan(est.nodes, ctx.machines)
   for (const node of est.nodes) {
     if (node.type === 'material') {
-      materialTotal += (node.qty ?? 1) * materialCostPerPiece(node, ctx)
+      materialTotal += (node.qty ?? 1) * materialCostPerPiece(node, ctx, lader)
     } else if (node.type === 'machine') {
       const nodeSetupMin = node.setupMin || 0
       const cycleMin = (node.steps ?? []).reduce((s, st) => s + (st.cycleMin || 0), 0)

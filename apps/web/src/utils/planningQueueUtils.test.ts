@@ -25,7 +25,7 @@ import {
 const WINDOW_START = new Date(2026, 6, 13)
 
 // De stangenlader doet hier niet ter zake; deze tests gaan over de wachtrij.
-const LOADER = { barloaderMinMm: 500, barloaderMaxMm: 1100, opspanlengteMm: 30, afsteekMm: 3 }
+const LOADER = { barloaderMinMm: 500, barloaderMaxMm: 1100, opspanlengteMm: 30, afsteekMm: 3, heeftStangenlader: false }
 
 const MACHINES: Machine[] = [
   { id: 'm-zaag', name: 'Zaag', machineRatePerHour: 55, operatorRatePerHour: 45, defaultSetupMin: 10, worksWeekends: true, ...LOADER, createdAt: '' },

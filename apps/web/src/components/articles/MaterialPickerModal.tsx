@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import {
-  Modal, Select, Button, Text, Group, Stack, Collapse, NumberInput, Divider,
+  Modal, Select, Button, Text, Group, Stack, Collapse, NumberInput, Divider, Checkbox,
 } from '@mantine/core'
 import { useForm } from '@mantine/form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -12,7 +12,10 @@ import type { RawMaterialRow } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { surfaceFinishesApi } from '../../api/surface-finishes'
+import { meldFout } from '../../utils/fout-melding-toon'
 import './article-pickers.css'
+
+const mmTekst = (n: number) => `${Math.round(n).toLocaleString('nl-NL')} mm`
 
 interface MaterialPickerModalProps {
   opened: boolean
@@ -62,6 +65,9 @@ export function MaterialPickerModal({
   const [fFinish, setFFinish] = useState<string>(ALLE)
   const [fSize, setFSize] = useState<string>(ALLE)
   const [addOpen, setAddOpen] = useState(false)
+  // Ook wat niet op voorraad ligt is te kiezen (2026-10-06): voor een offerte reken
+  // je vaak met materiaal dat nog besteld moet worden.
+  const [alleenOpVoorraad, setAlleenOpVoorraad] = useState(false)
 
   // Full grade/profile/finish data for the quick-add form (dimensionSchema,
   // pricePerKg) — reads only, never mutates shared state.
@@ -92,8 +98,9 @@ export function MaterialPickerModal({
     if (fProfile !== ALLE && r.profile.name !== fProfile) return false
     if (fFinish !== ALLE && (r.surfaceFinish?.name ?? '') !== fFinish) return false
     if (fSize !== ALLE && formatDimensions(r.profile, r.dimensions) !== fSize) return false
+    if (alleenOpVoorraad && !(Number(r.vrijMm) > 0)) return false
     return true
-  }), [stockRows, fGrade, fProfile, fFinish, fSize])
+  }), [stockRows, fGrade, fProfile, fFinish, fSize, alleenOpVoorraad])
 
   const form = useForm<QuickAddValues>({
     initialValues: QUICK_EMPTY,
@@ -132,13 +139,13 @@ export function MaterialPickerModal({
     },
     onSuccess: ({ data }) => {
       qc.invalidateQueries({ queryKey: ['raw-materials'] })
-      notifications.show({ color: 'green', message: `Materiaal ${data.code} toegevoegd aan voorraad` })
+      notifications.show({ color: 'green', message: `Materiaal ${data.code} toegevoegd aan de materiaallijst` })
       form.reset()
       setAddOpen(false)
       onCreated(data)
       onClose()
     },
-    onError: (e: Error) => notifications.show({ color: 'red', message: e.message }),
+    onError: (fout) => meldFout({ actie: 'Nieuw materiaal toevoegen', fout, gevolg: 'Er is geen materiaal aangemaakt. Je invoer staat nog in het formulier.' }),
   })
 
   function choose(row: RawMaterialRow) {
@@ -146,8 +153,10 @@ export function MaterialPickerModal({
     onClose()
   }
 
+  // Voorraad staat in mm (services/voorraad.ts). Hier stond "1800 st" — het waren
+  // millimeters, en het was de fysieke voorraad in plaats van wat er vrij is.
   function low(row: RawMaterialRow): boolean {
-    const cur = Number(row.currentStock)
+    const cur = Number(row.vrijMm)
     if (row.minStock !== null) return cur < Number(row.minStock)
     return cur < 20
   }
@@ -164,7 +173,7 @@ export function MaterialPickerModal({
       size={780}
       radius="md"
       centered
-      title="Materiaal uit voorraad"
+      title="Materiaal kiezen"
       styles={{ title: { fontWeight: 600 } }}
     >
       {/* Filter bar */}
@@ -177,6 +186,8 @@ export function MaterialPickerModal({
           value={fFinish} onChange={v => setFFinish(v ?? ALLE)} />
         <Select size="xs" allowDeselect={false} {...selOpts('Afmeting', sizeOpts)}
           value={fSize} onChange={v => setFSize(v ?? ALLE)} />
+        <Checkbox size="xs" label="alleen op voorraad" checked={alleenOpVoorraad}
+          onChange={e => setAlleenOpVoorraad(e.currentTarget.checked)} style={{ alignSelf: 'flex-end', paddingBottom: 6 }} />
       </div>
 
       {/* Table */}
@@ -184,7 +195,7 @@ export function MaterialPickerModal({
         <span>Materiaal</span>
         <span>Afmeting</span>
         <span>Finish</span>
-        <span className="apk-right">Voorraad</span>
+        <span className="apk-right">Vrij</span>
         <span />
       </div>
 
@@ -210,8 +221,9 @@ export function MaterialPickerModal({
                   size="xs"
                   className="apk-mono apk-right"
                   style={low(row) ? { color: 'var(--warning)' } : undefined}
+                  title={`Fysiek ${mmTekst(Number(row.currentStock))}, gereserveerd ${mmTekst(Number(row.gereserveerdMm) || 0)}`}
                 >
-                  {Number(row.currentStock)} st
+                  {Number(row.vrijMm) > 0 ? mmTekst(Number(row.vrijMm)) : 'niet op voorraad'}
                 </Text>
                 <Button size="xs" onClick={() => choose(row)}>+ Kies</Button>
               </div>

@@ -167,6 +167,9 @@ async function geschatVoorArtikel(
     machines.map((m) => ({
       id: m.id, machineRatePerHour: num(m.machineRatePerHour),
       operatorRatePerHour: num(m.operatorRatePerHour),
+      // Voor de bruto lengte in de calculatie (stangenlader, 2026-10-06).
+      name: m.name, heeftStangenlader: m.heeftStangenlader,
+      opspanlengteMm: m.opspanlengteMm, afsteekMm: m.afsteekMm, barloaderMaxMm: m.barloaderMaxMm,
     })),
   )
   const est = artikel.estimate as unknown as ArticleEstimate
