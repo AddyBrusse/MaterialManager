@@ -76,6 +76,7 @@ export function TeBestellenTab({ regels, data, gekozen, onGekozen }: {
                 <td>{r.keuze ? <><div>{r.keuze.leverancierNaam}</div><div className="bs-sub cell-mono">{eur(r.keuze.totaal)}</div></> : <span className="cell-muted">—</span>}</td>
                 <td>
                   <BestelStatusBadge status={r.status} />
+                  {r.inkooporder && <div className="bs-sub cell-mono">op {r.inkooporder.id} ({r.inkooporder.status === 'concept' ? 'concept' : 'verstuurd'})</div>}
                   {r.aanvragen[0] && <div className="bs-sub">{r.aanvragen[0].id}{r.aanvragen[0].verzondenOp ? ` · ${datum(r.aanvragen[0].verzondenOp)}` : ' · nog niet verstuurd'}</div>}
                 </td>
                 <td className="bs-acties" onClick={(e) => e.stopPropagation()}>

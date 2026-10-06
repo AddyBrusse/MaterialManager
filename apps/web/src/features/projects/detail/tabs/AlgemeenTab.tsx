@@ -7,6 +7,8 @@ import { WatMoetErGebeuren } from './algemeen/WatMoetErGebeuren'
 import { GeldKaart } from './algemeen/GeldKaart'
 import { MateriaalKaart } from './algemeen/MateriaalKaart'
 import { Notities } from './algemeen/Notities'
+import { BestellingenKaart } from './algemeen/BestellingenKaart'
+import '../../../../components/inkoop/bestellingen/bestellingen.css'
 
 interface Props {
   project: Project
@@ -45,6 +47,7 @@ export function AlgemeenTab(props: Props) {
           <Notities waarde={p.notities} geblokkeerd={geblokkeerd} onZet={(notities) => props.onZet({ notities })} />
         </BasisGegevens>
         <MailImportKaart project={p} geblokkeerd={geblokkeerd} onGewijzigd={props.onGewijzigd} />
+        <BestellingenKaart projectId={p.id} />
         <Activiteit activiteit={props.activiteit} />
       </div>
       <div className="pdv2-algemeen-stand">

@@ -59,7 +59,15 @@ router.patch(
     const maatOfAantal = body.lengteMm !== undefined || body.stuks !== undefined
     const reden = maatOfAantal ? waaromNietBestelRegelWijzigen(r) : null
     if (reden) throw new AppError(409, 'VOORWAARDE', reden)
-    await prisma.bestelRegel.update({ where: { id: r.id }, data: body })
+    // Andere maat of aantal: de gekozen prijs gold voor de oude, dus die vervalt.
+    const keuzeWeg = maatOfAantal && (body.lengteMm !== r.lengteMm || body.stuks !== r.stuks)
+    await prisma.bestelRegel.update({
+      where: { id: r.id },
+      data: {
+        ...body,
+        ...(keuzeWeg ? { keuzeLeverancierId: null, keuzeBron: null, keuzeAntwoordId: null, keuzeTotaal: null, keuzeUitleg: null, keuzeLevertijdDagen: null, keuzeOp: null, keuzeDoor: null } : {}),
+      },
+    })
     res.json({ data: await leesRegel(prisma, r.id) })
   }),
 )
@@ -70,6 +78,9 @@ router.delete(
     const r = await leesRegel(prisma, req.params.id)
     const reden = waaromNietBestelRegelVerwijderen(r)
     if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+    if (await prisma.inkooporderRegel.count({ where: { bestelRegelId: r.id } })) {
+      throw new AppError(409, 'VOORWAARDE', `${r.materiaal} stond op een ingetrokken inkooporder; die geschiedenis blijft bewaard, dus de regel kan niet weg.`)
+    }
     await prisma.bestelRegel.delete({ where: { id: r.id } })
     res.json({ data: { id: r.id } })
   }),

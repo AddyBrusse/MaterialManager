@@ -26,6 +26,7 @@ const LABELS: Record<string, string> = {
   leverancierIds: 'Leveranciers',
   gradeId: 'Kwaliteit',
   profileId: 'Vorm',
+  locationSlotId: 'Locatie',
   qty: 'Aantal',
   verkoopprijs: 'Prijs per stuk',
   naam: 'Naam',

@@ -158,13 +158,21 @@ export function antwoordAlsPrijs(
 
 const opInkooporder = (r: Pick<BestelRegel, 'status'>) => r.status === 'besteld' || r.status === 'ontvangen'
 
-export function waaromNietBestelRegelWijzigen(r: Pick<BestelRegel, 'status' | 'materiaal'>): string | null {
+type MetOrder = { inkooporder?: BestelRegel['inkooporder'] }
+const opConcept = (r: MetOrder) =>
+  r.inkooporder?.status === 'concept' ? `staat op inkooporder ${r.inkooporder.id} (concept). Haal hem daar eerst af.` : null
+
+export function waaromNietBestelRegelWijzigen(r: Pick<BestelRegel, 'status' | 'materiaal'> & MetOrder): string | null {
+  const c = opConcept(r)
+  if (c) return `${r.materiaal} ${c}`
   if (r.status === 'te_bestellen') return null
   if (opInkooporder(r)) return `${r.materiaal} staat al op een inkooporder; daar verander je niets meer aan.`
   return `${r.materiaal} is al aangevraagd bij leveranciers. Wijzig je nu de maat of het aantal, dan klopt hun antwoord niet meer. Verwijder de regel en maak een nieuwe.`
 }
 
-export function waaromNietBestelRegelVerwijderen(r: Pick<BestelRegel, 'status' | 'materiaal'>): string | null {
+export function waaromNietBestelRegelVerwijderen(r: Pick<BestelRegel, 'status' | 'materiaal'> & MetOrder): string | null {
+  const c = opConcept(r)
+  if (c) return `${r.materiaal} ${c}`
   return opInkooporder(r) ? `${r.materiaal} staat al op een inkooporder en kan niet meer weg.` : null
 }
 
@@ -180,8 +188,8 @@ export function waaromNietAanvraagVersturen(l: { naam: string; email: string | n
   return l.email ? null : `Bij ${l.naam} staat geen e-mailadres. Vul het in bij Relaties → ${l.naam} (of bij een contactpersoon), dan kan de aanvraag de deur uit.`
 }
 
-export function waaromNietKiezen(r: Pick<BestelRegel, 'status' | 'materiaal'>, cel: Cel): string | null {
-  if (opInkooporder(r)) return `${r.materiaal} staat al op een inkooporder; de keuze ligt vast.`
+export function waaromNietKiezen(r: Pick<BestelRegel, 'status' | 'materiaal'> & MetOrder, cel: Cel): string | null {
+  if (opInkooporder(r) || r.inkooporder) return `${r.materiaal} staat al op een inkooporder${r.inkooporder ? ` (${r.inkooporder.id})` : ''}; de keuze ligt vast.`
   if (cel.soort !== 'prijs') return 'Er is nog geen prijs van deze leverancier. Vul eerst zijn antwoord in.'
   return null
 }

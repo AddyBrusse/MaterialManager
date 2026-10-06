@@ -20,6 +20,7 @@ export const DOC_SOORTEN: { prefix: DocPrefix; naam: string }[] = [
   { prefix: 'FACT', naam: 'Factuur' },
   { prefix: 'CRED', naam: 'Creditfactuur' },
   { prefix: 'PA', naam: 'Prijsaanvraag' },
+  { prefix: 'INK', naam: 'Inkooporder' },
 ]
 
 /**
@@ -49,6 +50,7 @@ async function docIdBezet(db: Db, prefix: DocPrefix, id: string): Promise<boolea
     case 'FACT':
     case 'CRED': return !!(await db.factuur.findUnique(waar))
     case 'PA':   return !!(await db.prijsaanvraag.findUnique(waar))
+    case 'INK':  return !!(await db.inkooporder.findUnique(waar))
   }
 }
 
@@ -92,6 +94,7 @@ async function hoogsteBestaand(db: Db, prefix: DocPrefix, jaar: number): Promise
     case 'FACT':
     case 'CRED': ids = await db.factuur.findMany(waar); break
     case 'PA':   ids = await db.prijsaanvraag.findMany(waar); break
+    case 'INK':  ids = await db.inkooporder.findMany(waar); break
   }
   return ids.reduce((max, { id }) => {
     const n = Number(id.slice(`${prefix}-${jaar}-`.length))

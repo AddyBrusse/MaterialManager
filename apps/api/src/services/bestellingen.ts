@@ -21,6 +21,7 @@ export const REGEL_INCLUDE = {
   profile: true,
   keuzeLeverancier: { select: { naam: true } },
   rawMaterial: { select: { exoot: true } },
+  inkoopRegels: { select: { stuks: true, ontvangenStuks: true, inkooporder: { select: { id: true, status: true, createdAt: true } } } },
   aanvragen: { include: { prijsaanvraag: { include: { leveranciers: { select: { verzondenOp: true } } } } } },
 } as const
 type Rij = Prisma.BestelRegelGetPayload<{ include: typeof REGEL_INCLUDE }>
@@ -72,6 +73,12 @@ export async function naarRegels(db: Db, rijen: Rij[]): Promise<BestelRegel[]> {
             gekozenOp: r.keuzeOp.toISOString(), gekozenDoor: r.keuzeDoor,
           }
         : null,
+      inkooporder: (() => {
+        const o = r.inkoopRegels.map((x) => x.inkooporder).filter((x) => x.status !== 'vervallen')
+          .sort((a, b) => +b.createdAt - +a.createdAt)[0]
+        return o ? { id: o.id, status: o.status as 'concept' | 'verzonden' } : null
+      })(),
+      ontvangenStuks: r.inkoopRegels.reduce((t, x) => t + x.ontvangenStuks, 0),
       toegevoegdDoor: r.toegevoegdDoor,
       createdAt: r.createdAt.toISOString(),
     }
@@ -164,7 +171,7 @@ export async function kies(regelId: string, invoer: KeuzeInvoer, door: string) {
       where: { id: regelId },
       data: {
         keuzeLeverancierId: invoer.leverancierId, keuzeBron: cel.bron, keuzeAntwoordId: cel.antwoordId,
-        keuzeTotaal: cel.totaal, keuzeUitleg: cel.uitleg, keuzeLevertijdDagen: cel.levertijdDagen,
+        keuzeTotaal: Math.round(cel.totaal * 100) / 100, keuzeUitleg: cel.uitleg, keuzeLevertijdDagen: cel.levertijdDagen,
         keuzeOp: new Date(), keuzeDoor: door,
       },
     })

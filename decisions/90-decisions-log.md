@@ -1959,3 +1959,36 @@ Zonder contactpersoon of mailadres zegt de melding wat er eerst moet
   Bestaat er al een eigen prijs voor een materiaal van dezelfde maat, dan wordt
   díe bijgewerkt; anders zie je de nieuwe prijs nergens terug.
 - Nog niet in 3a: inkooporders per leverancier en ontvangen (deel 3b).
+
+## 2026-10-06 — Inkoop deel 3b: inkooporders en ontvangen
+
+- **Inkooporders maken** doe je op Vergelijken: de gekozen regels worden één
+  concept per leverancier (`INK-2026-001`, nummer van de server, eigen reeks in
+  Instellingen → Nummering). Op de order staat de prijs die bij "Kies" is
+  vastgelegd (`inkooporder_regels`), afgerond op centen. Regelreferentie
+  `INK-2026-001.1`, ook op de pdf.
+- **Een concept** pas je aan (een regel eraf) of verwijder je. **Verstuurd ligt
+  vast** (afgesproken). Moet er iets veranderen, dan trek je hem in: de order
+  wordt *vervallen*, met reden, en het nummer blijft in de lijst staan. De regels
+  gaan terug naar aangevraagd (of te bestellen als ze nooit gevraagd zijn), met hun
+  gekozen leverancier, zodat je meteen een nieuwe inkooporder maakt. Intrekken kan
+  niet meer zodra er iets van binnen is: wat binnen is, staat al in de voorraad.
+- **Versturen** gaat zoals elk document: een `.eml` met de inkooporder-pdf (de
+  bestaande spec `inkooporderDocument`, met prijzen en btw), en pas na "Ja,
+  verstuurd" vastgelegd. Dan gaan de regels naar "Besteld".
+- **Ontvangen per regel, ook in delen**, met een locatie die leeg mag blijven
+  (afgesproken). Elk stuk wordt een eigen regel in de materiaallijst, met een
+  voorraadmutatie "ontvangen" en een code `#NNNNN` van de server.
+  - Een **exoot** vult eerst zijn eigen regel (die op 0 stond); verdere stuks
+    worden kopieën met dezelfde klant en hetzelfde artikel.
+  - De exoot gaat meteen vast voor zijn project via een gewone zaagreservering, zodat `services/voorraad.ts`
+    hem als gereserveerd telt en het gereedmelden van de order hem afboekt (rest 0).
+    Hij staat daardoor ook als zaagbon in de Zaagflow.
+  - Gewoon materiaal wordt niet vanzelf gereserveerd: dat blijft de materiaalselectie, met een mens die het
+    voorstel ziet.
+  - Alles binnen → de regel gaat naar "Ontvangen". Een ontvangst wordt vastgelegd in `ontvangsten`, met de codes.
+- Een regel op een concept-inkooporder wijzig je niet, verwijder je niet en kies je
+  niet opnieuw. Verandert de maat of het aantal van een regel die nog niet
+  besteld is, dan vervalt de gekozen prijs.
+- **Op de Algemeen-tab van het project** staan alle bestelregels van dat project
+  met status, leverancier en prijs, levertijd, aanvraag en order, en wat er binnen is.
