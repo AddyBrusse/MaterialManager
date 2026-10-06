@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { IconPlus } from '@tabler/icons-react'
 import { bestelRegelsApi, prijsaanvragenApi } from '../../api/bestellingen'
+import { inkoopordersApi } from '../../api/inkooporders'
+import { InkoopordersTab } from '../../components/inkoop/bestellingen/InkoopordersTab'
+import { OntvangenTab } from '../../components/inkoop/bestellingen/OntvangenTab'
+import { BesteldeRegels } from '../../components/inkoop/bestellingen/BesteldeRegels'
 import { TeBestellenTab } from '../../components/inkoop/bestellingen/TeBestellenTab'
 import { PrijsaanvragenTab } from '../../components/inkoop/bestellingen/PrijsaanvragenTab'
 import { PrijsaanvraagVenster } from '../../components/inkoop/bestellingen/PrijsaanvraagVenster'
@@ -11,16 +15,18 @@ import { meldFout } from '../../utils/fout-melding-toon'
 import { Weigering } from '../../utils/fout-melding'
 import '../../components/inkoop/bestellingen/bestellingen.css'
 
-type Tab = 'te_bestellen' | 'aanvragen'
+type Tab = 'te_bestellen' | 'aanvragen' | 'inkooporders' | 'ontvangen'
+const TABS: Tab[] = ['te_bestellen', 'aanvragen', 'inkooporders', 'ontvangen']
 
 /**
  * Bestellingen (2026-10-06): van wat er nodig is, via prijsaanvragen en
- * vergelijken, naar een gekozen leverancier per regel. Inkooporders en
- * ontvangen volgen in de volgende stap.
+ * vergelijken, naar inkooporders per leverancier en ontvangen in de voorraad.
  */
 export function BestellingenPage() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('te_bestellen')
+  const [params, setParams] = useSearchParams()
+  const tab: Tab = TABS.includes(params.get('tab') as Tab) ? (params.get('tab') as Tab) : 'te_bestellen'
+  const setTab = (t: Tab) => setParams(t === 'te_bestellen' ? {} : { tab: t }, { replace: true })
   const [gekozen, setGekozen] = useState<Set<string>>(new Set())
   const [nieuw, setNieuw] = useState(false)
   const [aanvragen, setAanvragen] = useState(false)
@@ -28,6 +34,9 @@ export function BestellingenPage() {
 
   const regelsQ = useQuery({ queryKey: ['bestel-regels'], queryFn: () => bestelRegelsApi.list(), refetchInterval: 20000 })
   const aanvragenQ = useQuery({ queryKey: ['prijsaanvragen'], queryFn: prijsaanvragenApi.list })
+  const ordersQ = useQuery({ queryKey: ['inkooporders'], queryFn: inkoopordersApi.list, refetchInterval: 20000 })
+  const ontvangstenQ = useQuery({ queryKey: ['ontvangsten'], queryFn: inkoopordersApi.ontvangsten, enabled: tab === 'ontvangen' })
+  const openOrders = (ordersQ.data ?? []).filter((o) => o.status === 'verzonden' && o.regels.some((r) => r.ontvangenStuks < r.stuks)).length
   const alle = regelsQ.data ?? []
   const open = alle.filter((r) => r.status === 'te_bestellen' || r.status === 'aangevraagd')
   const openIds = open.map((r) => r.id).sort()
@@ -61,6 +70,10 @@ export function BestellingenPage() {
         <button className={`st-tab-btn${tab === 'aanvragen' ? ' active' : ''}`} onClick={() => setTab('aanvragen')}>
           Prijsaanvragen {(aanvragenQ.data?.length ?? 0) > 0 && <span className="bs-tel">{aanvragenQ.data!.length}</span>}
         </button>
+        <button className={`st-tab-btn${tab === 'inkooporders' ? ' active' : ''}`} onClick={() => setTab('inkooporders')}>
+          Inkooporders {openOrders > 0 && <span className="bs-tel" title="verstuurd, nog niet alles binnen">{openOrders}</span>}
+        </button>
+        <button className={`st-tab-btn${tab === 'ontvangen' ? ' active' : ''}`} onClick={() => setTab('ontvangen')}>Ontvangen</button>
       </div>
 
       <div className="bs-inhoud">
@@ -77,9 +90,14 @@ export function BestellingenPage() {
               </button>
             </div>
             {regelsQ.isLoading ? <div className="st-empty">Laden…</div> : <TeBestellenTab regels={open} data={vergelijkQ.data} gekozen={gekozen} onGekozen={setGekozen} />}
+            <BesteldeRegels regels={alle.filter((r) => r.status === 'besteld' || r.status === 'ontvangen')} />
           </>
-        ) : (
+        ) : tab === 'aanvragen' ? (
           <PrijsaanvragenTab aanvragen={aanvragenQ.data ?? []} regels={alle} open={openAanvraag} />
+        ) : tab === 'inkooporders' ? (
+          <InkoopordersTab orders={ordersQ.data ?? []} />
+        ) : (
+          <OntvangenTab ontvangsten={ontvangstenQ.data ?? []} />
         )}
       </div>
 

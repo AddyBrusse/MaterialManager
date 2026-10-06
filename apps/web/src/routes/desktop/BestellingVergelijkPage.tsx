@@ -4,8 +4,9 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Checkbox } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconArrowLeft } from '@tabler/icons-react'
-import { celBronnenVoor, celVoor, goedkoopste, perLeverancier, waaromNietKiezen, type BestelRegel, type Cel } from '@stockmanager/shared'
+import { celBronnenVoor, celVoor, goedkoopste, perLeverancier, waaromNietKiezen, waaromNietInkooporder, type BestelRegel, type Cel } from '@stockmanager/shared'
 import { bestelRegelsApi, prijsaanvragenApi } from '../../api/bestellingen'
+import { inkoopordersApi } from '../../api/inkooporders'
 import { meldFout } from '../../utils/fout-melding-toon'
 import { eis } from '../../utils/fout-melding'
 import { ExootLabel } from '../../components/inkoop/ExootLabel'
@@ -62,7 +63,20 @@ export function BestellingVergelijkPage() {
       await kies.mutateAsync({ r, levId: goedkoopst, cel: cellen.get(goedkoopst)! }).catch(() => undefined)
     }
   }
-  const groepen = perLeverancier(d?.regels ?? [])
+  const maak = useMutation({
+    mutationFn: () => {
+      const regels = (d?.regels ?? []).filter((r) => r.keuze && !r.inkooporder)
+      eis(waaromNietInkooporder(regels))
+      return inkoopordersApi.maak(regels.map((r) => r.id))
+    },
+    onSuccess: (orders) => {
+      for (const k of ['inkooporders', 'bestel-regels', 'vergelijk']) qc.invalidateQueries({ queryKey: [k] })
+      notifications.show({ color: 'green', message: `${orders.map((o) => o.id).join(', ')} aangemaakt als concept — verstuur ze bij Inkooporders` })
+      navigate('/bestellingen?tab=inkooporders')
+    },
+    onError: (e) => meldFout({ actie: 'Inkooporders maken', fout: e, gevolg: 'Er is geen inkooporder gemaakt.' }),
+  })
+  const groepen = perLeverancier((d?.regels ?? []).filter((r) => !r.inkooporder))
   const aanvraag = antwoord ? aanvragenQ.data?.find((a) => a.id === antwoord.aanvraagId) : undefined
   const lev = aanvraag?.leveranciers.find((l) => l.leverancierId === antwoord?.leverancierId)
   const kolommen = `minmax(240px, 1.2fr) repeat(${Math.max(1, d?.leveranciers.length ?? 1)}, minmax(200px, 1fr))`
@@ -114,7 +128,8 @@ export function BestellingVergelijkPage() {
         <div className="bs-samenvatting">
           <b>Wordt {groepen.length} inkooporder{groepen.length === 1 ? '' : 's'}</b>
           {groepen.map((g) => <span key={g.leverancierId}>{g.naam} · {g.regelIds.length} regel{g.regelIds.length === 1 ? '' : 's'} · <span className="cell-mono">{eur(g.totaal)}</span></span>)}
-          <span className="bs-sub">De keuze blijft bewaard; inkooporders maken komt in de volgende stap van de inkoopmodule.</span>
+          <span style={{ flex: 1 }} />
+          <button className="st-btn primary sm" disabled={maak.isPending} onClick={() => maak.mutate()}>Inkooporders maken</button>
         </div>
       )}
       {aanvraag && lev && d && <AntwoordVenster aanvraag={aanvraag} leverancier={lev} regels={d.regels} onSluit={() => setAntwoord(null)} />}

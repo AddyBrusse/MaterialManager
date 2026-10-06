@@ -64,6 +64,10 @@ export const BestelRegelSchema = z.object({
   /** Prijsaanvragen waar de regel in zit, nieuwste eerst. */
   aanvragen: z.array(z.object({ id: z.string(), verzondenOp: z.string().nullable() })),
   keuze: BestelKeuzeSchema.nullable(),
+  /** De inkooporder waar hij nu op staat (concept of verzonden); vervallen telt niet. */
+  inkooporder: z.object({ id: z.string(), status: z.enum(['concept', 'verzonden']) }).nullable(),
+  /** Hoeveel stuks er al binnen zijn, over alle inkooporders. */
+  ontvangenStuks: z.number().int(),
   toegevoegdDoor: z.string(),
   createdAt: z.string(),
 })

@@ -16,6 +16,7 @@ import rawMaterialsRouter from './routes/raw-materials'
 import leverancierPrijzenRouter from './routes/leverancier-prijzen'
 import bestelRegelsRouter from './routes/bestel-regels'
 import prijsaanvragenRouter from './routes/prijsaanvragen'
+import inkoopordersRouter from './routes/inkooporders'
 import finishedGoodsRouter from './routes/finished-goods'
 import movementsRouter from './routes/movements'
 import locationsRouter from './routes/locations'
@@ -78,6 +79,7 @@ app.use('/api/raw-materials', rawMaterialsRouter)
 app.use('/api/leverancier-prijzen', leverancierPrijzenRouter)
 app.use('/api/bestel-regels', bestelRegelsRouter)
 app.use('/api/prijsaanvragen', prijsaanvragenRouter)
+app.use('/api/inkooporders', inkoopordersRouter)
 app.use('/api/finished-goods', finishedGoodsRouter)
 app.use('/api/movements', movementsRouter)
 app.use('/api/locations', locationsRouter)

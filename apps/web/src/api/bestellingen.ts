@@ -8,6 +8,8 @@ import { apiFetch } from './client'
 export const bestelRegelsApi = {
   list: (status?: BestelStatus) =>
     apiFetch<BestelRegel[]>(`/bestel-regels${status ? `?status=${status}` : ''}`).then((r) => r.data),
+  voorProject: (projectId: string) =>
+    apiFetch<BestelRegel[]>(`/bestel-regels?projectId=${encodeURIComponent(projectId)}`).then((r) => r.data),
   vergelijk: (ids: string[]) =>
     apiFetch<VergelijkData>(`/bestel-regels/vergelijk?ids=${ids.map(encodeURIComponent).join(',')}`).then((r) => r.data),
   create: (body: BestelRegelInvoer) =>
