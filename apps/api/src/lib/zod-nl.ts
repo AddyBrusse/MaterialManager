@@ -13,6 +13,13 @@ import type { ZodError, ZodIssue } from 'zod'
 const LABELS: Record<string, string> = {
   externeRef: 'Externe referentie',
   volgende: 'Volgend nummer',
+  leverancierId: 'Leverancier',
+  prijsSoort: 'Prijs als',
+  prijs: 'Prijs',
+  zaagkostenPerSnede: 'Zaagkosten per snede',
+  minimumBedrag: 'Minimumbedrag',
+  levertijdDagen: 'Levertijd (dagen)',
+  klantId: 'Klant',
   qty: 'Aantal',
   verkoopprijs: 'Prijs per stuk',
   naam: 'Naam',

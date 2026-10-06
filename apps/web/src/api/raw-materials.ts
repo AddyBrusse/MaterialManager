@@ -47,6 +47,11 @@ export type RawMaterialRow = {
    *  waren ze het oneens. */
   gereserveerdMm: number
   vrijMm: number
+  /** Buiten het vaste assortiment, op maat bij de leverancier besteld, voor één klant (2026-10-06). */
+  exoot: boolean
+  klantId: string | null
+  artikelId: string | null
+  klant: { id: string; naam: string } | null
   createdAt: string
   updatedAt: string
   grade: GradeInfo

@@ -13,6 +13,7 @@ import { errorMiddleware } from './middleware/error'
 import healthRouter from './routes/health'
 import usersRouter from './routes/users'
 import rawMaterialsRouter from './routes/raw-materials'
+import leverancierPrijzenRouter from './routes/leverancier-prijzen'
 import finishedGoodsRouter from './routes/finished-goods'
 import movementsRouter from './routes/movements'
 import locationsRouter from './routes/locations'
@@ -72,6 +73,7 @@ app.use('/api', terminalScope)
 
 app.use('/api/users', usersRouter)
 app.use('/api/raw-materials', rawMaterialsRouter)
+app.use('/api/leverancier-prijzen', leverancierPrijzenRouter)
 app.use('/api/finished-goods', finishedGoodsRouter)
 app.use('/api/movements', movementsRouter)
 app.use('/api/locations', locationsRouter)

@@ -1879,3 +1879,38 @@ Zonder contactpersoon of mailadres zegt de melding wat er eerst moet
   aangevinkt.
 - Opslaan van een machine viel stil terug op de browser bij een fout; nu een
   melding (wat, waar, gevolg).
+
+## 2026-10-06 — Exoten en leveranciersprijzen
+
+- **Een exoot is een gewone regel in de materiaallijst met `exoot = true`**: materiaal
+  buiten het vaste assortiment, op maat gezaagd door de leverancier, voor één
+  klant (`klantId`) en meestal één artikel (`artikelId`). Geen eigen tabel: dan
+  zou alles wat met materiaal werkt (inkoop, ontvangen, reserveren) twee keer
+  gebouwd moeten worden. In de lijsten staat het label EXOOT met de klant.
+- **Een exoot begint op voorraad 0** (de POST zet `currentStock` 0 in plaats van
+  de lengte): hij ligt er pas als hij binnen is via de inkooporder (deel 3). In de
+  voorraadlijst heet hij dan "Te bestellen", niet "Verbruikt", en hij telt niet
+  mee bij "niet op voorraad". Het zaagplan bij de opdracht slaat exoten over: die
+  zijn voor één klant, niet om uit te zagen.
+- **In de calculatie rekent een exoot met de geleverde maat**, zonder zaagsnede,
+  vlak of lader, gedeeld door "stuks uit één exoot" (`stuksUitEen`, instelbaar):
+  gewicht × €/kg van de kwaliteit ÷ stuks. De node draagt `exoot`,
+  `rawMaterialId` en `stuksUitEen`. Een exoot wordt nooit het recept van een
+  artikel (het recept stuurt het zaagplan uit de voorraad).
+- **Leveranciersprijzen** (`leverancier_prijzen`): per leverancier, voor één
+  materiaal óf een hele kwaliteit, per kg óf totaal per stuk, met zaagkosten per
+  snede, minimum per bestelling, levertijd en notitie. Een leverancier is een
+  relatie van type leverancier of beide.
+  - **Per stuk kan alleen bij een materiaal**: een stuk heeft een maat, een
+    kwaliteit niet. Afgedwongen in `waaromNietLeverancierPrijs` (scherm en
+    server) én met een CHECK in de database.
+  - **Materiaalprijs gaat voor kwaliteitsprijs** van dezelfde leverancier
+    (`geldendePrijzen`); de kwaliteitsprijs staat erbij als "via kwaliteit".
+  - **Per kg rekent met wat je werkelijk bestelt**, ook een aangepaste lengte
+    (`prijsBijLeverancier`, met uitleg "€ 7,20/kg × 24,3 kg + 4 × € 5,25 zagen").
+    Dit is de rekenregel voor het vergelijken bij de bestelling in deel 3.
+- **De calculatie blijft rekenen met de €/kg van de kwaliteit.** Leveranciers-
+  prijzen zijn voor vergelijken en bestellen; anders verandert een offerte
+  zodra iemand een prijs van een leverancier bijwerkt.
+- Te zien en te wijzigen in de voorraad (drawer, "Leveranciers & prijzen") en op
+  de relatie (tab "Prijzen", alleen bij een leverancier).

@@ -9,7 +9,11 @@ import { beschikbaarheidVan, gereserveerdPerStaaf } from '../services/voorraad'
 
 const router = Router()
 
-const include = { grade: true, profile: true, surfaceFinish: true, locationSlot: { include: { location: true } } }
+const include = {
+  grade: true, profile: true, surfaceFinish: true, locationSlot: { include: { location: true } },
+  // Exoot (2026-10-06): voor wie hij is.
+  klant: { select: { id: true, naam: true } },
+}
 
 function withWeight<T extends {
   profile: { volumeFormula: string }
@@ -86,7 +90,9 @@ router.post(
         // CreateRawMaterialSchema intentionally omits currentStock (it's
         // derived, not user-supplied), so we set it here rather than
         // relying on the Prisma default of 0.
-        currentStock: body.lengthMm,
+        // Een exoot ligt er nog niet: die bestel je, en hij komt binnen via de
+        // inkooporder (2026-10-06).
+        currentStock: body.exoot ? 0 : body.lengthMm,
       },
       include,
     })

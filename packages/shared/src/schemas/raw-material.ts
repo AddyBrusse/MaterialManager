@@ -13,6 +13,10 @@ export const RawMaterialSchema = z.object({
   minStock: z.number().nonnegative().nullable(),
   currentStock: z.number(),
   weightKg: z.number().optional(),
+  /** Exoot: op maat gezaagd door de leverancier, voor één klant (2026-10-06). */
+  exoot: z.boolean().default(false),
+  klantId: z.string().nullable().default(null),
+  artikelId: z.string().nullable().default(null),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 })
@@ -27,6 +31,9 @@ export const CreateRawMaterialSchema = z.object({
   lengthMm: z.number().positive('Lengte moet positief zijn'),
   locationSlotId: z.string().uuid().optional(),
   minStock: z.number().nonnegative().optional(),
+  exoot: z.boolean().optional(),
+  klantId: z.string().nullable().optional(),
+  artikelId: z.string().nullable().optional(),
 })
 export type CreateRawMaterial = z.infer<typeof CreateRawMaterialSchema>
 

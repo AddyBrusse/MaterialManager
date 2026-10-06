@@ -218,6 +218,7 @@
   padding: 8px 16px;
   border-bottom: 1px solid var(--border);
 }
+.acalc-addrow { display: flex; gap: 18px; }
 .acalc-addrow.indent { padding-left: 52px; }
 .acalc-addlink {
   display: inline-flex;
@@ -345,3 +346,8 @@
 }
 .acalc-linkbtn { font: inherit; font-size: 11px; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; }
 .acalc-linkbtn:hover { text-decoration: underline; }
+
+/* ── Exoot (2026-10-06) ── */
+.acalc-mat-voorraad.exoot { color: #6b3fa0; font-family: var(--font-sans); }
+.acalc-addlink.exoot { color: #6b3fa0; }
+.acalc-exoot-som { font-size: 12px; color: var(--text-2); background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }

@@ -142,7 +142,8 @@ export function ArtikelDetailPage() {
     if (!article || estArticleId.current !== article.id || !estDirty.current) return
     const t = setTimeout(() => {
       const primaryMat = est.nodes.find(n =>
-        n.type === 'material' && n.gradeId && n.profileId &&
+        // Een exoot is geen recept: die wordt besteld, niet uit de voorraad gezaagd.
+        n.type === 'material' && !n.exoot && n.gradeId && n.profileId &&
         n.dimensions && Object.keys(n.dimensions).length > 0
       )
       const recipeUpdate = primaryMat ? {

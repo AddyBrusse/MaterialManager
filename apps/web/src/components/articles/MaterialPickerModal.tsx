@@ -8,6 +8,7 @@ import { notifications } from '@mantine/notifications'
 import { IconPlus, IconChevronDown } from '@tabler/icons-react'
 import type { CreateRawMaterial } from '@stockmanager/shared'
 import { rawMaterialsApi, formatDimensions } from '../../api/raw-materials'
+import { ExootLabel } from '../inkoop/ExootLabel'
 import type { RawMaterialRow } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
@@ -139,7 +140,7 @@ export function MaterialPickerModal({
     },
     onSuccess: ({ data }) => {
       qc.invalidateQueries({ queryKey: ['raw-materials'] })
-      notifications.show({ color: 'green', message: `Materiaal ${data.code} toegevoegd aan de materiaallijst` })
+      notifications.show({ color: 'green', message: `Materiaal ${data.code} toegevoegd aan de voorraad` })
       form.reset()
       setAddOpen(false)
       onCreated(data)
@@ -208,9 +209,12 @@ export function MaterialPickerModal({
             return (
               <div key={row.id} className="apk-row" style={{ gridTemplateColumns: GRID }}>
                 <div>
-                  <Text size="sm" fw={500}>{row.grade.name} — {row.profile.name}</Text>
+                  <Text size="sm" fw={500}>
+                    {row.grade.name} — {row.profile.name}
+                    {row.exoot && <> <ExootLabel klant={row.klant} compact /></>}
+                  </Text>
                   {price !== undefined && (
-                    <div className="apk-price">€ {price.toFixed(2).replace('.', ',')} /kg</div>
+                    <div className="apk-price">€ {price.toFixed(2).replace('.', ',')} /kg{row.exoot && row.klant ? ` · voor ${row.klant.naam}` : ''}</div>
                   )}
                 </div>
                 <Text size="xs" className="apk-mono">
@@ -223,7 +227,7 @@ export function MaterialPickerModal({
                   style={low(row) ? { color: 'var(--warning)' } : undefined}
                   title={`Fysiek ${mmTekst(Number(row.currentStock))}, gereserveerd ${mmTekst(Number(row.gereserveerdMm) || 0)}`}
                 >
-                  {Number(row.vrijMm) > 0 ? mmTekst(Number(row.vrijMm)) : 'niet op voorraad'}
+                  {Number(row.vrijMm) > 0 ? mmTekst(Number(row.vrijMm)) : row.exoot ? 'bestellen bij opdracht' : 'niet op voorraad'}
                 </Text>
                 <Button size="xs" onClick={() => choose(row)}>+ Kies</Button>
               </div>

@@ -94,7 +94,8 @@ export async function maakPlan(db: Db, ctx: PlanContext): Promise<PlanUitkomst> 
   // niet "groot genoeg": een Ø60 opdraaien naar Ø50 is een besluit van een mens,
   // geen automatische keuze.
   const staven = await db.rawMaterial.findMany({
-    where: { profileId: recept.profileId, gradeId: recept.gradeId, currentStock: { gt: 0 } },
+    // Geen exoten: die zijn op maat voor één klant besteld (2026-10-06).
+    where: { profileId: recept.profileId, gradeId: recept.gradeId, currentStock: { gt: 0 }, exoot: false },
     include: { locationSlot: { include: { location: true } } },
   })
   const passend = staven.filter((s) => dimensiesGelijk(s.dimensions, recept.dimensions))

@@ -32,6 +32,15 @@ machine with `heeftStangenlader`). Never store bruto. The material row is its
 own component, `MateriaalRegel.tsx` (netto input, bruto + breakdown, free stock
 in mm, price with "VASTE PRIJS" + reset when `costOverride` is set).
 
+**Exoot (2026-10-06).** A material node with `exoot: true` points at a raw
+material made to measure for one customer (`rawMaterialId`). It costs weight of
+the delivered piece × grade €/kg ÷ `stuksUitEen` — no kerf, facing or loader.
+Rendered by `ExootRegel.tsx` ("stuks uit 1 exoot", "½ exoot", "bestellen bij
+opdracht"); created with `ExootVenster.tsx` ("+ Exoot aanmaken" next to
+"Materiaal kiezen"), which adds the raw material with stock 0 and the node.
+Picking an existing exoot in the picker gives the same node. An exoot never
+becomes the article recipe.
+
 ---
 
 ## Component structure
