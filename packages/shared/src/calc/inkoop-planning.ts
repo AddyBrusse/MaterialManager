@@ -237,7 +237,7 @@ export interface InkoopOverzichtRegel {
   order: {
     id: string; status: 'concept' | 'verzonden'; inkooporderRegelId: string; referentie: string
     verzondenOp: string | null; verwachtAangepast: boolean; ontvangenStuks: number; leverancierNaam: string
-    /** M26-0042: het nummer op het label. Null bij een order van vóór 2026-10-07. */
+    /** 260042: het nummer op het label. Null bij een order van vóór 2026-10-07. */
     materiaalNummer: string | null
   } | null
   /** Bij wie we een prijs gaan vragen (tab Te bestellen). */
@@ -337,14 +337,22 @@ export function stukNummers(materiaalNummer: string, stuksOpRegel: number, alOnt
   return Array.from({ length: nu }, (_, i) => `${materiaalNummer}-${alOntvangen + i + 1}`)
 }
 
-/** Wat iemand intypt naar het nummer zelf: hoofdletters, geen spaties, en het stukvolgnummer eraf. */
+/**
+ * Wat iemand intypt naar het nummer zelf: geen spaties, en het stukvolgnummer
+ * eraf (`260042-2` → `260042`). Een nummer uit de eerste versie (`M26-0042`)
+ * wordt het nieuwe (`260042`); zo heette het tot 2026-10-07.
+ */
 export function normaliseerMateriaalNummer(invoer: string): string {
   const s = invoer.trim().toUpperCase().replace(/\s+/g, '')
-  const m = /^(M\d{2}-\d{1,})(?:-\d+)?$/.exec(s)
-  if (!m) return s
-  const [voor, n] = m[1].split('-')
-  return `${voor}-${n.padStart(4, '0')}`
+  const nieuw = /^(\d{6,})(?:-\d+)?$/.exec(s)
+  if (nieuw) return nieuw[1]
+  const oud = /^M(\d{2})-(\d+)(?:-\d+)?$/.exec(s)
+  if (oud) return `${oud[1]}${oud[2].padStart(4, '0')}`
+  return s
 }
+
+/** Ziet dit eruit als een materiaalnummer (jaar + volgnummer, minstens 6 cijfers)? */
+export const isMateriaalNummer = (s: string) => /^\d{6,}$/.test(s)
 
 /**
  * Wacht deze productieorder op materiaal? Ja zolang er voor zijn orderregel een

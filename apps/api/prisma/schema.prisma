@@ -668,7 +668,7 @@ model InkooporderRegel {
   uitleg         String
   levertijdDagen Int?     @map("levertijd_dagen")
   ontvangenStuks Int      @default(0) @map("ontvangen_stuks")
-  /// M26-0042 (2026-10-07): ons nummer, dat de leverancier op het materiaal
+  /// 260042 (2026-10-07, jaar + volgnummer): ons nummer, dat de leverancier op het materiaal
   /// plakt. Bij binnen boeken typ je het in; het stuk in de voorraad krijgt
   /// hetzelfde nummer (met -1, -2 bij meer stuks).
   materiaalNummer String? @unique @map("materiaal_nummer")

@@ -33,11 +33,12 @@ export const DOC_SOORTEN: { prefix: DocPrefix; naam: string }[] = [
 export const reeksSleutel = (prefix: DocPrefix, jaar: number) => `${prefix}-${jaar}`
 
 /**
- * Het materiaalnummer (2026-10-07) is kort, omdat iemand het in de hal van een
- * label overtypt: `M26-0042` in plaats van `M-2026-042`.
+ * Het materiaalnummer (2026-10-07) is kort en alleen cijfers, omdat iemand het
+ * in de hal van een label overtypt: `260042` = jaar 26, volgnummer 0042. Eerst
+ * was het `M26-0042`; de letter en het streepje bleken veel werk om te typen.
  */
 const voorvoegsel = (prefix: DocPrefix, jaar: number) =>
-  prefix === 'M' ? `M${String(jaar).slice(2)}-` : `${prefix}-${jaar}-`
+  prefix === 'M' ? String(jaar).slice(2) : `${prefix}-${jaar}-`
 
 export const docNummer = (prefix: DocPrefix, jaar: number, n: number) =>
   `${voorvoegsel(prefix, jaar)}${String(n).padStart(prefix === 'M' ? 4 : 3, '0')}`

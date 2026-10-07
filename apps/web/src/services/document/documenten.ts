@@ -315,7 +315,7 @@ export function prijsaanvraagDocument(d: PrijsaanvraagDoc, co: Company, assets: 
 
 export interface InkoopDoc {
   nummer: string
-  /** Per regel ons materiaalnummer (M26-0042), in de volgorde van `regels`; leeg bij een oudere order. */
+  /** Per regel ons materiaalnummer (260042), in de volgorde van `regels`; leeg bij een oudere order. */
   materiaalNummers?: (string | null)[]
   datum: string | null
   gewensteLevering: string | null

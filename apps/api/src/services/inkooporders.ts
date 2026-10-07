@@ -91,7 +91,7 @@ async function maakOrdersIn(tx: Prisma.TransactionClient, regelIds: string[], do
   const ids: string[] = []
   for (const [leverancierId, rs] of groepen) {
     const id = await nextDocId(tx, 'INK')
-    // Per regel een eigen materiaalnummer (M26-0042), voor op het label.
+    // Per regel een eigen materiaalnummer (260042), voor op het label.
     const nummers: string[] = []
     for (const _ of rs) nummers.push(await nextDocId(tx, 'M'))
     await tx.inkooporder.create({

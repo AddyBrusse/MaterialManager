@@ -131,13 +131,15 @@ describe('tabbladen: voorwaarden (2026-10-07)', () => {
 
 describe('materiaalnummers', () => {
   it('één stuk houdt het nummer; meer stuks krijgen -1, -2, doorgeteld over deelleveringen', () => {
-    expect(stukNummers('M26-0042', 1, 0, 1)).toEqual(['M26-0042'])
-    expect(stukNummers('M26-0042', 3, 0, 2)).toEqual(['M26-0042-1', 'M26-0042-2'])
-    expect(stukNummers('M26-0042', 3, 2, 1)).toEqual(['M26-0042-3'])
+    expect(stukNummers('260042', 1, 0, 1)).toEqual(['260042'])
+    expect(stukNummers('260042', 3, 0, 2)).toEqual(['260042-1', '260042-2'])
+    expect(stukNummers('260042', 3, 2, 1)).toEqual(['260042-3'])
   })
   it('wat iemand intypt, wordt het nummer zelf', () => {
-    expect(normaliseerMateriaalNummer(' m26-42 ')).toBe('M26-0042')
-    expect(normaliseerMateriaalNummer('M26-0042-2')).toBe('M26-0042')
+    expect(normaliseerMateriaalNummer(' 260042 ')).toBe('260042')
+    expect(normaliseerMateriaalNummer('260042-2')).toBe('260042')
+    // een nummer uit de eerste versie
+    expect(normaliseerMateriaalNummer('m26-42')).toBe('260042')
     expect(normaliseerMateriaalNummer('INK-2026-001')).toBe('INK-2026-001')
   })
 })

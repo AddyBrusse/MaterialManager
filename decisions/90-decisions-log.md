@@ -2101,3 +2101,33 @@ Mockups eerst, daarna afgesproken:
 - De pagina **Binnen boeken** in het menu was een voorbeeldscherm zonder echte
   gegevens. Hij toont nu hetzelfde als de tab Besteld, met het label-veld.
 
+## 2026-10-07 — Materiaalnummer alleen cijfers: 260042
+
+`M26-0042` bleek veel werk om in de hal van een label over te typen (letter,
+streepje). Het nummer is nu **jaar + volgnummer, alleen cijfers**: `260042`,
+uniek en oplopend per jaar (dezelfde teller `M-2026`; boven 9999 groeit het
+gewoon door naar 5 cijfers). Bij meer stuks op één regel blijft het `-1`, `-2`.
+Het intypveld neemt ook nog een oud nummer aan (`M26-42` → `260042`), en de
+migratie `20261007150000_materiaalnummer_cijfers` zet wat al uitgegeven was om,
+op de inkooporderregels én bij de voorraadstukken.
+
+
+## 2026-10-07 — Voorraad: filters, en wat op is staat standaard niet in de lijst
+
+Een gegroepeerde weergave (één regel per soort stuk) is ontworpen en
+**bewust niet gebouwd**: de lijst blijft één regel per stuk. In plaats
+daarvan filters, in deze volgorde: kwaliteit, afwerking, vorm, **maat van–tot**,
+**lengte van–tot**, exoot, status (`components/voorraad/voorraad-filters.ts`).
+
+- **Maat is de kopmaat**: Ø bij rond, zijde bij vierkant, **breedte** bij plat,
+  buitendiameter bij buis. "Van" vult "tot" mee (`zetVan`), zodat 50 meteen
+  alleen 50 laat zien; 55 bij "tot" maakt er 50 t/m 55 van. Lengte werkt net
+  zo, op de lengte die er nú ligt (`currentStock`), niet de oorspronkelijke.
+- **Wat op is, staat standaard niet in de lijst.** Status "Verbruikt" toont het
+  juist, anders is zo'n stuk nergens meer te vinden (bijv. om te verwijderen).
+  Een exoot op 0 is nog niet binnen, niet op, en blijft zichtbaar.
+- De filters staan in de gebruikersvoorkeur `voorraad.filters`, dus ze blijven
+  staan als je terugkomt, ook op een andere pc. Het zoekveld niet.
+- Het **kruisje op een chip** opende de keuzelijst in plaats van het filter te
+  wissen: de onzichtbare `<select>` lag over de hele chip, kruisje incluis.
+  `.st-chip .chip-x` ligt er nu boven; dat herstelt ook Artikelen en Documenten.
