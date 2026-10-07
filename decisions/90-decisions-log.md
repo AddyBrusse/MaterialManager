@@ -2152,3 +2152,22 @@ Opdracht · In productie · Paklijst · Factuur** (`stappenVan` in
   verstuurd is (bij een directe opdracht meteen Opdracht); "gereed voor
   levering" en "geleverd" zijn allebei Paklijst, en blijven in de statusfilter
   uit elkaar te houden.
+
+## 2026-10-07 — Zaagbon vanuit het project; voorraad per project
+
+- De **zaagbon** wordt in het project afgedrukt: knop **Zaagbon** op de
+  Productie-tab, en **Zaagbon afdrukken** in het rechtermuisknopmenu van het
+  projectenoverzicht. Hij is een spec in `documenten.ts` (`zaagbonDocument`),
+  in dezelfde huisstijl als de picklist, met de staven die voor het project nog
+  vastliggen (`houdtVast`): staaf, materiaal, locatie, stuks, wat eraf moet en
+  een vinkvak. Zonder vastgelegd materiaal zegt hij wat er eerst moet
+  (`waaromNietZaagbon`). Het rechtermuisknopmenu gebruikt de al geladen
+  reserveringen, zodat het documentvenster in dezelfde klik opengaat — na een
+  wachttijd houdt de pop-upblokkering hem tegen.
+- De pagina **Reserveringen** blijft (handig als overzicht). De knop bij de kaart
+  Materiaal op een project gaat nu naar **de voorraad met een projectfilter**
+  (`/voorraad?project=…`): alleen de staven die voor dat project vastliggen.
+  Dat filter staat in het adres, niet in de bewaarde filters.
+- Fout uit de voorraadfilters: "Wis filters" stond er ook zonder filter, omdat
+  de opgeslagen voorkeur (jsonb) de sleutels in een andere volgorde teruggeeft
+  en de vergelijking op tekst ging. Nu op inhoud (`filtersActief`).

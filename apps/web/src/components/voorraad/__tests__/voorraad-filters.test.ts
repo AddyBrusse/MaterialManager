@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { kopmaat, zetVan, inBereik, bereikTekst, filterVoorraad, leesFilters, LEGE_FILTERS, GEEN_BEREIK, type FilterRij } from '../voorraad-filters'
+import { filtersActief, kopmaat, zetVan, inBereik, bereikTekst, filterVoorraad, leesFilters, LEGE_FILTERS, GEEN_BEREIK, type FilterRij } from '../voorraad-filters'
 
 const rij = (o: Partial<FilterRij> & { vf?: string; dims?: Record<string, number> } = {}): FilterRij => ({
   grade: { name: 'C45' }, profile: { name: 'Rond', volumeFormula: o.vf ?? 'round' }, surfaceFinish: null,
@@ -60,6 +60,11 @@ describe('filteren', () => {
     expect(filterVoorraad([a, b, c], { ...LEGE_FILTERS, lengte: { van: null, tot: 1000 } }, status)).toEqual([a])
     expect(filterVoorraad([a, b, c], { ...LEGE_FILTERS, exoot: 'alleen' }, status)).toEqual([b])
     expect(filterVoorraad([a, b, c], { ...LEGE_FILTERS, exoot: 'zonder' }, status)).toEqual([a, c])
+  })
+  it('aan of uit op inhoud, ook als de database de sleutels anders ordent', () => {
+    expect(filtersActief(leesFilters({ maat: { tot: null, van: null }, status: '' } as never))).toBe(false)
+    expect(filtersActief({ ...LEGE_FILTERS, lengte: { van: null, tot: 1000 } })).toBe(true)
+    expect(filtersActief({ ...LEGE_FILTERS, exoot: 'alleen' })).toBe(true)
   })
   it('een oudere bewaarde voorkeur wordt aangevuld', () => {
     expect(leesFilters({ kwaliteit: 'C45' })).toEqual({ ...LEGE_FILTERS, kwaliteit: 'C45' })

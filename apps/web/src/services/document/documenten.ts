@@ -270,6 +270,63 @@ export function picklistDocument(d: PakbonDoc, co: Company, assets: DocumentAsse
   )
 }
 
+// ── Zaagbon ────────────────────────────────────────────────────────────────
+
+export interface ZaagbonRegel {
+  /** Code van de staaf (260042-1, #00412). */
+  staaf: string
+  materiaal: string
+  locatie: string | null
+  /** "4 × 120 mm" */
+  stuks: string
+  /** Wat er van de staaf af gaat, in mm. */
+  zaaglengte: number
+  /** Calculatienummer · machine */
+  notitie: string | null
+}
+
+export interface ZaagbonDoc {
+  project: string
+  projectNaam: string
+  klantNaam: string
+  datum: string
+  regels: ZaagbonRegel[]
+}
+
+/**
+ * De zaagbon van een project (2026-10-07): alle staven die voor het project
+ * vastliggen, waar ze liggen en wat eraf moet. Blijft in huis, net als de
+ * picklist; afvinken per staaf.
+ */
+export function zaagbonDocument(d: ZaagbonDoc, co: Company, assets: DocumentAssets): jsPDF {
+  return maakDocument(
+    {
+      titel: 'ZAAGBON',
+      meta: [['Project', d.project], ['Datum', datum(d.datum)]],
+      partij: { label: 'Voor', naam: d.klantNaam, regels: [d.projectNaam] },
+      kenmerken: [['Staven', String(d.regels.length)], ['Zaaglengte', `${getal(d.regels.reduce((s, r) => s + r.zaaglengte, 0))} mm`]],
+      kolommen: [
+        { kop: '#', breedte: 38, stijl: 'pos' },
+        { kop: 'Staaf', breedte: 92, stijl: 'tekst' },
+        { kop: 'Materiaal', stijl: 'omschrijving' },
+        { kop: 'Locatie', breedte: 96, stijl: 'tekst' },
+        { kop: 'Stuks', breedte: 88, stijl: 'getal' },
+        { kop: 'Zaag af', breedte: 80, stijl: 'totaal' },
+        { kop: 'Gezaagd', breedte: 72, stijl: 'vinkvak' },
+      ],
+      regels: d.regels.map((r, i) => ({
+        cellen: [positie(i), r.staaf, r.materiaal, r.locatie ?? '—', r.stuks, `${getal(r.zaaglengte)} mm`, ''],
+        notitie: r.notitie,
+      })),
+      leeg: 'Er ligt geen materiaal vast voor dit project.',
+      invullen: { kop: 'Gezaagd en gecontroleerd', velden: ['Gezaagd door', 'Gecontroleerd door', 'Datum'] },
+      voetregel: `Zaagbon ${d.project}`,
+    },
+    co,
+    assets,
+  )
+}
+
 // ── Prijsaanvraag ──────────────────────────────────────────────────────────
 
 export interface PrijsaanvraagDoc {
