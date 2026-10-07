@@ -526,7 +526,18 @@ html, body {
   border-color: transparent; color: var(--accent);
 }
 .st-chip .chip-val { color: var(--text); font-weight: 500; }
-.st-chip .chip-x { color: var(--text-3); padding-left: 4px; font-size: 14px; line-height: 1; }
+/* Boven de onzichtbare <select> die de hele chip bedekt: anders opent een klik
+   op het kruisje de lijst in plaats van het filter te wissen (2026-10-07). */
+.st-chip .chip-x { color: var(--text-3); padding: 2px 2px 2px 4px; font-size: 14px; line-height: 1; position: relative; z-index: 1; }
+.st-chip .chip-x:hover { color: var(--text); }
+.vr-bereik { display: flex; align-items: flex-end; gap: 6px; font-size: 12px; color: var(--text-2); }
+.vr-bereik label { display: flex; flex-direction: column; gap: 3px; }
+.vr-bereik input {
+  width: 72px; height: 26px; padding: 0 6px; font: inherit; font-family: var(--font-mono); color: var(--text);
+  border: 1px solid var(--border-input); border-radius: var(--radius); background: var(--bg-input);
+}
+.vr-bereik > span { padding-bottom: 5px; }
+.vr-bereik .vr-eenheid { color: var(--text-3); }
 .st-chip select {
   position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%;
 }

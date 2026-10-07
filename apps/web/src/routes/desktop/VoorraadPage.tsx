@@ -20,6 +20,9 @@ import { surfaceFinishesApi } from '../../api/surface-finishes'
 import { houdtVast, type ZaagReservation } from '../../api/reservations'
 import { movementsApi, MOVEMENT_REASON_LABELS, type StockMovementRow } from '../../api/movements'
 import { useReserveringen } from '../../hooks/useReserveringen'
+import { useUserPreference } from '../../hooks/useUserPreference'
+import { FilterChip, BereikChip } from '../../components/voorraad/FilterChips'
+import { filterVoorraad, leesFilters, LEGE_FILTERS, type VoorraadFilters, type ExootFilter } from '../../components/voorraad/voorraad-filters'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
 
@@ -114,24 +117,6 @@ function SortTh({ k, sort, onSort, align, style, children }: {
         {active && (sort.dir === 'asc' ? <IconArrowUp size={11} /> : <IconArrowDown size={11} />)}
       </span>
     </th>
-  )
-}
-
-function FilterChip({ label, value, options, onChange }: {
-  label: string; value: string; options: [string, string][]; onChange: (v: string) => void
-}) {
-  const active = value !== ''
-  const opt = options.find(([v]) => v === value)
-  return (
-    <label className={`st-chip${active ? ' active' : ''}`}>
-      {!active && <IconPlus size={11} />}
-      <span>{label}</span>
-      {active && <span className="chip-val">: {opt?.[1]}</span>}
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-      </select>
-      {active && <span className="chip-x" onClick={(e) => { e.preventDefault(); onChange('') }}>×</span>}
-    </label>
   )
 }
 
@@ -660,10 +645,10 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
 export function VoorraadPage() {
   const qc = useQueryClient()
   const [q, setQ]           = useState('')
-  const [grade, setGrade]   = useState('')
-  const [type, setType]     = useState('')
-  const [afwerking, setAfwerking] = useState('')
-  const [status, setStatus] = useState('')
+  const filterPref = useUserPreference<Partial<VoorraadFilters> | null>('voorraad.filters', null)
+  const filters = leesFilters(filterPref.value)
+  const zetFilter = <K extends keyof VoorraadFilters>(k: K, v: VoorraadFilters[K]) =>
+    filterPref.setValue((p) => ({ ...leesFilters(p), [k]: v }))
   const [sort, setSort]     = useState<{ key: SortKey | null; dir: 'asc' | 'desc' }>({ key: 'code', dir: 'asc' })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [drawerRow, setDrawerRow]   = useState<RawMaterialRow | null>(null)
@@ -711,15 +696,10 @@ export function VoorraadPage() {
         formatLocation(r.locationSlot).toLowerCase().includes(Q)
       )
     }
-    if (grade)     f = f.filter(r => r.grade.name === grade)
-    if (type)      f = f.filter(r => r.profile.name === type)
-    if (afwerking) f = f.filter(r => (r.surfaceFinish?.name ?? '') === afwerking)
-    if (status) f = f.filter(r => {
-      const v = Number(r.currentStock), m = Number(r.minStock) || 0, orig = Number(r.lengthMm)
-      return statusFor(v, m, orig).tag === status
-    })
+    f = filterVoorraad(f, filters, (r) => statusFor(Number(r.currentStock), Number(r.minStock) || 0, Number(r.lengthMm)).tag)
     return applySort(f, sort.key, sort.dir, reservedByBar)
-  }, [source, q, grade, type, afwerking, status, sort, reservedByBar])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source, q, JSON.stringify(filters), sort, reservedByBar])
 
   const stats = useMemo(() => {
     // totalKg: weight proportional to remaining length
@@ -853,14 +833,20 @@ export function VoorraadPage() {
           />
           <span className="kbd">⌘K</span>
         </div>
-        <FilterChip label="Type"      value={type}      options={[['', 'Alle types'], ...uniqueProfiles.map(p => [p, p] as [string, string])]} onChange={setType} />
-        <FilterChip label="Kwaliteit" value={grade}     options={[['', 'Alle'],       ...uniqueGrades.map(g => [g, g]   as [string, string])]} onChange={setGrade} />
-        <FilterChip label="Afwerking" value={afwerking} options={[['', 'Alle'],       ...uniqueAfwerkingen.map(a => [a, a] as [string, string])]} onChange={setAfwerking} />
-        <FilterChip label="Status"    value={status}    options={[['', 'Alle'], ['ok', 'Op voorraad'], ['laag', 'Laag'], ['uit', 'Uit'], ['vol', 'Vol']]} onChange={setStatus} />
+        <FilterChip label="Kwaliteit" value={filters.kwaliteit} options={[['', 'Alle'], ...uniqueGrades.map(g => [g, g] as [string, string])]} onChange={(v) => zetFilter('kwaliteit', v)} />
+        <FilterChip label="Afwerking" value={filters.afwerking} options={[['', 'Alle'], ...uniqueAfwerkingen.map(a => [a, a] as [string, string])]} onChange={(v) => zetFilter('afwerking', v)} />
+        <FilterChip label="Vorm"      value={filters.vorm}      options={[['', 'Alle vormen'], ...uniqueProfiles.map(p => [p, p] as [string, string])]} onChange={(v) => zetFilter('vorm', v)} />
+        <BereikChip label="Maat"   value={filters.maat}   onChange={(b) => zetFilter('maat', b)} />
+        <BereikChip label="Lengte" value={filters.lengte} eenheid="mm" onChange={(b) => zetFilter('lengte', b)} />
+        <FilterChip label="Exoot"     value={filters.exoot}     options={[['', 'Alle'], ['alleen', 'Alleen exoten'], ['zonder', 'Zonder exoten']]} onChange={(v) => zetFilter('exoot', v as ExootFilter)} />
+        {/* Wat op is staat standaard niet in de lijst; "Verbruikt" toont juist dat. */}
+        <FilterChip label="Status"    value={filters.status}    options={[['', 'Alle'], ['ok', 'In gebruik'], ['vol', 'Volledig'], ['laag', 'Kort'], ['uit', 'Verbruikt']]} onChange={(v) => zetFilter('status', v)} />
         <div style={{ flex: 1 }} />
-        <button className="st-btn ghost sm" onClick={() => notifications.show({ message: 'Extra filters — binnenkort beschikbaar' })}>
-          <IconFilter size={13} />Meer filters
-        </button>
+        {JSON.stringify(filters) !== JSON.stringify(LEGE_FILTERS) && (
+          <button className="st-btn ghost sm" onClick={() => filterPref.setValue(LEGE_FILTERS)}>
+            <IconFilter size={13} />Wis filters
+          </button>
+        )}
         <span className="st-sep-v" />
         <button className="st-icon-btn" title="Tegels" onClick={() => notifications.show({ message: 'Tegelweergave — binnenkort beschikbaar' })}>
           <IconLayoutGrid size={14} />
