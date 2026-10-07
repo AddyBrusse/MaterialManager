@@ -1,7 +1,7 @@
 import { Menu } from '@mantine/core'
 import {
   IconFolder, IconFilter, IconPlus, IconUserPlus, IconCopy, IconPlayerPause,
-  IconBan, IconPlayerPlay, IconTrash, IconSquareOff,
+  IconBan, IconPlayerPlay, IconTrash, IconSquareOff, IconPrinter,
 } from '@tabler/icons-react'
 import type { Project } from '@stockmanager/shared'
 import type { SnelFilter } from './snelle-filters'
@@ -110,6 +110,9 @@ export function RijMenu({ plek, doel, snel, klantNaam, acties, onFilter, onOpen,
         <Menu.Item leftSection={<IconCopy size={14} />} onClick={() => acties.kopieerNummers(doel)}>
           {veel ? `Projectnummers kopiëren${n}` : 'Projectnummer kopiëren'}
         </Menu.Item>
+        {!veel && (
+          <Menu.Item leftSection={<IconPrinter size={14} />} onClick={() => acties.zaagbon(p)}>Zaagbon afdrukken</Menu.Item>
+        )}
 
         <Menu.Divider />
         {kanHold && (

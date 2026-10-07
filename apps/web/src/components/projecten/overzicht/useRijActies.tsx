@@ -8,6 +8,8 @@ import { projectsApi, wachtOpOpslag } from '../../../api/projects'
 import { meldFout } from '../../../utils/fout-melding-toon'
 import { Weigering } from '../../../utils/fout-melding'
 import { ApiFout } from '../../../api/client'
+import { useReserveringen } from '../../../hooks/useReserveringen'
+import { toonZaagbon } from '../../../features/projects/detail/lib/zaagbon-document'
 
 type Stop = 'on_hold' | 'geannuleerd'
 
@@ -21,6 +23,8 @@ export interface RijActies {
   stop: (ps: Project[], s: Stop) => void
   hervat: (ps: Project[]) => void
   verwijder: (ps: Project[]) => void
+  /** Zaagbon van het vastgelegde materiaal (2026-10-07). */
+  zaagbon: (p: Project) => void
   kanStoppen: typeof kanStoppen
   stilgezet: typeof stilgezet
   /** De vensters (reden, bevestigen); ergens op de pagina renderen. */
@@ -41,6 +45,21 @@ export function useRijActies(onVerwijderd: (ids: string[]) => void): RijActies {
   const [bezig, setBezig] = useState(false)
 
   const ververs = () => qc.invalidateQueries({ queryKey: ['projects'] })
+  // Al geladen bij het openen van de pagina: het documentvenster moet in
+  // dezelfde klik open, anders houdt de pop-upblokkering hem tegen.
+  const reserveringen = useReserveringen()
+
+  const zaagbon = (p: Project) => {
+    if (!reserveringen.data) {
+      meldFout({
+        actie: `Zaagbon ${p.id} openen`,
+        fout: reserveringen.error ?? new Weigering('De reserveringen worden nog geladen. Probeer het zo nog eens.'),
+        gevolg: 'Er is niets geopend.',
+      })
+      return
+    }
+    toonZaagbon(p, reserveringen.data)
+  }
 
   /** Groen als alles bevestigd is; de fouten zelf meldt syncProject al. */
   const naOpslaan = async (ids: string[], gelukt: string) => {
@@ -214,7 +233,7 @@ export function useRijActies(onVerwijderd: (ids: string[]) => void): RijActies {
     </>
   )
 
-  return { nieuwProject, kopieerNummers, stop, hervat, verwijder, kanStoppen, stilgezet, dialoog }
+  return { nieuwProject, kopieerNummers, stop, hervat, verwijder, zaagbon, kanStoppen, stilgezet, dialoog }
 }
 
 /**

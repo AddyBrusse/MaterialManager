@@ -26,6 +26,7 @@ import { useFactuurDocument } from './tabs/facturen/useFactuurDocument'
 import { usePakbonDocument } from './tabs/pakbonnen/usePakbonDocument'
 import { useOfferteDocument } from './tabs/offertes/useOfferteDocument'
 import { toonDocument } from './lib/toon-document'
+import { toonZaagbon } from './lib/zaagbon-document'
 import { openDocument } from './lib/open-document'
 import { pakbonBestandsnaam, pakbonPdf, picklistBestandsnaam, picklistPdf } from './lib/pakbon-document'
 import { DocumentenTab } from './tabs/DocumentenTab'
@@ -330,7 +331,7 @@ export function ProjectDetailPage() {
               todos={todoVMs}
               geld={bouwGeld(project, nacalc)}
               reserveringen={reserveringVMs}
-              onNaarReserveringen={() => navigate('/reserveringen')}
+              onNaarReserveringen={() => navigate(`/voorraad?project=${encodeURIComponent(project.id)}`)}
               geblokkeerd={geblokkeerd}
               onGewijzigd={acties.ververs}
             />
@@ -378,7 +379,7 @@ export function ProjectDetailPage() {
               doc={obDoc}
               onZetOB={acties.zetOB}
               onNaarTab={kiesTab}
-              onNaarReserveringen={() => navigate('/reserveringen')}
+              onNaarReserveringen={() => navigate(`/voorraad?project=${encodeURIComponent(project.id)}`)}
               onWijzig={acties.wijzigOpdracht}
             />
           )}
@@ -392,6 +393,7 @@ export function ProjectDetailPage() {
               }
               onTerug={acties.terugNaarVoorbereiding}
               onPlanner={() => navigate('/planning-queue')}
+              onZaagbon={() => toonZaagbon(project, reserveringen)}
               onStap={acties.stapCheck}
               onStuks={acties.meldStuksGereed}
             />

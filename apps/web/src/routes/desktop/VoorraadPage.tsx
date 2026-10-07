@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import { Drawer, Modal, SegmentedControl, NumberInput, Textarea, Stack, Group, Button, Text } from '@mantine/core'
@@ -22,7 +23,7 @@ import { movementsApi, MOVEMENT_REASON_LABELS, type StockMovementRow } from '../
 import { useReserveringen } from '../../hooks/useReserveringen'
 import { useUserPreference } from '../../hooks/useUserPreference'
 import { FilterChip, BereikChip } from '../../components/voorraad/FilterChips'
-import { filterVoorraad, leesFilters, LEGE_FILTERS, type VoorraadFilters, type ExootFilter } from '../../components/voorraad/voorraad-filters'
+import { filterVoorraad, filtersActief, leesFilters, LEGE_FILTERS, type VoorraadFilters, type ExootFilter } from '../../components/voorraad/voorraad-filters'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
 
@@ -645,6 +646,11 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
 export function VoorraadPage() {
   const qc = useQueryClient()
   const [q, setQ]           = useState('')
+  // Vanaf een project (kaart Materiaal, 2026-10-07): alleen de staven die voor
+  // dat project vastliggen. Staat in het adres, niet in de bewaarde filters.
+  const [zoekParams, setZoekParams] = useSearchParams()
+  const voorProject = zoekParams.get('project')
+  const wisProject = () => setZoekParams((p) => { const n = new URLSearchParams(p); n.delete('project'); return n }, { replace: true })
   const filterPref = useUserPreference<Partial<VoorraadFilters> | null>('voorraad.filters', null)
   const filters = leesFilters(filterPref.value)
   const zetFilter = <K extends keyof VoorraadFilters>(k: K, v: VoorraadFilters[K]) =>
@@ -696,10 +702,14 @@ export function VoorraadPage() {
         formatLocation(r.locationSlot).toLowerCase().includes(Q)
       )
     }
+    if (voorProject) {
+      const vast = new Set(allReservations.filter((r) => r.projectId === voorProject && houdtVast(r)).map((r) => r.barId))
+      f = f.filter((r) => vast.has(r.id))
+    }
     f = filterVoorraad(f, filters, (r) => statusFor(Number(r.currentStock), Number(r.minStock) || 0, Number(r.lengthMm)).tag)
     return applySort(f, sort.key, sort.dir, reservedByBar)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, q, JSON.stringify(filters), sort, reservedByBar])
+  }, [source, q, JSON.stringify(filters), sort, reservedByBar, voorProject, allReservations])
 
   const stats = useMemo(() => {
     // totalKg: weight proportional to remaining length
@@ -833,6 +843,12 @@ export function VoorraadPage() {
           />
           <span className="kbd">⌘K</span>
         </div>
+        {voorProject && (
+          <span className="st-chip active" title="Alleen wat voor dit project vastligt">
+            <span>Project</span><span className="chip-val">: {voorProject}</span>
+            <span className="chip-x" role="button" aria-label="Project: filter wissen" onClick={wisProject}>×</span>
+          </span>
+        )}
         <FilterChip label="Kwaliteit" value={filters.kwaliteit} options={[['', 'Alle'], ...uniqueGrades.map(g => [g, g] as [string, string])]} onChange={(v) => zetFilter('kwaliteit', v)} />
         <FilterChip label="Afwerking" value={filters.afwerking} options={[['', 'Alle'], ...uniqueAfwerkingen.map(a => [a, a] as [string, string])]} onChange={(v) => zetFilter('afwerking', v)} />
         <FilterChip label="Vorm"      value={filters.vorm}      options={[['', 'Alle vormen'], ...uniqueProfiles.map(p => [p, p] as [string, string])]} onChange={(v) => zetFilter('vorm', v)} />
@@ -842,7 +858,7 @@ export function VoorraadPage() {
         {/* Wat op is staat standaard niet in de lijst; "Verbruikt" toont juist dat. */}
         <FilterChip label="Status"    value={filters.status}    options={[['', 'Alle'], ['ok', 'In gebruik'], ['vol', 'Volledig'], ['laag', 'Kort'], ['uit', 'Verbruikt']]} onChange={(v) => zetFilter('status', v)} />
         <div style={{ flex: 1 }} />
-        {JSON.stringify(filters) !== JSON.stringify(LEGE_FILTERS) && (
+        {filtersActief(filters) && (
           <button className="st-btn ghost sm" onClick={() => filterPref.setValue(LEGE_FILTERS)}>
             <IconFilter size={13} />Wis filters
           </button>

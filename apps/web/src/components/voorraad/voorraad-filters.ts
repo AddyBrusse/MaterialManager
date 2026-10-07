@@ -52,6 +52,15 @@ export function zetVan(b: Bereik, van: number | null): Bereik {
   return { van, tot: meeschuiven ? van : b.tot }
 }
 
+/**
+ * Staat er een filter aan? Op inhoud, niet op tekst: de database (jsonb) geeft
+ * de sleutels in een andere volgorde terug, en dan stond "Wis filters" er
+ * terwijl er niets aan stond.
+ */
+export function filtersActief(f: VoorraadFilters): boolean {
+  return Boolean(f.kwaliteit || f.afwerking || f.vorm || f.exoot || f.status) || bereikActief(f.maat) || bereikActief(f.lengte)
+}
+
 export function bereikActief(b: Bereik): boolean {
   return b.van != null || b.tot != null
 }

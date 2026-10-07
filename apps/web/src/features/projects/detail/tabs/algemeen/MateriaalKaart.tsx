@@ -13,7 +13,7 @@ export function MateriaalKaart({ items, onNaarReserveringen }: { items: Reserver
       teller={items.length === 0 ? undefined : `${items.length} reservering${items.length === 1 ? '' : 'en'}`}
       acties={
         <button type="button" className="pdv2-btn s stil" onClick={onNaarReserveringen}>
-          Reserveringen
+          In de voorraad
         </button>
       }
     >

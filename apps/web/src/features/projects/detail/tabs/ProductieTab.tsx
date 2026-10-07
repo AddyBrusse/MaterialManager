@@ -1,3 +1,4 @@
+import { IconPrinter } from '@tabler/icons-react'
 import type { Project } from '@stockmanager/shared'
 import { Card } from '../components/Card'
 import { OrderBlok } from './productie/OrderBlok'
@@ -11,6 +12,8 @@ interface Props {
   project: Project
   geblokkeerd: boolean
   onPlanner: () => void
+  /** Zaagbon van het vastgelegde materiaal (2026-10-07). */
+  onZaagbon: () => void
   /** De aangevinkte orders in voorbereiding; de pagina houdt ze bij voor de footer. */
   gekozen: string[]
   onKies: (orderId: string, aan: boolean) => void
@@ -24,16 +27,22 @@ interface Props {
  * en `queuePosition` zijn hier alleen-lezen. Hier geef je orders vrij voor de
  * hal (vinkje per order, de knop in de footer) en meld je ze gereed.
  */
-export function ProductieTab({ project, geblokkeerd, gekozen, onKies, onTerug, onPlanner, onStap, onStuks }: Props) {
+export function ProductieTab({ project, geblokkeerd, gekozen, onKies, onTerug, onPlanner, onZaagbon, onStap, onStuks }: Props) {
   const orders = project.productieOrders
   const gereed = orders.reduce((n, o) => n + o.stappen.filter((s) => s.gereedOp).length, 0)
   const totaal = orders.reduce((n, o) => n + o.stappen.length, 0)
   const stuksGereed = orders.reduce((n, o) => n + (o.aantalGereed ?? 0), 0)
   const stuksTotaal = orders.reduce((n, o) => n + o.qty, 0)
 
+  const zaagbonKnop = (
+    <button type="button" className="pdv2-btn s" onClick={onZaagbon}>
+      <IconPrinter size={13} /> Zaagbon
+    </button>
+  )
+
   if (orders.length === 0) {
     return (
-      <Card titel="Productie">
+      <Card titel="Productie" acties={zaagbonKnop}>
         <div className="pdv2-empty">
           Ontstaat uit de regels van de geaccepteerde offerte. Per regel komt er één
           productieorder; de bewerkingen van die regel worden de stappen.
@@ -51,6 +60,7 @@ export function ProductieTab({ project, geblokkeerd, gekozen, onKies, onTerug, o
       acties={
         <>
           <span className="pdv2-pill">planning uit planner</span>
+          {zaagbonKnop}
           <button type="button" className="pdv2-btn s" onClick={onPlanner}>
             Openen in planner
           </button>
