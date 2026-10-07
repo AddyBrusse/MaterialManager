@@ -2,7 +2,8 @@ import { IconChevronDown, IconChevronUp, IconDots, IconPrinter } from '@tabler/i
 import type { Project } from '@stockmanager/shared'
 import type { FacetVM, SlotVM } from '../types'
 import { HeaderFacets } from './HeaderFacets'
-import { statusLabel } from '../lib/build-vm'
+import { statusWoord } from '../../../../components/projecten/overzicht/signalen'
+import { ProjectStappen } from '../../../../components/projecten/projectColumns'
 
 interface Props {
   project: Project
@@ -38,7 +39,7 @@ export function ObjectHeader(props: Props) {
       <div className="pdv2-head-row1">
         <span className="pdv2-nr">{p.id}</span>
         <span className="pdv2-title">{p.naam}</span>
-        <span className={`pdv2-pill ${statusPillKleur(p.status)}`}>{statusLabel(p.status)}</span>
+        <span className={`pdv2-pill ${statusPillKleur(p.status)}`}>{statusWoord(p)}</span>
         {ingeklapt && <span className="pdv2-samenvatting">{props.samenvatting}</span>}
 
         <span className="pdv2-spacer" />
@@ -67,6 +68,9 @@ export function ObjectHeader(props: Props) {
           <IconDots size={13} />
         </button>
       </div>
+
+      {/* Dezelfde zeven stappen als op het projectenoverzicht (2026-10-07). */}
+      <div className="pdv2-stappen"><ProjectStappen project={p} metNamen /></div>
 
       {!ingeklapt && <HeaderFacets facetten={props.facetten} />}
 

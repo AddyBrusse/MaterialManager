@@ -2131,3 +2131,24 @@ daarvan filters, in deze volgorde: kwaliteit, afwerking, vorm, **maat van–tot*
 - Het **kruisje op een chip** opende de keuzelijst in plaats van het filter te
   wissen: de onzichtbare `<select>` lag over de hele chip, kruisje incluis.
   `.st-chip .chip-x` ligt er nu boven; dat herstelt ook Artikelen en Documenten.
+
+## 2026-10-07 — Zeven stappen in plaats van vier
+
+De voortgang op het projectenoverzicht had vier bolletjes (Offerte · Productie ·
+Levering · Factuur), terwijl een order zeven stappen kent. Nu, op het overzicht
+én in de kop van de projectpagina: **Concept · Offerte · Geaccepteerd ·
+Opdracht · In productie · Paklijst · Factuur** (`stappenVan` in
+`components/projecten/overzicht/signalen.ts`).
+
+- Vol: offerte verstuurd · door de klant geaccepteerd · opdrachtbevestiging
+  verstuurd · alles gemaakt · alles geleverd · alles gefactureerd **en betaald**.
+- Half: opdrachtbevestiging in concept, productie loopt, deellevering, deels
+  gefactureerd of nog niet betaald.
+- Een **directe opdracht** slaat Concept, Offerte en Geaccepteerd over: een
+  streepje in plaats van een bolletje.
+- De **status** heet in dezelfde woorden (`statusWoord`). De opgeslagen status
+  bleef wat hij was — de server zet hem en filters gebruiken hem; alleen het
+  woord veranderde. "Bevestigd" is Geaccepteerd tot de opdrachtbevestiging
+  verstuurd is (bij een directe opdracht meteen Opdracht); "gereed voor
+  levering" en "geleverd" zijn allebei Paklijst, en blijven in de statusfilter
+  uit elkaar te houden.

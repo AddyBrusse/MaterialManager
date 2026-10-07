@@ -182,7 +182,7 @@ describe('tabActie: Productie', () => {
 
   it('hervat naar de vorige fase, niet naar concept', () => {
     const p = project({ status: 'on_hold', statusVorige: 'productie' })
-    expect(actie(p).label).toBe('Project hervatten → Productie')
+    expect(actie(p).label).toBe('Project hervatten → In productie')
     // Op elke tab, ook zonder eigen document: het project staat stil.
     expect(actie(p, 'algemeen').stap).toEqual({ soort: 'hervatten' })
   })

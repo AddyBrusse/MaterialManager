@@ -1360,3 +1360,6 @@
   color: var(--text3);
   margin-bottom: 6px;
 }
+
+/* De zeven stappen in de kop (2026-10-07). */
+.pdv2-stappen { padding: 2px 0 10px; }

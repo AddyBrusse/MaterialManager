@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Factuur, Offerte, Paklijst, Project, ProductieOrder } from '@stockmanager/shared'
-import { signalenVan, stappenVan, heeftSignaal } from '../overzicht/signalen'
+import { signalenVan, stappenVan, statusWoord, heeftSignaal } from '../overzicht/signalen'
 import { snelleFilters } from '../overzicht/snelle-filters'
 import { filterLabel, past, voegToe, wisselSignaal, type FilterCtx } from '../overzicht/filters'
 
@@ -73,18 +73,49 @@ describe('signalen', () => {
   })
 })
 
-describe('stappen', () => {
-  it('deellevering is "deels", alles gefactureerd maar onbetaald is nog niet klaar', () => {
+describe('stappen (zeven, 2026-10-07)', () => {
+  const ob = (verzondenOp: string | null) => ({ verzondenOp, regels: [{ ...regel, offerteRegelId: 'r1' }] }) as unknown as Project['opdrachtbevestiging']
+  const toestanden = (p: Project) => stappenVan(p).map((s) => s.toestand)
+
+  it('de namen, in volgorde', () => {
+    expect(stappenVan(project()).map((s) => s.naam)).toEqual(['Concept', 'Offerte', 'Geaccepteerd', 'Opdracht', 'In productie', 'Paklijst', 'Factuur'])
+  })
+
+  it('offerte verstuurd: alleen Geaccepteerd is aan de beurt, de rest nog niet', () => {
+    expect(toestanden(project())).toEqual(['klaar', 'klaar', 'open', 'uit', 'uit', 'uit', 'uit'])
+    expect(toestanden(project({ offertes: [offerte({ status: 'concept', verzondenOp: null })] }))[1]).toBe('open')
+  })
+
+  it('opdrachtbevestiging in concept is half, verstuurd is vol', () => {
+    expect(toestanden(geaccepteerd({ opdrachtbevestiging: ob(null), productieOrders: [order({ status: 'in_productie', aantalGereed: 0 })] })).slice(2, 5)).toEqual(['klaar', 'deels', 'open'])
+    expect(toestanden(geaccepteerd({ opdrachtbevestiging: ob('2026-09-03T09:00:00Z'), productieOrders: [order()] }))[3]).toBe('klaar')
+  })
+
+  it('deellevering is half, alles gefactureerd maar onbetaald is nog niet klaar', () => {
     const p = geaccepteerd({
+      opdrachtbevestiging: ob('2026-09-03T09:00:00Z'),
       productieOrders: [order()],
       paklijsten: [pakbon(10, '2026-09-20T09:00:00Z')],
       facturen: [factuur()],
     })
-    expect(stappenVan(p).map((s) => s.toestand)).toEqual(['klaar', 'klaar', 'klaar', 'deels'])
+    expect(toestanden(p)).toEqual(['klaar', 'klaar', 'klaar', 'klaar', 'klaar', 'klaar', 'deels'])
     const betaald = { ...p, facturen: [factuur({ betaaldOp: '2026-10-02' })] }
-    expect(stappenVan(betaald).map((s) => s.toestand)).toEqual(['klaar', 'klaar', 'klaar', 'klaar'])
+    expect(toestanden(betaald).every((t) => t === 'klaar')).toBe(true)
     const half = geaccepteerd({ productieOrders: [order()], paklijsten: [pakbon(4, '2026-09-20T09:00:00Z')] })
-    expect(stappenVan(half)[2].toestand).toBe('deels')
+    expect(stappenVan(half)[5].toestand).toBe('deels')
+  })
+
+  it('directe opdracht: concept, offerte en geaccepteerd zijn overgeslagen', () => {
+    const p = geaccepteerd({ offertes: [offerte({ status: 'geaccepteerd', direct: true })], opdrachtbevestiging: ob('2026-09-03T09:00:00Z'), productieOrders: [order({ status: 'in_productie', aantalGereed: 4 })] })
+    expect(toestanden(p).slice(0, 5)).toEqual(['overgeslagen', 'overgeslagen', 'overgeslagen', 'klaar', 'deels'])
+  })
+
+  it('de status in dezelfde woorden', () => {
+    expect(statusWoord(project({ status: 'bevestigd', offertes: [offerte({ status: 'geaccepteerd' })] }))).toBe('Geaccepteerd')
+    expect(statusWoord(project({ status: 'bevestigd', offertes: [offerte({ status: 'geaccepteerd' })], opdrachtbevestiging: ob('2026-09-03T09:00:00Z') }))).toBe('Opdracht')
+    expect(statusWoord(project({ status: 'bevestigd', offertes: [offerte({ status: 'geaccepteerd', direct: true })] }))).toBe('Opdracht')
+    expect(['productie', 'paklijst', 'verzonden', 'gefactureerd'].map((s) => statusWoord(project({ status: s as Project['status'] }))))
+      .toEqual(['In productie', 'Paklijst', 'Paklijst', 'Factuur'])
   })
 })
 

@@ -2,18 +2,21 @@ import React, { type ReactNode } from 'react'
 import { IconFolder } from '@tabler/icons-react'
 import { formatBedrag, formatDate, getProjectSubtotaal } from '../../api/projects'
 import { OFFERTE_STATUSES, OB_STATUSES, laatstePaklijst, laatsteFactuur, berekenVoortgang, gefactureerdInclBtw, isVervallen, openstaandBedrag, type Project } from '@stockmanager/shared'
-import { stappenVan } from './overzicht/signalen'
+import { stappenVan, statusWoord, type StapToestand } from './overzicht/signalen'
 
 // ── Status display ────────────────────────────────────────────────────────────
 
+// De woorden volgen de zeven stappen (2026-10-07, `statusWoord`). Hier staan ze
+// zo dat ze in de statusfilter nog uit elkaar te houden zijn; de kolom zelf
+// toont het korte woord.
 export const PROJECT_STATUS_CONFIG: Record<Project['status'], { label: string; cls: string }> = {
   concept:      { label: 'Concept',      cls: 'prj-neutral'     },
   offerte:      { label: 'Offerte',      cls: 'prj-offerte'     },
-  bevestigd:    { label: 'Bevestigd',    cls: 'prj-bevestigd'   },
-  productie:    { label: 'Productie',    cls: 'prj-productie'   },
-  paklijst:     { label: 'Gereed voor levering', cls: 'prj-paklijst' },
-  verzonden:    { label: 'Geleverd',     cls: 'prj-verzonden'   },
-  gefactureerd: { label: 'Gefactureerd', cls: 'prj-factureerd'  },
+  bevestigd:    { label: 'Geaccepteerd / Opdracht', cls: 'prj-bevestigd' },
+  productie:    { label: 'In productie', cls: 'prj-productie'   },
+  paklijst:     { label: 'Paklijst (gereed voor levering)', cls: 'prj-paklijst' },
+  verzonden:    { label: 'Paklijst (geleverd)', cls: 'prj-verzonden' },
+  gefactureerd: { label: 'Factuur',      cls: 'prj-factureerd'  },
   on_hold:      { label: 'On Hold',      cls: 'prj-onhold'      },
   geannuleerd:  { label: 'Geannuleerd',  cls: 'prj-geannuleerd' },
 }
@@ -25,21 +28,34 @@ export const STATUS_STAGE: Record<Project['status'], number> = {
   on_hold: -1, geannuleerd: -1,
 }
 
+const STAP_KLASSE: Record<StapToestand, string> = { klaar: 'done', deels: 'half', open: '', uit: 'uit', overgeslagen: 'over' }
+
 /**
- * De vier stappen van de projectpagina — Offerte, Productie, Levering, Factuur
- * — uit de voortgang en niet uit de status (2026-10-05). Een halve bol is een
- * stap die deels af is: een deellevering, een offerte die bij de klant ligt,
- * of alles gefactureerd maar nog niet betaald.
+ * De zeven stappen (`stappenVan`, 2026-10-07): Concept · Offerte ·
+ * Geaccepteerd · Opdracht · In productie · Paklijst · Factuur. Een halve bol is
+ * een stap die deels af is; een streepje is overgeslagen (directe opdracht).
+ * Met `metNamen` staat de naam onder elk bolletje, voor de projectpagina.
  */
-export function ProjectStappen({ project }: { project: Project }) {
+export function ProjectStappen({ project, metNamen = false }: { project: Project; metNamen?: boolean }) {
   const stappen = stappenVan(project)
   const uitleg = stappen.map((s) => `${s.naam}: ${s.uitleg}`).join('\n')
+  if (metNamen) {
+    return (
+      <ol className="prj-mp namen" aria-label="Stappen">
+        {stappen.map((s) => (
+          <li key={s.naam} className="prj-mp-naam" data-toestand={s.toestand} title={s.uitleg}>
+            <div className={`prj-mp-step ${STAP_KLASSE[s.toestand]}`} /><span>{s.naam}</span>
+          </li>
+        ))}
+      </ol>
+    )
+  }
   return (
     <div className="prj-mp" title={uitleg} aria-label={uitleg}>
       {stappen.map((s, i) => (
         <React.Fragment key={s.naam}>
-          {i > 0 && <div className={`prj-mp-line ${s.toestand === 'klaar' || s.toestand === 'deels' ? 'done' : ''}`} />}
-          <div className={`prj-mp-step ${s.toestand === 'klaar' ? 'done' : s.toestand === 'deels' ? 'half' : s.toestand === 'uit' ? 'uit' : ''}`} />
+          {i > 0 && <div className={`prj-mp-line ${s.toestand === 'klaar' || s.toestand === 'deels' || s.toestand === 'overgeslagen' ? 'done' : ''}`} />}
+          <div className={`prj-mp-step ${STAP_KLASSE[s.toestand]}`} />
         </React.Fragment>
       ))}
     </div>
@@ -48,7 +64,7 @@ export function ProjectStappen({ project }: { project: Project }) {
 
 /** Volgorde in de voortgangskolom: hoeveel stappen af, een halve telt half. */
 function stappenSort(p: Project): number {
-  return stappenVan(p).reduce((t, s) => t + (s.toestand === 'klaar' ? 1 : s.toestand === 'deels' ? 0.5 : 0), 0)
+  return stappenVan(p).reduce((t, s) => t + (s.toestand === 'klaar' || s.toestand === 'overgeslagen' ? 1 : s.toestand === 'deels' ? 0.5 : 0), 0)
 }
 
 /** De eerstvolgende vervaldatum van een open (verstuurde, onbetaalde) factuur. */
@@ -200,20 +216,20 @@ export const PROJECT_COLUMNS: ProjectColumn[] = [
   {
     id: 'status', label: 'Status', width: 130, defaultVisible: true,
     sortValue: p => stageSort(p.status),
-    searchText: p => `${statusCfg(p.status).label} ${p.statusReden ?? ''}`,
+    searchText: p => `${statusWoord(p)} ${p.statusReden ?? ''}`,
     render: p => {
       const cfg = statusCfg(p.status)
       // De reden staat in de tooltip: in de kolom past hij niet, maar zonder
       // reden is 'On Hold' over een maand een raadsel.
       return (
-        <span className={`st-badge ${cfg.cls}`} title={p.statusReden ?? undefined}>
-          <span className="dot" />{cfg.label}
+        <span className={`st-badge ${cfg.cls}`} title={p.statusReden ?? cfg.label}>
+          <span className="dot" />{statusWoord(p)}
         </span>
       )
     },
   },
   {
-    id: 'voortgang', label: 'Voortgang', width: 110, defaultVisible: true,
+    id: 'voortgang', label: 'Voortgang', width: 160, defaultVisible: true,
     sortValue: p => stappenSort(p),
     searchText: () => '',
     render: p => <ProjectStappen project={p} />,

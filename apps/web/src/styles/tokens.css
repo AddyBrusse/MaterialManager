@@ -2742,7 +2742,22 @@ table.st-tbl.ms-tbl tbody td { white-space: nowrap; overflow: hidden; text-overf
 .prj-mp-step.half { background: linear-gradient(90deg, var(--accent) 50%, var(--bg-chip) 50%); border-color: var(--accent); }
 .prj-mp-step.uit { border-style: dashed; background: transparent; }
 .prj-mp { gap: 0; }
-.prj-mp-line { width: 14px; }
+.prj-mp-line { width: 12px; }
+/* Overgeslagen (directe opdracht, 2026-10-07): een streepje in plaats van een bol. */
+.prj-mp-step.over { height: 2px; border: 0; border-radius: 1px; background: var(--text-4); margin: 3px 0; }
+/* Met namen eronder, op de projectpagina. */
+.prj-mp.namen { align-items: flex-start; list-style: none; margin: 0; padding: 0; }
+.prj-mp-naam { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 78px; }
+/* De lijn naar het vorige bolletje, groen als deze stap begonnen is. */
+.prj-mp-naam + .prj-mp-naam::before {
+  content: ''; position: absolute; top: 4px; right: calc(50% + 6px); width: calc(100% - 12px); height: 1.5px;
+  background: var(--border-strong);
+}
+.prj-mp-naam:is([data-toestand="klaar"], [data-toestand="deels"], [data-toestand="overgeslagen"]) + .prj-mp-naam::before { background: var(--success); }
+.prj-mp-naam span { font-size: 10.5px; color: var(--text-3); white-space: nowrap; }
+.prj-mp-naam[data-toestand="klaar"] span, .prj-mp-naam[data-toestand="deels"] span { color: var(--text-2); }
+.prj-mp-naam[data-toestand="open"] span { color: var(--accent); font-weight: 600; }
+.prj-mp-naam[data-toestand="overgeslagen"] span { text-decoration: line-through; color: var(--text-4); }
 
 /* Rechtermuisknopmenu op een projectrij (2026-10-05) */
 table.st-tbl tbody tr[data-menu="true"] { outline: 1px solid var(--accent); outline-offset: -1px; }
