@@ -50,9 +50,15 @@ export function OntvangstVenster({ order, regel, onSluit }: { order: Inkooporder
   })
 
   return (
-    <Modal opened onClose={onSluit} title={`Ontvangen — ${regel.referentie}`} size="md">
+    <Modal opened onClose={onSluit} title={`Binnen boeken — ${regel.materiaalNummer ?? regel.referentie}`} size="md">
       <Stack gap="xs">
-        <Text size="sm"><b>{regel.materiaal}</b> · {regel.stuks} × {mm(regel.lengteMm)} · nog {open} open</Text>
+        <Text size="sm"><b>{regel.materiaal}</b> · {regel.stuks} × {mm(regel.lengteMm)} · {order.id} · {order.leverancierNaam}{regel.projectId ? ` · voor ${regel.projectId}` : ''} · nog {open} open</Text>
+        {regel.materiaalNummer && (
+          <Text size="xs" c="dimmed">
+            In de voorraad krijgt het stuk hetzelfde nummer: <b>{regel.stuks > 1 ? `${regel.materiaalNummer}-${regel.ontvangenStuks + 1}` : regel.materiaalNummer}</b>
+            {regel.stuks > 1 ? ' (en zo verder per stuk)' : ''}.
+          </Text>
+        )}
         <NumberInput size="xs" label="Stuks binnen" min={1} max={open} allowDecimal={false} value={stuks} onChange={setStuks} data-autofocus />
         <Select size="xs" label="Locatie" placeholder="later invullen" clearable searchable data={slots} value={slot} onChange={setSlot} />
         <Textarea size="xs" label="Notitie" autosize minRows={1} placeholder="bijv. pakbonnummer van de leverancier" value={notitie} onChange={(e) => setNotitie(e.currentTarget.value)} />
@@ -60,6 +66,13 @@ export function OntvangstVenster({ order, regel, onSluit }: { order: Inkooporder
           Elk stuk komt als eigen regel in de materiaallijst, met een mutatie "ontvangen".
           {regel.exoot && regel.projectId ? ` Een exoot gaat meteen vast voor ${regel.projectId}.` : ''}
         </Text>
+        {regel.projectId && (
+          <div className="ib-melding" style={{ background: 'var(--success-soft)' }}>
+            {Number(stuks) >= open
+              ? <>Daarmee is dit materiaal binnen. De productie van {regel.projectId} wacht er niet meer op en komt op de terminal (als er niets anders meer in bestelling staat).</>
+              : <>Er blijft {open - Number(stuks || 0)} open; de productie van {regel.projectId} blijft op <b>Wacht op materiaal</b> tot alles binnen is.</>}
+          </div>
+        )}
         <Group justify="flex-end" gap="xs">
           <Button size="xs" variant="default" onClick={onSluit}>Annuleren</Button>
           <Button size="xs" color="green" loading={ontvang.isPending} onClick={() => ontvang.mutate()}>In de voorraad</Button>

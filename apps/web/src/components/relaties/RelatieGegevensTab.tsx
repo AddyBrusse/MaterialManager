@@ -13,6 +13,7 @@ type Form = {
   afleverAdresZelfde: boolean
   afleverStraat: string; afleverPostcode: string; afleverStad: string; afleverLand: string
   kvk: string; btw: string; iban: string; betalingstermijn: number | ''
+  francoBedrag: number | ''
   notities: string
 }
 
@@ -31,6 +32,7 @@ function toForm(r: Relatie): Form {
     afleverStad: r.afleverStad ?? '', afleverLand: r.afleverLand ?? '',
     kvk: r.kvk ?? '', btw: r.btw ?? '', iban: r.iban ?? '',
     betalingstermijn: r.betalingstermijn ?? '',
+    francoBedrag: r.francoBedrag ?? '',
     notities: r.notities ?? '',
   }
 }
@@ -86,6 +88,7 @@ export function RelatieGegevensTab({ relatie }: { relatie: Relatie }) {
         btw:              form.btw.trim() || null,
         iban:             form.iban.trim() || null,
         betalingstermijn: form.betalingstermijn === '' ? null : Number(form.betalingstermijn),
+        francoBedrag:     form.francoBedrag === '' ? null : Number(form.francoBedrag),
         notities:         form.notities.trim() || null,
       })
       qc.invalidateQueries({ queryKey: ['relaties', relatie.id] })
@@ -172,6 +175,14 @@ export function RelatieGegevensTab({ relatie }: { relatie: Relatie }) {
           value={form.betalingstermijn}
           onChange={v => set({ betalingstermijn: v === '' ? '' : Number(v) })} />
       </div>
+      {(form.type === 'leverancier' || form.type === 'beide') && (
+        <div style={G4}>
+          <NumberInput label="Franco vanaf (€, excl. btw)" size="sm" min={0} decimalScale={2} decimalSeparator="," thousandSeparator="."
+            description="Daaronder betaal je verzendkosten; Bestellingen laat zien hoeveel er nog bij moet."
+            value={form.francoBedrag}
+            onChange={v => set({ francoBedrag: v === '' ? '' : Number(v) })} />
+        </div>
+      )}
 
       <SectionHead>Notities</SectionHead>
       <Textarea size="sm" rows={4} value={form.notities}

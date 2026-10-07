@@ -145,6 +145,9 @@ export function TerminalPage() {
         // Van de opdracht gehaald (2026-09-28), of nog niet vrijgegeven door
         // kantoor (2026-09-30): niet op de werkvloer.
         if (o.status === 'gestopt' || o.status === 'voorbereiding') continue
+        // Materiaal nog niet binnen (2026-10-07): eerst binnen boeken, dan pas
+        // op de werkvloer. De planning op kantoor ziet hem wel, met een label.
+        if (o.wachtOpMateriaal) continue
         const stappen = o.stappen ?? []
         stappen.forEach((s, i) => {
           if (s.gereedOp) return

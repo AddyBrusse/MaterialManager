@@ -21,6 +21,7 @@ export const DOC_SOORTEN: { prefix: DocPrefix; naam: string }[] = [
   { prefix: 'CRED', naam: 'Creditfactuur' },
   { prefix: 'PA', naam: 'Prijsaanvraag' },
   { prefix: 'INK', naam: 'Inkooporder' },
+  { prefix: 'M', naam: 'Materiaalnummer (label)' },
 ]
 
 /**
@@ -31,8 +32,15 @@ export const DOC_SOORTEN: { prefix: DocPrefix; naam: string }[] = [
  */
 export const reeksSleutel = (prefix: DocPrefix, jaar: number) => `${prefix}-${jaar}`
 
+/**
+ * Het materiaalnummer (2026-10-07) is kort, omdat iemand het in de hal van een
+ * label overtypt: `M26-0042` in plaats van `M-2026-042`.
+ */
+const voorvoegsel = (prefix: DocPrefix, jaar: number) =>
+  prefix === 'M' ? `M${String(jaar).slice(2)}-` : `${prefix}-${jaar}-`
+
 export const docNummer = (prefix: DocPrefix, jaar: number, n: number) =>
-  `${prefix}-${jaar}-${String(n).padStart(3, '0')}`
+  `${voorvoegsel(prefix, jaar)}${String(n).padStart(prefix === 'M' ? 4 : 3, '0')}`
 
 // Bestaat dit nummer al? Sinds de documenten eigen tabellen hebben is het id een
 // globale primary key, dus moet een uitgegeven nummer echt vrij zijn.
@@ -51,6 +59,7 @@ async function docIdBezet(db: Db, prefix: DocPrefix, id: string): Promise<boolea
     case 'CRED': return !!(await db.factuur.findUnique(waar))
     case 'PA':   return !!(await db.prijsaanvraag.findUnique(waar))
     case 'INK':  return !!(await db.inkooporder.findUnique(waar))
+    case 'M':    return !!(await db.inkooporderRegel.findUnique({ where: { materiaalNummer: id }, select: { id: true } }))
   }
 }
 
@@ -83,7 +92,8 @@ export async function nextDocId(db: Db, prefix: DocPrefix, nu = new Date()): Pro
  * ondergrens voor het volgende nummer, niet de teller.
  */
 async function hoogsteBestaand(db: Db, prefix: DocPrefix, jaar: number): Promise<number> {
-  const waar = { where: { id: { startsWith: `${prefix}-${jaar}-` } }, select: { id: true } }
+  const voor = voorvoegsel(prefix, jaar)
+  const waar = { where: { id: { startsWith: voor } }, select: { id: true } }
   let ids: { id: string }[]
   switch (prefix) {
     case 'PRJ':  ids = await db.project.findMany(waar); break
@@ -95,9 +105,13 @@ async function hoogsteBestaand(db: Db, prefix: DocPrefix, jaar: number): Promise
     case 'CRED': ids = await db.factuur.findMany(waar); break
     case 'PA':   ids = await db.prijsaanvraag.findMany(waar); break
     case 'INK':  ids = await db.inkooporder.findMany(waar); break
+    case 'M':
+      ids = (await db.inkooporderRegel.findMany({ where: { materiaalNummer: { startsWith: voor } }, select: { materiaalNummer: true } }))
+        .map((r) => ({ id: r.materiaalNummer! }))
+      break
   }
   return ids.reduce((max, { id }) => {
-    const n = Number(id.slice(`${prefix}-${jaar}-`.length))
+    const n = Number(id.slice(voor.length))
     return Number.isInteger(n) && n > max ? n : max
   }, 0)
 }

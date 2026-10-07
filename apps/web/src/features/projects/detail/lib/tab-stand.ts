@@ -45,13 +45,7 @@ export interface TabStandBron {
  * te doen tot de datum verstrijkt, dus het icoon moet niet om actie schreeuwen.
  */
 function wachtOpMateriaal(p: Project): boolean {
-  return p.productieOrders.some((o) =>
-    o.stappen.some((s) => {
-      if (s.gereedOp || !s.notBefore) return false
-      const n = dagenTot(s.notBefore)
-      return n !== null && n > 0
-    }),
-  )
+  return p.productieOrders.some((o) => !!o.wachtOpMateriaal && o.status !== 'gereed' && o.status !== 'gestopt')
 }
 
 export function bouwTabStanden(bron: TabStandBron): Record<TabId, TabStand> {

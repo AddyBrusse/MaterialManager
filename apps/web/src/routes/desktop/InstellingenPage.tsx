@@ -151,6 +151,31 @@ function BedrijfTab() {
         </SettingRow>
       </div>
 
+      <SectionHeader title="Inkoop" desc="Wanneer materiaal uiterlijk besteld moet zijn." />
+      <div style={{ borderTop: '1px solid var(--border)' }}>
+        <SettingRow
+          title="Marge vóór de productie"
+          desc="Zoveel werkdagen eerder binnen dan de productie het nodig heeft. Uiterlijk bestellen = nodig − levertijd − deze marge."
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              className="st-input cell-mono"
+              type="number"
+              min={0}
+              max={30}
+              style={{ width: 90 }}
+              value={form.inkoopMargeDagen ?? 2}
+              onChange={(e) => {
+                const n = Number(e.target.value)
+                setForm((f) => ({ ...f, inkoopMargeDagen: Number.isFinite(n) ? Math.round(n) : 2 }))
+                setDirty(true)
+              }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-3)' }}>werkdagen</span>
+          </div>
+        </SettingRow>
+      </div>
+
       <SectionHeader title="Microsoft 365 — e-mail integratie" desc="Vereist voor het versturen van offertes en documenten vanuit de app via uw eigen Outlook." />
       <div style={{ borderTop: '1px solid var(--border)' }}>
         <SettingRow

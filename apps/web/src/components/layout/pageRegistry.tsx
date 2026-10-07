@@ -10,7 +10,6 @@ import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
 import { ArtikelDetailPage } from '../../routes/desktop/ArtikelDetailPage'
 import { BinnenBoekenPage } from '../../routes/desktop/BinnenBoekenPage'
 import { BestellingenPage } from '../../routes/desktop/BestellingenPage'
-import { BestellingVergelijkPage } from '../../routes/desktop/BestellingVergelijkPage'
 import { InstellingenPage } from '../../routes/desktop/InstellingenPage'
 import { ZaagCalculatorPage } from '../../routes/desktop/ZaagCalculatorPage'
 import { ReserveringenPage } from '../../routes/desktop/ReserveringenPage'
@@ -59,7 +58,6 @@ export const PAGES: PageEntry[] = [
   // Materiaalbeheer
   { path: '/voorraad',       label: 'Voorraad',      Icon: IconLayersLinked, Component: VoorraadPage,      poppable: true },
   { path: '/bestellingen',   label: 'Bestellingen',  Icon: IconTruckDelivery, Component: BestellingenPage, poppable: true },
-  { path: '/bestellingen/vergelijk/:ids', label: 'Vergelijken', Icon: IconTruckDelivery, Component: BestellingVergelijkPage, poppable: true },
   { path: '/reserveringen',  label: 'Reserveringen', Icon: IconBookmark,     Component: ReserveringenPage, poppable: true },
   { path: '/binnenboeken',   label: 'Binnen boeken', Icon: IconInbox,        Component: BinnenBoekenPage,  poppable: true },
   // Stamgegevens

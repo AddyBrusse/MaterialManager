@@ -12,7 +12,7 @@ type RegelVoorOrder = Pick<BestelRegel, 'materiaal' | 'status' | 'keuze' | 'inko
 export function waaromNietInkooporder(regels: RegelVoorOrder[]): string | null {
   if (regels.length === 0) return 'Kies eerst één of meer regels.'
   const zonder = regels.find((r) => !r.keuze)
-  if (zonder) return `Voor ${zonder.materiaal} is nog geen leverancier gekozen. Kies er een bij Vergelijken.`
+  if (zonder) return `Voor ${zonder.materiaal} is nog geen leverancier gekozen.`
   const al = regels.find((r) => r.inkooporder)
   if (al) return `${al.materiaal} staat al op ${al.inkooporder!.id}. Trek die eerst in als je hem opnieuw wilt bestellen.`
   const klaar = regels.find((r) => r.status === 'besteld' || r.status === 'ontvangen')
@@ -57,3 +57,12 @@ export function waaromNietOntvangen(o: Pick<Inkooporder, 'id' | 'status'>, r: Pi
 
 /** Status van een bestelregel na ontvangst: alles binnen → ontvangen. */
 export const statusNaOntvangst = (stuks: number, ontvangen: number): 'ontvangen' | 'besteld' => (ontvangen >= stuks ? 'ontvangen' : 'besteld')
+
+/** De leverdatum aanpassen kan zolang een verstuurde order nog niet helemaal binnen is. */
+export function waaromNietLeverdatum(o: Pick<Inkooporder, 'id' | 'status'>, r: Pick<InkooporderRegel, 'referentie' | 'stuks' | 'ontvangenStuks'>, datum: string | null): string | null {
+  if (o.status === 'concept') return `${o.id} is nog niet verstuurd; de leverdatum volgt uit de levertijd zodra hij de deur uit is.`
+  if (o.status === 'vervallen') return `${o.id} is ingetrokken.`
+  if (openStuks(r) === 0) return `${r.referentie} is al helemaal binnen.`
+  if (datum != null && !/^\d{4}-\d{2}-\d{2}$/.test(datum)) return 'Vul een datum in.'
+  return null
+}

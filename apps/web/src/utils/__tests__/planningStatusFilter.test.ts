@@ -19,7 +19,7 @@ function project(status: ProjectStatus): Project {
       stappen: [{
         id: 's1', volgorde: 1, naam: 'zagen', machine: 'Zaag',
         gereedOp: null, gereedDoor: null, geplandDatum: null, geplandMachine: null,
-        queuePosition: null, notBefore: null,
+        queuePosition: null,
       }],
     }],
     createdAt: '2026-09-01T00:00:00.000Z', updatedAt: '2026-09-01T00:00:00.000Z',

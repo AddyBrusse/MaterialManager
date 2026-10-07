@@ -32,7 +32,7 @@ export function LeverancierPrijzen({ filter, keuze, kolom, doelNaam, leeg }: Pro
   })
   const verwijder = useMutation({
     mutationFn: (p: LeverancierPrijs) => leverancierPrijzenApi.remove(p.id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leverancier-prijzen'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['leverancier-prijzen'] }); qc.invalidateQueries({ queryKey: ['inkoop'] }) },
     onError: (e, p) => meldFout({ actie: `Prijs van ${p.leverancierNaam} verwijderen`, fout: e, gevolg: 'De prijs staat er nog; er is niets verwijderd.' }),
   })
 

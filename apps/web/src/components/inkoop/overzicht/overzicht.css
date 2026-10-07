@@ -1,0 +1,53 @@
+/* ── Inkoop: gedeelde stukjes (stand, franco, paneel, belletje) — 2026-10-07 ── */
+
+
+.ib-franco { display: flex; align-items: center; gap: 8px; color: var(--text-3); font-size: 12px; }
+.ib-franco-balk { width: 120px; height: 6px; border-radius: 3px; background: var(--bg-chip); overflow: hidden; }
+.ib-franco-balk > div { height: 100%; background: var(--warning); }
+.ib-franco-balk[data-gehaald='true'] > div { background: var(--success); }
+.ib-concept { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 14px; background: var(--accent-soft); border-bottom: 1px solid var(--border); font-size: 12.5px; }
+
+.ib-chip { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; background: var(--bg-chip); color: var(--text-2); }
+.ib-chip.dgr { color: var(--danger); background: var(--danger-soft); }
+.ib-chip.warn { color: var(--warning); background: var(--warning-soft); }
+.ib-chip.ok { color: var(--success); background: var(--success-soft); }
+.ib-chip.info { color: var(--accent); background: var(--accent-soft); }
+.ib-exoot { font-size: 9.5px; font-weight: 700; letter-spacing: .04em; color: #6b3fa0; background: rgba(107, 63, 160, 0.12); padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+.ib-goedkoopst { font-size: 9.5px; font-weight: 700; letter-spacing: .04em; color: var(--success); background: var(--success-soft); padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+
+.ib-sub { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.ib-sub.dgr { color: var(--danger); font-weight: 500; }
+.ib-sub.warn { color: var(--warning); font-weight: 500; }
+.ib-sub.ok { color: var(--success); }
+.ib-lev-knop { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 2px; color: var(--accent); font-weight: 500; }
+.ib-lev-knop:hover { text-decoration: underline; }
+
+
+
+.ib-leeg { padding: 14px; color: var(--text-3); font-size: 12.5px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+
+.ib-bestel-tbl { display: grid; grid-template-columns: minmax(0, 1.4fr) 60px 110px minmax(0, 1.4fr); gap: 6px 12px; align-items: center; font-size: 12.5px; }
+.ib-bestel-tbl .kop { font-size: 11px; color: var(--text-3); }
+.ib-melding { border-radius: 6px; padding: 8px 10px; font-size: 12px; background: var(--warning-soft); color: var(--text); }
+
+.ib-paneel dl { margin: 0; display: grid; grid-template-columns: 150px 1fr; gap: 6px 10px; font-size: 12.5px; }
+.ib-paneel dt { color: var(--text-3); }
+.ib-paneel dd { margin: 0; }
+.ib-tijdlijn { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+.ib-tijdlijn li { display: grid; grid-template-columns: 80px 1fr; gap: 10px; }
+.ib-tijdlijn li[data-toekomst='true'] { color: var(--text-3); }
+.ib-tijdlijn .d { font-family: var(--font-mono); color: var(--text-3); }
+.ib-kop-klein { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--text-3); text-transform: uppercase; }
+
+/* Belletje in de zijbalk */
+.ib-bel { position: relative; }
+.ib-bel-tel { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 600; display: grid; place-items: center; box-sizing: border-box; }
+.st-sb-item .count.dgr { background: var(--danger); color: #fff; }
+.ib-meldingen { width: 400px; max-height: 420px; overflow: auto; }
+.ib-melding-item { all: unset; display: block; cursor: pointer; padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.ib-melding-item:hover, .ib-melding-item:focus-visible { background: var(--bg-hover); }
+.ib-melding-item .t { font-weight: 500; }
+.ib-melding-item .t.dgr { color: var(--danger); }
+.ib-melding-item .s { color: var(--text-3); font-size: 11.5px; margin-top: 2px; }
+.ib-bestel-tbl > span { min-width: 0; overflow-wrap: anywhere; }
+.ib-lev-knop:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }

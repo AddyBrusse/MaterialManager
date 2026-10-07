@@ -21,7 +21,6 @@ function stap(over: Partial<ProductieStap> = {}): ProductieStap {
     geplandDatum: null,
     geplandMachine: null,
     queuePosition: null,
-    notBefore: null,
     ...over,
   }
 }

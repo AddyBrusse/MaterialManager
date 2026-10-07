@@ -14,14 +14,10 @@ function orderPill(o: ProductieOrder) {
   return { tekst: 'Gepland', kleur: '' }
 }
 
-/** De wachtreden op de orderkop: de eerste stap die nog op materiaal wacht. */
+/** De wachtreden op de orderkop: materiaal in bestelling (afgeleid door de server). */
 function wachtReden(o: ProductieOrder): string | null {
-  for (const s of o.stappen) {
-    if (s.gereedOp || !s.notBefore) continue
-    const n = dagenTot(s.notBefore)
-    if (n !== null && n > 0) return `niet eerder dan ${datum(s.notBefore)} — materiaal onderweg`
-  }
-  return null
+  if (!o.wachtOpMateriaal || o.status === 'gereed' || o.status === 'gestopt') return null
+  return 'wacht op materiaal — staat in Bestellingen, nog niet binnen. Niet op de terminal tot het binnen is.'
 }
 
 export function OrderBlok({

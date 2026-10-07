@@ -67,18 +67,12 @@ export function bouwAandacht(bron: AandachtBron): AandachtVM[] {
   }
 
   for (const order of p.productieOrders) {
-    for (const stap of order.stappen) {
-      if (stap.gereedOp || !stap.notBefore) continue
-      const n = dagenTot(stap.notBefore)
-      if (n !== null && n > 0) {
-        uit.push({
-          ernst: 'amber',
-          titel: `${order.id} wacht op materiaal`,
-          toelichting: `${stap.naam} — niet eerder dan ${datum(stap.notBefore)}`,
-        })
-        break // één regel per order; anders vult één order de hele lijst
-      }
-    }
+    if (!order.wachtOpMateriaal || order.status === 'gereed' || order.status === 'gestopt') continue
+    uit.push({
+      ernst: 'amber',
+      titel: `${order.id} wacht op materiaal`,
+      toelichting: `${order.artikelNaam} — het materiaal staat in Bestellingen en is nog niet binnen`,
+    })
   }
 
   // Met deelleveringen staan er meerdere facturen open. Elk zijn eigen regel:

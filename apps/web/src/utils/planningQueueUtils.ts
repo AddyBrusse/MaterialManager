@@ -7,9 +7,9 @@
 //     rewrites ITS OWN position, never its neighbors', which matters
 //     because one machine's queue can span steps that live in many
 //     different Project rows/JSON documents). null = not queued (backlog).
-//   - notBefore — a hard floor date on this step's derived start (material
-//     lead time / curing hold), independent of queue order.
-// Both are persisted via projectsApi.planStap / projectsApi.setHold.
+// It is persisted via projectsApi.planStap. (The old "niet eerder dan" hold
+// was removed on 2026-10-07: an order now waits on material by itself, from
+// Bestellingen — `ProductieOrder.wachtOpMateriaal`, shown as a label.)
 //
 // The scheduler (deriveShopSchedule) is a real whole-shop simulation, not a
 // per-machine independent walk: a step cannot start before its own
@@ -50,7 +50,8 @@ export interface QueueJob {
   isPlaceholder: boolean
   deadline: string | null   // project.levertijdDatum
   queuePosition: number | null
-  notBefore: string | null
+  /** Materiaal staat nog in bestelling (afgeleid door de server). */
+  wachtOpMateriaal: boolean
   gereed: boolean
   item: PlanningStapItem
 }
@@ -69,7 +70,7 @@ export function buildQueueJobs(items: PlanningStapItem[], articles: Article[]): 
     isPlaceholder: item.isPlaceholder,
     deadline: item.project.levertijdDatum,
     queuePosition: item.stap.queuePosition ?? null,
-    notBefore: item.stap.notBefore ?? null,
+    wachtOpMateriaal: !!item.order.wachtOpMateriaal,
     gereed: item.stap.gereedOp != null,
     item,
   }))
@@ -139,8 +140,7 @@ export interface DerivedSlot {
   startOffsetDays: number
   durationDays: number
   finishOffsetDays: number
-  ghostOffsetDays: number   // where it would start ignoring its own notBefore hold
-  heldByNotBefore: boolean
+  ghostOffsetDays: number
 }
 
 function isWeekend(dayIdx: number, windowStart: Date): boolean {
@@ -260,8 +260,7 @@ export function deriveShopSchedule(
       const baseStart = lockedStart != null
         ? Math.max(lockedStart, predFinish, hasPriorJob ? machineFree : -Infinity)
         : ghostStart
-      const holdDay = job.notBefore ? dayOffsetForDateStr(job.notBefore, windowStart) : -Infinity
-      const actualStart = Math.max(baseStart, holdDay)
+      const actualStart = baseStart
 
       const finish = walkForward(actualStart, job.duurMin, worksWeekends, windowStart)
       result.set(job.id, {
@@ -269,7 +268,6 @@ export function deriveShopSchedule(
         durationDays: Math.max(finish - actualStart, job.duurMin / DAY_MIN, 0.12),
         finishOffsetDays: finish,
         ghostOffsetDays: baseStart,
-        heldByNotBefore: holdDay > baseStart + 0.01,
       })
       cursor.set(machineName, finish)
       scheduled.add(job.id)

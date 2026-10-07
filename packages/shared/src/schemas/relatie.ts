@@ -48,6 +48,8 @@ export const RelatieSchema = z.object({
   btw: z.string().nullable().optional(),
   iban: z.string().nullable().optional(),
   betalingstermijn: z.number().int().nonnegative().nullable().optional(),
+  /** Leverancier: vanaf dit orderbedrag (excl. btw) geen verzendkosten. */
+  francoBedrag: z.number().nonnegative('Mag niet negatief zijn').nullable().optional(),
 
   // Meta
   notities: z.string().nullable().optional(),

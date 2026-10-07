@@ -43,6 +43,9 @@ const LABELS: Record<string, string> = {
   email: 'E-mailadres',
   telefoon: 'Telefoonnummer',
   offerteNabelDagen: 'Offerte nabellen na (dagen)',
+  inkoopMargeDagen: 'Marge inkoop (werkdagen)',
+  francoBedrag: 'Franco vanaf',
+  verwachtDatum: 'Verwacht binnen',
 }
 
 function label(pad: (string | number)[]): string {

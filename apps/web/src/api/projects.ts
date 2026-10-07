@@ -729,7 +729,7 @@ export const projectsApi = {
             if (s.id !== stapId) return s
             const next = { ...s, geplandDatum, geplandMachine }
             if (hasQueuePosition) next.queuePosition = queuePosition
-            if (clearingQueueState) { next.queuePosition = null; next.notBefore = null }
+            if (clearingQueueState) next.queuePosition = null
             return next
           }),
         },
@@ -740,24 +740,6 @@ export const projectsApi = {
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/plan`, {
       method: 'PATCH', body: JSON.stringify(body),
     }), 'Stap inplannen')
-    return updated
-  },
-
-  setHold(projectId: string, orderId: string, stapId: string, notBefore: string | null): Project {
-    const updated = updateCache(projectId, p => ({
-      ...p,
-      updatedAt: now(),
-      productieOrders: p.productieOrders.map(o =>
-        o.id !== orderId ? o : {
-          ...o,
-          updatedAt: now(),
-          stappen: o.stappen.map(s => s.id !== stapId ? s : { ...s, notBefore }),
-        },
-      ),
-    }))
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/orders/${orderId}/stap/${stapId}/hold`, {
-      method: 'PATCH', body: JSON.stringify({ notBefore }),
-    }), 'Hold instellen')
     return updated
   },
 

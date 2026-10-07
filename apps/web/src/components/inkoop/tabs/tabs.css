@@ -1,0 +1,55 @@
+/* ── Bestellingen in vier tabbladen (2026-10-07) ── */
+/* De tabbalk heeft de stijl van de globale tabbalk (.gt-*), zonder pop-out. */
+.ib-tabbalk { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 3px; padding: 7px 16px 0; background: var(--bg-2); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.ib-tab { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 12px; border-radius: 8px 8px 0 0; border: 1px solid transparent; border-bottom: none; background: transparent; color: var(--text-3); font: inherit; font-size: 12px; cursor: pointer; }
+.ib-tab:hover { background: var(--bg-chip); color: var(--text); }
+.ib-tab[aria-selected='true'] { background: var(--bg); color: var(--text); font-weight: 600; border-color: var(--border); margin-bottom: -1px; }
+.ib-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.ib-tab-tel { font-family: var(--font-mono); font-size: 10.5px; padding: 0 6px; border-radius: 10px; background: var(--bg-chip); color: var(--text-3); font-weight: 400; }
+.ib-tab-tel.warn { background: var(--warning-soft); color: var(--warning); }
+.ib-tab-tel.dgr { background: var(--danger-soft); color: var(--danger); }
+
+.ib-tab-inhoud { padding: 16px 24px 40px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+.ib-balk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--text-3); font-size: 12.5px; }
+.ib-uitleg { font-size: 12px; color: var(--text-3); }
+
+.ib-kaart { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow-x: auto; }
+table.st-tbl.ib-t { width: 100%; min-width: 900px; }
+table.st-tbl.ib-t tbody td { white-space: normal; vertical-align: top; padding-top: 9px; padding-bottom: 9px; }
+table.st-tbl.ib-t tbody tr[data-aan='true'] { background: var(--accent-soft); }
+table.st-tbl.ib-t tbody tr[data-stand='te_laat_besteld'], table.st-tbl.ib-t tbody tr[data-stand='komt_te_laat'] { background: var(--danger-soft); }
+table.st-tbl.ib-t tbody tr[data-gevonden='true'] { box-shadow: inset 3px 0 0 var(--success); background: var(--success-soft); }
+table.st-tbl.ib-t .klik { cursor: pointer; }
+
+.ib-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ib-lchip { font-size: 11.5px; padding: 2px 2px 2px 8px; border-radius: 10px; background: var(--bg-chip); display: inline-flex; align-items: center; gap: 2px; }
+.ib-lchip button { all: unset; cursor: pointer; padding: 0 5px; color: var(--text-3); border-radius: 8px; }
+.ib-lchip button:hover, .ib-lchip button:focus-visible { background: var(--danger-soft); color: var(--danger); }
+
+.ib-kiezer { width: 300px; display: flex; flex-direction: column; }
+.ib-kiezer label { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; font-size: 12.5px; cursor: pointer; }
+.ib-kiezer label:hover { background: var(--bg-hover); }
+.ib-kiezer label[data-aan='true'] { background: var(--accent-soft); }
+.ib-kiezer .voet { display: flex; justify-content: flex-end; gap: 6px; padding: 8px 4px 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+
+/* Tab 2: per regel een kop met eronder de gevraagde leveranciers */
+table.st-tbl.ib-aanv { width: 100%; min-width: 1060px; }
+table.st-tbl.ib-aanv tbody td { white-space: nowrap; vertical-align: middle; padding-top: 6px; padding-bottom: 6px; }
+table.st-tbl.ib-aanv tr.kop td { background: var(--bg-sidebar); border-top: 1px solid var(--border-strong); white-space: normal; padding-top: 9px; padding-bottom: 9px; }
+table.st-tbl.ib-aanv tr[data-gekozen='true'] td { background: var(--success-soft); }
+table.st-tbl.ib-aanv td.lev { padding-left: 24px; }
+.ib-cel-in { width: 76px; font: inherit; font-family: var(--font-mono); font-size: 12px; padding: 4px 6px; border: 1px solid var(--border-input); border-radius: 6px; background: var(--bg-input); color: var(--text); }
+.ib-cel-in.kort { width: 46px; }
+.ib-cel-sel { font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--border-input); border-radius: 6px; background: var(--bg-input); color: var(--text); }
+
+/* Tab 3: een tabel per leverancier, totalen eronder */
+.ib-buffer-kop { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.ib-buffer-kop h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.ib-buffer-voet { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 14px; border-top: 1px solid var(--border); background: var(--bg-sidebar); font-size: 12.5px; }
+.ib-kaart[data-vandaag='true'] { border-color: var(--warning); }
+
+/* Tab 4: het nummer van het label */
+.ib-label { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; }
+.ib-label input { width: 180px; font: inherit; font-family: var(--font-mono); font-size: 15px; padding: 7px 10px; border: 1px solid var(--border-input); border-radius: 6px; background: var(--bg-input); color: var(--text); text-transform: uppercase; }
+.ib-label input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.ib-nummer { font-family: var(--font-mono); font-weight: 600; }

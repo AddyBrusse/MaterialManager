@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import {
   kgVanRegel, maatTekst, celVoor, celBronnenVoor, antwoordAlsPrijs, waaromNietKiezen,
+  waaromNietNaarBuffer, waaromNietUitBuffer, goedkoopste, type LeveranciersZetten, type Cel,
   type BestelRegel, type BestelStatus, type BestelBron, type KeuzeInvoer, type VergelijkData, type Antwoord,
   type LeverancierPrijs,
 } from '@stockmanager/shared'
@@ -21,7 +22,7 @@ export const REGEL_INCLUDE = {
   profile: true,
   keuzeLeverancier: { select: { naam: true } },
   rawMaterial: { select: { exoot: true } },
-  inkoopRegels: { select: { stuks: true, ontvangenStuks: true, inkooporder: { select: { id: true, status: true, createdAt: true } } } },
+  inkoopRegels: { select: { stuks: true, ontvangenStuks: true, materiaalNummer: true, inkooporder: { select: { id: true, status: true, createdAt: true } } } },
   aanvragen: { include: { prijsaanvraag: { include: { leveranciers: { select: { verzondenOp: true } } } } } },
 } as const
 type Rij = Prisma.BestelRegelGetPayload<{ include: typeof REGEL_INCLUDE }>
@@ -56,6 +57,7 @@ export async function naarRegels(db: Db, rijen: Rij[]): Promise<BestelRegel[]> {
       gradeId: r.gradeId, profileId: r.profileId, dimensions: dims, lengteMm: maat.lengteMm, stuks: r.stuks,
       rawMaterialId: r.rawMaterialId, exoot: !!r.rawMaterial?.exoot,
       projectId: r.projectId, artikelId: r.artikelId, offerteRegelId: r.offerteRegelId, notitie: r.notitie,
+      leverancierIds: r.leverancierIds,
       materiaal: `${r.grade.name} ${r.profile.name} ${maatTekst(r.profile.volumeFormula, dims)}`,
       gradeNaam: r.grade.name, profielNaam: r.profile.name,
       volumeFormula: r.profile.volumeFormula, densityKgM3: maat.densityKgM3,
@@ -74,9 +76,9 @@ export async function naarRegels(db: Db, rijen: Rij[]): Promise<BestelRegel[]> {
           }
         : null,
       inkooporder: (() => {
-        const o = r.inkoopRegels.map((x) => x.inkooporder).filter((x) => x.status !== 'vervallen')
-          .sort((a, b) => +b.createdAt - +a.createdAt)[0]
-        return o ? { id: o.id, status: o.status as 'concept' | 'verzonden' } : null
+        const o = r.inkoopRegels.filter((x) => x.inkooporder.status !== 'vervallen')
+          .sort((a, b) => +b.inkooporder.createdAt - +a.inkooporder.createdAt)[0]
+        return o ? { id: o.inkooporder.id, status: o.inkooporder.status as 'concept' | 'verzonden', materiaalNummer: o.materiaalNummer } : null
       })(),
       ontvangenStuks: r.inkoopRegels.reduce((t, x) => t + x.ontvangenStuks, 0),
       toegevoegdDoor: r.toegevoegdDoor,
@@ -203,6 +205,68 @@ export async function kies(regelId: string, invoer: KeuzeInvoer, door: string) {
     }
     return { regel: await leesRegel(tx, regelId), prijsBewaard }
   })
+}
+
+// ── De tabbladen (2026-10-07) ──
+
+/** Leveranciers bij regels zetten die nog te bestellen zijn. */
+export async function zetLeveranciers(invoer: LeveranciersZetten): Promise<BestelRegel[]> {
+  return prisma.$transaction(async (tx) => {
+    const regels = await leesRegels(tx, { id: { in: invoer.regelIds } })
+    const al = regels.find((r) => r.status !== 'te_bestellen')
+    if (al) throw new AppError(409, 'VOORWAARDE', `${al.materiaal} is al aangevraagd. Een leverancier erbij vraag je aan bij Open prijsaanvragen.`)
+    const levs = await tx.relatie.findMany({ where: { id: { in: invoer.leverancierIds } }, select: { id: true, naam: true, type: true } })
+    const geen = levs.find((l) => l.type !== 'leverancier' && l.type !== 'beide')
+    if (geen) throw new AppError(409, 'VOORWAARDE', `${geen.naam} is geen leverancier. Zet het type van de relatie op leverancier, of kies een andere.`)
+    if (levs.length !== new Set(invoer.leverancierIds).size) throw new AppError(409, 'VOORWAARDE', 'Een van de leveranciers bestaat niet meer. Ververs de pagina.')
+    for (const r of regels) {
+      const ids = invoer.modus === 'vervang' ? invoer.leverancierIds : [...new Set([...r.leverancierIds, ...invoer.leverancierIds])]
+      await tx.bestelRegel.update({ where: { id: r.id }, data: { leverancierIds: ids } })
+    }
+    return leesRegels(tx, { id: { in: invoer.regelIds } })
+  })
+}
+
+export async function naarBuffer(regelIds: string[]): Promise<BestelRegel[]> {
+  return prisma.$transaction(async (tx) => {
+    const regels = await leesRegels(tx, { id: { in: regelIds } })
+    for (const r of regels) {
+      const reden = waaromNietNaarBuffer(r)
+      if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+    }
+    await tx.bestelRegel.updateMany({ where: { id: { in: regelIds } }, data: { status: 'buffer' } })
+    return leesRegels(tx, { id: { in: regelIds } })
+  })
+}
+
+/** ↩ terug uit de buffer: naar Open prijsaanvragen (of Te bestellen als er nooit iets gevraagd is). */
+export async function uitBuffer(regelId: string): Promise<BestelRegel> {
+  return prisma.$transaction(async (tx) => {
+    const r = await leesRegel(tx, regelId)
+    const reden = waaromNietUitBuffer(r)
+    if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+    await tx.bestelRegel.update({ where: { id: regelId }, data: { status: r.aanvragen.length ? 'aangevraagd' : 'te_bestellen' } })
+    return leesRegel(tx, regelId)
+  })
+}
+
+/** Bij elke aangevraagde regel zonder keuze: de goedkoopste van de leveranciers die we vroegen. */
+export async function kiesGoedkoopste(regelIds: string[], door: string): Promise<{ gekozen: number; zonderPrijs: string[] }> {
+  const v = await vergelijkData(prisma, regelIds)
+  let gekozen = 0
+  const zonderPrijs: string[] = []
+  for (const r of v.regels) {
+    if (r.status !== 'aangevraagd' || r.keuze) continue
+    const gevraagd = new Set(Object.keys(v.gevraagd[r.id] ?? {}))
+    const bronnen = celBronnenVoor(v, r)
+    const cellen = new Map<string, Cel>([...gevraagd].map((id) => [id, celVoor(r, id, bronnen)]))
+    const beste = goedkoopste(cellen)
+    const cel = beste ? cellen.get(beste) : undefined
+    if (!beste || !cel || cel.soort !== 'prijs') { zonderPrijs.push(r.materiaal); continue }
+    await kies(r.id, { leverancierId: beste, bron: cel.bron, antwoordId: cel.antwoordId }, door)
+    gekozen++
+  }
+  return { gekozen, zonderPrijs }
 }
 
 // ── Waar bestelregels vandaan komen ──
