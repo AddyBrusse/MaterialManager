@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { normaliseerMateriaalNummer, type InkoopOverzicht, type InkoopOverzichtRegel } from '@stockmanager/shared'
+import { normaliseerMateriaalNummer, isMateriaalNummer, type InkoopOverzicht, type InkoopOverzichtRegel } from '@stockmanager/shared'
 import { aantalTekst } from '../bestellingen/bestel-tekst'
 import { NodigCel, VoorCel, StandChip, ddmm, ddmmjjjj, lokaleDag } from '../overzicht/tekst'
 
 /** De regel bij een getypt labelnummer, of waarom er geen is. */
 export function zoekOpNummer(ov: InkoopOverzicht, invoer: string): { regel: InkoopOverzichtRegel | null; melding: string | null } {
   const nr = normaliseerMateriaalNummer(invoer)
-  if (!/^M\d{2}-\d{4}$/.test(nr)) return { regel: null, melding: invoer.trim() ? 'Een nummer ziet eruit als M26-0042.' : null }
+  if (!isMateriaalNummer(nr)) return { regel: null, melding: invoer.trim() ? 'Een nummer is jaar + volgnummer, bijvoorbeeld 260042.' : null }
   const r = ov.regels.find((x) => x.order?.materiaalNummer === nr)
   if (!r) return { regel: null, melding: `Geen bestelling met nummer ${nr}.` }
   if (r.status === 'ontvangen') return { regel: null, melding: `${nr} is al helemaal binnen geboekt.` }
@@ -31,7 +31,7 @@ export function BesteldTab({ ov, onOpen, onBinnen }: { ov: InkoopOverzicht; onOp
       <form className="ib-label" onSubmit={(e) => { e.preventDefault(); if (gevonden.regel) { onBinnen(gevonden.regel); setNummer('') } }}>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--text-2)' }}>
           Nummer van het label
-          <input value={nummer} onChange={(e) => setNummer(e.currentTarget.value)} placeholder="M26-0042" aria-describedby="ib-label-uitleg" autoComplete="off" />
+          <input value={nummer} onChange={(e) => setNummer(e.currentTarget.value)} placeholder="260042" inputMode="numeric" aria-describedby="ib-label-uitleg" autoComplete="off" />
         </label>
         <button type="submit" className="st-btn sm" style={{ background: 'var(--success)', color: '#fff', borderColor: 'transparent' }} disabled={!gevonden.regel}>Binnen boeken ↵</button>
         <span id="ib-label-uitleg" style={{ fontSize: 12, color: 'var(--text-2)', paddingBottom: 8 }}>

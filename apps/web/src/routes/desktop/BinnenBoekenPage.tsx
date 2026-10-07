@@ -11,7 +11,7 @@ import '../../components/inkoop/overzicht/overzicht.css'
 import '../../components/inkoop/tabs/tabs.css'
 
 /**
- * Binnen boeken (2026-10-07): typ het nummer van het label (M26-0042) en de
+ * Binnen boeken (2026-10-07): typ het nummer van het label (260042) en de
  * juiste bestelling staat klaar. Dezelfde lijst als Bestellingen → Besteld;
  * deze pagina was tot nu toe een voorbeeldscherm zonder echte gegevens.
  */
