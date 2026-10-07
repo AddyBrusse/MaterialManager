@@ -18,21 +18,11 @@ import { datum, datumKort, eur, pct, relatieveDagen, dagenTot, tijdstip } from '
 import { geaccepteerdeOfferte, geldendeOfferte, ordersGereed, productieAf, stapTelling } from './status'
 import { opdrachtGewijzigd } from './tab-actie'
 import { afwijkingTekst, kleurClass } from './nacalculatie'
+import { STATUS_WOORD, statusWoord } from '../../../../components/projecten/overzicht/signalen'
 
-const STATUS_LABEL: Record<Project['status'], string> = {
-  concept: 'Concept',
-  offerte: 'Offerte',
-  bevestigd: 'Bevestigd',
-  productie: 'Productie',
-  paklijst: 'Gereed voor levering',
-  verzonden: 'Geleverd',
-  gefactureerd: 'Gefactureerd',
-  on_hold: 'On hold',
-  geannuleerd: 'Geannuleerd',
-}
-
+/** De status in de woorden van de zeven stappen (2026-10-07, `statusWoord`). */
 export function statusLabel(s: Project['status']): string {
-  return STATUS_LABEL[s]
+  return STATUS_WOORD[s]
 }
 
 export function offerteTotaal(p: Project): number | null {
@@ -98,7 +88,7 @@ export function bouwFacetten(
     },
     {
       label: 'Fase',
-      waarde: statusLabel(p.status),
+      waarde: statusWoord(p),
       sub: faseHerkomst(p) || undefined,
       kleur: p.status === 'on_hold' || p.status === 'geannuleerd' ? 'warn' : undefined,
     },

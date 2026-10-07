@@ -13,6 +13,7 @@
 import type { Offerte, Project, ProductieOrder } from '@stockmanager/shared'
 import type { Fase, TerugVM } from '../types'
 import { datumKort } from './format'
+import { STATUS_WOORD } from '../../../../components/projecten/overzicht/signalen'
 
 export function geaccepteerdeOfferte(p: Project) {
   return p.offertes.find((o) => o.status === 'geaccepteerd') ?? null
@@ -85,19 +86,9 @@ export function productieAf(orders: ProductieOrder[]): boolean {
   )
 }
 
+/** In de woorden van de zeven stappen (2026-10-07). */
 export function faseLabel(f: Fase): string {
-  const map: Record<Fase, string> = {
-    concept: 'Concept',
-    offerte: 'Offerte',
-    bevestigd: 'Bevestigd',
-    productie: 'Productie',
-    paklijst: 'Gereed voor levering',
-    verzonden: 'Geleverd',
-    gefactureerd: 'Gefactureerd',
-    on_hold: 'On hold',
-    geannuleerd: 'Geannuleerd',
-  }
-  return map[f]
+  return STATUS_WOORD[f]
 }
 
 /** Bij on hold is álles op de pagina dicht behalve hervatten en de zijsporen. */
@@ -165,7 +156,7 @@ export function terugActie(p: Project): TerugVM | null {
       }
       const stuks = p.productieOrders.reduce((n, o) => n + o.aantalGereed, 0)
       if (stuks > 0) blokkades.push(`Er zijn al ${stuks} stuks gereedgemeld.`)
-      return { label: 'Terugdraaien naar Bevestigd', naar: 'bevestigd', blokkades, gevolgen }
+      return { label: 'Terugdraaien naar Opdracht', naar: 'bevestigd', blokkades, gevolgen }
     }
 
     case 'paklijst':
@@ -173,7 +164,7 @@ export function terugActie(p: Project): TerugVM | null {
       blokkades.push(
         'Alles is gereedgemeld; dat zet je terug op de Productie-tab, door een stap of aantal terug te zetten.',
       )
-      return { label: 'Terugdraaien naar Productie', naar: 'productie', blokkades, gevolgen }
+      return { label: 'Terugdraaien naar In productie', naar: 'productie', blokkades, gevolgen }
 
     case 'verzonden':
       gevolgen.push('De laatste verzending wordt ingetrokken.')
@@ -189,7 +180,7 @@ export function terugActie(p: Project): TerugVM | null {
     case 'gefactureerd':
       blokkades.push('Een verstuurde factuur draai je niet terug.')
       gevolgen.push('Een correctie gaat via een creditfactuur.')
-      return { label: 'Terugdraaien naar Verzonden', naar: 'verzonden', blokkades, gevolgen }
+      return { label: 'Terugdraaien naar Paklijst', naar: 'verzonden', blokkades, gevolgen }
 
     default:
       // concept heeft geen eerdere fase; on hold en geannuleerd draai je niet
