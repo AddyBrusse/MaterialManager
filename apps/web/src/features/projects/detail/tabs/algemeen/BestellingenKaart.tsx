@@ -1,29 +1,33 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { bestelRegelsApi } from '../../../../../api/bestellingen'
+import { inkoopApi } from '../../../../../api/inkoop'
 import { Card } from '../../components/Card'
 import { ExootLabel } from '../../../../../components/inkoop/ExootLabel'
-import { BestelStatusBadge, aantalTekst, bronTekst, datum, eur } from '../../../../../components/inkoop/bestellingen/bestel-tekst'
+import { aantalTekst, bronTekst, eur } from '../../../../../components/inkoop/bestellingen/bestel-tekst'
+import { StandChip, ddmm, ddmmjjjj, lokaleDag } from '../../../../../components/inkoop/overzicht/tekst'
+import type { BestelBron } from '@stockmanager/shared'
+import '../../../../../components/inkoop/overzicht/overzicht.css'
 
 /**
- * Alles wat voor dit project besteld moet worden of besteld is (2026-10-06):
- * per regel de maat, de status, de gekozen leverancier en prijs, de aanvraag,
- * de inkooporder en wat er al binnen is. Bestellen zelf gebeurt op Bestellingen.
+ * Materiaal bestellen voor dit project (2026-10-07): per regel de stand — wacht,
+ * onderweg, komt te laat, binnen — met wanneer hij nodig is voor de productie.
+ * Bestellen zelf gebeurt op Bestellingen; hier zie je of het op schema ligt.
  */
 export function BestellingenKaart({ projectId }: { projectId: string }) {
   const navigate = useNavigate()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['bestel-regels', 'project', projectId],
-    queryFn: () => bestelRegelsApi.voorProject(projectId),
+    queryKey: ['inkoop', 'overzicht', projectId],
+    queryFn: () => inkoopApi.overzicht(projectId),
     refetchInterval: 20000,
   })
-  const regels = data ?? []
-  const binnen = regels.filter((r) => r.status === 'ontvangen').length
+  const regels = data?.regels ?? []
+  const binnen = regels.filter((r) => r.plan.stand === 'binnen').length
+  const laat = regels.filter((r) => r.plan.stand === 'komt_te_laat' || r.plan.stand === 'te_laat_besteld').length
 
   return (
     <Card
-      titel="Bestellingen"
-      teller={regels.length ? `${regels.length} regel${regels.length === 1 ? '' : 's'} · ${binnen} binnen` : undefined}
+      titel="Materiaal bestellen"
+      teller={regels.length ? `${regels.length} regel${regels.length === 1 ? '' : 's'} · ${binnen} binnen${laat ? ` · ${laat} te laat voor de productie` : ''}` : undefined}
       acties={<button type="button" className="pdv2-btn s stil" onClick={() => navigate('/bestellingen')}>Naar Bestellingen</button>}
       plat={regels.length > 0}
     >
@@ -36,31 +40,32 @@ export function BestellingenKaart({ projectId }: { projectId: string }) {
         ) : (
           <table className="st-tbl bs-tbl pdv2-bestel">
             <thead>
-              <tr><th>Materiaal</th><th>Aantal</th><th>Status</th><th>Leverancier · prijs</th><th>Aanvraag · order</th><th>Binnen</th></tr>
+              <tr><th>Materiaal</th><th>Aantal</th><th>Stand</th><th>Leverancier · order</th><th>Verwacht / binnen</th><th>Nodig voor productie</th></tr>
             </thead>
             <tbody>
               {regels.map((r) => (
-                <tr key={r.id}>
+                <tr key={r.id} style={r.plan.stand === 'komt_te_laat' || r.plan.stand === 'te_laat_besteld' ? { background: 'var(--danger-soft)' } : undefined}>
                   <td>
                     <div className="cell-strong">{r.materiaal} {r.exoot && <ExootLabel compact />}</div>
-                    <div className="bs-sub">{r.artikelNaam ? `${r.artikelNaam} · ` : ''}{bronTekst(r.bron)}</div>
+                    <div className="bs-sub">{r.artikelNaam ? `${r.artikelNaam} · ` : ''}{bronTekst(r.bron as BestelBron)}</div>
                   </td>
-                  <td className="cell-mono">{aantalTekst(r)}</td>
+                  <td className="cell-mono" style={{ whiteSpace: 'nowrap' }}>{aantalTekst(r)}</td>
+                  <td><StandChip r={r} /></td>
                   <td>
-                    <BestelStatusBadge status={r.status} />
-                    {r.nodigVoor && <div className="bs-sub">nodig vóór {datum(r.nodigVoor)}</div>}
+                    {r.leverancier ? <div>{r.leverancier.naam}{!r.order && !r.leverancier.gekozen && <span className="bs-sub"> (goedkoopst)</span>}</div> : <span className="cell-muted">nog geen prijs</span>}
+                    <div className="bs-sub cell-mono">
+                      {r.order ? `${r.order.id}${r.order.status === 'concept' ? ' (klaargezet)' : ''}` : r.leverancier?.totaal != null ? eur(r.leverancier.totaal) : ''}
+                    </div>
+                  </td>
+                  <td className="cell-mono">
+                    {r.plan.stand === 'binnen' ? `${r.stuks} / ${r.stuks}${r.binnenOp ? ` · ${ddmm(lokaleDag(r.binnenOp))}` : ''}`
+                      : r.order?.status === 'verzonden' ? <>{r.plan.verwacht ? ddmm(r.plan.verwacht) : '—'}{r.order.ontvangenStuks > 0 && <div className="bs-sub">{r.order.ontvangenStuks} / {r.stuks} binnen</div>}</>
+                      : <span className="cell-muted">—</span>}
                   </td>
                   <td>
-                    {r.keuze
-                      ? <><div>{r.keuze.leverancierNaam}</div><div className="bs-sub cell-mono">{eur(r.keuze.totaal)}{r.keuze.levertijdDagen != null ? ` · ${r.keuze.levertijdDagen} werkdagen` : ''}</div></>
-                      : <span className="cell-muted">nog niet gekozen</span>}
+                    <span className="cell-mono">{r.nodig.datum ? ddmmjjjj(r.nodig.datum) : '—'}</span>
+                    {r.nodig.datum && <span className="bs-sub"> · {r.nodig.bron === 'productie' ? (r.nodig.machine ?? 'productie') : 'levering'}</span>}
                   </td>
-                  <td>
-                    {r.aanvragen[0] ? <div className="bs-sub cell-mono">{r.aanvragen[0].id} · {r.aanvragen[0].verzondenOp ? datum(r.aanvragen[0].verzondenOp) : 'nog niet verstuurd'}</div> : null}
-                    {r.inkooporder ? <div className="cell-mono">{r.inkooporder.id}{r.inkooporder.status === 'concept' ? ' (concept)' : ''}</div> : null}
-                    {!r.aanvragen[0] && !r.inkooporder && <span className="cell-muted">—</span>}
-                  </td>
-                  <td className="cell-mono">{r.ontvangenStuks} / {r.stuks}</td>
                 </tr>
               ))}
             </tbody>

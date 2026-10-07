@@ -36,7 +36,7 @@ export function PrijsaanvraagVenster({ regels, data, onGemaakt, onSluit }: {
     },
     onSuccess: (a) => {
       qc.invalidateQueries({ queryKey: ['prijsaanvragen'] })
-      qc.invalidateQueries({ queryKey: ['bestel-regels'] })
+      qc.invalidateQueries({ queryKey: ['bestel-regels'] }); qc.invalidateQueries({ queryKey: ['inkoop'] })
       notifications.show({ color: 'green', message: `${a.id} aangemaakt — verstuur hem nu per leverancier` })
       onGemaakt(a)
     },

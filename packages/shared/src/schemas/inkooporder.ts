@@ -22,6 +22,10 @@ export const InkooporderRegelSchema = z.object({
   uitleg: z.string(),
   levertijdDagen: z.number().int().nullable(),
   ontvangenStuks: z.number().int(),
+  /** Leverdatum zoals de leverancier hem doorgaf; leeg = afgeleid. */
+  verwachtDatum: z.string().nullable(),
+  /** Verwacht binnen: de doorgegeven datum, anders verstuurd + levertijd (werkdagen). */
+  verwacht: z.string().nullable(),
   projectId: z.string().nullable(),
   artikelNaam: z.string().nullable(),
 })
@@ -81,3 +85,16 @@ export const OntvangstSchema = z.object({
   createdAt: z.string(),
 })
 export type Ontvangst = z.infer<typeof OntvangstSchema>
+
+/** Bestellen in één keer: regels zonder keuze krijgen de goedkoopste leverancier. */
+export const BestellenSchema = z.object({ regelIds: z.array(z.string()).min(1, 'Kies minstens één regel') })
+export const VerzondenAlleSchema = z.object({ ids: z.array(z.string()).min(1, 'Geen inkooporders opgegeven') })
+export const LeverdatumSchema = z.object({ verwachtDatum: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Vul een datum in').nullable() })
+
+export const GeschiedenisItemSchema = z.object({
+  datum: z.string(),
+  tekst: z.string(),
+  /** Een documentnummer om te openen (PA-…, INK-…). */
+  document: z.string().nullable(),
+})
+export type GeschiedenisItem = z.infer<typeof GeschiedenisItemSchema>

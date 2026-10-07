@@ -64,7 +64,7 @@ export function PrijsVenster({ bestaand, keuze, onSluit }: { bestaand?: Leveranc
       return bestaand ? leverancierPrijzenApi.update(bestaand.id, invoer) : leverancierPrijzenApi.create(invoer)
     },
     onSuccess: (p) => {
-      qc.invalidateQueries({ queryKey: ['leverancier-prijzen'] })
+      qc.invalidateQueries({ queryKey: ['leverancier-prijzen'] }); qc.invalidateQueries({ queryKey: ['inkoop'] })
       notifications.show({ color: 'green', message: `Prijs van ${p.leverancierNaam} opgeslagen` })
       onSluit()
     },

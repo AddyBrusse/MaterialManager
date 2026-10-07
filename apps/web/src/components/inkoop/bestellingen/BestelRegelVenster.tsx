@@ -57,7 +57,7 @@ export function BestelRegelVenster({ bestaand, vooraf, onSluit }: { bestaand?: B
       })
     },
     onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: ['bestel-regels'] })
+      qc.invalidateQueries({ queryKey: ['bestel-regels'] }); qc.invalidateQueries({ queryKey: ['inkoop'] })
       notifications.show({ color: 'green', message: `${r.materiaal} ${bestaand ? 'bijgewerkt' : 'op de bestellijst gezet'}` })
       onSluit()
     },

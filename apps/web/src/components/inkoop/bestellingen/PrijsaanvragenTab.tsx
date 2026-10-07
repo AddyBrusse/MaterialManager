@@ -19,7 +19,7 @@ export function PrijsaanvragenTab({ aanvragen, regels, open }: { aanvragen: Prij
   const [antwoord, setAntwoord] = useState<{ a: Prijsaanvraag; l: PrijsaanvraagLeverancier } | null>(null)
   const weg = useMutation({
     mutationFn: (a: Prijsaanvraag) => prijsaanvragenApi.remove(a.id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['prijsaanvragen'] }); qc.invalidateQueries({ queryKey: ['bestel-regels'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['prijsaanvragen'] }); qc.invalidateQueries({ queryKey: ['bestel-regels'] }); qc.invalidateQueries({ queryKey: ['inkoop'] }) },
     onError: (e, a) => meldFout({ actie: `${a.id} verwijderen`, fout: e, gevolg: 'De aanvraag staat er nog.' }),
   })
 

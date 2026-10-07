@@ -43,7 +43,7 @@ export function AntwoordVenster({ aanvraag, leverancier, regels, onSluit }: {
         }
       })]),
     onSuccess: () => {
-      for (const key of ['prijsaanvragen', 'vergelijk']) qc.invalidateQueries({ queryKey: [key] })
+      for (const key of ['prijsaanvragen', 'vergelijk', 'inkoop', 'bestel-geschiedenis']) qc.invalidateQueries({ queryKey: [key] })
       notifications.show({ color: 'green', message: `Antwoord van ${leverancier.naam} opgeslagen` })
       onSluit()
     },

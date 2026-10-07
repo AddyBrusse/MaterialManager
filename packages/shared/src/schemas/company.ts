@@ -25,6 +25,11 @@ export const CompanySchema = z.object({
    * een afspraak over hoe je met klanten omgaat, niet een voorkeur per persoon.
    */
   offerteNabelDagen: z.number().int().min(1, 'Minimaal 1 dag').max(365, 'Maximaal 365 dagen').default(21),
+  /**
+   * Inkoop (2026-10-07): zoveel werkdagen eerder binnen dan de productie het
+   * nodig heeft. Uiterlijk bestellen = nodig − levertijd − deze marge.
+   */
+  inkoopMargeDagen: z.number().int().min(0, 'Minimaal 0 dagen').max(30, 'Maximaal 30 werkdagen').default(2),
   updatedAt:      z.string(),
 })
 export type Company = z.infer<typeof CompanySchema>

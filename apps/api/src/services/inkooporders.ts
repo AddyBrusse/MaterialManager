@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import {
   kgVanRegel, maatTekst, waaromNietInkooporder, waaromNietInkoopWijzigen, waaromNietInkoopIntrekken,
+  waaromNietBestellen, waaromNietLeverdatum, verwachtBinnen, vandaagIso,
   type Inkooporder, type InkoopStatus,
 } from '@stockmanager/shared'
 import { prisma } from '../db/client'
@@ -8,6 +9,7 @@ import { AppError } from '../middleware/error'
 import { nextDocId } from './doc-nummer'
 import { leesRegels } from './bestellingen'
 import { leverancierEmail } from './prijsaanvragen'
+import { leesOverzicht } from './inkoop-overzicht'
 
 /**
  * Inkooporders (2026-10-06, deel 3b). Eén per leverancier, met de prijs die bij
@@ -47,6 +49,8 @@ async function naarOrders(db: Db, rijen: Rij[]): Promise<Inkooporder[]> {
         exoot: !!b.rawMaterial?.exoot, stuks: r.stuks, lengteMm,
         kg: kgVanRegel({ dimensions: dims, lengteMm, stuks: r.stuks, volumeFormula: b.profile.volumeFormula, densityKgM3: Number(b.grade.densityKgM3) }),
         totaal: Number(r.totaal), uitleg: r.uitleg, levertijdDagen: r.levertijdDagen, ontvangenStuks: r.ontvangenStuks,
+        verwachtDatum: r.verwachtDatum,
+        verwacht: o.status === 'verzonden' ? verwachtBinnen(o.verzondenOp ? vandaagIso(o.verzondenOp) : null, r.levertijdDagen, r.verwachtDatum) : null,
         projectId: b.projectId, artikelNaam: b.artikelId ? (art.get(b.artikelId) ?? null) : null,
       }
     })
@@ -74,30 +78,84 @@ export async function leesOrder(db: Db, id: string): Promise<Inkooporder> {
 
 /** Van gekozen regels: één concept-inkooporder per leverancier. */
 export async function maakOrders(regelIds: string[], door: string): Promise<Inkooporder[]> {
+  return prisma.$transaction((tx) => maakOrdersIn(tx, regelIds, door))
+}
+
+async function maakOrdersIn(tx: Prisma.TransactionClient, regelIds: string[], door: string): Promise<Inkooporder[]> {
+  const regels = await leesRegels(tx, { id: { in: regelIds } })
+  if (regels.length !== new Set(regelIds).size) throw new AppError(409, 'VOORWAARDE', 'Een van de regels bestaat niet meer. Ververs de pagina.')
+  const reden = waaromNietInkooporder(regels)
+  if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+  const groepen = new Map<string, typeof regels>()
+  for (const r of regels) groepen.set(r.keuze!.leverancierId, [...(groepen.get(r.keuze!.leverancierId) ?? []), r])
+  const ids: string[] = []
+  for (const [leverancierId, rs] of groepen) {
+    const id = await nextDocId(tx, 'INK')
+    await tx.inkooporder.create({
+      data: {
+        id, leverancierId, createdBy: door,
+        regels: {
+          create: rs.map((r, i) => ({
+            bestelRegelId: r.id, positie: i + 1, stuks: r.stuks, lengteMm: r.lengteMm,
+            totaal: Math.round(r.keuze!.totaal * 100) / 100, uitleg: r.keuze!.uitleg, levertijdDagen: r.keuze!.levertijdDagen,
+          })),
+        },
+      },
+    })
+    ids.push(id)
+  }
+  return leesOrders(tx, { id: { in: ids } })
+}
+
+/**
+ * Bestellen in één keer (2026-10-07): regels zonder gekozen leverancier
+ * krijgen de goedkoopste — dezelfde die het scherm voorstelde — en per
+ * leverancier komt er een inkooporder klaar voor de mail. Pas na "Ja,
+ * verstuurd" (`markeerAlleVerzonden`) staan ze als besteld.
+ */
+export async function bestel(regelIds: string[], door: string): Promise<Inkooporder[]> {
   return prisma.$transaction(async (tx) => {
-    const regels = await leesRegels(tx, { id: { in: regelIds } })
-    if (regels.length !== new Set(regelIds).size) throw new AppError(409, 'VOORWAARDE', 'Een van de regels bestaat niet meer. Ververs de pagina.')
-    const reden = waaromNietInkooporder(regels)
+    const ov = await leesOverzicht(tx, { regelIds })
+    if (ov.regels.length !== new Set(regelIds).size) throw new AppError(409, 'VOORWAARDE', 'Een van de regels bestaat niet meer. Ververs de pagina.')
+    const reden = waaromNietBestellen(ov.regels, ov.leveranciers)
     if (reden) throw new AppError(409, 'VOORWAARDE', reden)
-    const groepen = new Map<string, typeof regels>()
-    for (const r of regels) groepen.set(r.keuze!.leverancierId, [...(groepen.get(r.keuze!.leverancierId) ?? []), r])
-    const ids: string[] = []
-    for (const [leverancierId, rs] of groepen) {
-      const id = await nextDocId(tx, 'INK')
-      await tx.inkooporder.create({
+    const nu = new Date()
+    for (const r of ov.regels) {
+      const l = r.leverancier!
+      if (l.gekozen) continue
+      await tx.bestelRegel.update({
+        where: { id: r.id },
         data: {
-          id, leverancierId, createdBy: door,
-          regels: {
-            create: rs.map((r, i) => ({
-              bestelRegelId: r.id, positie: i + 1, stuks: r.stuks, lengteMm: r.lengteMm,
-              totaal: Math.round(r.keuze!.totaal * 100) / 100, uitleg: r.keuze!.uitleg, levertijdDagen: r.keuze!.levertijdDagen,
-            })),
-          },
+          keuzeLeverancierId: l.leverancierId, keuzeBron: l.bron, keuzeAntwoordId: l.antwoordId,
+          keuzeTotaal: l.totaal, keuzeUitleg: l.uitleg, keuzeLevertijdDagen: l.levertijdDagen,
+          keuzeOp: nu, keuzeDoor: `${door} (goedkoopste)`,
         },
       })
-      ids.push(id)
     }
-    return leesOrders(tx, { id: { in: ids } })
+    return maakOrdersIn(tx, regelIds, door)
+  })
+}
+
+/** "Ja, allemaal verstuurd": alle klaargezette orders in één keer. */
+export async function markeerAlleVerzonden(ids: string[], door: string): Promise<Inkooporder[]> {
+  const uit: Inkooporder[] = []
+  for (const id of ids) uit.push(await markeerVerzonden(id, door))
+  return uit
+}
+
+/** De leverdatum zoals de leverancier hem doorgaf; `null` = terug naar verstuurd + levertijd. */
+export async function zetLeverdatum(id: string, regelId: string, datum: string | null, door: string): Promise<Inkooporder> {
+  return prisma.$transaction(async (tx) => {
+    const o = await leesOrder(tx, id)
+    const r = o.regels.find((x) => x.id === regelId)
+    if (!r) throw new AppError(404, 'NOT_FOUND', `Deze regel staat niet op ${id}.`)
+    const reden = waaromNietLeverdatum(o, r, datum)
+    if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+    await tx.inkooporderRegel.update({
+      where: { id: regelId },
+      data: { verwachtDatum: datum, verwachtAangepastOp: new Date(), verwachtAangepastDoor: door },
+    })
+    return leesOrder(tx, id)
   })
 }
 
@@ -121,8 +179,14 @@ export async function regelEraf(id: string, regelId: string): Promise<Inkooporde
 
 export async function verwijderConcept(id: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await vereisConcept(tx, id)
+    const o = await vereisConcept(tx, id)
     await tx.inkooporder.delete({ where: { id } })
+    // Een leverancier die Bestellen zelf koos (de goedkoopste) was geen besluit
+    // van iemand: weg met de order, dan rekent de lijst weer met de prijs van nu.
+    await tx.bestelRegel.updateMany({
+      where: { id: { in: o.regels.map((r) => r.bestelRegelId) }, keuzeDoor: { endsWith: ' (goedkoopste)' } },
+      data: { keuzeLeverancierId: null, keuzeBron: null, keuzeAntwoordId: null, keuzeTotaal: null, keuzeUitleg: null, keuzeLevertijdDagen: null, keuzeOp: null, keuzeDoor: null },
+    })
   })
 }
 

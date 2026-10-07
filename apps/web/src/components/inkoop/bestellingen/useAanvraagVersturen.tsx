@@ -23,7 +23,7 @@ export function useAanvraagVersturen(regels: BestelRegel[]) {
   const vastleggen = useMutation({
     mutationFn: (k: { a: Prijsaanvraag; l: PrijsaanvraagLeverancier }) => prijsaanvragenApi.verzonden(k.a.id, k.l.leverancierId),
     onSuccess: (_a, k) => {
-      for (const key of ['prijsaanvragen', 'bestel-regels', 'vergelijk']) qc.invalidateQueries({ queryKey: [key] })
+      for (const key of ['prijsaanvragen', 'bestel-regels', 'vergelijk', 'inkoop', 'bestel-geschiedenis']) qc.invalidateQueries({ queryKey: [key] })
       notifications.show({ color: 'green', message: `${k.a.id} staat als verstuurd aan ${k.l.naam}` })
     },
     onError: (e, k) => meldFout({

@@ -7,6 +7,7 @@ const DEFAULTS: Company = {
   id:            'default',
   schrootDrempelMm: 200,
   offerteNabelDagen: 21,
+  inkoopMargeDagen: 2,
   naam:          'Boer Metaalbewerking',
   adres:         'Industrieweg 1',
   postcode:      '1234 AB',

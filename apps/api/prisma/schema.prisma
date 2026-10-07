@@ -78,6 +78,9 @@ model Company {
   /// Na zoveel dagen zonder reactie telt een verstuurde offerte als "nabellen"
   /// op het projectenoverzicht.
   offerteNabelDagen Int     @default(21) @map("offerte_nabel_dagen")
+  /// Inkoop: zoveel werkdagen eerder binnen dan de productie het nodig heeft
+  /// (2026-10-07). "Uiterlijk bestellen" = nodig − levertijd − deze marge.
+  inkoopMargeDagen Int      @default(2) @map("inkoop_marge_dagen")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("company")
@@ -366,6 +369,9 @@ model Relatie {
   betalingstermijn   Int?
   notities           String?
   contacten          Json     @default("[]")
+  /// Leverancier: vanaf dit orderbedrag geen verzendkosten (2026-10-07).
+  /// Daaronder wachten we liever op meer regels, zolang de planning het toelaat.
+  francoBedrag       Decimal? @map("franco_bedrag")
   createdAt          DateTime @default(now()) @map("created_at")
 
   exoten             RawMaterial[]      @relation("ExootKlant")
@@ -658,6 +664,11 @@ model InkooporderRegel {
   uitleg         String
   levertijdDagen Int?     @map("levertijd_dagen")
   ontvangenStuks Int      @default(0) @map("ontvangen_stuks")
+  /// Leverdatum zoals de leverancier hem doorgaf ('YYYY-MM-DD'). Leeg =
+  /// verstuurd + levertijd in werkdagen, afgeleid bij het lezen.
+  verwachtDatum      String?   @map("verwacht_datum")
+  verwachtAangepastOp   DateTime? @map("verwacht_aangepast_op")
+  verwachtAangepastDoor String?   @map("verwacht_aangepast_door")
 
   inkooporder Inkooporder @relation(fields: [inkooporderId], references: [id], onDelete: Cascade)
   bestelRegel BestelRegel @relation(fields: [bestelRegelId], references: [id], onDelete: Restrict)

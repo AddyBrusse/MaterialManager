@@ -8,6 +8,7 @@ import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { leesRegel, leesRegels, vergelijkData, kies } from '../services/bestellingen'
+import { geschiedenis } from '../services/inkoop-geschiedenis'
 
 /** Bestelregels (2026-10-06): wat er besteld moet worden. Zie services/bestellingen.ts. */
 const router = Router()
@@ -30,6 +31,8 @@ router.get(
     res.json({ data: await vergelijkData(prisma, ids) })
   }),
 )
+
+router.get('/:id/geschiedenis', asyncHandler(async (req, res) => { res.json({ data: await geschiedenis(req.params.id) }) }))
 
 router.post(
   '/',

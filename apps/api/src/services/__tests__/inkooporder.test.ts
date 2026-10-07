@@ -11,7 +11,7 @@ const order = (p: object = {}) => ({ id: 'INK-2026-001', status: 'verzonden' as 
 
 describe('inkooporder maken', () => {
   it('zonder gekozen leverancier zegt waar je kiest', () => {
-    expect(waaromNietInkooporder([regel({ keuze: null })])).toMatch(/Vergelijken/)
+    expect(waaromNietInkooporder([regel({ keuze: null })])).toMatch(/geen leverancier gekozen/)
   })
   it('niet twee keer op een order', () => {
     expect(waaromNietInkooporder([regel({ inkooporder: { id: 'INK-2026-001', status: 'concept' } })])).toMatch(/INK-2026-001/)

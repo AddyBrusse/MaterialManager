@@ -4,7 +4,7 @@ import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import { Menu, Tooltip } from '@mantine/core'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList, IconTruckDelivery,
-  IconChevronDown, IconBell, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
+  IconChevronDown, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
   IconClipboardList, IconChartBar, IconArrowsSort, IconCheck, IconLogout, IconFileText,
   IconChecklist, IconListNumbers, IconExternalLink, IconClock,
 } from '@tabler/icons-react'
@@ -24,7 +24,6 @@ import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
 import { ArtikelDetailPage } from '../../routes/desktop/ArtikelDetailPage'
 import { BinnenBoekenPage } from '../../routes/desktop/BinnenBoekenPage'
 import { BestellingenPage } from '../../routes/desktop/BestellingenPage'
-import { BestellingVergelijkPage } from '../../routes/desktop/BestellingVergelijkPage'
 import { InstellingenPage } from '../../routes/desktop/InstellingenPage'
 import { ZaagCalculatorPage } from '../../routes/desktop/ZaagCalculatorPage'
 import { ReserveringenPage } from '../../routes/desktop/ReserveringenPage'
@@ -40,7 +39,7 @@ import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
 import { todosApi } from '../../api/todos'
-import { bestelRegelsApi } from '../../api/bestellingen'
+import { InkoopBel, useInkoopMeldingen } from '../inkoop/overzicht/InkoopBel'
 import { GlobalTabs } from './GlobalTabs'
 import { pageTabs } from '../../utils/pageTabs'
 import { resolvePage, tabLabelFor } from './pageRegistry'
@@ -94,11 +93,16 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   const { data: todosData } = useQuery({ queryKey: ['todos'], queryFn: todosApi.list, refetchInterval: 20000 })
   const openTodoCount = todosData?.data?.filter(t => !t.done).length ?? 0
 
-  // Wat er nog besteld moet worden: te bestellen, of aangevraagd zonder bestelling.
-  const { data: bestelRegels } = useQuery({ queryKey: ['bestel-regels'], queryFn: () => bestelRegelsApi.list(), refetchInterval: 20000 })
-  const teBestellenCount = bestelRegels?.filter(r => r.status === 'te_bestellen' || r.status === 'aangevraagd').length ?? 0
+  // Inkoop telt alleen wat vandaag moet: nu bestellen, te laat besteld, komt
+  // te laat. Wat wacht op bundelen telt niet — dan is het getal nooit nul.
+  const { data: inkoopMeldingen } = useInkoopMeldingen()
+  const inkoopVandaag = inkoopMeldingen?.aantal ?? 0
 
-  const NAV = [
+  type NavItem = {
+    to: string; label: string; Icon: (p: { size?: number }) => ReactNode; count: number | null
+    disabled?: boolean; disabledReason?: string; urgent?: boolean
+  }
+  const NAV: { label: string; items: NavItem[] }[] = [
     {
       label: 'Planning',
       items: [
@@ -122,7 +126,7 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
       label: 'Materiaalbeheer',
       items: [
         { to: '/voorraad',       label: 'Voorraad',      Icon: IconLayersLinked, count: voorraadCount || null },
-        { to: '/bestellingen',   label: 'Bestellingen',  Icon: IconTruckDelivery, count: teBestellenCount || null },
+        { to: '/bestellingen',   label: 'Bestellingen',  Icon: IconTruckDelivery, count: inkoopVandaag || null, urgent: true },
         { to: '/reserveringen',  label: 'Reserveringen', Icon: IconBookmark,     count: reservationCount || null },
         { to: '/binnenboeken',   label: 'Binnen boeken', Icon: IconInbox,        count: null },
       ],
@@ -205,7 +209,7 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
                   <item.Icon size={16} />
                   <span>{item.label}</span>
                   {item.count != null && (
-                    <span className="count">{item.count}</span>
+                    <span className={`count${item.urgent ? ' dgr' : ''}`}>{item.count}</span>
                   )}
                   {POPOUT_ROUTES.includes(item.to) && (
                     <button
@@ -230,9 +234,7 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
           <div className="st-sb-user">{user?.name ?? '—'}</div>
           <div className="st-sb-user-sub">{role}</div>
         </div>
-        <button className="st-icon-btn" title="Meldingen">
-          <IconBell size={16} />
-        </button>
+        <InkoopBel />
       </div>
     </aside>
   )
@@ -329,7 +331,6 @@ export function AppLayout() {
             <Route path="/voorraad"        element={<VoorraadPage />} />
             <Route path="/binnenboeken"    element={<BinnenBoekenPage />} />
             <Route path="/bestellingen"    element={<BestellingenPage />} />
-            <Route path="/bestellingen/vergelijk/:ids" element={<BestellingVergelijkPage />} />
             <Route path="/artikelen"       element={<ArtikelenPage />} />
             <Route path="/artikelen/:id"   element={<ArtikelDetailPage />} />
             <Route path="/instellingen"    element={<InstellingenPage />} />

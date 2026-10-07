@@ -37,4 +37,4 @@ export const prijsaanvragenApi = {
 }
 
 /** Alles wat na een wijziging opnieuw gelezen moet worden. */
-export const BESTEL_SLEUTELS = [['bestel-regels'], ['prijsaanvragen'], ['vergelijk'], ['leverancier-prijzen']] as const
+export const BESTEL_SLEUTELS = [['bestel-regels'], ['prijsaanvragen'], ['vergelijk'], ['leverancier-prijzen'], ['inkoop'], ['bestel-geschiedenis']] as const

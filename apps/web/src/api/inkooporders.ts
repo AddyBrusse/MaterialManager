@@ -18,4 +18,4 @@ export const inkoopordersApi = {
 }
 
 /** Wat er na een inkoophandeling opnieuw gelezen moet worden. */
-export const INKOOP_SLEUTELS = ['inkooporders', 'ontvangsten', 'bestel-regels', 'vergelijk', 'raw-materials', 'reservations'] as const
+export const INKOOP_SLEUTELS = ['inkooporders', 'ontvangsten', 'bestel-regels', 'vergelijk', 'raw-materials', 'reservations', 'inkoop', 'prijsaanvragen', 'bestel-geschiedenis'] as const

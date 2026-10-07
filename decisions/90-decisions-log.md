@@ -1992,3 +1992,61 @@ Zonder contactpersoon of mailadres zegt de melding wat er eerst moet
   besteld is, dan vervalt de gekozen prijs.
 - **Op de Algemeen-tab van het project** staan alle bestelregels van dat project
   met status, leverancier en prijs, levertijd, aanvraag en order, en wat er binnen is.
+
+## 2026-10-07 — Inkoop opnieuw ingericht: één pagina, op schema blijven
+
+Na deel 3b vond de gebruiker het te veel tabs en te veel stappen: Te bestellen →
+Prijsaanvragen → Vergelijken → concept-inkooporder → Versturen → Ontvangen. En
+het belangrijkste ontbrak: **wat staat er in bestelling en wanneer hebben we het
+echt nodig voor de productie.** Mockups eerst, daarna afgesproken:
+
+- **Eén pagina Bestellingen**, geen tabs en geen aparte vergelijkpagina. Van boven
+  naar beneden: vier tegels (nu bestellen · wacht op bundelen · onderweg op tijd ·
+  komt te laat), *Te bestellen* per leverancier, *Onderweg*, en *Binnen, afgelopen
+  14 dagen* (dicht).
+- **De goedkoopste leverancier staat al gekozen** (afgesproken). Hij wordt niet
+  opgeslagen zolang niemand iets kiest: een nieuwe prijs verschuift het voorstel
+  vanzelf. Een andere kiezen gaat in de rij (keuzelijst met alle prijzen voor déze
+  regel) en wordt wel vastgelegd, zoals "Kies" eerder.
+- **Bestellen maakt meteen de inkooporders en de mails** (afgesproken): per
+  leverancier een `INK-` met `.eml`, en één vraag "Heb je ze verstuurd?" voor
+  allemaal. Pas bij "Ja" zijn ze besteld. Bij "Nog niet" blijven ze op de pagina
+  klaarstaan (een balk met *Ja, verstuurd · Mail opnieuw · Weggooien*). Zo gaat er
+  niets verloren als de mail half verstuurd is. Het nummer is dan al uitgegeven;
+  een gat in inkoopordernummers is geen probleem (bij facturen wel).
+  Weggooien wist ook een keuze die Bestellen zelf maakte (`keuzeDoor` eindigt op
+  "(goedkoopste)"), anders zou die prijs blijven vastzitten.
+- **Bundelen voor de franco-grens** (afgesproken): `Relatie.francoBedrag`, één
+  bedrag per leverancier. De groepskop toont het totaal tegen de grens ("nog
+  € 63,60") en de vroegste datum waarop er besteld moet zijn. Het bestelvenster
+  waarschuwt onder de grens en noemt de regels die nog mee kunnen.
+- **Nodig voor productie** = de vroegst geplande productiestap van die orderregel
+  die nog niet gereed is (`geplandDatum`). Is niets gepland, dan de levertijd van
+  het project min 2 werkdagen (afgesproken: "2 dagen is ok"; we rekenen in
+  werkdagen, net als de rest). **Uiterlijk bestellen** = nodig − levertijd − marge,
+  in werkdagen; marge `Company.inkoopMargeDagen`, standaard 2, in Instellingen →
+  Inkoop. Een onbekende levertijd telt als 0. Dat is optimistisch, en het scherm
+  zegt er "levertijd onbekend" bij.
+- **Verwacht binnen** = verstuurd + levertijd (werkdagen), of de datum die de
+  leverancier doorgaf (`InkooporderRegel.verwachtDatum`, "Leverdatum aanpassen" in
+  het zijpaneel). Wie en wanneer staat erbij, en in de geschiedenis.
+- **Stand** per regel (`planVoor` in `packages/shared/calc/inkoop-planning.ts`):
+  wacht · nu bestellen · te laat besteld · onderweg op tijd · komt te laat · binnen.
+  Alles **afgeleid bij het lezen, nooit opgeslagen**: de planning schuift, en een
+  opgeslagen "uiterlijk" loopt dan achter. Eén serveroverzicht
+  (`services/inkoop-overzicht.ts`, `GET /api/inkoop/overzicht`) voedt de pagina,
+  de projectkaart en het belletje, zodat die niet uit elkaar lopen.
+- **Belletje + getal** (afgesproken: "voor nu ok"). Het getal bij Bestellingen en
+  op het belletje telt alleen wat **vandaag** iets vraagt: nu bestellen, te laat
+  besteld, komt te laat. Wat rustig wacht op bundelen telt niet mee. Anders staat
+  er altijd een getal en kijkt niemand er nog naar. Klikken opent die regel.
+- **Zijpaneel per regel**: stand, nodig/verwacht/leverancier/levering klant, een
+  geschiedenis afgeleid uit wat er al ligt (aanvragen, antwoorden, keuze, orders,
+  leverdatum, ontvangsten), een notitie, en *Leverdatum aanpassen · Order
+  intrekken · Binnen*.
+- **Prijs invullen zonder mail** (telefoon, website) wordt een prijsaanvraag op
+  naam die nooit verstuurd wordt. Daardoor staan het antwoord en de geschiedenis
+  op dezelfde plek als bij een gemailde aanvraag.
+- Ongewijzigd: prijsaanvragen + pdf + `.eml`, nummers van de server, intrekken
+  (vervallen met reden), ontvangen in delen, exoot meteen gereserveerd.
+

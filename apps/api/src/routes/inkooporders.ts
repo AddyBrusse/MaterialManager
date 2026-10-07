@@ -1,8 +1,8 @@
 import { Router } from 'express'
-import { InkooporderMakenSchema, IntrekkenSchema, OntvangstInvoerSchema } from '@stockmanager/shared'
+import { InkooporderMakenSchema, IntrekkenSchema, OntvangstInvoerSchema, BestellenSchema, VerzondenAlleSchema, LeverdatumSchema } from '@stockmanager/shared'
 import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
-import { leesOrders, leesOrder, maakOrders, regelEraf, verwijderConcept, markeerVerzonden, trekIn } from '../services/inkooporders'
+import { leesOrders, leesOrder, maakOrders, regelEraf, verwijderConcept, markeerVerzonden, trekIn, bestel, markeerAlleVerzonden, zetLeverdatum } from '../services/inkooporders'
 import { ontvang, leesOntvangsten } from '../services/ontvangst'
 
 /** Inkooporders en ontvangen (2026-10-06, deel 3b). Zie services/inkooporders.ts en ontvangst.ts. */
@@ -19,6 +19,24 @@ router.post(
   }),
 )
 
+/** Bestellen in één keer: orders per leverancier, klaar voor de mail. */
+router.post(
+  '/bestellen',
+  asyncHandler(async (req, res) => {
+    const { regelIds } = BestellenSchema.parse(req.body)
+    res.status(201).json({ data: await bestel(regelIds, req.user.name) })
+  }),
+)
+
+/** "Ja, allemaal verstuurd". */
+router.post(
+  '/verzonden',
+  asyncHandler(async (req, res) => {
+    const { ids } = VerzondenAlleSchema.parse(req.body)
+    res.json({ data: await markeerAlleVerzonden(ids, req.user.name) })
+  }),
+)
+
 router.get('/:id', asyncHandler(async (req, res) => { res.json({ data: await leesOrder(prisma, req.params.id) }) }))
 
 /** Van gekozen bestelregels: één concept per leverancier. */
@@ -29,6 +47,11 @@ router.post(
     res.status(201).json({ data: await maakOrders(regelIds, req.user.name) })
   }),
 )
+
+router.patch('/:id/regels/:regelId/leverdatum', asyncHandler(async (req, res) => {
+  const { verwachtDatum } = LeverdatumSchema.parse(req.body)
+  res.json({ data: await zetLeverdatum(req.params.id, req.params.regelId, verwachtDatum, req.user.name) })
+}))
 
 router.delete('/:id/regels/:regelId', asyncHandler(async (req, res) => {
   res.json({ data: await regelEraf(req.params.id, req.params.regelId) })

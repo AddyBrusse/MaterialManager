@@ -5,8 +5,11 @@ import { asyncHandler } from '../lib/async-handler'
 
 const router = Router()
 
-function serializeRelatie(r: { createdAt: Date; contacten: unknown; [key: string]: unknown }) {
-  return { ...r, createdAt: r.createdAt.toISOString(), contacten: r.contacten ?? [] }
+function serializeRelatie(r: { createdAt: Date; contacten: unknown; francoBedrag?: unknown; [key: string]: unknown }) {
+  return {
+    ...r, createdAt: r.createdAt.toISOString(), contacten: r.contacten ?? [],
+    francoBedrag: r.francoBedrag == null ? null : Number(r.francoBedrag),
+  }
 }
 
 router.get(
