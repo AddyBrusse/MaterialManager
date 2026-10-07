@@ -61,7 +61,7 @@ async function seedMachines() {
 //   TEST-B  cross-machine group (zagen -> lassen, two steps of one order on
 //           two different machines, consecutive volgorde) - connectors,
 //           group badge, and the cascade-confirm check when reordering zagen
-//   TEST-C  a notBefore hold (material lead time) - ghost block + lock icon
+//   TEST-C  a single queued frezen job
 //   TEST-D  at-risk: tight deadline behind other work in a machine's queue
 //   TEST-E  normal on-time queued work, generous deadline
 //   TEST-F  extra Amada Zaag queue filler so TEST-B's queue has real
@@ -74,7 +74,6 @@ function stap(overrides: Partial<ProductieStap> & Pick<ProductieStap, 'id' | 'vo
     geplandDatum: null,
     geplandMachine: null,
     queuePosition: null,
-    notBefore: null,
     ...overrides,
   }
 }
@@ -153,8 +152,7 @@ function buildTestProjects(): Project[] {
     ],
   }))
 
-  // TEST-C - notBefore hold: material lead time pushes the real start well
-  // past where the queue would otherwise place it.
+  // TEST-C - a single queued frezen job.
   projects.push(project({
     id: 'TEST-C-2026', naam: 'Hoekstra Precisie - bracket set', klantRef: 'Hoekstra Precisie',
     levertijdDatum: daysFromNow(25),
@@ -165,7 +163,6 @@ function buildTestProjects(): Project[] {
           stap({
             id: 'TEST-C-S1', volgorde: 1, naam: 'frezen', machine: 'DMG DMU50 Ecoline',
             geplandDatum: daysFromNow(0), geplandMachine: 'DMG DMU50 Ecoline', queuePosition: 1000,
-            notBefore: daysFromNow(9),
           }),
         ],
       }),

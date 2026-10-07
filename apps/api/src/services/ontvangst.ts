@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client'
-import { maatTekst, statusNaOntvangst, waaromNietOntvangen, type Ontvangst, type OntvangstInvoer } from '@stockmanager/shared'
+import { maatTekst, statusNaOntvangst, waaromNietOntvangen, stukNummers, type Ontvangst, type OntvangstInvoer } from '@stockmanager/shared'
 import { prisma } from '../db/client'
 import { AppError } from '../middleware/error'
 import { leesOrder } from './inkooporders'
@@ -44,6 +44,10 @@ export async function ontvang(invoer: OntvangstInvoer, gebruiker: { id: string; 
     const ids: string[] = []
     const codes: string[] = []
     let volgende = await volgendeCode(tx)
+    // Het nummer van het label wordt het nummer in de voorraad (2026-10-07).
+    // Een oudere order zonder materiaalnummer houdt de #NNNNN-codes.
+    const labelCodes = rij.materiaalNummer ? stukNummers(rij.materiaalNummer, rij.stuks, rij.ontvangenStuks, invoer.stuks) : null
+    const codeVoor = (i: number) => labelCodes?.[i] ?? code(volgende++)
     // De exoot zelf staat al in de lijst (op 0): het eerste stuk vult die regel.
     let exootVrij = !!exoot && Number(exoot.currentStock) === 0
       && (await tx.zaagReservering.count({ where: { barId: exoot.id } })) === 0
@@ -51,12 +55,15 @@ export async function ontvang(invoer: OntvangstInvoer, gebruiker: { id: string; 
     for (let i = 0; i < invoer.stuks; i++) {
       let staaf
       if (exoot && exootVrij) {
-        staaf = await tx.rawMaterial.update({ where: { id: exoot.id }, data: { currentStock: lengte, ...(slot ? { locationSlotId: slot } : {}) } })
+        staaf = await tx.rawMaterial.update({
+          where: { id: exoot.id },
+          data: { currentStock: lengte, ...(labelCodes ? { code: codeVoor(i) } : {}), ...(slot ? { locationSlotId: slot } : {}) },
+        })
         exootVrij = false
       } else {
         staaf = await tx.rawMaterial.create({
           data: {
-            code: code(volgende++), gradeId: b.gradeId, profileId: b.profileId, dimensions: b.dimensions as object,
+            code: codeVoor(i), gradeId: b.gradeId, profileId: b.profileId, dimensions: b.dimensions as object,
             lengthMm: lengte, currentStock: lengte, locationSlotId: slot,
             ...(exoot ? { exoot: true, klantId: exoot.klantId, artikelId: exoot.artikelId } : {}),
           },

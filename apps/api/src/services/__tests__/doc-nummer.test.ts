@@ -14,6 +14,7 @@ function nepDb(tellers: Record<string, number>, bezet: string[] = []) {
       return [{ last_n: tellers[sleutel] }]
     },
     project: vind, offerte: vind, opdrachtbevestiging: vind, productieOrder: vind, paklijst: vind, factuur: vind,
+    inkooporderRegel: { findUnique: async ({ where }: { where: { materiaalNummer: string } }) => (bezet.includes(where.materiaalNummer) ? { id: 'x' } : null) },
   }
   return { db: db as never, sleutels, tellers }
 }
@@ -41,3 +42,17 @@ describe('nextDocId — nummering per jaar', () => {
     expect(await nextDocId(db, 'CRED', new Date('2026-10-05T12:00:00'))).toBe('CRED-2026-002')
   })
 })
+
+describe('nextDocId — materiaalnummer voor het label (2026-10-07)', () => {
+  it('is kort: M26-0042, per jaar opnieuw', async () => {
+    const { db, sleutels } = nepDb({ 'M-2026': 41 })
+    expect(await nextDocId(db, 'M', new Date('2026-10-07T12:00:00'))).toBe('M26-0042')
+    expect(sleutels).toEqual(['M-2026'])
+    expect(await nextDocId(db, 'M', new Date('2027-01-02T12:00:00'))).toBe('M27-0001')
+  })
+  it('slaat een bezet nummer over', async () => {
+    const { db } = nepDb({ 'M-2026': 0 }, ['M26-0001'])
+    expect(await nextDocId(db, 'M', new Date('2026-10-07T12:00:00'))).toBe('M26-0002')
+  })
+})
+

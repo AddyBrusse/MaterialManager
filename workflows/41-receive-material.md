@@ -1,12 +1,12 @@
 # 41 — Receive Material Flow
 
-> **Status: this single-label flow is not what `/binnenboeken` currently
-> implements.** `BinnenBoekenPage.tsx` is a different, mock-data-only flow —
-> a multi-line goods receipt against a supplier/pakbon (Ontvangstnummer,
-> Pakbonnummer, Leverancier, line items), with no label-number (`#NNNNN`)
-> lookup step. The label-consumption flow described below is still the
-> intended design for *creating a raw material from a printed label* — it
-> just isn't built yet, on `/binnenboeken` or elsewhere.
+> **Status (2026-10-07): `/binnenboeken` is now the real receipt flow for
+> purchased material.** Type the material number from the supplier's label
+> (`M26-0042`, printed on our inkooporder in the "Ons nr." column) and the
+> matching order line opens for receipt, with location; the stock piece gets
+> the same number. Same list as Bestellingen → Besteld. See the decisions log
+> entry of 2026-10-07. The label-consumption flow described below (creating a
+> raw material from a printed `#NNNNN` label) is still not built.
 
 ## Preconditions
 

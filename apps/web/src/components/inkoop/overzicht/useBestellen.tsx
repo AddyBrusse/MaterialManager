@@ -12,7 +12,13 @@ import { Weigering, eis } from '../../../utils/fout-melding'
 import { inkooporderBestandsnaam, inkooporderMail } from '../lib/inkooporder-document'
 import { eur } from '../bestellingen/bestel-tekst'
 import { ddmm } from './tekst'
-import type { ConceptActies } from './GroepKaart'
+
+/** Wat je met een klaargezette (nog niet bevestigde) inkooporder doet. */
+export interface ConceptActies {
+  bevestig: (orderIds: string[]) => void
+  opnieuw: (orderId: string) => void
+  weg: (orderId: string) => void
+}
 
 /**
  * Bestellen in één keer (2026-10-07): per leverancier een inkooporder met de
@@ -94,7 +100,7 @@ export function useBestellen(ov: InkoopOverzicht | undefined) {
             <Text size="sm">
               {klaar.length === 1 ? 'De mail staat' : `${klaar.length} mails staan`} in je downloads ({klaar.map((o) => `${o.id} aan ${o.leverancierNaam}`).join(', ')}), elk met de inkooporder-pdf erin. Open ze en druk in Outlook op Verzenden.
             </Text>
-            <Text size="sm">Bij <b>Ja, {klaar.length === 1 ? 'verstuurd' : klaar.length === 2 ? 'allebei verstuurd' : 'allemaal verstuurd'}</b> staan de regels op Onderweg, met de verwachte leverdatum. Bij <b>Nog niet</b> blijven ze klaarstaan op deze pagina.</Text>
+            <Text size="sm">Bij <b>Ja, {klaar.length === 1 ? 'verstuurd' : klaar.length === 2 ? 'allebei verstuurd' : 'allemaal verstuurd'}</b> staan de regels bij <b>Besteld</b>, met de verwachte leverdatum. Bij <b>Nog niet</b> blijven ze klaarstaan in de inkoopbuffer.</Text>
             <Group justify="flex-end" gap="xs">
               <Button size="xs" variant="default" onClick={() => setKlaar(null)}>Nog niet</Button>
               <Button size="xs" loading={verzonden.isPending} onClick={() => verzonden.mutate(klaar.map((o) => o.id))}>
@@ -130,7 +136,7 @@ function perLeverancier(regels: InkoopOverzichtRegel[], ov: InkoopOverzicht | un
     let waarschuwing: string | null = null
     if (lev?.francoBedrag && totaal < lev.francoBedrag) {
       const ids = new Set(rs.map((r) => r.id))
-      const andere = (ov?.regels ?? []).filter((r) => !ids.has(r.id) && !r.order && r.leverancier?.leverancierId === id && r.leverancier.soort === 'prijs')
+      const andere = (ov?.regels ?? []).filter((r) => !ids.has(r.id) && !r.order && r.status === 'buffer' && r.leverancier?.leverancierId === id)
       const vroegst = andere.map((r) => r.plan.uiterlijk).filter((d): d is string => !!d).sort()[0]
       waarschuwing = `${naam} zit onder de franco-grens (${eur(lev.francoBedrag)}): nog ${eur(lev.francoBedrag - totaal)} tot gratis verzending.`
         + (andere.length ? ` Er staan nog ${andere.length} andere regel${andere.length === 1 ? '' : 's'} voor ${naam}${vroegst ? ` (uiterlijk ${ddmm(vroegst)})` : ''}; die kunnen mee.` : '')

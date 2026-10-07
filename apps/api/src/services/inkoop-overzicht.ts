@@ -46,14 +46,14 @@ export async function leesOverzicht(db: Db, f: OverzichtFilter = {}, nu = new Da
   else if (f.projectId) where = { projectId: f.projectId }
   else {
     const recent = await db.ontvangst.findMany({ where: { createdAt: { gte: sinds } }, select: { regel: { select: { bestelRegelId: true } } } })
-    where = { OR: [{ status: { in: ['te_bestellen', 'aangevraagd', 'besteld'] } }, { id: { in: recent.map((o) => o.regel.bestelRegelId) } }] }
+    where = { OR: [{ status: { in: ['te_bestellen', 'aangevraagd', 'buffer', 'besteld'] } }, { id: { in: recent.map((o) => o.regel.bestelRegelId) } }] }
   }
   const regels = await leesRegels(db, where)
   const ids = regels.map((r) => r.id)
   const projectIds = [...new Set(regels.map((r) => r.projectId).filter((x): x is string => !!x))]
-  const open = regels.filter((r) => r.status === 'te_bestellen' || r.status === 'aangevraagd')
+  const open = regels.filter((r) => r.status === 'te_bestellen' || r.status === 'aangevraagd' || r.status === 'buffer')
 
-  const [company, v, orders, inkoopRegels, ontvangsten, relaties] = await Promise.all([
+  const [company, v, orders, inkoopRegels, ontvangsten, relaties, aanvraagRegels] = await Promise.all([
     db.company.findUnique({ where: { id: 'default' }, select: { inkoopMargeDagen: true } }),
     open.length ? vergelijkData(db, open.map((r) => r.id)) : null,
     db.productieOrder.findMany({ where: { projectId: { in: projectIds } }, include: { stappen: true } }),
@@ -63,6 +63,10 @@ export async function leesOverzicht(db: Db, f: OverzichtFilter = {}, nu = new Da
     }),
     db.ontvangst.findMany({ where: { regel: { bestelRegelId: { in: ids } } }, select: { createdAt: true, gereserveerdVoor: true, regel: { select: { bestelRegelId: true } } } }),
     db.relatie.findMany({ where: { OR: [{ type: { in: ['leverancier', 'beide'] } }] }, select: { id: true, naam: true, email: true, contacten: true, francoBedrag: true } }),
+    db.prijsaanvraagRegel.findMany({
+      where: { bestelRegelId: { in: ids } },
+      include: { prijsaanvraag: { include: { leveranciers: { include: { leverancier: { select: { naam: true } } } }, antwoorden: true } } },
+    }),
   ])
   const marge = company?.inkoopMargeDagen ?? 2
 
@@ -80,7 +84,7 @@ export async function leesOverzicht(db: Db, f: OverzichtFilter = {}, nu = new Da
 
     // De leveranciers die je kunt kiezen, met de goedkoopste gemarkeerd.
     let opties: InkoopOptie[] = []
-    if (v && (r.status === 'te_bestellen' || r.status === 'aangevraagd')) {
+    if (v && (r.status === 'te_bestellen' || r.status === 'aangevraagd' || r.status === 'buffer')) {
       const bronnen = celBronnenVoor(v, r)
       const cellen = new Map(v.leveranciers.map((l) => [l.id, celVoor(r, l.id, bronnen)]))
       const beste = goedkoopste(cellen)
@@ -124,8 +128,24 @@ export async function leesOverzicht(db: Db, f: OverzichtFilter = {}, nu = new Da
             id: ink.inkooporder.id, status: ink.inkooporder.status as 'concept' | 'verzonden', inkooporderRegelId: ink.id,
             referentie: `${ink.inkooporder.id}.${ink.positie}`, verzondenOp: ink.inkooporder.verzondenOp?.toISOString() ?? null,
             verwachtAangepast: !!ink.verwachtDatum, ontvangenStuks: ink.ontvangenStuks, leverancierNaam: ink.inkooporder.leverancier.naam,
+            materiaalNummer: ink.materiaalNummer,
           }
         : null,
+      leverancierIds: r.leverancierIds,
+      gevraagd: aanvraagRegels
+        .filter((ar) => ar.bestelRegelId === r.id)
+        .flatMap((ar) => ar.prijsaanvraag.leveranciers.map((l) => {
+          const a = ar.prijsaanvraag.antwoorden.find((x) => x.bestelRegelId === r.id && x.leverancierId === l.leverancierId)
+          return {
+            aanvraagId: ar.prijsaanvraagId, leverancierId: l.leverancierId, naam: l.leverancier.naam,
+            verzondenOp: l.verzondenOp?.toISOString() ?? null,
+            antwoord: a ? {
+              id: a.id, prijsSoort: a.prijsSoort as 'per_kg' | 'per_stuk' | 'totaal', prijs: Number(a.prijs),
+              zaagkostenPerSnede: a.zaagkostenPerSnede == null ? null : Number(a.zaagkostenPerSnede), levertijdDagen: a.levertijdDagen,
+            } : null,
+          }
+        }))
+        .sort((x, y) => x.naam.localeCompare(y.naam, 'nl')),
       binnenOp: binnen[0]?.createdAt.toISOString() ?? null,
       gereserveerd: binnen.some((o) => !!o.gereserveerdVoor),
     }

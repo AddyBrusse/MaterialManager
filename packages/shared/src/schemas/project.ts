@@ -37,9 +37,6 @@ export const ProductieStapSchema = z.object({
   // which matters because a machine's queue can span steps that live in many
   // different Project rows. null = not queued (backlog).
   queuePosition: z.number().nullable().optional(),
-  // "Niet eerder dan" hold — material lead time / curing. A hard floor on this
-  // step's derived start date, independent of queue order.
-  notBefore: z.string().nullable().optional(), // 'YYYY-MM-DD'
 })
 export type ProductieStap = z.infer<typeof ProductieStapSchema>
 
@@ -61,6 +58,10 @@ export const ProductieOrderSchema = z.object({
   aantalGereed: z.number().default(0),
   stappen: z.array(ProductieStapSchema),
   status: z.enum(PRODUCTIE_ORDER_STATUSES),
+  // Afgeleid bij het lezen, nooit opgeslagen (2026-10-07): er staat voor deze
+  // orderregel nog materiaal in bestelling. Gaat vanzelf uit als alles binnen
+  // geboekt is. Zo'n order staat niet op de terminal; de planning ziet hem wel.
+  wachtOpMateriaal: z.boolean().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

@@ -315,6 +315,8 @@ export function prijsaanvraagDocument(d: PrijsaanvraagDoc, co: Company, assets: 
 
 export interface InkoopDoc {
   nummer: string
+  /** Per regel ons materiaalnummer (M26-0042), in de volgorde van `regels`; leeg bij een oudere order. */
+  materiaalNummers?: (string | null)[]
   datum: string | null
   gewensteLevering: string | null
   leverancier: DocPartij
@@ -333,7 +335,13 @@ export interface InkoopDoc {
  */
 export function inkooporderDocument(d: InkoopDoc, co: Company, assets: DocumentAssets): jsPDF {
   const t = btwVan(d.regels, 21)
-  const kolommen = d.metPrijzen
+  // Ons nummer per regel (2026-10-07) staat vooraan, op de plek van de #: dat
+  // nummer plakt de leverancier op het materiaal, en wij typen het bij binnen
+  // boeken weer in.
+  const metNummer = !!d.materiaalNummers?.some(Boolean)
+  const kolommen = d.metPrijzen && metNummer
+    ? [{ kop: 'Ons nr.', breedte: 92, stijl: 'tekst' } as Kolom, ...PRIJS_KOLOMMEN.slice(1).map((k) => (k.kop === 'Materiaal' ? { ...k, breedte: 84 } : k))]
+    : d.metPrijzen
     ? PRIJS_KOLOMMEN
     : [
         { kop: '#', breedte: 38, stijl: 'pos' } as Kolom,
@@ -342,7 +350,7 @@ export function inkooporderDocument(d: InkoopDoc, co: Company, assets: DocumentA
         { kop: 'Aantal', breedte: 96, stijl: 'totaal' } as Kolom,
       ]
   const regels = d.metPrijzen
-    ? prijsRegels(d.regels)
+    ? prijsRegels(d.regels).map((r, i) => (metNummer ? { ...r, cellen: [d.materiaalNummers?.[i] ?? '—', ...r.cellen.slice(1)] } : r))
     : d.regels.map((r, i) => ({ cellen: [positie(i), r.naam, r.materiaal, aantal(r.qty, r.eenheid)], notitie: r.notitie }))
   const afleveren = [co.naam, co.adres, [co.postcode, co.stad].filter(Boolean).join(' ')].filter(Boolean).join(', ')
   const spec: DocumentSpec = {
@@ -354,7 +362,10 @@ export function inkooporderDocument(d: InkoopDoc, co: Company, assets: DocumentA
     regels,
     leeg: 'Nog geen regels.',
     totalen: d.metPrijzen ? totalenVan(t.sub, 21, t.btw, t.totaal) : undefined,
-    secties: [{ kop: 'Afleveradres', tekst: afleveren }, ...sectie('Opmerking', d.notities)],
+    secties: [
+      ...(metNummer ? [{ kop: 'Materiaal labelen', tekst: 'Graag op elk stuk ons nummer (kolom "Ons nr.") zetten. Zo boeken we het bij ontvangst direct op de juiste order in.' }] : []),
+      { kop: 'Afleveradres', tekst: afleveren }, ...sectie('Opmerking', d.notities),
+    ],
     voetregel: `Inkooporder ${d.nummer}`,
   }
   return maakDocument(spec, co, assets)

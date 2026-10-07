@@ -12,6 +12,8 @@ export const InkooporderRegelSchema = z.object({
   id: z.string(),
   /** "INK-2026-004.1" — onze eigen regelreferentie, ook op de pdf. */
   referentie: z.string(),
+  /** M26-0042: ons nummer per regel, op het materiaal geplakt door de leverancier (2026-10-07). */
+  materiaalNummer: z.string().nullable(),
   bestelRegelId: z.string(),
   materiaal: z.string(),
   exoot: z.boolean(),

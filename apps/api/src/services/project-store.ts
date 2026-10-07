@@ -7,7 +7,7 @@
 // tabellen kent.
 import type { Prisma } from '@prisma/client'
 import { AppError } from '../middleware/error'
-import { ObVerzendingSchema, ObWijzigingSchema } from '@stockmanager/shared'
+import { ObVerzendingSchema, ObWijzigingSchema, wachtOpMateriaal } from '@stockmanager/shared'
 import type {
   Project, Offerte, OfferteRegel, OfferteStatus, Opdrachtbevestiging, OBStatus, ObVerzending, ObWijziging,
   ProductieOrder, ProductieOrderStatus, ProductieStap, Paklijst, Factuur,
@@ -23,6 +23,8 @@ export const PROJECT_INCLUDE = {
   productieOrders: { include: { stappen: { orderBy: { volgorde: 'asc' } } }, orderBy: { createdAt: 'asc' } },
   paklijsten: { include: { regels: { orderBy: { sortOrder: 'asc' } } }, orderBy: { createdAt: 'asc' } },
   facturen: { include: { regels: { orderBy: { sortOrder: 'asc' } } }, orderBy: { createdAt: 'asc' } },
+  // Voor "wacht op materiaal" (2026-10-07): alleen wat nog niet binnen is.
+  bestelRegels: { where: { status: { not: 'ontvangen' } }, select: { projectId: true, offerteRegelId: true, status: true } },
 } satisfies Prisma.ProjectInclude
 
 export type ProjectRow = Prisma.ProjectGetPayload<{ include: typeof PROJECT_INCLUDE }>
@@ -129,6 +131,7 @@ export function serialize(row: ProjectRow): Project {
       eenheid: o.eenheid,
       aantalGereed: o.aantalGereed,
       status: o.status as ProductieOrderStatus,
+      wachtOpMateriaal: wachtOpMateriaal(o, row.bestelRegels),
       stappen: o.stappen.map((s): ProductieStap => ({
         id: s.id,
         volgorde: s.volgorde,
@@ -139,7 +142,6 @@ export function serialize(row: ProjectRow): Project {
         geplandDatum: s.geplandDatum,
         geplandMachine: s.geplandMachine,
         queuePosition: s.queuePosition,
-        notBefore: s.notBefore,
       })),
       createdAt: o.createdAt.toISOString(),
       updatedAt: o.updatedAt.toISOString(),
@@ -395,7 +397,6 @@ export async function persist(tx: Db, next: Project): Promise<void> {
         geplandDatum: s.geplandDatum ?? null,
         geplandMachine: s.geplandMachine ?? null,
         queuePosition: s.queuePosition ?? null,
-        notBefore: s.notBefore ?? null,
       }
       await tx.productieStap.upsert({
         where: { id: s.id },

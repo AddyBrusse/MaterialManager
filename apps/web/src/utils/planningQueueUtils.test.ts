@@ -49,7 +49,7 @@ function makeJob(overrides: Partial<QueueJob> & { orderId: string }): QueueJob {
     isPlaceholder: false,
     deadline: null,
     queuePosition: null,
-    notBefore: null,
+    wachtOpMateriaal: false,
     gereed: false,
     item: null as unknown as PlanningStapItem, // patched below
   }
@@ -68,7 +68,6 @@ function makeJob(overrides: Partial<QueueJob> & { orderId: string }): QueueJob {
       geplandDatum: job.machineNaam ? '2026-07-13' : null,
       geplandMachine: job.machineNaam || null,
       queuePosition: job.queuePosition,
-      notBefore: job.notBefore,
     },
     order: { id: job.orderId, projectId: 'p', offerteRegelId: 'r', artikelId: null, artikelNaam: job.artikel, qty: 1, eenheid: 'stuks', stappen: [], status: 'gepland', aantalGereed: 0, createdAt: '', updatedAt: '' },
     project: { id: 'p', naam: job.klant, relatieId: null, contactId: null, klantRef: job.klant, status: 'productie', statusReden: null, statusVorige: null, levertijdDatum: job.deadline, notities: '', offertes: [], opdrachtbevestiging: null, productieOrders: [], paklijsten: [], facturen: [], createdAt: '', updatedAt: '' },
@@ -154,7 +153,6 @@ describe('deriveShopSchedule', () => {
     const slot = schedule.get(job.id)!
     expect(slot.startOffsetDays).toBe(0)
     expect(slot.finishOffsetDays).toBeCloseTo(60 / 294, 5)
-    expect(slot.heldByNotBefore).toBe(false)
   })
 
   it('skips weekends for a machine with worksWeekends=false', () => {
@@ -214,30 +212,6 @@ describe('deriveShopSchedule', () => {
     // Same-machine queue order already enforces sequencing via the cursor —
     // s2 starts exactly where s1 finished (no double predecessor-wait logic needed).
     expect(s2Slot.startOffsetDays).toBeCloseTo(s1Slot.finishOffsetDays, 5)
-  })
-
-  it('enforces notBefore as a hard floor and reports the ghost position', () => {
-    const job = makeJob({
-      orderId: 'A', machineNaam: 'Frees', queuePosition: 1000, duurMin: 60,
-      notBefore: '2026-07-20', // 7 days after window start (Mon 2026-07-13)
-    })
-    const queues = new Map([['Frees', [job]]])
-    const schedule = deriveShopSchedule(queues, MACHINES, WINDOW_START)
-    const slot = schedule.get(job.id)!
-    expect(slot.startOffsetDays).toBe(7)
-    expect(slot.ghostOffsetDays).toBe(0) // where it would have started without the hold
-    expect(slot.heldByNotBefore).toBe(true)
-  })
-
-  it('does not report heldByNotBefore when the hold date is not actually later than the natural start', () => {
-    const job = makeJob({
-      orderId: 'A', machineNaam: 'Frees', queuePosition: 1000, duurMin: 60,
-      notBefore: '2026-07-13', // same as window start — not actually a constraint
-    })
-    const queues = new Map([['Frees', [job]]])
-    const schedule = deriveShopSchedule(queues, MACHINES, WINDOW_START)
-    const slot = schedule.get(job.id)!
-    expect(slot.heldByNotBefore).toBe(false)
   })
 
   it('terminates and schedules every job for a larger multi-machine, multi-order fixture', () => {
@@ -436,21 +410,21 @@ describe('isAtRisk', () => {
 
   it('is false when there is no required date on record', () => {
     const job = makeJob({ orderId: 'A' })
-    const slot = { startOffsetDays: 0, durationDays: 1, finishOffsetDays: 1, ghostOffsetDays: 0, heldByNotBefore: false }
+    const slot = { startOffsetDays: 0, durationDays: 1, finishOffsetDays: 1, ghostOffsetDays: 0 }
     expect(isAtRisk(job, slot, new Map(), WINDOW_START)).toBe(false)
   })
 
   it('is true when the derived finish lands after the required-finish date', () => {
     const job = makeJob({ orderId: 'A' })
     const verplicht = new Map([[job.id, '2026-07-14']]) // day offset 1
-    const slot = { startOffsetDays: 0, durationDays: 3, finishOffsetDays: 3, ghostOffsetDays: 0, heldByNotBefore: false } // finishes day 3
+    const slot = { startOffsetDays: 0, durationDays: 3, finishOffsetDays: 3, ghostOffsetDays: 0 } // finishes day 3
     expect(isAtRisk(job, slot, verplicht, WINDOW_START)).toBe(true)
   })
 
   it('is false when the derived finish lands on or before the required-finish date', () => {
     const job = makeJob({ orderId: 'A' })
     const verplicht = new Map([[job.id, '2026-07-20']]) // day offset 7
-    const slot = { startOffsetDays: 0, durationDays: 1, finishOffsetDays: 1, ghostOffsetDays: 0, heldByNotBefore: false }
+    const slot = { startOffsetDays: 0, durationDays: 1, finishOffsetDays: 1, ghostOffsetDays: 0 }
     expect(isAtRisk(job, slot, verplicht, WINDOW_START)).toBe(false)
   })
 })

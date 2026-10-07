@@ -3,7 +3,7 @@ import { Card } from '../components/Card'
 import { OrderBlok } from './productie/OrderBlok'
 
 const BRON =
-  'Volgorde, machine en „niet eerder dan" komen uit de opdracht; geplande datum en ' +
+  'Volgorde en machine komen uit de opdracht; "wacht op materiaal" uit Bestellingen; geplande datum en ' +
   'wachtrijpositie komen uit de planner. Hier meld je stappen gereed en vul je in hoeveel ' +
   'stuks eraf kwamen — dat aantal bepaalt wat er op de volgende pakbon kan.'
 

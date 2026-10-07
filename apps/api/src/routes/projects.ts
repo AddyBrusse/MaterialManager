@@ -896,32 +896,9 @@ router.patch(
           // still hold a rank in a machine's queue.
           if (body.geplandDatum == null && body.geplandMachine == null) {
             next.queuePosition = null
-            next.notBefore = null
           }
           return next
         })
-        return { ...o, stappen, updatedAt: now() }
-      })
-      return { ...p, productieOrders, updatedAt: now() }
-    })
-    res.json({ data: updated })
-  }),
-)
-
-const SetHoldSchema = z.object({
-  notBefore: z.string().nullable(),
-})
-
-router.patch(
-  '/:id/orders/:orderId/stap/:stapId/hold',
-  asyncHandler(async (req, res) => {
-    const { notBefore } = SetHoldSchema.parse(req.body)
-    const updated = await withProject(req.params.id, (p) => {
-      const productieOrders = p.productieOrders.map(o => {
-        if (o.id !== req.params.orderId) return o
-        const stappen = o.stappen.map(s =>
-          s.id === req.params.stapId ? { ...s, notBefore } : s,
-        )
         return { ...o, stappen, updatedAt: now() }
       })
       return { ...p, productieOrders, updatedAt: now() }

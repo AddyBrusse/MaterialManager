@@ -2,12 +2,13 @@ import { Router } from 'express'
 import { z } from 'zod'
 import {
   BestelRegelInvoerSchema, BestelRegelWijzigSchema, KeuzeInvoerSchema, BESTEL_STATUSSEN,
+  LeveranciersZettenSchema, NaarBufferSchema,
   waaromNietBestelRegelWijzigen, waaromNietBestelRegelVerwijderen, waaromNietKiezen,
 } from '@stockmanager/shared'
 import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
-import { leesRegel, leesRegels, vergelijkData, kies } from '../services/bestellingen'
+import { leesRegel, leesRegels, vergelijkData, kies, zetLeveranciers, naarBuffer, uitBuffer, kiesGoedkoopste } from '../services/bestellingen'
 import { geschiedenis } from '../services/inkoop-geschiedenis'
 
 /** Bestelregels (2026-10-06): wat er besteld moet worden. Zie services/bestellingen.ts. */
@@ -31,6 +32,34 @@ router.get(
     res.json({ data: await vergelijkData(prisma, ids) })
   }),
 )
+
+/** Tab Te bestellen: leveranciers bij een of meer regels zetten. */
+router.post(
+  '/leveranciers',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await zetLeveranciers(LeveranciersZettenSchema.parse(req.body)) })
+  }),
+)
+
+/** Tab Open prijsaanvragen: regels met een gekozen leverancier naar de inkoopbuffer. */
+router.post(
+  '/naar-buffer',
+  asyncHandler(async (req, res) => {
+    const { regelIds } = NaarBufferSchema.parse(req.body)
+    res.json({ data: await naarBuffer(regelIds) })
+  }),
+)
+
+/** Bij elke regel zonder keuze de goedkoopste van de gevraagde leveranciers kiezen. */
+router.post(
+  '/goedkoopste',
+  asyncHandler(async (req, res) => {
+    const { regelIds } = NaarBufferSchema.parse(req.body)
+    res.json({ data: await kiesGoedkoopste(regelIds, req.user.name) })
+  }),
+)
+
+router.post('/:id/terug', asyncHandler(async (req, res) => { res.json({ data: await uitBuffer(req.params.id) }) }))
 
 router.get('/:id/geschiedenis', asyncHandler(async (req, res) => { res.json({ data: await geschiedenis(req.params.id) }) }))
 
@@ -60,6 +89,9 @@ router.patch(
     const body = BestelRegelWijzigSchema.parse(req.body)
     const r = await leesRegel(prisma, req.params.id)
     const maatOfAantal = body.lengteMm !== undefined || body.stuks !== undefined
+    if (body.leverancierIds !== undefined && r.status !== 'te_bestellen') {
+      throw new AppError(409, 'VOORWAARDE', `${r.materiaal} is al aangevraagd. Een leverancier erbij vraag je aan bij Open prijsaanvragen.`)
+    }
     const reden = maatOfAantal ? waaromNietBestelRegelWijzigen(r) : null
     if (reden) throw new AppError(409, 'VOORWAARDE', reden)
     // Andere maat of aantal: de gekozen prijs gold voor de oude, dus die vervalt.

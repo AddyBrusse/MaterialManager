@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { IconLink, IconAlertTriangle, IconLock } from '@tabler/icons-react'
+import { IconLink, IconAlertTriangle } from '@tabler/icons-react'
 import type { Machine } from '../../api/machines'
 import { todayIndex } from '../../utils/planningSharedUtils'
 import { toDateStr } from '../../utils/planningUtils'
@@ -109,7 +109,7 @@ export function QueueTimeline({
       // box on top of the very next one. nodes is already left-to-right order
       // (same-machine jobs are scheduled in non-decreasing start order), so
       // the padding is capped to the gap actually available before the next
-      // job — full 54px when there's room (end of queue, a weekend/notBefore
+      // job — full 54px when there's room (end of queue, a weekend
       // gap), otherwise only as much as it can take without encroaching.
       nodes.forEach((n, i) => {
         const next = nodes[i + 1]
@@ -222,22 +222,8 @@ export function QueueTimeline({
                     const risk = isAtRisk(n.job, n.slot, verplichtKlaar, windowStart)
                     const group = getGroupInfo(n.job, allJobs)
                     const accent = machineAccentColor(r.machine.name, r.machine.id)
-                    // Doc-spec formula: lock glyph centered in the gap between
-                    // the ghost's right edge and the real block's left edge.
-                    const lockLeft = n.ghostLeft + n.ghostWidth + (n.left - (n.ghostLeft + n.ghostWidth)) / 2 - 6
                     return (
                       <div key={n.job.id}>
-                        {n.slot.heldByNotBefore && (
-                          <>
-                            <div
-                              className="node placeholder"
-                              style={{ left: n.ghostLeft, width: n.ghostWidth, top: NODE_TOP, height: NODE_H, borderRadius: 0, border: '1.5px dashed #d4d7da', background: 'transparent', zIndex: 0, pointerEvents: 'none' }}
-                            />
-                            <div style={{ position: 'absolute', left: lockLeft, top: NODE_TOP + (NODE_H - 14) / 2, width: 14, height: 14, color: '#909499', zIndex: 0, pointerEvents: 'none' }}>
-                              <IconLock size={14} />
-                            </div>
-                          </>
-                        )}
                         <div
                           className={`node${selectedId === n.job.id ? ' is-selected' : ''}${group ? ' proj-linked' : ''}`}
                           style={{

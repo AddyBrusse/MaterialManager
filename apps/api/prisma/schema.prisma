@@ -523,7 +523,8 @@ model LeverancierPrijs {
 // todo's: een bestelling blijft staan als het project weg is.
 model BestelRegel {
   id             String   @id @default(uuid())
-  /// 'te_bestellen' | 'aangevraagd' | 'besteld' | 'ontvangen' — gaat alleen vooruit
+  /// 'te_bestellen' | 'aangevraagd' | 'buffer' | 'besteld' | 'ontvangen'.
+  /// Gaat vooruit; alleen uit de buffer mag hij terug (vóór er besteld is).
   status         String   @default("te_bestellen")
   /// 'opdracht_exoot' | 'tekort' | 'handmatig' | 'lage_voorraad'
   bron           String
@@ -537,6 +538,8 @@ model BestelRegel {
   artikelId      String?  @map("artikel_id")
   offerteRegelId String?  @map("offerte_regel_id")
   notitie        String?
+  /// Bij wie we een prijs vragen (tab Te bestellen, 2026-10-07).
+  leverancierIds String[] @default([]) @map("leverancier_ids")
   // De keuze, met de prijs zoals die was bij het kiezen: een inkooporder mag
   // niet meeschuiven als iemand later de prijslijst bijwerkt.
   keuzeLeverancierId  String?   @map("keuze_leverancier_id")
@@ -555,6 +558,7 @@ model BestelRegel {
   grade            Grade        @relation(fields: [gradeId], references: [id])
   profile          Profile      @relation(fields: [profileId], references: [id])
   rawMaterial      RawMaterial? @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
+  project          Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
   keuzeLeverancier Relatie?     @relation("BestelKeuze", fields: [keuzeLeverancierId], references: [id], onDelete: SetNull)
   aanvragen        PrijsaanvraagRegel[]
   antwoorden       PrijsaanvraagAntwoord[]
@@ -664,6 +668,10 @@ model InkooporderRegel {
   uitleg         String
   levertijdDagen Int?     @map("levertijd_dagen")
   ontvangenStuks Int      @default(0) @map("ontvangen_stuks")
+  /// M26-0042 (2026-10-07): ons nummer, dat de leverancier op het materiaal
+  /// plakt. Bij binnen boeken typ je het in; het stuk in de voorraad krijgt
+  /// hetzelfde nummer (met -1, -2 bij meer stuks).
+  materiaalNummer String? @unique @map("materiaal_nummer")
   /// Leverdatum zoals de leverancier hem doorgaf ('YYYY-MM-DD'). Leeg =
   /// verstuurd + levertijd in werkdagen, afgeleid bij het lezen.
   verwachtDatum      String?   @map("verwacht_datum")
@@ -720,6 +728,8 @@ model Project {
   offertes            Offerte[]
   opdrachtbevestiging Opdrachtbevestiging?
   productieOrders     ProductieOrder[]
+  /// Voor "wacht op materiaal" op de productieorder (afgeleid bij het lezen).
+  bestelRegels        BestelRegel[]
   paklijsten          Paklijst[]
   facturen            Factuur[]
   reserveringen       ZaagReservering[]
@@ -866,7 +876,6 @@ model ProductieStap {
   geplandDatum   String? @map("gepland_datum")
   geplandMachine String? @map("gepland_machine")
   queuePosition  Float?  @map("queue_position")
-  notBefore      String? @map("not_before")
 
   order            ProductieOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   tijdregistraties TijdRegistratie[]

@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import {
-  waaromNietPrijsaanvraag, waaromNietBestelRegelWijzigen,
-  type Prijsaanvraag, type PrijsaanvraagInvoer, type AntwoordInvoer, type RelatieContact,
+  waaromNietPrijsaanvraag, waaromNietBestelRegelWijzigen, waaromNietPrijzenAanvragen,
+  type Prijsaanvraag, type PrijsaanvraagInvoer, type AntwoordInvoer, type AntwoordCel, type RelatieContact,
 } from '@stockmanager/shared'
 import { prisma } from '../db/client'
 import { AppError } from '../middleware/error'
@@ -137,4 +137,76 @@ export async function verwijderAanvraag(id: string): Promise<void> {
     throw new AppError(409, 'VOORWAARDE', `${id} is al verstuurd aan ${weg.naam}. Hij blijft staan, zodat je ziet wat er gevraagd is.`)
   }
   await prisma.prijsaanvraag.delete({ where: { id } })
+}
+
+
+/**
+ * Prijzen aanvragen vanuit de tabbladen (2026-10-07): per leverancier één
+ * aanvraag met alle regels die bij hem staan, zodat elke leverancier één mail
+ * krijgt. Zonder `extra` gelden de leveranciers op de regels (tab Te bestellen);
+ * met `extra` komen die leveranciers erbij voor regels die al aangevraagd zijn.
+ */
+export async function aanvragenPerLeverancier(regelIds: string[], door: string, extra?: string[]): Promise<Prijsaanvraag[]> {
+  return prisma.$transaction(async (tx) => {
+    const regels = await leesRegels(tx, { id: { in: regelIds } })
+    if (regels.length !== new Set(regelIds).size) throw new AppError(409, 'VOORWAARDE', 'Een van de regels bestaat niet meer. Ververs de pagina.')
+    const rels = await tx.relatie.findMany({ where: { type: { in: ['leverancier', 'beide'] } }, select: { id: true, naam: true, email: true, contacten: true } })
+    const levs = rels.map((r) => ({ id: r.id, naam: r.naam, email: leverancierEmail(r) }))
+    const vraag = regels.map((r) => ({ ...r, leverancierIds: extra ?? r.leverancierIds, status: extra && r.status === 'aangevraagd' ? 'te_bestellen' as const : r.status }))
+    const reden = waaromNietPrijzenAanvragen(vraag, levs)
+    if (reden) throw new AppError(409, 'VOORWAARDE', reden)
+    if (extra) {
+      for (const r of regels) {
+        await tx.bestelRegel.update({ where: { id: r.id }, data: { leverancierIds: [...new Set([...r.leverancierIds, ...extra])] } })
+      }
+    }
+    const ids: string[] = []
+    for (const levId of [...new Set(vraag.flatMap((r) => r.leverancierIds))]) {
+      const eigen = vraag.filter((r) => r.leverancierIds.includes(levId)).map((r) => r.id)
+      const id = await nextDocId(tx, 'PA')
+      await tx.prijsaanvraag.create({
+        data: {
+          id, createdBy: door,
+          regels: { create: eigen.map((bestelRegelId) => ({ bestelRegelId })) },
+          leveranciers: { create: [{ leverancierId: levId }] },
+        },
+      })
+      ids.push(id)
+    }
+    const uit = await Promise.all(ids.map((id) => leesAanvraag(tx, id)))
+    return uit
+  })
+}
+
+/** "Ja, allemaal verstuurd": elke leverancier op deze aanvragen staat als verstuurd. */
+export async function markeerAlleVerzonden(ids: string[], door: string): Promise<Prijsaanvraag[]> {
+  const uit: Prijsaanvraag[] = []
+  for (const id of ids) {
+    const a = await leesAanvraag(prisma, id)
+    for (const l of a.leveranciers) await markeerVerzonden(id, l.leverancierId, door)
+    uit.push(await leesAanvraag(prisma, id))
+  }
+  return uit
+}
+
+/** Eén cel in tab 2 (regel × leverancier): bewaren, of wissen bij een lege prijs. */
+export async function zetAntwoordCel(id: string, leverancierId: string, regelId: string, cel: AntwoordCel, door: string): Promise<Prijsaanvraag> {
+  return prisma.$transaction(async (tx) => {
+    const a = await leesAanvraag(tx, id)
+    if (!a.leveranciers.some((x) => x.leverancierId === leverancierId)) throw new AppError(404, 'NOT_FOUND', `Deze leverancier staat niet op ${id}.`)
+    if (!a.regelIds.includes(regelId)) throw new AppError(409, 'VOORWAARDE', `Deze regel hoort niet bij ${id}. Ververs de pagina.`)
+    const [regel] = await leesRegels(tx, { id: regelId })
+    if (regel && (regel.status === 'besteld' || regel.status === 'ontvangen')) throw new AppError(409, 'VOORWAARDE', waaromNietBestelRegelWijzigen(regel)!)
+    const sleutel = { prijsaanvraagId_bestelRegelId_leverancierId: { prijsaanvraagId: id, bestelRegelId: regelId, leverancierId } }
+    if (cel.prijs == null) {
+      await tx.prijsaanvraagAntwoord.deleteMany({ where: { prijsaanvraagId: id, bestelRegelId: regelId, leverancierId } })
+    } else {
+      const data = {
+        prijsSoort: cel.prijsSoort, prijs: cel.prijs, zaagkostenPerSnede: cel.prijsSoort === 'totaal' ? null : (cel.zaagkostenPerSnede ?? null),
+        levertijdDagen: cel.levertijdDagen ?? null, bijgewerktDoor: door,
+      }
+      await tx.prijsaanvraagAntwoord.upsert({ where: sleutel, create: { ...data, prijsaanvraagId: id, bestelRegelId: regelId, leverancierId }, update: data })
+    }
+    return leesAanvraag(tx, id)
+  })
 }

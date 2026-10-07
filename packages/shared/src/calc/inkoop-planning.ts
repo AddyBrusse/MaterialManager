@@ -93,7 +93,7 @@ export function verwachtBinnen(besteldOp: string | null, levertijdDagen: number 
 }
 
 export interface PlanInvoer {
-  status: 'te_bestellen' | 'aangevraagd' | 'besteld' | 'ontvangen'
+  status: 'te_bestellen' | 'aangevraagd' | 'buffer' | 'besteld' | 'ontvangen'
   nodig: string | null
   /** Van de gekozen of voorgestelde leverancier. */
   levertijdDagen: number | null
@@ -114,7 +114,7 @@ const dagen = (n: number) => `${n} ${n === 1 ? 'dag' : 'dagen'}`
 
 /** De stand van één regel, op `vandaag`. */
 export function planVoor(p: PlanInvoer, vandaag: string, margeDagen: number): Plan {
-  const uiterlijk = p.status === 'te_bestellen' || p.status === 'aangevraagd' ? bestelUiterlijk(p.nodig, p.levertijdDagen, margeDagen) : null
+  const uiterlijk = p.status === 'te_bestellen' || p.status === 'aangevraagd' || p.status === 'buffer' ? bestelUiterlijk(p.nodig, p.levertijdDagen, margeDagen) : null
   if (p.status === 'ontvangen') return { stand: 'binnen', uiterlijk: null, verwacht: p.verwacht, dagenTeLaat: null, tekst: 'binnen' }
   if (p.status === 'besteld') {
     if (p.verwacht && p.nodig && p.verwacht > p.nodig) {
@@ -216,7 +216,7 @@ export interface InkoopOptie {
 
 export interface InkoopOverzichtRegel {
   id: string
-  status: 'te_bestellen' | 'aangevraagd' | 'besteld' | 'ontvangen'
+  status: 'te_bestellen' | 'aangevraagd' | 'buffer' | 'besteld' | 'ontvangen'
   bron: string
   materiaal: string
   exoot: boolean
@@ -237,7 +237,16 @@ export interface InkoopOverzichtRegel {
   order: {
     id: string; status: 'concept' | 'verzonden'; inkooporderRegelId: string; referentie: string
     verzondenOp: string | null; verwachtAangepast: boolean; ontvangenStuks: number; leverancierNaam: string
+    /** M26-0042: het nummer op het label. Null bij een order van vóór 2026-10-07. */
+    materiaalNummer: string | null
   } | null
+  /** Bij wie we een prijs gaan vragen (tab Te bestellen). */
+  leverancierIds: string[]
+  /** Per gevraagde leverancier: welke aanvraag, wanneer, en het antwoord (tab Open prijsaanvragen). */
+  gevraagd: {
+    aanvraagId: string; leverancierId: string; naam: string; verzondenOp: string | null
+    antwoord: { id: string; prijsSoort: 'per_kg' | 'per_stuk' | 'totaal'; prijs: number; zaagkostenPerSnede: number | null; levertijdDagen: number | null } | null
+  }[]
   /** Laatste keer iets binnen, voor "Binnen, afgelopen 14 dagen". */
   binnenOp: string | null
   gereserveerd: boolean
@@ -266,6 +275,8 @@ export function waaromNietBestellen(regels: RegelVoorBestellen[], leveranciers: 
   }
   const klaar = regels.find((r) => r.status === 'besteld' || r.status === 'ontvangen')
   if (klaar) return `${klaar.materiaal} is al besteld.`
+  const nietInBuffer = regels.find((r) => r.status !== 'buffer')
+  if (nietInBuffer) return `${nietInBuffer.materiaal} staat nog niet in de inkoopbuffer. Kies eerst een leverancier bij Open prijsaanvragen.`
   const zonder = regels.find((r) => !r.leverancier || r.leverancier.soort !== 'prijs')
   if (zonder) return `Voor ${zonder.materiaal} is nog geen prijs. Vraag een prijs of vul het antwoord in; dan kan hij mee.`
   for (const r of regels) {
@@ -276,4 +287,72 @@ export function waaromNietBestellen(regels: RegelVoorBestellen[], leveranciers: 
     }
   }
   return null
+}
+
+// ── Tabbladen (2026-10-07): wat er per stap moet kunnen ──
+
+type RegelKort = { materiaal: string; status: 'te_bestellen' | 'aangevraagd' | 'buffer' | 'besteld' | 'ontvangen' }
+
+/** Prijzen aanvragen kan voor regels die nog te bestellen zijn en minstens één leverancier hebben. */
+export function waaromNietPrijzenAanvragen(
+  regels: (RegelKort & { leverancierIds: string[] })[],
+  leveranciers: Pick<InkoopLeverancier, 'id' | 'naam' | 'email'>[],
+): string | null {
+  if (regels.length === 0) return 'Vink eerst één of meer regels aan.'
+  const al = regels.find((r) => r.status !== 'te_bestellen')
+  if (al) return `${al.materiaal} is al aangevraagd. Nog een leverancier erbij? Doe dat bij Open prijsaanvragen.`
+  const zonder = regels.find((r) => r.leverancierIds.length === 0)
+  if (zonder) return `Bij ${zonder.materiaal} staat nog geen leverancier. Kies er een met "Leveranciers toevoegen".`
+  for (const id of new Set(regels.flatMap((r) => r.leverancierIds))) {
+    const l = leveranciers.find((x) => x.id === id)
+    if (!l) return 'Een van de gekozen leveranciers bestaat niet meer. Haal hem weg bij de regel.'
+    if (!l.email) return `Bij ${l.naam} staat geen e-mailadres. Vul het in bij Relaties → ${l.naam} (of bij een contactpersoon).`
+  }
+  return null
+}
+
+/** Naar de buffer: alleen een aangevraagde regel met een gekozen leverancier. */
+export function waaromNietNaarBuffer(r: RegelKort & { keuze: unknown | null }): string | null {
+  if (r.status === 'buffer') return `${r.materiaal} staat al in de inkoopbuffer.`
+  if (r.status === 'besteld' || r.status === 'ontvangen') return `${r.materiaal} is al besteld.`
+  if (r.status === 'te_bestellen') return `Voor ${r.materiaal} is nog geen prijs gevraagd.`
+  if (!r.keuze) return `Kies eerst een leverancier voor ${r.materiaal}.`
+  return null
+}
+
+/** Terug uit de buffer kan tot de regel op een inkooporder staat. */
+export function waaromNietUitBuffer(r: RegelKort & { inkooporder: { id: string } | null }): string | null {
+  if (r.status !== 'buffer') return `${r.materiaal} staat niet in de inkoopbuffer.`
+  if (r.inkooporder) return `${r.materiaal} staat al op ${r.inkooporder.id}. Gooi die eerst weg.`
+  return null
+}
+
+/**
+ * De nummers die de stukken in de voorraad krijgen (2026-10-07). Eén stuk op de
+ * regel: het nummer zelf. Meer stuks: -1, -2 …, doorgeteld over deelleveringen,
+ * zodat elk stuk één nummer heeft dat nooit twee keer voorkomt.
+ */
+export function stukNummers(materiaalNummer: string, stuksOpRegel: number, alOntvangen: number, nu: number): string[] {
+  if (stuksOpRegel <= 1) return nu > 0 ? [materiaalNummer] : []
+  return Array.from({ length: nu }, (_, i) => `${materiaalNummer}-${alOntvangen + i + 1}`)
+}
+
+/** Wat iemand intypt naar het nummer zelf: hoofdletters, geen spaties, en het stukvolgnummer eraf. */
+export function normaliseerMateriaalNummer(invoer: string): string {
+  const s = invoer.trim().toUpperCase().replace(/\s+/g, '')
+  const m = /^(M\d{2}-\d{1,})(?:-\d+)?$/.exec(s)
+  if (!m) return s
+  const [voor, n] = m[1].split('-')
+  return `${voor}-${n.padStart(4, '0')}`
+}
+
+/**
+ * Wacht deze productieorder op materiaal? Ja zolang er voor zijn orderregel een
+ * bestelregel open staat (alles behalve "ontvangen"). Afgeleid, nooit opgeslagen.
+ */
+export function wachtOpMateriaal(
+  order: { projectId: string; offerteRegelId: string },
+  bestelRegels: { projectId: string | null; offerteRegelId: string | null; status: string }[],
+): boolean {
+  return bestelRegels.some((b) => b.status !== 'ontvangen' && b.projectId === order.projectId && b.offerteRegelId === order.offerteRegelId)
 }

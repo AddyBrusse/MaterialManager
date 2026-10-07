@@ -44,7 +44,7 @@ async function naarOrders(db: Db, rijen: Rij[]): Promise<Inkooporder[]> {
       const dims = b.dimensions as Record<string, number>
       const lengteMm = Number(r.lengteMm)
       return {
-        id: r.id, referentie: `${o.id}.${r.positie}`, bestelRegelId: b.id,
+        id: r.id, referentie: `${o.id}.${r.positie}`, materiaalNummer: r.materiaalNummer, bestelRegelId: b.id,
         materiaal: `${b.grade.name} ${b.profile.name} ${maatTekst(b.profile.volumeFormula, dims)}`,
         exoot: !!b.rawMaterial?.exoot, stuks: r.stuks, lengteMm,
         kg: kgVanRegel({ dimensions: dims, lengteMm, stuks: r.stuks, volumeFormula: b.profile.volumeFormula, densityKgM3: Number(b.grade.densityKgM3) }),
@@ -91,12 +91,15 @@ async function maakOrdersIn(tx: Prisma.TransactionClient, regelIds: string[], do
   const ids: string[] = []
   for (const [leverancierId, rs] of groepen) {
     const id = await nextDocId(tx, 'INK')
+    // Per regel een eigen materiaalnummer (M26-0042), voor op het label.
+    const nummers: string[] = []
+    for (const _ of rs) nummers.push(await nextDocId(tx, 'M'))
     await tx.inkooporder.create({
       data: {
         id, leverancierId, createdBy: door,
         regels: {
           create: rs.map((r, i) => ({
-            bestelRegelId: r.id, positie: i + 1, stuks: r.stuks, lengteMm: r.lengteMm,
+            bestelRegelId: r.id, positie: i + 1, materiaalNummer: nummers[i], stuks: r.stuks, lengteMm: r.lengteMm,
             totaal: Math.round(r.keuze!.totaal * 100) / 100, uitleg: r.keuze!.uitleg, levertijdDagen: r.keuze!.levertijdDagen,
           })),
         },
@@ -199,7 +202,7 @@ export async function markeerVerzonden(id: string, door: string): Promise<Inkoop
     if (o.status === 'concept') {
       await tx.inkooporder.update({ where: { id }, data: { status: 'verzonden', verzondenOp: new Date(), verzondenDoor: door } })
       await tx.bestelRegel.updateMany({
-        where: { id: { in: o.regels.map((r) => r.bestelRegelId) }, status: { in: ['te_bestellen', 'aangevraagd'] } },
+        where: { id: { in: o.regels.map((r) => r.bestelRegelId) }, status: { in: ['te_bestellen', 'aangevraagd', 'buffer'] } },
         data: { status: 'besteld' },
       })
     }
@@ -209,8 +212,8 @@ export async function markeerVerzonden(id: string, door: string): Promise<Inkoop
 
 /**
  * Intrekken (afgesproken 2026-10-06): de order blijft staan als vervallen, met
- * reden; de regels gaan terug naar aangevraagd (of te bestellen als ze nooit
- * gevraagd zijn), met hun gekozen leverancier, zodat je meteen een nieuwe maakt.
+ * reden; de regels gaan terug naar de inkoopbuffer, met hun gekozen
+ * leverancier, zodat je meteen een nieuwe maakt.
  */
 export async function trekIn(id: string, reden: string, door: string): Promise<Inkooporder> {
   return prisma.$transaction(async (tx) => {
@@ -219,9 +222,9 @@ export async function trekIn(id: string, reden: string, door: string): Promise<I
     if (nee) throw new AppError(409, 'VOORWAARDE', nee)
     await tx.inkooporder.update({ where: { id }, data: { status: 'vervallen', vervallenOp: new Date(), vervallenReden: reden, vervallenDoor: door } })
     const bestelIds = o.regels.map((r) => r.bestelRegelId)
-    const gevraagd = new Set((await tx.prijsaanvraagRegel.findMany({ where: { bestelRegelId: { in: bestelIds } }, select: { bestelRegelId: true } })).map((x) => x.bestelRegelId))
-    await tx.bestelRegel.updateMany({ where: { id: { in: bestelIds.filter((b) => gevraagd.has(b)) } }, data: { status: 'aangevraagd' } })
-    await tx.bestelRegel.updateMany({ where: { id: { in: bestelIds.filter((b) => !gevraagd.has(b)) } }, data: { status: 'te_bestellen' } })
+    // Terug in de inkoopbuffer (2026-10-07), met hun gekozen leverancier: daar
+    // bestel je opnieuw, of zet je ze nog een stap terug.
+    await tx.bestelRegel.updateMany({ where: { id: { in: bestelIds } }, data: { status: 'buffer' } })
     return leesOrder(tx, id)
   })
 }

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   plusWerkdagen, nodigVoorProductie, bestelUiterlijk, verwachtBinnen, planVoor, groepVoor, meldingVoor, vraagtVandaag,
+  waaromNietPrijzenAanvragen, waaromNietNaarBuffer, waaromNietUitBuffer, waaromNietBestellen,
+  stukNummers, normaliseerMateriaalNummer, wachtOpMateriaal,
 } from '@stockmanager/shared'
 
 // 2026-10-07 is een woensdag.
@@ -98,5 +100,54 @@ describe('melding', () => {
       id: 'r', materiaal: 'x', projectId: null, leverancierNaam: null, inkooporderId: null,
       nodig: { datum: null, bron: null, machine: null }, plan: { stand: 'wacht', uiterlijk: null, verwacht: null, dagenTeLaat: null, tekst: '' },
     })).toBeNull()
+  })
+})
+
+describe('tabbladen: voorwaarden (2026-10-07)', () => {
+  const levs = [{ id: 'sn', naam: 'Staalhandel Noord', email: 'a@b.nl' }, { id: 'mcb', naam: 'MCB', email: null }]
+  it('prijzen aanvragen: alleen te bestellen, met leverancier en e-mailadres', () => {
+    expect(waaromNietPrijzenAanvragen([], levs)).toMatch(/Vink eerst/)
+    expect(waaromNietPrijzenAanvragen([{ materiaal: 'C45', status: 'te_bestellen', leverancierIds: [] }], levs)).toMatch(/nog geen leverancier/)
+    expect(waaromNietPrijzenAanvragen([{ materiaal: 'C45', status: 'te_bestellen', leverancierIds: ['mcb'] }], levs)).toMatch(/Relaties → MCB/)
+    expect(waaromNietPrijzenAanvragen([{ materiaal: 'C45', status: 'aangevraagd', leverancierIds: ['sn'] }], levs)).toMatch(/Open prijsaanvragen/)
+    expect(waaromNietPrijzenAanvragen([{ materiaal: 'C45', status: 'te_bestellen', leverancierIds: ['sn'] }], levs)).toBeNull()
+  })
+  it('naar de buffer alleen met een keuze; terug alleen zonder inkooporder', () => {
+    expect(waaromNietNaarBuffer({ materiaal: 'C45', status: 'aangevraagd', keuze: null })).toMatch(/Kies eerst/)
+    expect(waaromNietNaarBuffer({ materiaal: 'C45', status: 'aangevraagd', keuze: {} })).toBeNull()
+    expect(waaromNietNaarBuffer({ materiaal: 'C45', status: 'besteld', keuze: {} })).toMatch(/al besteld/)
+    expect(waaromNietUitBuffer({ materiaal: 'C45', status: 'buffer', inkooporder: null })).toBeNull()
+    expect(waaromNietUitBuffer({ materiaal: 'C45', status: 'buffer', inkooporder: { id: 'INK-2026-001' } })).toMatch(/INK-2026-001/)
+  })
+  it('bestellen alleen uit de buffer', () => {
+    const l = { leverancierId: 'sn', naam: 'Staalhandel Noord', soort: 'prijs' as const, bron: 'antwoord' as const, antwoordId: 'a', aanvraagId: null, totaal: 10, uitleg: '', levertijdDagen: 3, goedkoopst: true, gekozen: true }
+    expect(waaromNietBestellen([{ materiaal: 'C45', status: 'aangevraagd', order: null, leverancier: l }], levs)).toMatch(/inkoopbuffer/)
+    expect(waaromNietBestellen([{ materiaal: 'C45', status: 'buffer', order: null, leverancier: l }], levs)).toBeNull()
+  })
+  it('in de buffer telt "uiterlijk bestellen" gewoon door', () => {
+    expect(planVoor({ status: 'buffer', nodig: '2026-10-16', levertijdDagen: 5, verwacht: null }, '2026-10-07', 2).stand).toBe('nu_bestellen')
+  })
+})
+
+describe('materiaalnummers', () => {
+  it('één stuk houdt het nummer; meer stuks krijgen -1, -2, doorgeteld over deelleveringen', () => {
+    expect(stukNummers('M26-0042', 1, 0, 1)).toEqual(['M26-0042'])
+    expect(stukNummers('M26-0042', 3, 0, 2)).toEqual(['M26-0042-1', 'M26-0042-2'])
+    expect(stukNummers('M26-0042', 3, 2, 1)).toEqual(['M26-0042-3'])
+  })
+  it('wat iemand intypt, wordt het nummer zelf', () => {
+    expect(normaliseerMateriaalNummer(' m26-42 ')).toBe('M26-0042')
+    expect(normaliseerMateriaalNummer('M26-0042-2')).toBe('M26-0042')
+    expect(normaliseerMateriaalNummer('INK-2026-001')).toBe('INK-2026-001')
+  })
+})
+
+describe('wacht op materiaal', () => {
+  const order = { projectId: 'P', offerteRegelId: 'r1' }
+  it('zolang er voor de orderregel iets open staat', () => {
+    expect(wachtOpMateriaal(order, [{ projectId: 'P', offerteRegelId: 'r1', status: 'besteld' }])).toBe(true)
+    expect(wachtOpMateriaal(order, [{ projectId: 'P', offerteRegelId: 'r1', status: 'ontvangen' }])).toBe(false)
+    expect(wachtOpMateriaal(order, [{ projectId: 'P', offerteRegelId: 'r2', status: 'besteld' }])).toBe(false)
+    expect(wachtOpMateriaal(order, [{ projectId: 'Q', offerteRegelId: 'r1', status: 'te_bestellen' }])).toBe(false)
   })
 })

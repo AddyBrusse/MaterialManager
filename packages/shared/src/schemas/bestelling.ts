@@ -7,7 +7,8 @@ import { z } from 'zod'
  * bestaat pas als hij binnen is. Een exoot wijst wel naar zijn eigen regel in
  * de materiaallijst.
  */
-export const BESTEL_STATUSSEN = ['te_bestellen', 'aangevraagd', 'besteld', 'ontvangen'] as const
+/** buffer (2026-10-07): leverancier gekozen, wacht op bundelen en bestellen. */
+export const BESTEL_STATUSSEN = ['te_bestellen', 'aangevraagd', 'buffer', 'besteld', 'ontvangen'] as const
 export type BestelStatus = typeof BESTEL_STATUSSEN[number]
 
 /** Waar de regel vandaan komt — zodat je ziet waarom hij er staat. */
@@ -47,6 +48,8 @@ export const BestelRegelSchema = z.object({
   artikelId: z.string().nullable(),
   offerteRegelId: z.string().nullable(),
   notitie: z.string().nullable(),
+  /** Bij wie we een prijs gaan vragen (tab Te bestellen). */
+  leverancierIds: z.array(z.string()),
   // ── Afgeleid bij het lezen ──
   /** "Alu 6082 Plaat 250×30" */
   materiaal: z.string(),
@@ -65,7 +68,7 @@ export const BestelRegelSchema = z.object({
   aanvragen: z.array(z.object({ id: z.string(), verzondenOp: z.string().nullable() })),
   keuze: BestelKeuzeSchema.nullable(),
   /** De inkooporder waar hij nu op staat (concept of verzonden); vervallen telt niet. */
-  inkooporder: z.object({ id: z.string(), status: z.enum(['concept', 'verzonden']) }).nullable(),
+  inkooporder: z.object({ id: z.string(), status: z.enum(['concept', 'verzonden']), materiaalNummer: z.string().nullable() }).nullable(),
   /** Hoeveel stuks er al binnen zijn, over alle inkooporders. */
   ontvangenStuks: z.number().int(),
   toegevoegdDoor: z.string(),
@@ -89,6 +92,7 @@ export const BestelRegelInvoerSchema = z.object({
 export type BestelRegelInvoer = z.infer<typeof BestelRegelInvoerSchema>
 
 export const BestelRegelWijzigSchema = z.object({
+  leverancierIds: z.array(z.string()).optional(),
   lengteMm: positief('De lengte').optional(),
   stuks: z.number().int('Hele stuks').min(1, 'Minstens 1 stuk').optional(),
   notitie: z.string().max(500).nullable().optional(),
@@ -163,3 +167,26 @@ export type AntwoordInvoer = z.infer<typeof AntwoordInvoerSchema>
 
 /** Alle antwoorden van één leverancier op één aanvraag; een lege lijst wist ze. */
 export const AntwoordenInvoerSchema = z.object({ antwoorden: z.array(AntwoordInvoerSchema) })
+
+/** Bij meerdere regels tegelijk leveranciers zetten (tab Te bestellen). */
+export const LeveranciersZettenSchema = z.object({
+  regelIds: z.array(z.string()).min(1, 'Kies minstens één regel'),
+  leverancierIds: z.array(z.string()),
+  /** 'erbij' voegt toe, 'vervang' zet precies deze. */
+  modus: z.enum(['erbij', 'vervang']).default('erbij'),
+})
+export type LeveranciersZetten = z.infer<typeof LeveranciersZettenSchema>
+
+/** Prijzen aanvragen: per leverancier één aanvraag met alle regels die bij hem staan. */
+export const PrijzenAanvragenSchema = z.object({ regelIds: z.array(z.string()).min(1, 'Kies minstens één regel') })
+
+/** Eén antwoordcel (regel × leverancier) in tab 2; een lege prijs wist hem. */
+export const AntwoordCelSchema = z.object({
+  prijsSoort: z.enum(ANTWOORD_SOORTEN),
+  prijs: z.number().positive('De prijs moet groter zijn dan 0').nullable(),
+  zaagkostenPerSnede: z.number().nonnegative('Mag niet negatief zijn').nullable().optional(),
+  levertijdDagen: z.number().int().nonnegative().nullable().optional(),
+})
+export type AntwoordCel = z.infer<typeof AntwoordCelSchema>
+
+export const NaarBufferSchema = z.object({ regelIds: z.array(z.string()).min(1, 'Kies minstens één regel') })

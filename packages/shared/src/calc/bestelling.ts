@@ -167,6 +167,7 @@ export function waaromNietBestelRegelWijzigen(r: Pick<BestelRegel, 'status' | 'm
   if (c) return `${r.materiaal} ${c}`
   if (r.status === 'te_bestellen') return null
   if (opInkooporder(r)) return `${r.materiaal} staat al op een inkooporder; daar verander je niets meer aan.`
+  if (r.status === 'buffer') return `${r.materiaal} staat in de inkoopbuffer met een gekozen prijs. Zet hem eerst terug (↩) als de maat of het aantal anders moet.`
   return `${r.materiaal} is al aangevraagd bij leveranciers. Wijzig je nu de maat of het aantal, dan klopt hun antwoord niet meer. Verwijder de regel en maak een nieuwe.`
 }
 
@@ -190,6 +191,7 @@ export function waaromNietAanvraagVersturen(l: { naam: string; email: string | n
 
 export function waaromNietKiezen(r: Pick<BestelRegel, 'status' | 'materiaal'> & MetOrder, cel: Cel): string | null {
   if (opInkooporder(r) || r.inkooporder) return `${r.materiaal} staat al op een inkooporder${r.inkooporder ? ` (${r.inkooporder.id})` : ''}; de keuze ligt vast.`
+  if (r.status === 'buffer') return `${r.materiaal} staat al in de inkoopbuffer. Zet hem terug (↩) om een andere leverancier te kiezen.`
   if (cel.soort !== 'prijs') return 'Er is nog geen prijs van deze leverancier. Vul eerst zijn antwoord in.'
   return null
 }

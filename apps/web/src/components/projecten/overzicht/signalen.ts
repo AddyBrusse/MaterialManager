@@ -90,9 +90,8 @@ export function signalenVan(p: Project, nu: Date, nabelDagen: number): Signalen 
     overLevertijd: actief && nogTeLeveren && lever !== null && lever < vandaag,
     levertijdWeek: actief && nogTeLeveren && lever !== null && lever >= vandaag && lever <= overWeek,
     vrijTeGeven: p.productieOrders.filter((o) => o.status === 'voorbereiding').length,
-    wachtMateriaal: p.productieOrders.some((o) =>
-      o.stappen.some((s) => !s.gereedOp && s.notBefore != null && s.notBefore.slice(0, 10) > vandaag),
-    ),
+    // Afgeleid door de server (2026-10-07): er staat materiaal in bestelling.
+    wachtMateriaal: p.productieOrders.some((o) => !!o.wachtOpMateriaal && o.status !== 'gereed' && o.status !== 'gestopt'),
     teLeveren: v.klaar,
     teFactureren: v.teFacturerenBedrag,
     openstaand: openstaandBedrag(p),

@@ -1,10 +1,9 @@
 import type { ProductieOrder, ProductieStap } from '@stockmanager/shared'
-import { datum, dagenTot } from '../../lib/format'
+import { datum } from '../../lib/format'
 
-function stapPill(s: ProductieStap) {
+function stapPill(s: ProductieStap, o: ProductieOrder) {
   if (s.gereedOp) return { tekst: 'Gereed', kleur: 'ok' }
-  const n = dagenTot(s.notBefore)
-  if (n !== null && n > 0) return { tekst: 'Wacht op materiaal', kleur: 'warn' }
+  if (o.wachtOpMateriaal && o.status !== 'gereed' && o.status !== 'gestopt') return { tekst: 'Wacht op materiaal', kleur: 'warn' }
   return { tekst: 'Gepland', kleur: '' }
 }
 
@@ -35,24 +34,13 @@ export function StappenTabel({
     </thead>
     <tbody>
       {order.stappen.map((s) => {
-        const pill = stapPill(s)
-        // Een geplande datum die door een notBefore naar achteren geduwd is
-        // krijgt nadruk: dat is de enige plek waar de planner overruled is.
-        const geduwd =
-          Boolean(s.notBefore) &&
-          Boolean(s.geplandDatum) &&
-          String(s.notBefore) > String(s.geplandDatum)
+        const pill = stapPill(s, order)
         return (
           <tr key={s.id}>
             <td className="mono">{s.volgorde}</td>
             <td>{s.naam}</td>
             <td>{s.geplandMachine ?? s.machine ?? '—'}</td>
-            <td
-              className="mono"
-              style={geduwd ? { color: 'var(--warn)', fontWeight: 600 } : undefined}
-            >
-              {datum(s.geplandDatum)}
-            </td>
+            <td className="mono">{datum(s.geplandDatum)}</td>
             <td className="num">{s.queuePosition ?? '—'}</td>
             <td className="mono">{datum(s.gereedOp)}</td>
             <td>{s.gereedDoor ?? '—'}</td>

@@ -224,13 +224,6 @@ export function PlanningQueuePage() {
     flash(`${job.artikel} terug naar backlog`)
   }
 
-  function handleSetHold(job: QueueJob, notBefore: string | null) {
-    const { project, order, stap } = job.item
-    projectsApi.setHold(project.id, order.id, stap.id, notBefore)
-    bump()
-    flash(notBefore ? `Hold ingesteld: niet eerder dan ${notBefore}` : 'Hold verwijderd')
-  }
-
   function handleDropOnBacklog(e: DragEvent) {
     e.preventDefault()
     setDragOverBacklog(false)
@@ -363,7 +356,6 @@ export function PlanningQueuePage() {
             onClose={() => setSelectedJob(null)}
             onUnplan={handleUnplan}
             onOpenProject={handleOpenProject}
-            onSetHold={handleSetHold}
           />
           {selectedJob && (
             <div className="tr-paneel-wrap">

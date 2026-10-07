@@ -20,7 +20,6 @@ interface QueueDetailsProps {
   onClose: () => void
   onUnplan: (job: QueueJob) => void
   onOpenProject: (job: QueueJob) => void
-  onSetHold: (job: QueueJob, notBefore: string | null) => void
 }
 
 export function QueueDetails({

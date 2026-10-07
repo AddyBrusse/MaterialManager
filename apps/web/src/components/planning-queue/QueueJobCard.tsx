@@ -10,7 +10,7 @@ import { type QueueJob, shortOrderId, fmtDateWithWeekday } from '../../utils/pla
 //
 // Content priority (explicit, per request): 1) machine (bold, large) + hours
 // planned, 2) description, 3) customer, 4) drawing number, 5) qty, 6) risk,
-// 7) latest start date. Cross-machine routing and notBefore holds are
+// 7) latest start date. Cross-machine routing is
 // deliberately NOT here — clicking a card already opens QueueDetails, whose
 // step table shows the order's full routing; repeating it here was the
 // "too busy, colors don't match" clutter this redesign is fixing.
@@ -56,6 +56,7 @@ export function QueueJobCard({
       <div className="qjob-bottom">
         <span className="qjob-qty">{qty} {eenheid}</span>
         {risk && <span className="qjob-risk"><IconAlertTriangle size={11} stroke={2.2} /> risico</span>}
+        {job.wachtOpMateriaal && <span className="qjob-risk" title="Het materiaal staat in Bestellingen en is nog niet binnen. Tot dan staat hij niet op de terminal.">wacht op materiaal</span>}
       </div>
       {latestStart && <div className="qjob-start">start uiterlijk {fmtDateWithWeekday(latestStart)}</div>}
       {klok}

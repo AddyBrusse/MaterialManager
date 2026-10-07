@@ -1,6 +1,6 @@
 import type {
   BestelRegel, BestelRegelInvoer, BestelRegelWijzig, BestelStatus, KeuzeInvoer, VergelijkData,
-  Prijsaanvraag, PrijsaanvraagInvoer, AntwoordInvoer,
+  Prijsaanvraag, PrijsaanvraagInvoer, AntwoordInvoer, AntwoordCel, LeveranciersZetten,
 } from '@stockmanager/shared'
 import { apiFetch } from './client'
 
@@ -23,6 +23,14 @@ export const bestelRegelsApi = {
     ).then((r) => r.data),
   wisKeuze: (id: string) =>
     apiFetch<BestelRegel>(`/bestel-regels/${id}/keuze`, { method: 'DELETE' }).then((r) => r.data),
+  // Tabbladen (2026-10-07)
+  zetLeveranciers: (body: LeveranciersZetten) =>
+    apiFetch<BestelRegel[]>('/bestel-regels/leveranciers', { method: 'POST', body: JSON.stringify(body) }).then((r) => r.data),
+  naarBuffer: (regelIds: string[]) =>
+    apiFetch<BestelRegel[]>('/bestel-regels/naar-buffer', { method: 'POST', body: JSON.stringify({ regelIds }) }).then((r) => r.data),
+  terug: (id: string) => apiFetch<BestelRegel>(`/bestel-regels/${id}/terug`, { method: 'POST' }).then((r) => r.data),
+  goedkoopste: (regelIds: string[]) =>
+    apiFetch<{ gekozen: number; zonderPrijs: string[] }>('/bestel-regels/goedkoopste', { method: 'POST', body: JSON.stringify({ regelIds }) }).then((r) => r.data),
 }
 
 export const prijsaanvragenApi = {
@@ -34,6 +42,12 @@ export const prijsaanvragenApi = {
   antwoorden: (id: string, leverancierId: string, antwoorden: AntwoordInvoer[]) =>
     apiFetch<Prijsaanvraag>(`/prijsaanvragen/${id}/antwoorden/${leverancierId}`, { method: 'PUT', body: JSON.stringify({ antwoorden }) }).then((r) => r.data),
   remove: (id: string) => apiFetch<{ id: string }>(`/prijsaanvragen/${id}`, { method: 'DELETE' }),
+  perLeverancier: (regelIds: string[], leverancierIds?: string[]) =>
+    apiFetch<Prijsaanvraag[]>('/prijsaanvragen/per-leverancier', { method: 'POST', body: JSON.stringify({ regelIds, leverancierIds }) }).then((r) => r.data),
+  verzondenAlle: (ids: string[]) =>
+    apiFetch<Prijsaanvraag[]>('/prijsaanvragen/verzonden', { method: 'POST', body: JSON.stringify({ ids }) }).then((r) => r.data),
+  cel: (id: string, leverancierId: string, regelId: string, cel: AntwoordCel) =>
+    apiFetch<Prijsaanvraag>(`/prijsaanvragen/${id}/antwoorden/${leverancierId}/regels/${regelId}`, { method: 'PUT', body: JSON.stringify(cel) }).then((r) => r.data),
 }
 
 /** Alles wat na een wijziging opnieuw gelezen moet worden. */

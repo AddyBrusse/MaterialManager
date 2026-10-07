@@ -2050,3 +2050,54 @@ echt nodig voor de productie.** Mockups eerst, daarna afgesproken:
 - Ongewijzigd: prijsaanvragen + pdf + `.eml`, nummers van de server, intrekken
   (vervallen met reden), ontvangen in delen, exoot meteen gereserveerd.
 
+## 2026-10-07 — Inkoop toch in vier tabbladen, met een nummer op het materiaal
+
+De ene pagina van eerder vandaag bleek te druk. De gebruiker wilde tabs in de
+huisstijl van de hoofdtabbalk (zonder pop-out), in de volgorde van het werk.
+Mockups eerst, daarna afgesproken:
+
+- **Te bestellen**: alles wat besteld moet worden, uit een opdracht of met de
+  hand. Je zet met een keuzelijst één of meer leveranciers bij een of meer regels
+  (`BestelRegel.leverancierIds`). **Prijzen aanvragen** maakt per leverancier één
+  `PA-` met alle regels die bij hem staan, één mail per leverancier, en één vraag
+  "Heb je ze verstuurd?". Bij "Nog niet" gaan de aanvragen weer weg; er is niets
+  verstuurd.
+- **Open prijsaanvragen**: per regel de gevraagde leveranciers, met het antwoord
+  in de rij (prijs als, prijs, zagen, levertijd). Elke cel wordt bewaard bij het
+  verlaten van het veld (`PUT /prijsaanvragen/:id/antwoorden/:lev/regels/:regel`).
+  De goedkoopste is gemarkeerd, kiezen doe je zelf (of "Overal de goedkoopste
+  kiezen"). Pas je de prijs van de gekozen leverancier aan, dan wordt de keuze
+  opnieuw vastgelegd. Een leverancier erbij kan hier ook. **Naar inkoopbuffer**
+  per regel.
+- **Inkoopbuffer** (nieuwe status `buffer`): een tabel per leverancier, met
+  orderbedrag en franco-grens eronder en "uiterlijk bestellen" per regel.
+  **Bestel regels** maakt de `INK-` met mail; na "Ja, verstuurd" zijn ze besteld.
+  ↩ zet een regel terug zolang hij niet op een order staat. Intrekken van een
+  verstuurde order zet de regels terug in de buffer.
+- **Besteld**: één tabel, nieuwste bestelling eerst, met verwacht binnen,
+  nodig voor productie en de prognose. **Binnen boeken** per regel, met locatie.
+  Helemaal binnen = weg uit de lijst. "Binnen, afgelopen 14 dagen" en de tegels
+  zijn weg (afgesproken: "alleen de tabs is ok"). Het belletje blijft.
+- **Materiaalnummer per regel** (afgesproken, keuze 1a): `M26-0042`, uitgegeven
+  door de server bij het maken van de inkooporder (reeks `M` per jaar, kort
+  omdat het van een label wordt overgetypt; ook in Instellingen → Nummering). Het
+  staat op de inkooporder-pdf in de kolom "Ons nr." met de vraag het op het
+  materiaal te zetten. Bij Besteld en op de pagina Binnen boeken typ je het in
+  (`m26-42` mag ook); Enter opent binnen boeken. **Het stuk in de voorraad krijgt
+  hetzelfde nummer** (afgesproken), bij meer stuks op één regel `-1`, `-2`,
+  doorgeteld over deelleveringen (`stukNummers`). Een exoot krijgt het nummer
+  ook. Oudere orders zonder nummer houden de `#NNNNN`-codes.
+- **Wacht op materiaal** (afgesproken): een status van de productieorder,
+  afgeleid bij het lezen en nooit opgeslagen (`wachtOpMateriaal` in
+  `packages/shared/calc/inkoop-planning.ts`, gezet in `project-store`). Hij staat
+  aan zolang er voor die orderregel een bestelregel open staat, en gaat vanzelf
+  uit als alles binnen is. Zo'n order staat **niet op de terminal**. De planning
+  ziet hem wel, met een label. Een bestelregel zonder orderregel (met de hand
+  toegevoegd voor een project) houdt geen order tegen: we weten niet welke.
+  Daarvoor kreeg `bestel_regels.project_id` een echte sleutel naar het project.
+- **"Niet beginnen vóór" (`ProductieStap.notBefore`) is weg** (afgesproken),
+  met de hold in de planning en de route `/hold`. Die datum was een handmatige
+  manier om "wacht op materiaal" te zeggen; dat komt nu uit Bestellingen.
+- De pagina **Binnen boeken** in het menu was een voorbeeldscherm zonder echte
+  gegevens. Hij toont nu hetzelfde als de tab Besteld, met het label-veld.
+
