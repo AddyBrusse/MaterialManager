@@ -142,6 +142,7 @@ export function serialize(row: ProjectRow): Project {
         geplandDatum: s.geplandDatum,
         geplandMachine: s.geplandMachine,
         queuePosition: s.queuePosition,
+        prioriteit: s.prioriteit,
       })),
       createdAt: o.createdAt.toISOString(),
       updatedAt: o.updatedAt.toISOString(),
@@ -397,6 +398,7 @@ export async function persist(tx: Db, next: Project): Promise<void> {
         geplandDatum: s.geplandDatum ?? null,
         geplandMachine: s.geplandMachine ?? null,
         queuePosition: s.queuePosition ?? null,
+        prioriteit: s.prioriteit ?? null,
       }
       await tx.productieStap.upsert({
         where: { id: s.id },
