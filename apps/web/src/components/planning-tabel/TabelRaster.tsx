@@ -1,6 +1,7 @@
 import type { DragEvent } from 'react'
 import type { QueueJob } from '../../utils/planningQueueUtils'
 import { dagKort, urenKort } from './tabel-logica'
+import { CelTooltip } from './CelTooltip'
 
 /** Eén kolom: een machine, of `naam` null voor "Niet ingepland". */
 export interface Kolom {
@@ -10,7 +11,15 @@ export interface Kolom {
   jobs: QueueJob[]
 }
 
-export interface CelInfo { klant: string; start: string | null; laat: boolean }
+export interface CelInfo {
+  klant: string
+  start: string | null
+  eind: string | null
+  uiterlijk: string | null
+  laat: boolean
+  /** Werkdagen te laat (0 = op tijd). */
+  achter: number
+}
 
 export interface SleepDoel { kolom: string | null; voorId: string | null }
 
@@ -72,7 +81,7 @@ export function TabelRaster(p: Props) {
                 }
                 if (!j) return <td key={k.naam ?? '—'} className={k.naam ? undefined : 'bk'} {...gedeeld} />
                 return (
-                  <Cel key={j.id} j={j} backlog={!k.naam} info={p.info(j)} verborgen={!p.zichtbaar(j)}
+                  <Cel key={j.id} j={j} backlog={!k.naam} info={p.info(j)} verborgen={!p.zichtbaar(j)} sleeptIets={p.sleep != null}
                     gekozen={p.gekozenId === j.id} gerelateerd={p.gerelateerdOrder === j.orderId}
                     gesleept={p.sleep?.id === j.id} onKies={p.onKies} onSleepStart={p.onSleepStart} extra={gedeeld} />
                 )
@@ -85,13 +94,14 @@ export function TabelRaster(p: Props) {
   )
 }
 
-function Cel({ j, backlog, info, verborgen, gekozen, gerelateerd, gesleept, onKies, onSleepStart, extra }: {
-  j: QueueJob; backlog: boolean; info: CelInfo; verborgen: boolean; gekozen: boolean; gerelateerd: boolean; gesleept: boolean
+function Cel({ j, backlog, info, verborgen, sleeptIets, gekozen, gerelateerd, gesleept, onKies, onSleepStart, extra }: {
+  j: QueueJob; backlog: boolean; info: CelInfo; verborgen: boolean; sleeptIets: boolean; gekozen: boolean; gerelateerd: boolean; gesleept: boolean
   onKies: (j: QueueJob) => void; onSleepStart: (e: DragEvent, j: QueueJob) => void
   extra: Record<string, unknown>
 }) {
   const stuks = j.item.order.qty
   return (
+    <CelTooltip j={j} info={info} uit={verborgen || sleeptIets}>
     <td
       className={`job${backlog ? ' bk' : ''}`}
       draggable={!verborgen}
@@ -101,7 +111,6 @@ function Cel({ j, backlog, info, verborgen, gekozen, gerelateerd, gesleept, onKi
       data-sleep={gesleept || undefined}
       onClick={() => !verborgen && onKies(j)}
       onDragStart={(e) => onSleepStart(e, j)}
-      title={`${j.orderId} · ${j.naam}${j.tekening ? ` · tek. ${j.tekening}` : ''}`}
       {...extra}
     >
       <div className="l1">{j.orderId}{j.tekening && <span className="tk">{j.tekening}</span>}</div>
@@ -110,10 +119,11 @@ function Cel({ j, backlog, info, verborgen, gekozen, gerelateerd, gesleept, onKi
       <div className="l4">
         <span className="u">{urenKort(j.duurMin)}{j.isPlaceholder ? '?' : ''}</span>
         {j.wachtOpMateriaal && <span className="wm">wacht op materiaal</span>}
-        <span className={info.laat ? 'laat' : undefined} title={info.laat ? 'Begint later dan uiterlijk nodig voor de levering' : undefined}>
-          {backlog ? '—' : dagKort(info.start)}
+        <span className={info.laat ? 'laat' : undefined}>
+          {backlog ? '—' : dagKort(info.start)}{!backlog && info.achter > 0 ? ` +${info.achter} wd` : ''}
         </span>
       </div>
     </td>
+    </CelTooltip>
   )
 }

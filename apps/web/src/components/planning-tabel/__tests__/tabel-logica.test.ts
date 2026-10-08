@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Machine } from '../../../api/machines'
 import type { PlanningStapItem } from '../../../utils/planningUtils'
 import { computeRelockedDates, computeVerplichtKlaar, type QueueJob } from '../../../utils/planningQueueUtils'
-import { samenvoegen, soortVanStap, waaromNietNaar, verplaats, preview, maakVoorstel, isTeLaat, dagKort, urenKort, type Wachtrijen } from '../tabel-logica'
+import { samenvoegen, werkdagenTeLaat, soortVanStap, waaromNietNaar, verplaats, preview, maakVoorstel, isTeLaat, dagKort, urenKort, type Wachtrijen } from '../tabel-logica'
 
 // Maandag 13-07-2026.
 const START = new Date(2026, 6, 13)
@@ -126,5 +126,11 @@ describe('tekst', () => {
     expect(isTeLaat(null, '2026-07-16')).toBe(false)
     expect(dagKort('2026-10-14')).toBe('wo 14-10')
     expect(urenKort(270)).toBe('4,5 u')
+  })
+  it('achterstand in werkdagen: vrijdag → maandag is één dag', () => {
+    expect(werkdagenTeLaat('2026-10-12', '2026-10-09')).toBe(1)
+    expect(werkdagenTeLaat('2026-10-14', '2026-10-09')).toBe(3)
+    expect(werkdagenTeLaat('2026-10-09', '2026-10-09')).toBe(0)
+    expect(werkdagenTeLaat('2026-10-12', null)).toBe(0)
   })
 })

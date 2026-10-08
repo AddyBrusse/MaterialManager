@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { MACHINE_SOORTEN, MACHINE_SOORT_LABEL } from '@stockmanager/shared'
 import type { Machine } from '../../api/machines'
 import { relatiesApi } from '../../api/relaties'
-import { isBacklogJob, type DerivedSlot, type QueueJob } from '../../utils/planningQueueUtils'
-import { isTeLaat, maakVoorstel, startDag, uiterlijkeStart, type Voorstel, type Wachtrijen } from './tabel-logica'
+import { dateForOffset, isBacklogJob, type DerivedSlot, type QueueJob } from '../../utils/planningQueueUtils'
+import { toDateStr } from '../../utils/planningUtils'
+import { isTeLaat, maakVoorstel, startDag, uiterlijkeStart, werkdagenTeLaat, type Voorstel, type Wachtrijen } from './tabel-logica'
 import { TabelRaster, type Kolom } from './TabelRaster'
 import { ProjectLijst, type ProjectRij, type ProjectZoek } from './ProjectLijst'
 import { DetailBalk } from './DetailBalk'
@@ -72,7 +73,7 @@ export function PlanningTabel({ allJobs, backlog, wachtrijen, machines, schedule
     for (const j of allJobs) {
       if (!pastPz(j)) continue
       const p = j.item.project
-      const r = per.get(p.id) ?? { id: p.id, naam: p.naam, klant: klantVan(j), open: 0, nietIngepland: 0 }
+      const r = per.get(p.id) ?? { id: p.id, naam: p.naam, klant: klantVan(j), levering: p.levertijdDatum ?? null, open: 0, nietIngepland: 0 }
       r.open++
       if (isBacklogJob(j)) r.nietIngepland++
       per.set(p.id, r)
@@ -98,7 +99,11 @@ export function PlanningTabel({ allJobs, backlog, wachtrijen, machines, schedule
       <div className="pt-midden">
         <ProjectLijst projecten={projecten} zoek={pz} onZoek={setPz} gekozen={project} onKies={(pid) => { setProject(pid); if (pid && gekozen && gekozen.item.project.id !== pid) setGekozen(null) }}
           onInplannen={(pid) => setVoorstel({ project: pid, vast: new Map(), lijst: bereken(pid, new Map()) })} />
-        <TabelRaster kolommen={kolommen} info={(j) => ({ klant: klantVan(j), start: startVan(j), laat: laatVan(j) })} zichtbaar={zichtbaar}
+        <TabelRaster kolommen={kolommen} info={(j) => {
+          const start = startVan(j), uiterlijk = uiterlijkeStart(j, verplichtKlaar, windowStart), slot = schedule.get(j.id)
+          return { klant: klantVan(j), start, uiterlijk, laat: isTeLaat(start, uiterlijk), achter: werkdagenTeLaat(start, uiterlijk),
+            eind: start && slot ? toDateStr(dateForOffset(windowStart, Math.max(Math.floor(slot.startOffsetDays), Math.ceil(slot.finishOffsetDays) - 1))) : null }
+        }} zichtbaar={zichtbaar}
           gekozenId={gekozen?.id ?? null} gerelateerdOrder={gekozen?.orderId ?? null} sleep={sleep.sleep} doel={sleep.doel} dicht={sleep.dicht}
           onKies={(j) => setGekozen(gekozen?.id === j.id ? null : j)} onSleepStart={sleep.start} onSleepOver={sleep.over} onLos={sleep.los} onSleepEind={sleep.eind} />
       </div>

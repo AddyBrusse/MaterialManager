@@ -2210,3 +2210,22 @@ berekende startdag). Code: `components/planning-tabel/`.
 - Niet automatisch bij het vrijgeven: de server kent de geschatte tijden niet
   (die rekent het scherm uit de calculatie). Nieuw werk staat in "Niet
   ingepland" en "Inplannen" doet het voorstel.
+
+## 2026-10-08 — Planningstabel: achterstand, tooltip, projectenlijst
+
+- **Achterstand in werkdagen** (`werkdagenTeLaat`, met `plusWerkdagen` uit de
+  inkoopplanning): vrijdag uiterlijk, maandag gepland = 1 werkdag te laat. Een
+  weekend telt niet mee, anders lijkt elke maandag-start twee dagen erger dan
+  hij is. Staat als "+N wd" in de cel, in de kolom "Achter" onder de tabel en
+  in de tooltip. Alleen voor ingeplande stappen.
+- **Tooltip na 2 s** stilstaan op een cel (Mantine `HoverCard`, niet tijdens
+  slepen): order, project, klant, artikel met tekening, materiaal, stap x van
+  y, stuks gereed, geschatte tijd, gepland start → eind, uiterlijk start,
+  achterstand, levering, en de preview uit `ArtikelPreviewThumb` (dezelfde als
+  bij de offerte). Twee seconden zodat de tooltip niet in de weg zit bij
+  gewoon klikken en slepen.
+- **Projectenlijst** toont ook de omschrijving (`project.naam`) en de
+  leverdatum; een leverdatum die voorbij is, is rood.
+- **Gantt** kreeg een legenda: rood streepje = uiterlijk starten, rode
+  stippellijn = levering, grijze lijn = vandaag. Heet de stap zoals de
+  machine, dan staat de naam één keer op de balk.

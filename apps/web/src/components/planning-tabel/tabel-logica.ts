@@ -9,7 +9,7 @@
  * Tijdlijn en Tabel altijd hetzelfde zeggen. Een verplaatsing schrijft alleen
  * de stap zelf; de data van wat erna komt rekent de planner opnieuw uit.
  */
-import { MACHINE_SOORTEN, MACHINE_SOORT_LABEL, type MachineSoort } from '@stockmanager/shared'
+import { MACHINE_SOORTEN, MACHINE_SOORT_LABEL, plusWerkdagen, type MachineSoort } from '@stockmanager/shared'
 import type { Machine } from '../../api/machines'
 import {
   computeInsertPosition, computeLatestStart, computeRelockedDates, dateForOffset,
@@ -71,6 +71,19 @@ export function startDag(slot: DerivedSlot | undefined, windowStart: Date): stri
 /** Laat = de berekende start valt na de uiterste start (terug gerekend van de levering). */
 export function isTeLaat(start: string | null, uiterlijk: string | null): boolean {
   return start != null && uiterlijk != null && start > uiterlijk
+}
+
+/**
+ * Hoeveel werkdagen de berekende start na de uiterste start valt (2026-10-08);
+ * 0 als hij op tijd is. Werkdagen, want de planner slaat het weekend ook over:
+ * vrijdag → maandag is één dag te laat, niet drie.
+ */
+export function werkdagenTeLaat(start: string | null, uiterlijk: string | null): number {
+  if (!isTeLaat(start, uiterlijk)) return 0
+  let n = 0
+  let d = uiterlijk!
+  while (d < start! && n < 1000) { d = plusWerkdagen(d, 1); n++ }
+  return n
 }
 
 export function uiterlijkeStart(job: QueueJob, verplichtKlaar: Map<string, string>, windowStart: Date): string | null {

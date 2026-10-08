@@ -1,6 +1,6 @@
 import { dayOffsetForDateStr, dateForOffset, type DerivedSlot, type QueueJob } from '../../utils/planningQueueUtils'
 import { toDateStr } from '../../utils/planningUtils'
-import { dagKort, isTeLaat, startDag, uiterlijkeStart, urenKort } from './tabel-logica'
+import { dagKort, isTeLaat, startDag, uiterlijkeStart, urenKort, werkdagenTeLaat } from './tabel-logica'
 
 interface Props {
   jobs: QueueJob[]
@@ -36,17 +36,20 @@ export function DetailBalk({ jobs, gekozenId, klant, schedule, verplichtKlaar, w
           <div className="s">{klant} · {o.item.project.id} · {o.item.order.qty} st{levering ? ` · levering ${dagKort(levering)}` : ''}</div>
         </div>
         <table>
-          <thead><tr><th>Stap</th><th>Machine</th><th>Tijd</th><th>Start</th></tr></thead>
+          <thead><tr><th>Stap</th><th>Machine</th><th>Tijd</th><th>Start</th><th>Achter</th></tr></thead>
           <tbody>
             {jobs.map((j, i) => {
-              const start = startDag(slots[i], windowStart)
-              const laat = isTeLaat(start, uiterlijkeStart(j, verplichtKlaar, windowStart))
+              const start = j.item.stap.geplandDatum ? startDag(slots[i], windowStart) : null
+              const u = uiterlijkeStart(j, verplichtKlaar, windowStart)
+              const laat = isTeLaat(start, u)
+              const achter = werkdagenTeLaat(start, u)
               return (
                 <tr key={j.id} data-sel={j.id === gekozenId || undefined} onClick={() => onKies(j)}>
                   <td>{j.volgorde} · {j.naam}</td>
                   <td>{j.machineNaam && j.item.stap.geplandDatum ? j.machineNaam : <span style={{ color: 'var(--text-3)' }}>niet ingepland</span>}</td>
                   <td className="cell-mono">{urenKort(j.duurMin)}</td>
                   <td className="cell-mono" style={laat ? { color: 'var(--danger)', fontWeight: 600 } : undefined}>{dagKort(start)}</td>
+                  <td className="cell-mono" style={achter ? { color: 'var(--danger)', fontWeight: 600 } : { color: 'var(--text-3)' }}>{achter ? `+${achter} wd` : '—'}</td>
                 </tr>
               )
             })}
@@ -72,8 +75,8 @@ export function DetailBalk({ jobs, gekozenId, klant, schedule, verplichtKlaar, w
                 {s && (
                   <div className="bar" data-sel={j.id === gekozenId || undefined} data-laat={isTeLaat(startDag(s, windowStart), u) || undefined}
                     style={{ left: pct(s.startOffsetDays), width: `max(4px, calc(${((s.finishOffsetDays - s.startOffsetDays) / dagen) * 100}%))` }}
-                    onClick={() => onKies(j)} title={`${j.naam} · ${j.machineNaam} · ${urenKort(j.duurMin)}`}>
-                    {j.naam} · {j.machineNaam}
+                    onClick={() => onKies(j)} title={`${balkTekst(j)} · ${urenKort(j.duurMin)}`}>
+                    {balkTekst(j)}
                   </div>
                 )}
                 {u && <div className="tick" style={{ left: pct(dayOffsetForDateStr(u, windowStart)) }} title={`Uiterlijk starten: ${dagKort(u)}`} />}
@@ -82,8 +85,14 @@ export function DetailBalk({ jobs, gekozenId, klant, schedule, verplichtKlaar, w
           })}
           <div className="vandaag" style={{ left: pct(0) }} title="Vandaag" />
           {levering && <div className="lim" style={{ left: pct(dayOffsetForDateStr(levering, windowStart)) }} title={`Levering ${dagKort(levering)}`} />}
+          <div className="leg"><span><i className="t" />uiterlijk starten</span><span><i className="l" />levering</span><span><i className="v" />vandaag</span></div>
         </div>
       </div>
     </div>
   )
+}
+
+/** "Draaien · DMG 450TC"; heet de stap zoals de machine, dan één keer. */
+function balkTekst(j: QueueJob): string {
+  return !j.machineNaam || j.naam.trim().toLowerCase() === j.machineNaam.trim().toLowerCase() ? (j.machineNaam || j.naam) : `${j.naam} · ${j.machineNaam}`
 }
