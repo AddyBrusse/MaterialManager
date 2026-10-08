@@ -162,7 +162,7 @@ export function dayOffsetForDateStr(dateStr: string, windowStart: Date): number 
 }
 
 /** Walk forward from `startFrac` (a fractional day offset) consuming `durationMin` at EFFECTIEVE_MIN/open-day. */
-function walkForward(startFrac: number, durationMin: number, worksWeekends: boolean, windowStart: Date): number {
+export function walkForward(startFrac: number, durationMin: number, worksWeekends: boolean, windowStart: Date): number {
   let day = Math.floor(startFrac)
   let used = Math.round((startFrac - day) * EFFECTIEVE_MIN)
   if (used <= 0) {

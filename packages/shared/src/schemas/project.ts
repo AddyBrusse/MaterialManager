@@ -37,6 +37,11 @@ export const ProductieStapSchema = z.object({
   // which matters because a machine's queue can span steps that live in many
   // different Project rows. null = not queued (backlog).
   queuePosition: z.number().nullable().optional(),
+  // Automatisch plannen (2026-10-08): de rang die de planner gaf, lager = eerder.
+  // Los van queuePosition: dat is de volgorde die er op de machine uitkomt, en
+  // een stap die op zijn vorige stap wacht kan daar later staan dan zijn
+  // prioriteit zegt. null = nog nooit ingepland; die komt in op uiterlijk starten.
+  prioriteit: z.number().nullable().optional(),
 })
 export type ProductieStap = z.infer<typeof ProductieStapSchema>
 
