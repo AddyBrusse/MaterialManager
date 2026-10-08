@@ -1,6 +1,8 @@
 import { IconWand } from '@tabler/icons-react'
+import { dagKort } from './tabel-logica'
+import { toDateStr } from '../../utils/planningUtils'
 
-export interface ProjectRij { id: string; naam: string; klant: string; open: number; nietIngepland: number }
+export interface ProjectRij { id: string; naam: string; klant: string; levering: string | null; open: number; nietIngepland: number }
 
 export interface ProjectZoek { klant: string; project: string; stap: string }
 
@@ -20,6 +22,7 @@ interface Props {
  */
 export function ProjectLijst({ projecten, zoek, onZoek, gekozen, onKies, onInplannen }: Props) {
   const gekozenRij = projecten.find((p) => p.id === gekozen)
+  const vandaag = toDateStr(new Date())
   return (
     <div className="pt-box pt-proj">
       <div className="f">
@@ -32,12 +35,20 @@ export function ProjectLijst({ projecten, zoek, onZoek, gekozen, onKies, onInpla
           <b>Alle projecten</b>
           <div className="k"><span>{projecten.length} projecten</span><span>{projecten.reduce((s, p) => s + p.open, 0)}</span></div>
         </button>
-        {projecten.map((p) => (
-          <button key={p.id} type="button" className="r" data-sel={gekozen === p.id} onClick={() => onKies(gekozen === p.id ? null : p.id)} title={p.naam}>
-            <b>{p.id}</b>
-            <div className="k"><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.klant}</span><span>{p.open}{p.nietIngepland ? ` · ${p.nietIngepland} los` : ''}</span></div>
-          </button>
-        ))}
+        {projecten.map((p) => {
+          // Een leverdatum die al voorbij is terwijl er nog werk open staat, is rood.
+          const voorbij = p.levering != null && p.levering < vandaag
+          return (
+            <button key={p.id} type="button" className="r" data-sel={gekozen === p.id} onClick={() => onKies(gekozen === p.id ? null : p.id)} title={`${p.id} · ${p.naam}`}>
+              <div className="k" style={{ color: 'inherit' }}><b>{p.id}</b><span>{p.open}{p.nietIngepland ? ` · ${p.nietIngepland} los` : ''}</span></div>
+              <div className="naam">{p.naam}</div>
+              <div className="k">
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.klant}</span>
+                <span className={voorbij ? 'voorbij' : undefined} title="Leverdatum">{p.levering ? dagKort(p.levering) : 'geen datum'}</span>
+              </div>
+            </button>
+          )
+        })}
         {projecten.length === 0 && <div style={{ padding: 10, fontSize: 12, color: 'var(--text-3)' }}>Geen projecten met open stappen.</div>}
       </div>
       {gekozenRij && (
