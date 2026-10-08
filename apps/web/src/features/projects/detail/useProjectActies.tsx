@@ -20,6 +20,7 @@ import { BevestigModal } from './components/BevestigModal'
 import type { Stap } from './lib/tab-actie'
 import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
 import { ApiFout } from '../../../api/client'
+import { herberekenPlanning } from '../../../components/opdracht-planning/herbereken'
 
 /**
  * Alles wat dit scherm schrijft, op één plek.
@@ -342,7 +343,7 @@ export function useProjectActies(
   const vrijgevenNu = (orderIds: string[]) => {
     setVrijMetVraag(null)
     const n = orderIds.length
-    doe(
+    const gedaan = doe(
       `${n} ${n === 1 ? 'order' : 'orders'} in productie geven`,
       `${n} ${n === 1 ? 'order' : 'orders'} vrijgegeven — nu in de wachtrij, de planning en op de terminal`,
       () => {
@@ -350,6 +351,13 @@ export function useProjectActies(
         projectsApi.vrijgeven(id, orderIds)
       },
     )
+    // Daarna plant de planning het vanzelf in (2026-10-08) — pas als de server
+    // het vrijgeven bevestigd heeft, anders rekent hij met orders die er niet zijn.
+    if (gedaan) {
+      void wachtOpOpslag(id).then((ok) => {
+        if (ok) void herberekenPlanning({ aanleiding: `${orderIds.join(', ')} in productie gegeven`, nadruk: orderIds })
+      })
+    }
   }
 
   // Eerst het venster met de opdrachtreferentie; de handeling zelf gebeurt

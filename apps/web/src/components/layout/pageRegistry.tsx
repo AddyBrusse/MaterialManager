@@ -20,6 +20,7 @@ import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../features/projects/detail/ProjectDetailPage'
 import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
+import { WerkbordPage } from '../../routes/desktop/WerkbordPage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
@@ -45,6 +46,8 @@ export interface PageEntry {
 export const PAGES: PageEntry[] = [
   // Planning
   { path: '/planning-queue', label: 'Wachtrij', Icon: IconListNumbers, Component: PlanningQueuePage, poppable: true, hideChrome: true },
+  // Alleen als los venster vanuit Planning → Opdrachten (2026-10-08); niet in het menu.
+  { path: '/planning-werkbord', label: 'Werkbord', Icon: IconListNumbers, Component: WerkbordPage, poppable: true },
   { path: '/prognose',       label: 'Prognose', Icon: IconChartBar,    Component: PrognosePage,      poppable: true },
   { path: '/todos',          label: 'ToDo',     Icon: IconChecklist,   Component: TodosPage,         poppable: true },
   { path: '/tijdregistratie', label: 'Tijdregistratie', Icon: IconClock, Component: TijdregistratiePage, poppable: true },

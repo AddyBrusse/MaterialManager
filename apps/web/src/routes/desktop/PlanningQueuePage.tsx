@@ -18,6 +18,7 @@ import {
 } from '../../utils/planningQueueUtils'
 import { QueueToolbar, type PlanningWeergave } from '../../components/planning-queue/QueueToolbar'
 import { PlanningTabel } from '../../components/planning-tabel/PlanningTabel'
+import { OpdrachtPlanning } from '../../components/opdracht-planning/OpdrachtPlanning'
 import { QueueKpiStrip } from '../../components/planning-queue/QueueKpiStrip'
 import { QueueBacklog } from '../../components/planning-queue/QueueBacklog'
 import { QueuePanel } from '../../components/planning-queue/QueuePanel'
@@ -51,7 +52,7 @@ export function PlanningQueuePage() {
   const [zoom, setZoom] = useLocalStorage<QueueZoom>({ key: 'sm_wq_zoom', defaultValue: 'week' })
   const [showKpi, setShowKpi] = useLocalStorage<boolean>({ key: 'sm_wq_kpi', defaultValue: false })
   // Tabel naast Tijdlijn (2026-10-08); per pc onthouden, zoals de zoom.
-  const [weergave, setWeergave] = useLocalStorage<PlanningWeergave>({ key: 'sm_wq_weergave', defaultValue: 'tijdlijn' })
+  const [weergave, setWeergave] = useLocalStorage<PlanningWeergave>({ key: 'sm_wq_weergave', defaultValue: 'opdrachten' })
   const [showConnections, setShowConnections] = useState(false)
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [selectedMachineName, setSelectedMachineName] = useState('')
@@ -297,7 +298,9 @@ export function PlanningQueuePage() {
       />
       {weergave === 'tijdlijn' && showKpi && <QueueKpiStrip kpis={kpis} />}
 
-      {weergave === 'tabel' ? (
+      {weergave === 'opdrachten' ? (
+        <OpdrachtPlanning />
+      ) : weergave === 'tabel' ? (
         <PlanningTabel
           allJobs={allJobs} backlog={backlog} wachtrijen={machineQueues} machines={machines}
           schedule={schedule} verplichtKlaar={verplichtKlaar} windowStart={windowStart} onGewijzigd={bump}
