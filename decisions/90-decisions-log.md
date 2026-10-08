@@ -2171,3 +2171,42 @@ Opdracht · In productie · Paklijst · Factuur** (`stappenVan` in
 - Fout uit de voorraadfilters: "Wis filters" stond er ook zonder filter, omdat
   de opgeslagen voorkeur (jsonb) de sleutels in een andere volgorde teruggeeft
   en de vergelijking op tekst ging. Nu op inhoud (`filtersActief`).
+
+## 2026-10-08 — Planning als tabel: machines × plekken in de wachtrij
+
+Per onderdeel per machine slepen op de tijdlijn was veel werk. Naast de
+**Tijdlijn** staat nu een **Tabel** (Planning → Wachtrij, keuze bovenin):
+kolom = machine, rij = plek in de wachtrij, cel = één productiestap
+(productienummer, tekening, klant, omschrijving, geschatte tijd en de
+berekende startdag). Code: `components/planning-tabel/`.
+
+- **Geen tweede planning.** De tabel leest en schrijft dezelfde velden als de
+  Wachtrij (`geplandMachine`, `queuePosition`, `geplandDatum`) en rekent met
+  dezelfde functies (`deriveShopSchedule`, `computeRelockedDates`,
+  `computeLatestStart`). Een verplaatsing schrijft de stap zelf; de datums van
+  wat erachter of erna komt rekent de planner uit — gerelateerde cellen hoef
+  je niet mee te slepen.
+- **Rode datum** = de berekende start valt na de uiterste start, terug gerekend
+  vanaf de leverdatum (`computeLatestStart`).
+- **Slepen met preview**: tijdens het slepen staat bij de muis waar de stap
+  landt en wat er verschuift, met dezelfde rekensom als het opslaan.
+- **Alleen naar dezelfde soort.** Machines kregen een veld **Soort** (zagen,
+  draaien, frezen, handwerk, uitbesteed; Instellingen → Bedrijfskosten →
+  Machines; migratie `20261008090000_machine_soort`, leeg tot iemand het
+  invult). De soort van een stap is die van de machine in het recept; heet de
+  bewerking precies als een soort ("zagen"), dan die. Is de soort onbekend,
+  dan mag de stap overal heen en zegt de preview dat erbij — anders kan er
+  niets zolang de soorten niet zijn ingevuld.
+- **"Niet ingepland"** is de kolom links; daarheen slepen haalt de stap van
+  de machine. Gereed gemelde stappen staan er niet in.
+- **Inplannen met een voorstel** (per project, knop onder de projectenlijst):
+  eerste keuze de machine uit het recept, anders de machine van dezelfde
+  soort waarop hij het vroegst kan beginnen; in de rij vóór werk dat later
+  uiterlijk moet starten. Per stap zijn de andere machines van die soort te
+  kiezen. Een vuistregel, geen optimale planning: andere stappen schuiven niet
+  op. Het voorstel wordt in zijn geheel doorgerekend en in één keer opgeslagen
+  (`samenvoegen`); stap voor stap rekende een latere plaatsing met een
+  verouderde kopie van de eerste en kwam die in het verleden terecht.
+- Niet automatisch bij het vrijgeven: de server kent de geschatte tijden niet
+  (die rekent het scherm uit de calculatie). Nieuw werk staat in "Niet
+  ingepland" en "Inplannen" doet het voorstel.

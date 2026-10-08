@@ -9,6 +9,7 @@ export type MachineInput = CreateMachine
 export const LOADER_DEFAULTS = {
   barloaderMinMm: 500, barloaderMaxMm: 1100, opspanlengteMm: 30, afsteekMm: 3,
   heeftStangenlader: false,
+  soort: null,
 } as const
 
 export const MOCK_MACHINES: Machine[] = [

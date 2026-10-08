@@ -16,7 +16,8 @@ import {
   hasDownstreamDependent, computeCascadeImpact, computeSuggestOptions, computeRelockedDates,
   EFFECTIEVE_MIN, type SuggestOptionResult,
 } from '../../utils/planningQueueUtils'
-import { QueueToolbar } from '../../components/planning-queue/QueueToolbar'
+import { QueueToolbar, type PlanningWeergave } from '../../components/planning-queue/QueueToolbar'
+import { PlanningTabel } from '../../components/planning-tabel/PlanningTabel'
 import { QueueKpiStrip } from '../../components/planning-queue/QueueKpiStrip'
 import { QueueBacklog } from '../../components/planning-queue/QueueBacklog'
 import { QueuePanel } from '../../components/planning-queue/QueuePanel'
@@ -49,6 +50,8 @@ export function PlanningQueuePage() {
 
   const [zoom, setZoom] = useLocalStorage<QueueZoom>({ key: 'sm_wq_zoom', defaultValue: 'week' })
   const [showKpi, setShowKpi] = useLocalStorage<boolean>({ key: 'sm_wq_kpi', defaultValue: false })
+  // Tabel naast Tijdlijn (2026-10-08); per pc onthouden, zoals de zoom.
+  const [weergave, setWeergave] = useLocalStorage<PlanningWeergave>({ key: 'sm_wq_weergave', defaultValue: 'tijdlijn' })
   const [showConnections, setShowConnections] = useState(false)
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [selectedMachineName, setSelectedMachineName] = useState('')
@@ -286,13 +289,20 @@ export function PlanningQueuePage() {
   return (
     <div className="wq pg-root">
       <QueueToolbar
+        weergave={weergave} onWeergave={setWeergave}
         zoom={zoom} onZoom={setZoom}
         showKpi={showKpi} onToggleKpi={() => setShowKpi(v => !v)}
         onSuggest={() => setSuggestOpen(true)}
         onClose={isPopout ? () => window.close() : undefined}
       />
-      {showKpi && <QueueKpiStrip kpis={kpis} />}
+      {weergave === 'tijdlijn' && showKpi && <QueueKpiStrip kpis={kpis} />}
 
+      {weergave === 'tabel' ? (
+        <PlanningTabel
+          allJobs={allJobs} backlog={backlog} wachtrijen={machineQueues} machines={machines}
+          schedule={schedule} verplichtKlaar={verplichtKlaar} windowStart={windowStart} onGewijzigd={bump}
+        />
+      ) : (
       <div className="wq-body">
         <QueueBacklog
           jobs={backlog}
@@ -365,6 +375,7 @@ export function PlanningQueuePage() {
           )}
         </div>
       </div>
+      )}
 
       <SuggestScheduleModal
         opened={suggestOpen}
