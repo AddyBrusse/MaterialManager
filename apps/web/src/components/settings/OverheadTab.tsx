@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconPlus, IconTrash, IconX } from '@tabler/icons-react'
 import { machinesApi, type Machine } from '../../api/machines'
+import { MACHINE_SOORTEN, MACHINE_SOORT_LABEL } from '@stockmanager/shared'
 import { meldFout } from '../../utils/fout-melding-toon'
 import {
   overheadApi, computeMachineOverhead,
@@ -218,6 +219,26 @@ export function OverheadTab() {
     </tr>
   )
 
+  const soortRow = () => (
+    <tr style={{ cursor: 'default' }}>
+      <L text="Soort" title="Wat voor werk de machine doet. De planning sleept een stap alleen naar een machine van dezelfde soort." />
+      {machines.map(m => (
+        <td key={m.id} style={{ padding: '1px 3px' }}>
+          <select
+            aria-label={`Soort van ${m.name}`}
+            value={m.soort ?? ''}
+            onChange={e => saveMachine(m.id, { soort: (e.target.value || null) as Machine['soort'] })}
+            style={{ width: '100%', font: 'inherit', fontSize: 11.5, border: '1px solid var(--border-input)', borderRadius: 4, background: m.soort ? 'var(--bg-input)' : 'var(--warning-soft, #fff7ed)', padding: '1px 2px' }}
+          >
+            <option value="">— kies —</option>
+            {MACHINE_SOORTEN.map(s => <option key={s} value={s}>{MACHINE_SOORT_LABEL[s]}</option>)}
+          </select>
+        </td>
+      ))}
+      <td />
+    </tr>
+  )
+
   const computedRow = (
     label: string,
     getValue: (m: Machine, r: MachineOverheadResult) => string,
@@ -308,6 +329,8 @@ export function OverheadTab() {
             <tbody>
               {/* ── Machine configuratie ── */}
               <Sec label="Machine configuratie" cols={mc} />
+              {/* Soort (2026-10-08): de planning sleept alleen naar dezelfde soort. */}
+              {soortRow()}
               {inputRow('Machine tarief',  (m) => m.machineRatePerHour,  (id, v) => saveMachine(id, { machineRatePerHour:  v ?? 0 }), { step: 1, ph: '0' })}
               {inputRow('Operator (€/u)',  (m) => m.operatorRatePerHour, (id, v) => saveMachine(id, { operatorRatePerHour: v ?? 0 }), { step: 1, ph: '0' })}
               {checkRow('Werkt in weekend', (m) => m.worksWeekends, (id, v) => saveMachine(id, { worksWeekends: v }), { title: 'Machine draait onbemand door op zaterdag/zondag' })}

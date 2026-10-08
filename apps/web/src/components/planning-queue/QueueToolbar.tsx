@@ -1,7 +1,12 @@
 import { IconArrowBackUp, IconArrowForwardUp, IconSparkles, IconPictureInPictureOff } from '@tabler/icons-react'
 import type { QueueZoom } from '../../utils/planningQueueUtils'
 
+export type PlanningWeergave = 'tijdlijn' | 'tabel'
+
 interface QueueToolbarProps {
+  /** Tijdlijn (de wachtrij met de vlakken) of Tabel (machines × plekken, 2026-10-08). */
+  weergave: PlanningWeergave
+  onWeergave: (w: PlanningWeergave) => void
   zoom: QueueZoom
   onZoom: (z: QueueZoom) => void
   showKpi: boolean
@@ -12,18 +17,28 @@ interface QueueToolbarProps {
 
 const ZOOM_OPTS: [QueueZoom, string][] = [['dag', 'Dag'], ['week', 'Week'], ['maand', 'Maand']]
 
-export function QueueToolbar({ zoom, onZoom, showKpi, onToggleKpi, onSuggest, onClose }: QueueToolbarProps) {
+export function QueueToolbar({ weergave, onWeergave, zoom, onZoom, showKpi, onToggleKpi, onSuggest, onClose }: QueueToolbarProps) {
   return (
     <div className="plan-toolbar">
       <span className="tb-label" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>Planning</span>
       <div className="tb-divider" />
 
-      <div className="seg" role="tablist">
-        {ZOOM_OPTS.map(([v, l]) => (
-          <button key={v} data-active={zoom === v} onClick={() => onZoom(v)}>{l}</button>
-        ))}
+      <div className="seg" role="tablist" aria-label="Weergave">
+        <button data-active={weergave === 'tijdlijn'} onClick={() => onWeergave('tijdlijn')}>Tijdlijn</button>
+        <button data-active={weergave === 'tabel'} onClick={() => onWeergave('tabel')}>Tabel</button>
       </div>
       <div className="tb-divider" />
+
+      {weergave === 'tijdlijn' && (
+        <>
+          <div className="seg" role="tablist">
+            {ZOOM_OPTS.map(([v, l]) => (
+              <button key={v} data-active={zoom === v} onClick={() => onZoom(v)}>{l}</button>
+            ))}
+          </div>
+          <div className="tb-divider" />
+        </>
+      )}
 
       <button className="icon-btn" disabled title="Ongedaan maken (nog niet beschikbaar)">
         <IconArrowBackUp size={14} />
@@ -42,9 +57,11 @@ export function QueueToolbar({ zoom, onZoom, showKpi, onToggleKpi, onSuggest, on
 
       <div className="sp" />
 
-      <button className="tgl" data-on={showKpi} onClick={onToggleKpi}>
-        <span className="sw" /> Toon KPI's
-      </button>
+      {weergave === 'tijdlijn' && (
+        <button className="tgl" data-on={showKpi} onClick={onToggleKpi}>
+          <span className="sw" /> Toon KPI's
+        </button>
+      )}
     </div>
   )
 }
