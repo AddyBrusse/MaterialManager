@@ -1,63 +1,31 @@
 /**
- * Welke staven zaag je, en op welke lengte, voor een bepaald aantal stuks.
+ * Welke staven zagen we voor een opdracht? (herzien 2026-10-09)
  *
- * Draaiwerk gaat hier via een stangenlader: de draaibank trekt een stang van
- * pakweg 500–1100 mm naar binnen. De vraag is dus niet alleen "welke staaf",
- * maar ook "op welke lengte zagen we hem", en die twee hangen samen.
+ * De lengtes staan al vast vóór de voorraad erbij komt: `materiaalBehoefte`
+ * (`bruto-lengte.ts`) maakt van het aantal stuks een lijst laderstangen — zo
+ * veel mogelijk stuks per stang binnen de lader, gelijk verdeeld — of, zonder
+ * lader, één lengte per stuk. Hier worden die lengtes tegen de voorraad
+ * gelegd.
  *
- * De rekenkern is bewust puur: geen database, geen fetch. Hij krijgt de vrije
- * lengtes mee en geeft een plan terug — beslissen wat ermee gebeurt doet de
- * aanroeper.
+ * De rekenkern is bewust puur: geen database, geen fetch. Hij geeft een paar
+ * voorstellen terug, het beste eerst; kiezen en vastleggen doet een mens
+ * (nooit automatisch, zie CLAUDE.md).
  *
- * ── De maten ──────────────────────────────────────────────────────────────
+ * ── Wat is "het beste"? (afgesproken 2026-10-09) ──────────────────────────
  *
- *   werkstuk       de kale lengte van het product
- *   vlakToeslag    extra per stuk om af te vlakken
- *   afsteek        wat de afsteekbeitel wegneemt per stuk
- *   steekbreedte   de zaagsnede per stuk (op de zaag, niet op de draaibank)
- *   opspanlengte   het staartje dat de lader niet meer kan pakken — per
- *                  laderstang één keer verloren
+ *   1. alles gedekt
+ *   2. de meeste staven helemaal op — een restant dat precies past en daarna
+ *      afgeboekt kan worden is ideaal
+ *   3. het minste schroot
+ *   4. geen korte rest aanmaken: liever een lange staaf aansnijden dan van een
+ *      staaf van 3 m een stuk overhouden waar niemand meer iets mee kan
+ *   5. zo min mogelijk staven
  *
- *   stukLengte  = werkstuk + vlakToeslag + afsteek + steekbreedte
- *   laderstang  = k × stukLengte + opspanlengte, met min ≤ laderstang ≤ max
- *
- * ── De keuze ──────────────────────────────────────────────────────────────
- *
- * Door de laderlengte precies op `k × stukLengte + opspanlengte` te leggen is
- * er per laderstang per definitie niets over. Wat er dan nog te winnen valt zit
- * in de voorraadstaaf: hoeveel blijft er over als je er laderstangen uit zaagt.
- * Daarom wordt elke haalbare k geprobeerd (er zijn er hooguit een handvol) en
- * het plan met het minste écht verloren materiaal gekozen.
- *
- * "Écht verloren" is smaller dan "over": een restant dat boven de
- * schrootdrempel blijft gaat terug het rek in en is geen verlies. Alleen wat
- * daaronder valt is weg.
- *
- * Korte staven gaan voor — restjes opmaken — maar niet tegen elke prijs: laat
- * een korte staaf meer dan `MAX_SCHROOT_AANDEEL` van zichzelf als schroot
- * achter, dan gaat er eerst een langere voor. Dat is de afspraak uit de
- * beslissing van 2026-09-11.
+ * Of een rest bruikbaar is, beslist voorlopig de mens: bij het kiezen kan hij
+ * een rest meteen laten afboeken (`restAfboeken` op de reservering).
  */
 
-/** Boven dit aandeel schroot van de eigen lengte verliest een korte staaf zijn
- *  voorrang. 15%: een restje opmaken is goed, een halve staaf weggooien niet. */
-export const MAX_SCHROOT_AANDEEL = 0.15
-
-export interface ZaagParams {
-  /** Zaagsnede per stuk. */
-  steekbreedte: number
-  /** Afvlakken per stuk. */
-  vlakToeslag: number
-  /** Wat de afsteekbeitel wegneemt per stuk. */
-  afsteek: number
-  /** Staartje dat de lader niet meer pakt — één keer per laderstang. */
-  opspanlengte: number
-}
-
-export interface LoaderGrenzen {
-  minMm: number
-  maxMm: number
-}
+import type { TeZagen } from './bruto-lengte'
 
 export interface PlanStaaf {
   id: string
@@ -67,176 +35,171 @@ export interface PlanStaaf {
   locatie?: string | null
 }
 
-export interface ZaagPlanInvoer {
-  aantal: number
-  werkstukLengteMm: number
-  params: ZaagParams
-  loader: LoaderGrenzen
+export interface VoorstelInvoer {
+  /** Uit `materiaalBehoefte`. */
+  stangen: TeZagen[]
+  zaagsnedeMm: number
   /** Restant hieronder is schroot; daarboven gaat het terug in het rek. */
   schrootDrempelMm: number
   staven: PlanStaaf[]
 }
 
-export interface PlanRegel {
+export interface VoorstelRegel {
   barId: string
   barCode: string
-  locatie?: string | null
-  /** Hoeveel hele laderstangen er uit deze staaf komen. */
-  laderstangen: number
-  /** Stuks die deze staaf levert. */
+  locatie: string | null
+  vrijMm: number
+  /** Wat er uit deze staaf gezaagd wordt. */
+  stangen: TeZagen[]
   stuks: number
-  /** Wat er van de staaf af gaat. */
+  /** Wat er van de staaf af gaat, zaagsneden inbegrepen. */
   verbruikMm: number
-  /** Wat er van de staaf overblijft. */
   restMm: number
-  /** Valt die rest onder de drempel, dan is hij weg. */
+  /** Rest onder de schrootgrens: de staaf is daarna op. */
   restWordtSchroot: boolean
 }
 
-export interface ZaagPlan {
-  /** Lengte die per stuk van de stang gaat, allowances inbegrepen. */
-  stukLengteMm: number
-  /** De gekozen laderlengte. */
-  laderLengteMm: number
-  /** Stuks per laderstang. */
-  stuksPerLaderstang: number
-  regels: PlanRegel[]
-  /** Hoeveel van het gevraagde aantal dit plan dekt. */
+export interface Voorstel {
+  sleutel: string
+  regels: VoorstelRegel[]
   gedekt: number
-  /** Wat er niet gedekt is. 0 betekent: alles ligt er. */
-  tekort: number
-  /** Hoeveel mm staf je nog nodig hebt voor dat tekort — de basis voor een
-   *  bestelling. */
+  tekortStuks: number
+  /** De lengtes die niet uit de voorraad komen — de basis voor een bestelling. */
+  tekortStangen: TeZagen[]
   tekortMm: number
-  /** Totaal aan restanten die onder de drempel vallen. */
+  /** Staven die helemaal op gaan (rest onder de schrootgrens). */
+  stavenOp: number
   schrootMm: number
-}
-
-/** Niets te plannen — een leeg plan in plaats van null, zodat het scherm er
- *  altijd hetzelfde mee omgaat. */
-function leegPlan(stukLengteMm: number, aantal: number): ZaagPlan {
-  return {
-    stukLengteMm, laderLengteMm: 0, stuksPerLaderstang: 0, regels: [],
-    gedekt: 0, tekort: aantal, tekortMm: aantal * stukLengteMm, schrootMm: 0,
-  }
-}
-
-export function stukLengte(werkstukLengteMm: number, p: ZaagParams): number {
-  return werkstukLengteMm + p.vlakToeslag + p.afsteek + p.steekbreedte
+  /** Kortste rest die terug het rek in gaat; null als er geen is. */
+  kortsteRestMm: number | null
 }
 
 /**
- * De laderlengtes die de moeite waard zijn, langste eerst.
- *
- * Alleen lengtes die precies op een heel aantal stuks uitkomen: alles
- * daartussenin laat per laderstang een stuk onbenut. Grote k eerst, want dat
- * betekent minder stangwissels voor de operator.
+ * Vul één staaf zo vol mogelijk met wat er nog moet. Er zijn hooguit een paar
+ * verschillende lengtes (laderstangen van k en k−1 stuks, of één stuklengte),
+ * dus alle aantallen per lengte proberen kan: langste eerst mist dat 3 × 998
+ * precies in 3000 past. Bij gelijke rest de meeste stuks.
  */
-export function kandidaatLengtes(stukLen: number, p: ZaagParams, loader: LoaderGrenzen): number[] {
-  if (stukLen <= 0) return []
-  const uit: number[] = []
-  const kMax = Math.floor((loader.maxMm - p.opspanlengte) / stukLen)
-  for (let k = kMax; k >= 1; k--) {
-    const lengte = k * stukLen + p.opspanlengte
-    if (lengte >= loader.minMm && lengte <= loader.maxMm) uit.push(lengte)
+function vul(staaf: PlanStaaf, nog: TeZagen[], zaag: number): { genomen: number[]; verbruik: number } {
+  const lengtes = [...new Set(nog.map((x) => x.lengteMm))].sort((a, b) => b - a)
+  const idx = lengtes.map((l) => nog.map((x, i) => (x.lengteMm === l ? i : -1)).filter((i) => i >= 0))
+  // De laatste lengte van een staaf heeft geen zaagsnede nodig als hij precies
+  // tot het eind loopt: past als Σ lengte + zaag × (n − 1) ≤ vrij.
+  const past = (som: number, n: number) => n === 0 || som + zaag * (n - 1) <= staaf.vrijMm + 1e-9
+  let beste = { aantallen: lengtes.map(() => 0), som: 0, n: 0 }
+  const probeer = (i: number, aantallen: number[], som: number, n: number) => {
+    if (i === lengtes.length) {
+      const verbruik = Math.min(staaf.vrijMm, som + zaag * n)
+      const besteVerbruik = Math.min(staaf.vrijMm, beste.som + zaag * beste.n)
+      if (verbruik > besteVerbruik + 1e-9 || (Math.abs(verbruik - besteVerbruik) < 1e-9 && n > beste.n)) {
+        beste = { aantallen: [...aantallen], som, n }
+      }
+      return
+    }
+    for (let c = idx[i].length; c >= 0; c--) {
+      if (!past(som + c * lengtes[i], n + c)) continue
+      aantallen[i] = c
+      probeer(i + 1, aantallen, som + c * lengtes[i], n + c)
+    }
+    aantallen[i] = 0
   }
-  return uit
+  if (lengtes.length <= 4) probeer(0, lengtes.map(() => 0), 0, 0)
+  else {
+    // Veel verschillende lengtes komt niet voor; dan gewoon langste eerst.
+    let som = 0, n = 0
+    const aantallen = lengtes.map(() => 0)
+    lengtes.forEach((l, i) => { for (let c = 0; c < idx[i].length && past(som + l, n + 1); c++) { som += l; n++; aantallen[i]++ } })
+    beste = { aantallen, som, n }
+  }
+  const genomen = beste.aantallen.flatMap((c, i) => idx[i].slice(0, c))
+  return { genomen, verbruik: Math.min(staaf.vrijMm, beste.som + zaag * beste.n) }
 }
 
+type Keuze = 'passend-lang' | 'passend-kort' | 'kort-eerst' | 'lang-eerst'
+
 /**
- * Verdeel het gevraagde aantal over de staven bij één vaste laderlengte.
- *
- * Korte staven eerst, maar een staaf die meer dan `MAX_SCHROOT_AANDEEL` van
- * zichzelf als schroot achterlaat gaat achteraan — die pakken we pas als er
- * niets beters is.
+ * Eén voorstel volgens een strategie:
+ *  - passend: steeds de staaf die het best past (staaf op > minste rest); kan
+ *    geen staaf meer op, dan de langste rest (`-lang`) of de kortste (`-kort`)
+ *  - kort-eerst / lang-eerst: staven op lengte
  */
-function verdeel(
-  invoer: ZaagPlanInvoer, stukLen: number, laderLen: number,
-): ZaagPlan {
-  const stuksPerLaderstang = Math.floor((laderLen - invoer.params.opspanlengte) / stukLen)
-  if (stuksPerLaderstang <= 0) return leegPlan(stukLen, invoer.aantal)
+function maak(invoer: VoorstelInvoer, keuze: Keuze): Voorstel {
+  const zaag = invoer.zaagsnedeMm
+  let nog = [...invoer.stangen].sort((a, b) => b.lengteMm - a.lengteMm)
+  const vrij = invoer.staven.filter((s) => s.vrijMm > 0)
+  const regels: VoorstelRegel[] = []
+  const gebruikt = new Set<string>()
 
-  // Per staaf: wat levert hij op en wat blijft er liggen als we hem volledig
-  // benutten. Dat bepaalt de volgorde.
-  const kandidaten = invoer.staven
-    .map((s) => {
-      const stangen = Math.floor(s.vrijMm / laderLen)
-      const rest = s.vrijMm - stangen * laderLen
-      const schroot = rest > 0 && rest < invoer.schrootDrempelMm ? rest : 0
-      return { staaf: s, stangen, rest, schroot }
-    })
-    .filter((k) => k.stangen > 0)
-    .sort((a, b) => {
-      // Duur = een staaf die een groot deel van zichzelf als schroot achterlaat.
-      const duurA = a.staaf.vrijMm > 0 && a.schroot / a.staaf.vrijMm > MAX_SCHROOT_AANDEEL ? 1 : 0
-      const duurB = b.staaf.vrijMm > 0 && b.schroot / b.staaf.vrijMm > MAX_SCHROOT_AANDEEL ? 1 : 0
-      if (duurA !== duurB) return duurA - duurB
-      if (a.staaf.vrijMm !== b.staaf.vrijMm) return a.staaf.vrijMm - b.staaf.vrijMm
-      return a.schroot - b.schroot
-    })
+  const kies = (): { staaf: PlanStaaf; genomen: number[]; verbruik: number } | null => {
+    const opties = vrij
+      .filter((s) => !gebruikt.has(s.id))
+      .map((s) => ({ staaf: s, ...vul(s, nog, zaag) }))
+      .filter((o) => o.genomen.length > 0)
+    if (opties.length === 0) return null
+    if (keuze === 'kort-eerst') return opties.sort((a, b) => a.staaf.vrijMm - b.staaf.vrijMm)[0]
+    if (keuze === 'lang-eerst') return opties.sort((a, b) => b.staaf.vrijMm - a.staaf.vrijMm)[0]
+    const rest = (o: { staaf: PlanStaaf; verbruik: number }) => o.staaf.vrijMm - o.verbruik
+    const op = opties.filter((o) => rest(o) < invoer.schrootDrempelMm)
+    if (op.length > 0) {
+      // Past het precies: de staaf met de kleinste rest, dan die met de meeste stuks.
+      return op.sort((a, b) => rest(a) - rest(b) || b.genomen.length - a.genomen.length)[0]
+    }
+    // Er gaat geen staaf meer helemaal op. Past alles wat nog moet in één
+    // staaf, kies dan welke rest je overhoudt; anders gewoon de meeste stuks.
+    const alles = opties.filter((o) => o.genomen.length === nog.length)
+    const pool = alles.length > 0 ? alles : opties
+    return pool.sort((a, b) =>
+      (alles.length > 0 ? 0 : b.genomen.length - a.genomen.length)
+      || (keuze === 'passend-lang' ? rest(b) - rest(a) : rest(a) - rest(b)))[0]
+  }
 
-  const regels: PlanRegel[] = []
-  let nog = invoer.aantal
-
-  for (const k of kandidaten) {
-    if (nog <= 0) break
-    const nodigeStangen = Math.ceil(nog / stuksPerLaderstang)
-    const stangen = Math.min(k.stangen, nodigeStangen)
-    const stuks = Math.min(nog, stangen * stuksPerLaderstang)
-    const verbruikMm = stangen * laderLen
-    const restMm = k.staaf.vrijMm - verbruikMm
+  while (nog.length > 0) {
+    const k = kies()
+    if (!k) break
+    gebruikt.add(k.staaf.id)
+    const stangen = k.genomen.map((i) => nog[i])
+    const restMm = k.staaf.vrijMm - k.verbruik
     regels.push({
-      barId: k.staaf.id,
-      barCode: k.staaf.code,
-      locatie: k.staaf.locatie ?? null,
-      laderstangen: stangen,
-      stuks,
-      verbruikMm,
-      restMm,
-      // Alleen een restant dat écht overblijft telt: gebruiken we de staaf niet
-      // helemaal op, dan blijft de rest gewoon in het rek liggen.
-      restWordtSchroot: restMm > 0 && restMm < invoer.schrootDrempelMm,
+      barId: k.staaf.id, barCode: k.staaf.code, locatie: k.staaf.locatie ?? null, vrijMm: k.staaf.vrijMm,
+      stangen, stuks: stangen.reduce((s, x) => s + x.stuks, 0), verbruikMm: k.verbruik, restMm,
+      restWordtSchroot: restMm < invoer.schrootDrempelMm,
     })
-    nog -= stuks
+    const weg = new Set(k.genomen)
+    nog = nog.filter((_, i) => !weg.has(i))
   }
 
-  const gedekt = invoer.aantal - nog
+  const totaal = invoer.stangen.reduce((s, x) => s + x.stuks, 0)
+  const gedekt = regels.reduce((s, r) => s + r.stuks, 0)
+  const terug = regels.filter((r) => !r.restWordtSchroot).map((r) => r.restMm)
   return {
-    stukLengteMm: stukLen,
-    laderLengteMm: laderLen,
-    stuksPerLaderstang,
+    sleutel: regels.map((r) => `${r.barId}:${r.stangen.length}`).sort().join('|'),
     regels,
     gedekt,
-    tekort: nog,
-    tekortMm: nog * stukLen,
+    tekortStuks: totaal - gedekt,
+    tekortStangen: nog,
+    tekortMm: nog.reduce((s, x) => s + x.lengteMm + zaag, 0),
+    stavenOp: regels.filter((r) => r.restWordtSchroot).length,
     schrootMm: regels.filter((r) => r.restWordtSchroot).reduce((s, r) => s + r.restMm, 0),
+    kortsteRestMm: terug.length > 0 ? Math.min(...terug) : null,
   }
 }
 
-/**
- * Het beste plan: dekking eerst, dan zo min mogelijk écht verloren materiaal,
- * dan zo min mogelijk stangwissels.
- */
-export function planZaagwerk(invoer: ZaagPlanInvoer): ZaagPlan {
-  const stukLen = stukLengte(invoer.werkstukLengteMm, invoer.params)
-  if (stukLen <= 0 || invoer.aantal <= 0) return leegPlan(Math.max(0, stukLen), Math.max(0, invoer.aantal))
+/** Negatief = `a` is beter. Zie de kop van dit bestand. */
+export function vergelijkVoorstel(a: Voorstel, b: Voorstel): number {
+  return (b.gedekt - a.gedekt)
+    || (b.stavenOp - a.stavenOp)
+    || (a.schrootMm - b.schrootMm)
+    || ((b.kortsteRestMm ?? Infinity) - (a.kortsteRestMm ?? Infinity))
+    || (a.regels.length - b.regels.length)
+}
 
-  const lengtes = kandidaatLengtes(stukLen, invoer.params, invoer.loader)
-  if (lengtes.length === 0) return leegPlan(stukLen, invoer.aantal)
-
-  let beste: ZaagPlan | null = null
-  for (const lengte of lengtes) {
-    const plan = verdeel(invoer, stukLen, lengte)
-    if (!beste) { beste = plan; continue }
-    // 1. meer gedekt wint altijd — materiaal dat er niet ligt is het probleem,
-    //    niet een paar millimeter afval
-    if (plan.gedekt !== beste.gedekt) { if (plan.gedekt > beste.gedekt) beste = plan; continue }
-    // 2. minder écht verloren materiaal
-    if (plan.schrootMm !== beste.schrootMm) { if (plan.schrootMm < beste.schrootMm) beste = plan; continue }
-    // 3. minder stangwissels voor de operator
-    const stangenNieuw = plan.regels.reduce((s, r) => s + r.laderstangen, 0)
-    const stangenBeste = beste.regels.reduce((s, r) => s + r.laderstangen, 0)
-    if (stangenNieuw < stangenBeste) beste = plan
+/** Hooguit `max` verschillende voorstellen, het beste eerst. */
+export function materiaalVoorstellen(invoer: VoorstelInvoer, max = 3): Voorstel[] {
+  const keuzes: Keuze[] = ['passend-lang', 'passend-kort', 'kort-eerst', 'lang-eerst']
+  const uniek = new Map<string, Voorstel>()
+  for (const k of keuzes) {
+    const v = maak(invoer, k)
+    if (!uniek.has(v.sleutel)) uniek.set(v.sleutel, v)
   }
-  return beste ?? leegPlan(stukLen, invoer.aantal)
+  return [...uniek.values()].sort(vergelijkVoorstel).slice(0, max)
 }

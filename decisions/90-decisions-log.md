@@ -2328,3 +2328,42 @@ geheel terugdraaien.
   voorrang eerst; staat zijn vorige stap nog niet, dan eerst die. Anders kreeg
   werk met minder voorrang al een plek vóór de vorige stap van een stap die
   hoger gezet was, en kon "machine laten wachten" niets tegenhouden.
+
+## 2026-10-09 — Materiaal: stangenlader per regel, aantal uit de offerte, hulp bij kiezen
+
+- **Het recept is voor één stuk.** Een materiaalregel heeft materiaal,
+  werkstuklengte en (optioneel) de stangenlader — geen aantal. Hoeveel stuks
+  komt uit de offerte, en daarmee pas hoeveel materiaal: 80 stuks is iets
+  anders dan 20 (opspan en zaagsnede tellen per stang). Een exoot houdt zijn
+  aantal: dat is "zoveel exoten per werkstuk".
+- **Stangenlader is een keuze per materiaalregel** (`laderMachineId`), niet
+  meer "er staat een draaibank met lader in de bewerkingen". Dat laatste zette
+  de lader ook aan voor werk dat gewoon gezaagd wordt. De maten (grijp,
+  afsteek, min/max) horen bij de machine en verschillen per machine.
+- **Opbouw met lader**: per stuk werkstuk + vlak (1,5 + 1,5) + afsteek; per
+  laderstang het grijpstuk en één zaagsnede. Tot nu telde de zaagsnede per stuk
+  — dat is op de draaibank niet zo.
+- **Laatste stang**: stuks gelijk verdelen over de stangen (80 stuks à 13 per
+  stang = 3 × 12 + 4 × 11, niet 6 × 13 + een stompje van 2). Valt een stang
+  onder het minimum van de lader, dan wordt hij tot dat minimum opgerekt.
+- **Hulp bij kiezen bij in productie geven.** De lengtes worden tegen de
+  voorraad gelegd en er komen een paar voorstellen, het beste eerst: alles
+  gedekt → meeste staven helemaal op (een restant dat precies past en daarna
+  afgeboekt kan worden is ideaal) → minste schroot → geen korte rest
+  (liever een lange staaf aansnijden dan van een staaf van 3 m een stuk
+  overhouden) → minste staven. Een staaf vullen probeert alle aantallen per
+  stanglengte (er zijn er hooguit een paar), anders mist hij dat 3 × 998 precies
+  in 3000 past. Nooit een andere kwaliteit.
+- **Of een rest bruikbaar is beslist de mens** (een rest van 40 mm aan een
+  Ø160 is iets anders dan aan een Ø40). Daarom per staaf "rest afboeken" bij het
+  kiezen (`ZaagReservering.restAfboeken`, migratie
+  `20261009120000_materiaal_selectie`): de hele vrije lengte gaat dan vast en
+  bij het afboeken gaat de rest mee als schroot. Een rest onder de schrootgrens
+  telt al als "staaf op" en krijgt dat vanzelf.
+- **Fout gevonden en hersteld**: het automatisch afboeken bij gereedmelden
+  rekende de rest als `staaf − fysiekeLengte`, maar `fysiekeLengte` is de
+  lengte van de staaf bij het reserveren — de rest werd 0 en de hele staaf ging
+  als schroot weg. Nu `staaf − sawLength`.
+- **Database leegmaken** met behoud van stamgegevens: `npm run db:leeg -- --ja`
+  (er stonden te veel foute gegevens in).
+

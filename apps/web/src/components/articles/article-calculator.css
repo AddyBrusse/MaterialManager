@@ -324,7 +324,7 @@
 /* ── Materiaalregel met netto/bruto, voorraad en vaste prijs (2026-10-06) ── */
 .acalc-mat-head.mat,
 .acalc-mat-row.mat {
-  grid-template-columns: 26px 1.1fr 1.7fr 84px 112px 128px 96px 58px;
+  grid-template-columns: 26px 1.1fr 1.7fr 120px 112px 128px 96px 58px;
 }
 .acalc-mat-row.mat { padding-top: 7px; padding-bottom: 7px; align-items: start; }
 .acalc-mat-row.mat > * { align-self: center; }
@@ -351,3 +351,9 @@
 .acalc-mat-voorraad.exoot { color: #6b3fa0; font-family: var(--font-sans); }
 .acalc-addlink.exoot { color: #6b3fa0; }
 .acalc-exoot-som { font-size: 12px; color: var(--text-2); background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+
+/* Stangenlader per materiaalregel (2026-10-09) */
+.acalc-mat-lader { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.acalc-mat-lader label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-2); }
+.acalc-mat-lader select { font-size: 12px; padding: 2px 4px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); max-width: 112px; }
+.acalc-mat-lengte .mt-balk { margin-top: 4px; }

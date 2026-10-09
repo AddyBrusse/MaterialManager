@@ -5,9 +5,9 @@ import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { beschikbaarheidVan, gereserveerdPerStaaf, mm, OPEN_STATUSSEN } from '../services/voorraad'
-import { maakPlan, bestelTodo } from '../services/materiaal-selectie'
+import { maakPlan, bestelTodo, materiaalVanArtikel } from '../services/materiaal-selectie'
 import { boekZaagbonAf } from '../services/zaagbon'
-import { stukLengte } from '@stockmanager/shared'
+import { ZAAG_STANDAARD } from '@stockmanager/shared'
 
 const router = Router()
 
@@ -47,6 +47,7 @@ function serialize(r: {
   pieces: number; productLen: unknown; sawLength: unknown; fysiekeLengte: unknown; materiaal: string
   diameter: unknown; werkstukLengte: unknown; steekbreedte: unknown; vlakToeslag: unknown; machine: string
   priority: number | null; rush: boolean; status: string; restLengteMm: unknown; completedAt: Date | null; createdAt: Date
+  stangen?: unknown; restAfboeken?: boolean
 }) {
   return {
     id: r.id,
@@ -72,6 +73,8 @@ function serialize(r: {
     rush: r.rush,
     status: r.status,
     restLengteMm: r.restLengteMm != null ? toNum(r.restLengteMm) : null,
+    stangen: Array.isArray(r.stangen) ? (r.stangen as { lengteMm: number; stuks: number }[]) : null,
+    restAfboeken: r.restAfboeken ?? false,
     completedAt: r.completedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
   }
@@ -308,52 +311,37 @@ router.get(
 const PlanSchemaIn = z.object({
   artikelId: z.string(),
   aantal: z.number().int().positive(),
-  machineId: z.string().nullable().optional(),
-  overschrijf: z.object({
-    steekbreedte: z.number().nonnegative().optional(),
-    vlakToeslag: z.number().nonnegative().optional(),
-    afsteek: z.number().nonnegative().optional(),
-    opspanlengte: z.number().nonnegative().optional(),
-    loaderMinMm: z.number().nonnegative().optional(),
-    loaderMaxMm: z.number().nonnegative().optional(),
-  }).optional(),
 })
 
 /**
  * Wat zou het programma kiezen? Rekent alleen, legt niets vast.
  *
- * Het scherm toont dit vóórdat er iets gereserveerd wordt: materiaal
- * stilzwijgend vastleggen is precies hoe je een staaf kwijtraakt die voor een
- * spoedklus bedoeld was.
+ * Het scherm toont de voorstellen vóórdat er iets gereserveerd wordt:
+ * materiaal stilzwijgend vastleggen is precies hoe je een staaf kwijtraakt die
+ * voor een spoedklus bedoeld was.
  */
 router.post(
   '/materiaal-plan',
   asyncHandler(async (req, res) => {
     const body = PlanSchemaIn.parse(req.body)
-    const uitkomst = await maakPlan(prisma, {
-      artikelId: body.artikelId,
-      artikelNaam: '',
-      aantal: body.aantal,
-      machineId: body.machineId ?? null,
-      overschrijf: body.overschrijf,
-    })
-    res.json({ data: uitkomst })
+    res.json({ data: await maakPlan(prisma, body) })
   }),
 )
 
 const BevestigSchema = PlanSchemaIn.extend({
   projectId: z.string(),
   calculatieNr: z.string(),
-  machine: z.string(),
-  /** De regels die de gebruiker gezien en akkoord bevonden heeft. Bewust niet
+  /** Het voorstel dat de gebruiker gezien en gekozen heeft. Bewust niet
    *  opnieuw uitgerekend: tussen tonen en bevestigen kan de voorraad veranderd
    *  zijn, en dan hoort de reservering te botsen in plaats van stilletjes iets
    *  anders vast te leggen. */
   regels: z.array(z.object({
     barId: z.string(),
-    laderstangen: z.number().int().positive(),
+    stangen: z.array(z.object({ lengteMm: z.number().positive(), stuks: z.number().int().positive() })).min(1),
     stuks: z.number().int().positive(),
     verbruikMm: z.number().positive(),
+    /** De rest meteen afboeken (2026-10-09): de hele vrije lengte gaat vast. */
+    restAfboeken: z.boolean().default(false),
   })).min(1),
   /** De todo die hiermee afgerond wordt. */
   todoId: z.string().optional(),
@@ -364,7 +352,7 @@ const BevestigSchema = PlanSchemaIn.extend({
 })
 
 /**
- * Het plan vastleggen: reserveringen aanmaken, de todo afvinken, en bij een
+ * Het voorstel vastleggen: reserveringen aanmaken, de todo afvinken, en bij een
  * tekort een bestel-todo klaarzetten. Alles in één transactie.
  */
 router.post(
@@ -373,13 +361,12 @@ router.post(
     const body = BevestigSchema.parse(req.body)
 
     const uit = await prisma.$transaction(async (tx) => {
-      const artikel = await tx.article.findUnique({
-        where: { id: body.artikelId },
-        select: { id: true, naam: true, recipe: true },
-      })
-      if (!artikel) throw new AppError(404, 'NOT_FOUND', 'Artikel niet gevonden')
+      const mat = await materiaalVanArtikel(tx, body.artikelId)
 
       const barIds = body.regels.map((r) => r.barId)
+      if (new Set(barIds).size !== barIds.length) {
+        throw new AppError(400, 'VALIDATIE', 'Een staaf staat twee keer in het voorstel')
+      }
       const staven = await tx.rawMaterial.findMany({
         where: { id: { in: barIds } },
         include: { grade: true, profile: true },
@@ -387,38 +374,23 @@ router.post(
       const perId = new Map(staven.map((s) => [s.id, s]))
       const alVast = await gereserveerdPerStaaf(tx, barIds)
 
-      // Dezelfde controle als bij handmatig reserveren: tussen het tonen van
-      // het plan en het bevestigen kan iemand anders er materiaal af gehaald
-      // hebben.
-      const perStaaf = new Map<string, number>()
-      for (const r of body.regels) {
-        perStaaf.set(r.barId, (perStaaf.get(r.barId) ?? 0) + r.verbruikMm)
-      }
-      for (const [barId, gevraagd] of perStaaf) {
-        const staaf = perId.get(barId)
-        if (!staaf) throw new AppError(404, 'NOT_FOUND', `Staaf ${barId} bestaat niet`)
-        const vrij = Number(staaf.currentStock) - (alVast.get(barId) ?? 0)
-        if (gevraagd > vrij) {
-          throw new AppError(409, 'ONVOLDOENDE_VRIJ',
-            `Staaf ${staaf.code} heeft nog ${mm(vrij)} vrij, gevraagd ${mm(gevraagd)} — het plan is ingehaald door een andere reservering`,
-            { barId, code: staaf.code, vrijMm: vrij, gevraagdMm: gevraagd })
-        }
-      }
-
-      const recept = artikel.recipe as { dimensions?: Record<string, number>; lengthPerPieceMm?: number } | null
-      const werkstukLengte = Number(recept?.lengthPerPieceMm ?? 0)
-      // Wat er per stuk van de stang gaat — dezelfde som als de planner maakt,
-      // zodat de zaagbon en het plan het over dezelfde lengte hebben.
-      const stukLen = stukLengte(werkstukLengte, {
-        steekbreedte: body.overschrijf?.steekbreedte ?? 3,
-        vlakToeslag: body.overschrijf?.vlakToeslag ?? 3,
-        afsteek: body.overschrijf?.afsteek ?? 3,
-        opspanlengte: body.overschrijf?.opspanlengte ?? 30,
-      })
-
       const gemaakt = []
       for (const [i, r] of body.regels.entries()) {
-        const staaf = perId.get(r.barId)!
+        const staaf = perId.get(r.barId)
+        if (!staaf) throw new AppError(404, 'NOT_FOUND', `Staaf ${r.barId} bestaat niet`)
+        // Nooit een andere kwaliteit of maat dan het recept (2026-10-09).
+        if (staaf.gradeId !== mat.gradeId || staaf.profileId !== mat.profileId) {
+          throw new AppError(409, 'VOORWAARDE', `Staaf ${staaf.code} is niet het materiaal uit het recept (${mat.omschrijving})`)
+        }
+        // Dezelfde controle als bij handmatig reserveren: tussen het tonen van
+        // het voorstel en het bevestigen kan iemand anders er materiaal af
+        // gehaald hebben.
+        const vrij = Number(staaf.currentStock) - (alVast.get(staaf.id) ?? 0)
+        if (r.verbruikMm > vrij) {
+          throw new AppError(409, 'ONVOLDOENDE_VRIJ',
+            `Staaf ${staaf.code} heeft nog ${mm(vrij)} vrij, gevraagd ${mm(r.verbruikMm)} — het voorstel is ingehaald door een andere reservering`,
+            { barId: staaf.id, code: staaf.code, vrijMm: vrij, gevraagdMm: r.verbruikMm })
+        }
         gemaakt.push(await tx.zaagReservering.create({
           data: {
             id: `res_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
@@ -431,15 +403,18 @@ router.post(
             barLocation: '',
             barVorm: staaf.profile.name,
             pieces: r.stuks,
-            productLen: stukLen,
-            sawLength: r.verbruikMm,
+            productLen: mat.werkstukLengteMm + ZAAG_STANDAARD.vlakToeslag + (mat.lader?.afsteekMm ?? 0),
+            // Rest afboeken: de hele vrije lengte, zodat niemand anders er nog op rekent.
+            sawLength: r.restAfboeken ? vrij : r.verbruikMm,
             fysiekeLengte: Number(staaf.currentStock),
             materiaal: staaf.grade.name,
             diameter: Number((staaf.dimensions as Record<string, number>)?.diameter ?? 0),
-            werkstukLengte,
-            steekbreedte: body.overschrijf?.steekbreedte ?? 3,
-            vlakToeslag: body.overschrijf?.vlakToeslag ?? 3,
-            machine: body.machine,
+            werkstukLengte: mat.werkstukLengteMm,
+            steekbreedte: ZAAG_STANDAARD.steekbreedte,
+            vlakToeslag: ZAAG_STANDAARD.vlakToeslag,
+            machine: mat.lader?.machineNaam ?? '',
+            stangen: r.stangen,
+            restAfboeken: r.restAfboeken,
           },
         }))
       }
@@ -455,16 +430,16 @@ router.post(
       if (body.tekort) {
         bestelTodoId = await bestelTodo(tx, {
           projectId: body.projectId,
-          artikelId: artikel.id,
-          artikelNaam: artikel.naam,
-          materiaal: `${staven[0]?.profile.name ?? ''} ${staven[0]?.grade.name ?? ''}`.trim(),
+          artikelId: body.artikelId,
+          artikelNaam: mat.artikelNaam,
+          materiaal: mat.omschrijving,
           tekortStuks: body.tekort.stuks,
           tekortMm: body.tekort.mm,
           door: req.user.id,
         })
         // En op de bestellijst, zodat het tekort ook echt besteld kan worden (2026-10-06).
         await tekortRegel(tx, {
-          projectId: body.projectId, artikelId: artikel.id, offerteRegelId: body.offerteRegelId ?? null,
+          projectId: body.projectId, artikelId: body.artikelId, offerteRegelId: body.offerteRegelId ?? null,
           tekortMm: body.tekort.mm, door: req.user.name,
         })
       }

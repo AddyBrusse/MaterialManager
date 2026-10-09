@@ -50,12 +50,16 @@ export interface ZaagReservation {
   rush: boolean                // planner "Spoed" flag — rush jobs jump the queue
   status: ReservationStatus
   restLengteMm: number | null  // gemeten rest na het zagen (gezet bij afboeken)
+  /** Materiaalselectie (2026-10-09): wat er uit deze staaf gezaagd wordt. */
+  stangen?: { lengteMm: number; stuks: number }[] | null
+  /** De rest gaat bij het afboeken mee als schroot. */
+  restAfboeken?: boolean
   completedAt: string | null
 }
 
 export type CreateReservationInput = Omit<
   ZaagReservation,
-  'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt'
+  'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt' | 'stangen' | 'restAfboeken'
 >
 
 export interface Beschikbaarheid {

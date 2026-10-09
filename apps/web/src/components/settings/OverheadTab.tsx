@@ -335,7 +335,7 @@ export function OverheadTab() {
               {inputRow('Operator (€/u)',  (m) => m.operatorRatePerHour, (id, v) => saveMachine(id, { operatorRatePerHour: v ?? 0 }), { step: 1, ph: '0' })}
               {checkRow('Werkt in weekend', (m) => m.worksWeekends, (id, v) => saveMachine(id, { worksWeekends: v }), { title: 'Machine draait onbemand door op zaterdag/zondag' })}
               {/* Stangenlader (2026-10-06): alleen dan telt de calculatie afsteek en opspanstukje mee. */}
-              {checkRow('Stangenlader', (m) => m.heeftStangenlader, (id, v) => saveMachine(id, { heeftStangenlader: v }), { title: 'Draaibank met stangenlader — de calculatie rekent dan afsteek en het opspanstukje per laderstang mee in de materiaallengte' })}
+              {checkRow('Stangenlader', (m) => m.heeftStangenlader, (id, v) => saveMachine(id, { heeftStangenlader: v }), { title: 'Draaibank met stangenlader — een materiaalregel in het recept kan dan met deze lader werken (afsteek, grijp en laderlengte hieronder)' })}
               {inputRow('Lader max (mm)',     (m) => m.barloaderMaxMm, (id, v) => saveMachine(id, { barloaderMaxMm: Math.round(v ?? 0) }), { step: 10, ph: '1100', title: 'Langste stang die de lader pakt' })}
               {inputRow('Lader min (mm)',     (m) => m.barloaderMinMm, (id, v) => saveMachine(id, { barloaderMinMm: Math.round(v ?? 0) }), { step: 10, ph: '500', title: 'Kortste stang die de lader pakt' })}
               {inputRow('Opspanlengte (mm)',  (m) => m.opspanlengteMm, (id, v) => saveMachine(id, { opspanlengteMm: Math.round(v ?? 0) }), { step: 1, ph: '30', title: 'Staartje dat de lader niet meer pakt — één keer per laderstang' })}

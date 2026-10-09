@@ -13,6 +13,7 @@
     "db:status": "dotenv -e ../../.env.development -- prisma migrate status",
     "db:generate": "prisma generate",
     "db:seed": "dotenv -e ../../.env.development -- ts-node src/db/seed.ts",
+    "db:leeg": "dotenv -e ../../.env.development -- ts-node src/db/leegmaken.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "probe:msg": "ts-node src/scripts/probe-msg.ts",

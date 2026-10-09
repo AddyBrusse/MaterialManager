@@ -9,7 +9,7 @@
  */
 
 import type { VolumeFormula } from '../schemas/profile'
-import { brutoLengte, laderVan, type LaderGegevens } from './bruto-lengte'
+import { brutoLengte, laderVoorRegel, materiaalBehoefte } from './bruto-lengte'
 export type { VolumeFormula }
 
 export interface ArticleRecipe {
@@ -52,6 +52,11 @@ export interface EstimateNode {
   rawMaterialId?: string | null
   /** Werkstukken uit één exoot; 1 als leeg. */
   stuksUitEen?: number | null
+  /**
+   * Stangenlader (2026-10-09): de draaibank waarvan de lader deze regel van de
+   * stang draait. Leeg = geen lader, alleen lengtemateriaal. Zie `bruto-lengte.ts`.
+   */
+  laderMachineId?: string | null
 }
 
 export interface ArticleEstimate {
@@ -68,6 +73,7 @@ export interface EstimateMachine {
   heeftStangenlader?: boolean
   opspanlengteMm?: number
   afsteekMm?: number
+  barloaderMinMm?: number
   barloaderMaxMm?: number
 }
 
@@ -132,9 +138,11 @@ export function nettoLengte(node: { lengthMm?: number | null }, ctx: EstimateCtx
  * Per-piece material cost for a node: override, else weight × grade €/kg.
  * Uses node-level profileId/dimensions when set; falls back to recipe.
  *
- * Sinds 2026-10-06 over de bruto lengte: netto plus zaagsnede en afvlakken, en
- * bij een draaibank met lader ook afsteek en opspanstukje (`brutoLengte`).
- * Geef `lader` mee (zie `laderVan`); `undefined` rekent zonder lader.
+ * Over de bruto lengte (`brutoLengte`): netto plus vlak en zaagsnede, en met
+ * de lader van de regel (`laderMachineId`) ook afsteek en grijpstuk.
+ * Met `aantal` rekent hij met wat er voor dat aantal echt gezaagd wordt
+ * (`materiaalBehoefte`: hele laderstangen, gelijk verdeeld); zonder aantal met
+ * een volle laderstang — de prijs per stuk van het artikel zelf.
  */
 export function materialCostPerPiece(
   node: {
@@ -145,9 +153,10 @@ export function materialCostPerPiece(
     costOverride?: number | null
     exoot?: boolean
     stuksUitEen?: number | null
+    laderMachineId?: string | null
   },
   ctx: EstimateCtx,
-  lader: LaderGegevens | null = null,
+  aantal?: number,
 ): number {
   if (node.costOverride != null) return node.costOverride
   if (!node.gradeId) return 0
@@ -165,7 +174,11 @@ export function materialCostPerPiece(
     const kg = computeWeightKg(formula, dims, node.lengthMm ?? 0, g.densityKgM3)
     return (kg * (g.pricePerKg ?? 0)) / stuksUitEen(node)
   }
-  const len = brutoLengte(nettoLengte(node, ctx), lader).brutoMm
+  const lader = laderVoorRegel(node, ctx.machines)
+  const netto = nettoLengte(node, ctx)
+  const len = aantal != null && aantal > 0
+    ? materiaalBehoefte(netto, lader, aantal).perStukMm
+    : brutoLengte(netto, lader).brutoMm
   const kg = computeWeightKg(formula, dims, len, g.densityKgM3)
   return kg * (g.pricePerKg ?? 0)
 }
@@ -214,16 +227,22 @@ export function machineMinutes(node: Pick<EstimateNode, 'setupMin' | 'steps'>): 
  * then divided across `qty` here — NOT multiplied by qty the way material
  * cost and per-piece cycle time are. At qty=1 this is identical to charging
  * everything once, so existing single-piece quotes are unaffected.
+ *
+ * Materiaal: zonder `qty` per stuk uit een volle laderstang; met `qty` wat er
+ * voor dat aantal echt gezaagd wordt (`materiaalBehoefte`, 2026-10-09).
  */
-export function computeEstimateTotals(est: ArticleEstimate, ctx: EstimateCtx, qty = 1): EstimateTotals {
-  const n = Math.max(1, qty)
+export function computeEstimateTotals(est: ArticleEstimate, ctx: EstimateCtx, qty?: number): EstimateTotals {
+  const n = Math.max(1, qty ?? 1)
   let materialTotal = 0, cyclePerPiece = 0, setupTotal = 0, externalBatchTotal = 0, timeMin = 0
   let setupMin = 0, cycleMinPerPiece = 0
 
-  const lader = laderVan(est.nodes, ctx.machines)
   for (const node of est.nodes) {
     if (node.type === 'material') {
-      materialTotal += (node.qty ?? 1) * materialCostPerPiece(node, ctx, lader)
+      // Geen aantal per materiaalregel meer (2026-10-09): het recept is voor
+      // één stuk; hoeveel stuks bepaalt de offerte, en dat zit in `qty`. Een
+      // exoot houdt zijn aantal (zoveel exoten per werkstuk, `ExootRegel`).
+      const perWerkstuk = node.exoot ? (node.qty ?? 1) : 1
+      materialTotal += perWerkstuk * materialCostPerPiece(node, ctx, qty)
     } else if (node.type === 'machine') {
       const nodeSetupMin = node.setupMin || 0
       const cycleMin = (node.steps ?? []).reduce((s, st) => s + (st.cycleMin || 0), 0)

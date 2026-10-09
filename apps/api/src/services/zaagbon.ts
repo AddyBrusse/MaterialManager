@@ -45,11 +45,17 @@ export async function boekZaagbonAf(
   if (!staaf) throw new AppError(404, 'NOT_FOUND', 'De staaf van deze reservering bestaat niet meer')
 
   const gemeten = invoer.restLengteMm ?? 0
+  const vorigeVoorraad = Number(staaf.currentStock)
+  // Bij het kiezen al besloten dat de rest weg mag (2026-10-09): `sawLength`
+  // is dan de hele vrije lengte. Wat een ander project op deze staaf heeft
+  // liggen blijft staan.
+  const restWeg = reservering.restAfboeken
   // Een rest onder de drempel is geen staaf meer, ook zonder dat iemand
   // 'schroot' aanvinkt: hij ligt straks in de bak en niet in het rek.
-  const schroot = invoer.schroot === true || gemeten < MIN_REST_MM
-  const nieuweVoorraad = schroot ? 0 : gemeten
-  const vorigeVoorraad = Number(staaf.currentStock)
+  const schroot = restWeg || invoer.schroot === true || gemeten < MIN_REST_MM
+  const nieuweVoorraad = restWeg
+    ? Math.max(0, vorigeVoorraad - Number(reservering.sawLength))
+    : schroot ? 0 : gemeten
 
   await db.rawMaterial.update({
     where: { id: staaf.id },
@@ -66,7 +72,7 @@ export async function boekZaagbonAf(
       previousStock: vorigeVoorraad,
       newStock: nieuweVoorraad,
       reason: schroot ? 'scrapped' : 'used',
-      note: invoer.note ?? `Zaagbon ${reservering.calculatieNr}`,
+      note: (invoer.note ?? `Zaagbon ${reservering.calculatieNr}`) + (restWeg ? ' — rest afgeboekt (bij het kiezen besloten)' : ''),
     },
   })
 
@@ -118,7 +124,7 @@ export function bonnenVanOrderWaar(
 /**
  * Orders die door deze handeling gereed werden: hun open zaagbonnen afboeken.
  *
- * De rest is de staaf min wat er volgens de bon af ging. Gemeten is hij niet —
+ * De rest is de staaf min wat er volgens de bon af ging (`sawLength`). Gemeten is hij niet —
  * daarom staat dat in de voorraadmutatie, en is hij via Voorraad te corrigeren.
  * Liggen er twee bonnen op dezelfde staaf, dan na elkaar: de tweede rekent met
  * wat de eerste overliet.
@@ -137,7 +143,10 @@ export async function boekAfBijGereed(
     for (const bon of await openBonnenVanOrder(db, na, order)) {
       const staaf = await db.rawMaterial.findUnique({ where: { id: bon.barId } })
       if (!staaf) continue
-      const rest = Math.max(0, Number(staaf.currentStock) - Number(bon.fysiekeLengte))
+      // Wat er volgens de bon af gaat is `sawLength`; `fysiekeLengte` is de
+      // lengte van de staaf bij het reserveren (rekende tot 2026-10-09 hier
+      // ten onrechte mee, en dan ging de hele staaf als schroot weg).
+      const rest = Math.max(0, Number(staaf.currentStock) - Number(bon.sawLength))
       await boekZaagbonAf(db, bon, {
         restLengteMm: rest,
         note: `Zaagbon ${bon.calculatieNr} — automatisch bij gereedmelden van ${order.artikelNaam}; rest uitgerekend, niet gemeten`,

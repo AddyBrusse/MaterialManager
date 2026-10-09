@@ -32,8 +32,9 @@ function nepDb(staven: Record<string, number>, bonnen: Record<string, unknown>[]
   return { db: db as never, mutaties, gezocht, staven, bonnen }
 }
 
-function bon(id: string, barId: string, fysiekeLengte: number) {
-  return { id, barId, fysiekeLengte, calculatieNr: 'ZB-1', status: 'open' }
+function bon(id: string, barId: string, sawLength: number, restAfboeken = false) {
+  // fysiekeLengte = de staaf bij het reserveren; rekent niet mee (2026-10-09).
+  return { id, barId, sawLength, fysiekeLengte: 99999, restAfboeken, calculatieNr: 'ZB-1', status: 'open' }
 }
 
 function project(status: string, orders = 1): Project {
@@ -60,6 +61,14 @@ describe('boekAfBijGereed', () => {
     const t = nepDb({ s1: 1250 }, [bon('b1', 's1', 1200)])
     await boekAfBijGereed(t.db, project('in_productie'), project('gereed'), 'u1')
     expect(t.mutaties[0]).toMatchObject({ newStock: 0, reason: 'scrapped' })
+  })
+
+  it('een bon met "rest afboeken" haalt alleen zijn eigen lengte van de staaf, als schroot', async () => {
+    // 3000 mm staaf: 2000 vrij voor deze bon (incl. rest), 1000 ligt vast voor een ander project.
+    const t = nepDb({ s1: 3000 }, [bon('b1', 's1', 2000, true)])
+    await boekAfBijGereed(t.db, project('in_productie'), project('gereed'), 'u1')
+    expect(t.mutaties[0]).toMatchObject({ newStock: 1000, reason: 'scrapped' })
+    expect(t.mutaties[0].note).toContain('rest afgeboekt')
   })
 
   it('doet niets als de order al gereed was of het nog niet is', async () => {

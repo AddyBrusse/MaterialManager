@@ -1072,6 +1072,13 @@ model ZaagReservering {
   // in_progress houden materiaal vast; zie services/voorraad.ts.
   status         String    @default("open")
   restLengteMm   Decimal?  @map("rest_lengte_mm")
+  /// Materiaalselectie (2026-10-09): wat er uit deze staaf gezaagd wordt,
+  /// [{ lengteMm, stuks }] — laderstangen, of zonder lader één per stuk.
+  stangen        Json?
+  /// De rest van de staaf gaat bij het afboeken mee als schroot: bij het
+  /// kiezen besloten dat er niets meer mee te doen is. `sawLength` is dan de
+  /// hele vrije lengte, zodat niemand anders er intussen op rekent.
+  restAfboeken   Boolean   @default(false) @map("rest_afboeken")
   completedAt    DateTime? @map("completed_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
