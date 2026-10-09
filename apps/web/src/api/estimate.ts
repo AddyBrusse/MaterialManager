@@ -12,8 +12,12 @@ export {
   computeEstimateTotals,
   minToHm,
   brutoLengte,
-  laderVan,
+  laderVoorRegel,
+  materiaalBehoefte,
+  stukOpStang,
+  stuksPerStang,
+  ZAAG_STANDAARD,
   nettoLengte,
   stuksUitEen,
 } from '@stockmanager/shared'
-export type { EstimateCtx, EstimateTotals, LaderGegevens, BrutoOpbouw } from '@stockmanager/shared'
+export type { EstimateCtx, EstimateTotals, LaderGegevens, BrutoOpbouw, MateriaalBehoefte, TeZagen } from '@stockmanager/shared'

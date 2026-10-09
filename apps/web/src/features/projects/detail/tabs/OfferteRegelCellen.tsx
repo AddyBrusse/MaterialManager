@@ -2,7 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import type { OfferteRegel } from '@stockmanager/shared'
 import type { Article } from '../../../../api/articles'
 import { ArtikelPreviewThumb } from '../../../../components/projecten/ArtikelPreviewThumb'
-import { buildEstimateCtx, computeEstimateTotals } from '../../../../api/estimate'
+import { buildEstimateCtx, computeEstimateTotals, laderVoorRegel, materiaalBehoefte, nettoLengte } from '../../../../api/estimate'
+import { stangenTekst } from '../../../../api/materiaal-plan'
 import { gradesApi } from '../../../../api/grades'
 import { profilesApi } from '../../../../api/profiles'
 import { machinesApi } from '../../../../api/machines'
@@ -85,6 +86,18 @@ function kostprijsPerStuk(artikel: Article | null, qty: number): number | null {
   }
 }
 
+/** "Materiaal: 3 × 1.086 + 4 × 998 mm (7.271 mm, lader Mazak)" — wat er bij dit aantal gezaagd wordt (2026-10-09). */
+function materiaalTekst(artikel: Article | null, qty: number): string {
+  const regel = artikel?.estimate?.nodes.find((n) => n.type === 'material' && !n.exoot)
+  if (!artikel || !regel) return ''
+  const ctx = buildEstimateCtx(artikel, gradesApi.listSync(), profilesApi.listSync(), machinesApi.listSync())
+  const lader = laderVoorRegel(regel, ctx.machines)
+  const b = materiaalBehoefte(nettoLengte(regel, ctx), lader, qty)
+  if (!b.totaalMm) return ''
+  const lengtes = lader ? `${b.stangen.length} laderstangen: ${stangenTekst(b.stangen)}` : `${qty} × ${b.stukMm} mm`
+  return `\nMateriaal: ${lengtes} — ${Math.round(b.totaalMm).toLocaleString('nl-NL')} mm te zagen${lader ? ` (lader ${lader.machineNaam})` : ''}`
+}
+
 /**
  * Marge per regel, als opslag op de kostprijs — dezelfde definitie als
  * `marginPct` in de rekenkern en als de oude offertetabel.
@@ -107,7 +120,7 @@ export function MargeCel({ artikel, regel }: { artikel: Article | null; regel: O
     <td
       className="num"
       style={marge < 0 ? { color: 'var(--dgr)', fontWeight: 600 } : undefined}
-      title={`Kostprijs ${eur(kost)} per stuk bij ${regel.qty} ${regel.eenheid}`}
+      title={`Kostprijs ${eur(kost)} per stuk bij ${regel.qty} ${regel.eenheid}${materiaalTekst(artikel, regel.qty || 1)}`}
     >
       {marge}%
     </td>

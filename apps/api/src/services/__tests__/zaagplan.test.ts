@@ -1,148 +1,89 @@
 import { describe, it, expect } from 'vitest'
-import {
-  planZaagwerk, kandidaatLengtes, stukLengte,
-  type ZaagPlanInvoer, type PlanStaaf,
-} from '@stockmanager/shared'
-
-const params = { steekbreedte: 3, vlakToeslag: 3, afsteek: 4, opspanlengte: 30 }
-const loader = { minMm: 500, maxMm: 1100 }
-
-function invoer(p: Partial<ZaagPlanInvoer> & { staven: PlanStaaf[] }): ZaagPlanInvoer {
-  return {
-    aantal: 10, werkstukLengteMm: 100, params, loader, schrootDrempelMm: 200,
-    ...p,
-  }
-}
+import { materiaalVoorstellen, vergelijkVoorstel, type PlanStaaf, type TeZagen, type Voorstel } from '@stockmanager/shared'
 
 function staaf(id: string, vrijMm: number): PlanStaaf {
   return { id, code: `#${id}`, vrijMm }
 }
+const stangen = (lengtes: number[], stuks = 13): TeZagen[] => lengtes.map((lengteMm) => ({ lengteMm, stuks }))
 
-describe('stukLengte', () => {
-  it('telt alle toeslagen bij de kale werkstuklengte op', () => {
-    // 100 werkstuk + 3 vlak + 4 afsteek + 3 zaagsnede
-    expect(stukLengte(100, params)).toBe(110)
+// Het voorbeeld uit de mockup van 2026-10-09: 6 laderstangen van 1174 en één van 206.
+const MOCKUP = { stangen: [...stangen([1174, 1174, 1174, 1174, 1174, 1174]), { lengteMm: 206, stuks: 2 }], zaagsnedeMm: 3, schrootDrempelMm: 200 }
+const VOORRAAD = [staaf('rest1180', 1180), staaf('rest3535', 3535), staaf('a3000', 3000), staaf('b3000', 3000), staaf('c6000', 6000)]
+
+describe('materiaalVoorstellen', () => {
+  it('het beste voorstel maakt de restanten op die precies passen', () => {
+    const [beste] = materiaalVoorstellen({ ...MOCKUP, staven: VOORRAAD })
+    expect(beste.tekortStuks).toBe(0)
+    expect(beste.stavenOp).toBe(2)
+    const op = beste.regels.filter((r) => r.restWordtSchroot).map((r) => r.barId).sort()
+    expect(op).toEqual(['rest1180', 'rest3535'])
+    // En snijdt dan liever de lange staaf aan dan van een 3 m staaf een korte rest over te houden.
+    const aangesneden = beste.regels.find((r) => !r.restWordtSchroot)!
+    expect(aangesneden.barId).toBe('c6000')
+    expect(aangesneden.restMm).toBe(6000 - 2 * 1177 - 209)
+  })
+
+  it('80 stuks gelijk verdeeld (3 × 1086 + 4 × 998): vindt dat 3 × 998 precies in 3000 past', () => {
+    const st = [...stangen([1086, 1086, 1086], 12), ...stangen([998, 998, 998, 998], 11)]
+    const [beste] = materiaalVoorstellen({ stangen: st, zaagsnedeMm: 3, schrootDrempelMm: 200, staven: VOORRAAD })
+    const per = Object.fromEntries(beste.regels.map((r) => [r.barId, r]))
+    expect(per.a3000 ?? per.b3000).toMatchObject({ restMm: 0, restWordtSchroot: true })
+    expect(per.rest1180).toMatchObject({ restWordtSchroot: true })
+    expect(per.c6000.restMm).toBe(6000 - 2 * 1089 - 1001)
+    expect(beste.regels).toHaveLength(3)
+  })
+
+  it('geeft meerdere verschillende voorstellen, het beste eerst', () => {
+    const v = materiaalVoorstellen({ ...MOCKUP, staven: VOORRAAD })
+    expect(v.length).toBeGreaterThan(1)
+    expect(new Set(v.map((x) => x.sleutel)).size).toBe(v.length)
+    for (let i = 1; i < v.length; i++) expect(vergelijkVoorstel(v[i - 1], v[i])).toBeLessThanOrEqual(0)
+  })
+
+  it('vraagt nooit meer van een staaf dan er vrij is, en telt alle stuks', () => {
+    for (const v of materiaalVoorstellen({ ...MOCKUP, staven: VOORRAAD })) {
+      for (const r of v.regels) {
+        expect(r.verbruikMm).toBeLessThanOrEqual(r.vrijMm)
+        expect(r.restMm).toBe(r.vrijMm - r.verbruikMm)
+      }
+      expect(v.gedekt + v.tekortStuks).toBe(6 * 13 + 2)
+    }
+  })
+
+  it('de laatste stang van een staaf hoeft geen zaagsnede als hij precies tot het eind loopt', () => {
+    const [v] = materiaalVoorstellen({ stangen: stangen([1000]), zaagsnedeMm: 3, schrootDrempelMm: 200, staven: [staaf('x', 1000)] })
+    expect(v.regels[0]).toMatchObject({ verbruikMm: 1000, restMm: 0, restWordtSchroot: true })
+  })
+
+  it('meldt een tekort met de lengtes die nog nodig zijn', () => {
+    const [v] = materiaalVoorstellen({ stangen: stangen([1174, 1174, 1174]), zaagsnedeMm: 3, schrootDrempelMm: 200, staven: [staaf('x', 2400)] })
+    expect(v.gedekt).toBe(26)
+    expect(v.tekortStuks).toBe(13)
+    expect(v.tekortStangen).toEqual([{ lengteMm: 1174, stuks: 13 }])
+    expect(v.tekortMm).toBe(1177)
+  })
+
+  it('zonder voorraad: één voorstel met alles als tekort', () => {
+    const v = materiaalVoorstellen({ stangen: stangen([500, 500]), zaagsnedeMm: 3, schrootDrempelMm: 200, staven: [] })
+    expect(v).toHaveLength(1)
+    expect(v[0]).toMatchObject({ gedekt: 0, tekortStuks: 26, regels: [] })
+  })
+
+  it('negeert staven zonder vrije lengte', () => {
+    const [v] = materiaalVoorstellen({ stangen: stangen([500]), zaagsnedeMm: 3, schrootDrempelMm: 200, staven: [staaf('leeg', 0), staaf('x', 3000)] })
+    expect(v.regels.map((r) => r.barId)).toEqual(['x'])
   })
 })
 
-describe('kandidaatLengtes', () => {
-  it('geeft alleen lengtes die op een heel aantal stuks uitkomen', () => {
-    // Elke lengte is k × 110 + 30 opspanlengte; alles daartussenin zou per
-    // laderstang een stuk onbenut laten.
-    const lengtes = kandidaatLengtes(110, params, loader)
-    expect(lengtes.every((l) => (l - 30) % 110 === 0)).toBe(true)
+describe('vergelijkVoorstel', () => {
+  const v = (p: Partial<Voorstel>): Voorstel => ({
+    sleutel: '', regels: [], gedekt: 10, tekortStuks: 0, tekortStangen: [], tekortMm: 0,
+    stavenOp: 0, schrootMm: 0, kortsteRestMm: null, ...p,
   })
-
-  it('blijft binnen de grenzen van de lader', () => {
-    for (const l of kandidaatLengtes(110, params, loader)) {
-      expect(l).toBeGreaterThanOrEqual(500)
-      expect(l).toBeLessThanOrEqual(1100)
-    }
-  })
-
-  it('zet de langste voorop — minder stangwissels', () => {
-    const lengtes = kandidaatLengtes(110, params, loader)
-    expect(lengtes[0]).toBeGreaterThan(lengtes[lengtes.length - 1])
-  })
-
-  it('geeft niets terug als zelfs één stuk niet in de lader past', () => {
-    expect(kandidaatLengtes(2000, params, loader)).toEqual([])
-  })
-})
-
-describe('planZaagwerk', () => {
-  it('dekt het gevraagde aantal en rekent het verbruik uit', () => {
-    const plan = planZaagwerk(invoer({ aantal: 9, staven: [staaf('a', 3000)] }))
-    expect(plan.tekort).toBe(0)
-    expect(plan.gedekt).toBe(9)
-    const stuks = plan.regels.reduce((s, r) => s + r.stuks, 0)
-    expect(stuks).toBe(9)
-    // Verbruik is altijd hele laderstangen: je zaagt geen halve.
-    for (const r of plan.regels) {
-      expect(r.verbruikMm).toBe(r.laderstangen * plan.laderLengteMm)
-    }
-  })
-
-  it('maakt korte staven eerst op', () => {
-    // Drie staven die het allemaal aankunnen; de kortste hoort gebruikt te
-    // worden, want restjes opruimen is het doel.
-    const plan = planZaagwerk(invoer({
-      aantal: 5,
-      staven: [staaf('lang', 6000), staaf('kort', 1200), staaf('midden', 3000)],
-    }))
-    expect(plan.regels[0].barId).toBe('kort')
-  })
-
-  it('slaat een korte staaf over die te veel schroot achterlaat', () => {
-    // 'kort' heeft 1150 mm vrij: daar gaat één laderstang uit en er blijft een
-    // restje over dat onder de drempel valt — meer dan 15% van die staaf.
-    // 'lang' laat niets liggen. Dan gaat 'lang' voor.
-    const plan = planZaagwerk(invoer({
-      aantal: 4, schrootDrempelMm: 300,
-      staven: [staaf('kort', 1150), staaf('lang', 4400)],
-    }))
-    expect(plan.regels[0].barId).toBe('lang')
-  })
-
-  it('verdeelt over meerdere staven als er één niet genoeg is', () => {
-    const plan = planZaagwerk(invoer({
-      aantal: 20, staven: [staaf('a', 1200), staaf('b', 1200), staaf('c', 1200)],
-    }))
-    expect(plan.regels.length).toBeGreaterThan(1)
-    expect(plan.gedekt + plan.tekort).toBe(20)
-  })
-
-  it('meldt een tekort met de millimeters die nog nodig zijn', () => {
-    // Eén staaf van 700 mm levert bij laderlengte 690 (6×110+30) zes stuks.
-    const plan = planZaagwerk(invoer({ aantal: 50, staven: [staaf('a', 700)] }))
-    expect(plan.tekort).toBeGreaterThan(0)
-    expect(plan.tekortMm).toBe(plan.tekort * plan.stukLengteMm)
-  })
-
-  it('geeft een leeg plan zonder staven, met het volledige aantal als tekort', () => {
-    const plan = planZaagwerk(invoer({ aantal: 8, staven: [] }))
-    expect(plan.gedekt).toBe(0)
-    expect(plan.tekort).toBe(8)
-    expect(plan.regels).toEqual([])
-  })
-
-  it('telt een restant boven de drempel niet als schroot', () => {
-    // 3000 vrij, laderlengte 690 → 4 stangen = 2760, rest 240. Met een drempel
-    // van 200 blijft dat gewoon in het rek liggen.
-    const plan = planZaagwerk(invoer({
-      aantal: 24, schrootDrempelMm: 200, staven: [staaf('a', 3000)],
-    }))
-    const rest = plan.regels[0]
-    if (rest.restMm >= 200) expect(rest.restWordtSchroot).toBe(false)
-    expect(plan.schrootMm).toBe(0)
-  })
-
-  it('rekent met de vrije lengte, niet met de fysieke', () => {
-    // De aanroeper geeft vrijMm mee; een staaf waarvan alles al vastligt levert
-    // niets. Anders zou je materiaal inplannen dat al voor een ander project is.
-    const plan = planZaagwerk(invoer({ aantal: 5, staven: [staaf('vol', 0)] }))
-    expect(plan.gedekt).toBe(0)
-    expect(plan.tekort).toBe(5)
-  })
-
-  it('vraagt nooit meer van een staaf dan er vrij is', () => {
-    const plan = planZaagwerk(invoer({
-      aantal: 100, staven: [staaf('a', 1500), staaf('b', 2000)],
-    }))
-    const perStaaf = new Map([['a', 1500], ['b', 2000]])
-    for (const r of plan.regels) {
-      expect(r.verbruikMm).toBeLessThanOrEqual(perStaaf.get(r.barId)!)
-      expect(r.restMm).toBeGreaterThanOrEqual(0)
-    }
-  })
-
-  it('kiest bij gelijke dekking het plan met minder schroot', () => {
-    // Twee laderlengtes dekken allebei het aantal; de keuze hoort te vallen op
-    // de variant die minder materiaal echt weggooit.
-    const plan = planZaagwerk(invoer({
-      aantal: 6, schrootDrempelMm: 400, staven: [staaf('a', 2000)],
-    }))
-    expect(plan.gedekt).toBe(6)
-    expect(plan.schrootMm).toBe(0)
+  it('dekking, dan staven op, dan schroot, dan geen korte rest', () => {
+    expect(vergelijkVoorstel(v({ gedekt: 10 }), v({ gedekt: 9, stavenOp: 5 }))).toBeLessThan(0)
+    expect(vergelijkVoorstel(v({ stavenOp: 2, schrootMm: 100 }), v({ stavenOp: 1 }))).toBeLessThan(0)
+    expect(vergelijkVoorstel(v({ schrootMm: 5 }), v({ schrootMm: 50 }))).toBeLessThan(0)
+    expect(vergelijkVoorstel(v({ kortsteRestMm: 3000 }), v({ kortsteRestMm: 400 }))).toBeLessThan(0)
   })
 })

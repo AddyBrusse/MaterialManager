@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import type { EstimateNode } from '../../api/articles'
 import type { BrutoOpbouw } from '../../api/estimate'
+import type { Machine } from '../../api/machines'
+import { LaderStangBalk } from '../materiaal/Balken'
 import { AcalcNum } from './AcalcNum'
 
 const eur = (n: number) => `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -18,6 +20,8 @@ interface Props {
   acties: ReactNode
   handvat: ReactNode
   bruto: BrutoOpbouw
+  /** Om de draaibank met lader te kiezen. */
+  machines: Machine[]
   voorraad: VoorraadStand
   /** Wat de regel kost zonder vaste prijs: bruto gewicht × €/kg. */
   berekend: number
@@ -31,18 +35,18 @@ interface Props {
  * vullen, de bruto lengte waarmee gerekend wordt ernaast, de vrije voorraad,
  * en de prijs — met een duidelijke "vaste prijs" als iemand hem met de hand
  * invulde, en een weg terug naar de berekende.
+ *
+ * Geen aantal (2026-10-09): het recept is voor één stuk, het aantal komt uit
+ * de offerte. Wel per regel de stangenlader aan of uit, met de machine.
  */
 export function MateriaalRegel(p: Props) {
   const { node, bruto, voorraad, berekend } = p
-  const aantal = node.qty ?? 1
   const vast = node.costOverride != null
   const prijs = vast ? node.costOverride! : berekend
-  const opbouw = [
-    `+${bruto.vlakMm} vlak`,
-    bruto.afsteekMm ? `+${bruto.afsteekMm} afsteek` : null,
-    `+${bruto.zaagsnedeMm} zaag`,
-    bruto.lader ? `+${bruto.opspanPerStukMm.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} opspan (${bruto.lader.opspanlengteMm} mm / ${bruto.stuksPerLaderstang} st per laderstang)` : null,
-  ].filter(Boolean).join(' · ')
+  const metLader = p.machines.filter((m) => m.heeftStangenlader)
+  const opbouw = bruto.lader
+    ? `${bruto.stuksPerLaderstang} st per laderstang van ${mm(bruto.laderstangMm ?? 0)} · +${bruto.vlakMm} vlak · +${bruto.afsteekMm} afsteek · grijp ${bruto.lader.opspanlengteMm} en zaagsnede per stang`
+    : `+${bruto.vlakMm} vlak · +${bruto.zaagsnedeMm} zaag · alleen lengte`
 
   return (
     <div className="acalc-mat-row mat" onDoubleClick={p.onBewerk} {...p.rijProps}>
@@ -58,15 +62,25 @@ export function MateriaalRegel(p: Props) {
           {bruto.nettoMm > 0 && <span className="acalc-mat-bruto">→ {mm(bruto.brutoMm)} bruto</span>}
         </div>
         {bruto.nettoMm > 0 && (
-          <div className="acalc-mat-opbouw" title={bruto.lader ? `Draaibank met lader: ${bruto.lader.machineNaam}` : 'Geen draaibank met lader in de bewerkingen'}>
-            {opbouw}{bruto.lader ? ` · ${bruto.lader.machineNaam}` : ' · geen lader'}
-          </div>
+          <div className="acalc-mat-opbouw">{opbouw}</div>
+        )}
+        {bruto.lader && bruto.nettoMm > 0 && (
+          <LaderStangBalk werkstukMm={bruto.nettoMm} lader={bruto.lader} breedte={300} legenda={false} />
         )}
       </div>
-      <div onDoubleClick={(e) => e.stopPropagation()}>
-        <AcalcNum value={aantal} unit="st" width="w56" onChange={(v) => p.onWijzig({ qty: v })} />
+      <div className="acalc-mat-lader" onDoubleClick={(e) => e.stopPropagation()}>
+        <label title={metLader.length === 0 ? 'Geen machine met stangenlader (Instellingen → Machines)' : undefined}>
+          <input type="checkbox" checked={!!node.laderMachineId} disabled={metLader.length === 0 || node.exoot}
+            onChange={(e) => p.onWijzig({ laderMachineId: e.currentTarget.checked ? metLader[0]?.id ?? null : null })} />
+          {node.laderMachineId ? 'aan' : 'uit'}
+        </label>
+        {node.laderMachineId && (
+          <select value={node.laderMachineId} onChange={(e) => p.onWijzig({ laderMachineId: e.currentTarget.value })}>
+            {metLader.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        )}
       </div>
-      <div className={`acalc-mat-voorraad ${voorraad.vrijMm == null ? 'onbekend' : voorraad.vrijMm >= bruto.brutoMm * aantal && voorraad.vrijMm > 0 ? 'ok' : 'tekort'}`}>
+      <div className={`acalc-mat-voorraad ${voorraad.vrijMm == null ? 'onbekend' : voorraad.vrijMm >= bruto.brutoMm && voorraad.vrijMm > 0 ? 'ok' : 'tekort'}`}>
         {voorraad.vrijMm == null ? 'niet in lijst' : voorraad.vrijMm > 0 ? `vrij ${mm(voorraad.vrijMm)}` : 'niet op voorraad'}
       </div>
       <div className="acalc-mat-prijs" onDoubleClick={(e) => e.stopPropagation()}>
@@ -80,7 +94,7 @@ export function MateriaalRegel(p: Props) {
           </div>
         )}
       </div>
-      <span className="acalc-total">{eur(aantal * prijs)}</span>
+      <span className="acalc-total">{eur(prijs)}</span>
       {p.acties}
     </div>
   )

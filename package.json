@@ -15,6 +15,7 @@
     "db:deploy": "npm run db:deploy:dev -w apps/api && npm run db:generate -w apps/api",
     "db:status": "npm run db:status -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
+    "db:leeg": "npm run db:leeg -w apps/api --",
     "test": "npm run test -w apps/api && npm run test -w apps/web"
   },
   "devDependencies": {

@@ -14,9 +14,10 @@ import { ExootVenster } from './ExootVenster'
 import './article-calculator.css'
 import {
   buildEstimateCtx, computeEstimateTotals, materialCostPerPiece, machineRatePerHour, machineMinutes, minToHm,
-  brutoLengte, laderVan, nettoLengte,
-  type EstimateCtx, type LaderGegevens,
+  brutoLengte, laderVoorRegel, nettoLengte,
+  type EstimateCtx,
 } from '../../api/estimate'
+import type { Keuze } from '../materiaal/kiezer/LaderPaneel'
 import { Ic, Icon } from './calc-icons'
 
 const uid = (p: string) => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
@@ -41,14 +42,14 @@ function materialName(
 }
 
 /** "Ø50 · 4,62 kg bruto · € 1,85/kg" — maat, gewicht over de bruto lengte (2026-10-06) en €/kg. */
-function materialSpec(node: EstimateNode, ctx: EstimateCtx, grades: { id: string; densityKgM3: number; pricePerKg?: number }[], profiles: ProfileShape[], lader: LaderGegevens | null): string {
+function materialSpec(node: EstimateNode, ctx: EstimateCtx, grades: { id: string; densityKgM3: number; pricePerKg?: number }[], profiles: ProfileShape[]): string {
   const g = grades.find(x => x.id === node.gradeId)
   if (!g) return '—'
   const nodeProfile = node.profileId ? profiles.find(p => p.id === node.profileId) : undefined
   const formula = (nodeProfile?.volumeFormula ?? ctx.profileFormula) as ProfileInfo['volumeFormula'] | undefined
   const dims = node.dimensions && Object.keys(node.dimensions).length > 0 ? node.dimensions : ctx.recipe?.dimensions
   // Een exoot komt op maat: zijn eigen lengte, geen zaagsnede of lader.
-  const len = node.exoot ? (node.lengthMm ?? 0) : brutoLengte(nettoLengte(node, ctx), lader).brutoMm
+  const len = node.exoot ? (node.lengthMm ?? 0) : brutoLengte(nettoLengte(node, ctx), laderVoorRegel(node, ctx.machines)).brutoMm
   const priceStr = `${eur(g.pricePerKg ?? 0)}/kg`
   if (!formula || !dims) return `0 kg · ${priceStr}`
   const kg = computeWeightKg(formula, dims, len, g.densityKgM3)
@@ -353,8 +354,6 @@ export function ArticleCalculator({ article, est, onEstChange }: {
     [grades, machines, profiles, article],
   )
   const totals = useMemo(() => computeEstimateTotals(est, ctx), [est, ctx])
-  // De draaibank met lader in de bewerkingen bepaalt de bruto lengte (2026-10-06).
-  const lader = useMemo(() => laderVan(est.nodes, ctx.machines), [est.nodes, ctx.machines])
 
   /** Vrije mm van deze kwaliteit, vorm en maat, over alle staven samen. */
   const voorraadVan = (node: EstimateNode): VoorraadStand => {
@@ -404,7 +403,7 @@ export function ArticleCalculator({ article, est, onEstChange }: {
   /** Build a material node from a chosen stock row. Grade/profile/dimensions
    *  come from the stock item; per-piece length defaults to the article recipe
    *  (the stock row's lengthMm is the bar length, not the per-piece cut). */
-  function addMaterialFromStock(row: RawMaterialRow, stuks = 1) {
+  function addMaterialFromStock(row: RawMaterialRow, stuks = 1, keuze?: Keuze) {
     // Een exoot rekent met zijn eigen maat en het aantal stuks eruit (2026-10-06).
     const exoot: Partial<EstimateNode> = row.exoot
       ? { exoot: true, rawMaterialId: row.id, lengthMm: Number(row.lengthMm), stuksUitEen: stuks }
@@ -413,8 +412,10 @@ export function ArticleCalculator({ article, est, onEstChange }: {
       id: uid('mat'), type: 'material',
       gradeId: row.gradeId, profileId: row.profileId,
       dimensions: { ...row.dimensions },
-      lengthMm: article.recipe?.lengthPerPieceMm ?? null,
-      qty: 1, costOverride: null,
+      lengthMm: keuze?.lengthMm ?? article.recipe?.lengthPerPieceMm ?? null,
+      // Stangenlader per materiaalregel (2026-10-09); geen aantal: het recept is voor één stuk.
+      laderMachineId: keuze?.laderMachineId ?? null,
+      costOverride: null,
       name: materialName(row.gradeId, row.profileId, row.dimensions, grades, profiles),
       ...exoot,
     }
@@ -539,7 +540,7 @@ export function ArticleCalculator({ article, est, onEstChange }: {
               <span />
               <span className="nudge-name">Materiaal</span>
               <span>Lengte per stuk</span>
-              <span>Aantal</span>
+              <span>Stangenlader</span>
               <span>Voorraad</span>
               <span>Prijs</span>
               <span className="ta-r">Totaalprijs</span>
@@ -554,12 +555,12 @@ export function ArticleCalculator({ article, est, onEstChange }: {
                 naam={nameInput(node.id, node.name, v => updateNode(node.id, { name: v }))}
                 notitie={
                   <input className="acalc-note-inp klein" value={node.note ?? ''}
-                    placeholder={materialSpec(node, ctx, grades, profiles, lader)}
+                    placeholder={materialSpec(node, ctx, grades, profiles)}
                     onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
                     onChange={e => updateNode(node.id, { note: e.target.value })} />
                 }
                 klant={stockRows.find(r => r.id === node.rawMaterialId)?.klant ?? null}
-                berekend={materialCostPerPiece({ ...node, costOverride: null }, ctx, lader)}
+                berekend={materialCostPerPiece({ ...node, costOverride: null }, ctx)}
                 onWijzig={p => updateNode(node.id, p)}
                 acties={rowActions(node.id, () => removeNode(node.id), 'Exoot verwijderen')}
               />
@@ -572,13 +573,14 @@ export function ArticleCalculator({ article, est, onEstChange }: {
                 naam={nameInput(node.id, node.name, v => updateNode(node.id, { name: v }))}
                 notitie={
                   <input className="acalc-note-inp klein" value={node.note ?? ''}
-                    placeholder={materialSpec(node, ctx, grades, profiles, lader)}
+                    placeholder={materialSpec(node, ctx, grades, profiles)}
                     onClick={e => e.stopPropagation()} onDoubleClick={e => e.stopPropagation()}
                     onChange={e => updateNode(node.id, { note: e.target.value })} />
                 }
-                bruto={brutoLengte(nettoLengte(node, ctx), lader)}
+                bruto={brutoLengte(nettoLengte(node, ctx), laderVoorRegel(node, ctx.machines))}
+                machines={machines}
                 voorraad={voorraadVan(node)}
-                berekend={materialCostPerPiece({ ...node, costOverride: null }, ctx, lader)}
+                berekend={materialCostPerPiece({ ...node, costOverride: null }, ctx)}
                 onWijzig={p => updateNode(node.id, p)}
                 onBewerk={() => openEditNode(node)}
                 acties={rowActions(node.id, () => removeNode(node.id), 'Materiaal verwijderen')}
@@ -707,9 +709,12 @@ export function ArticleCalculator({ article, est, onEstChange }: {
         opened={matPickerOpen}
         onClose={() => setMatPickerOpen(false)}
         stockRows={stockRows}
-        grades={grades.map(g => ({ id: g.id, name: g.name }))}
+        grades={grades.map(g => ({ id: g.id, name: g.name, pricePerKg: g.pricePerKg }))}
         profiles={profiles.map(p => ({ id: p.id, name: p.name, volumeFormula: p.volumeFormula }))}
-        onPick={row => { addMaterialFromStock(row); setMatPickerOpen(false) }}
+        machines={machines}
+        ctx={ctx}
+        startLengte={article.recipe?.lengthPerPieceMm ?? null}
+        onPick={(row, keuze) => { addMaterialFromStock(row, 1, keuze); setMatPickerOpen(false) }}
         onCreated={row => { addMaterialFromStock(row); setMatPickerOpen(false) }}
       />
       {exootOpen && (

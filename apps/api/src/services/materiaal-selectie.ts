@@ -10,37 +10,38 @@
 // De rekenkern zelf staat in `@stockmanager/shared` (`calc/zaagplan.ts`) en is
 // puur; dit bestand haalt de gegevens erbij en schrijft het resultaat weg.
 import type { Prisma } from '@prisma/client'
-import { planZaagwerk, ZAAG_STANDAARD, type PlanStaaf, type ZaagPlan, type ZaagParams } from '@stockmanager/shared'
+import {
+  laderVoorRegel, materiaalBehoefte, materiaalVoorstellen, ZAAG_STANDAARD,
+  type ArticleEstimate, type LaderGegevens, type MateriaalBehoefte, type PlanStaaf, type Voorstel,
+} from '@stockmanager/shared'
 import { AppError } from '../middleware/error'
 import { gereserveerdPerStaaf } from './voorraad'
 
 type Db = Prisma.TransactionClient
 
-/** Zaagsnede en afvlakken: werkplaatsstandaard uit `bruto-lengte.ts`, dezelfde
- *  waarden waarmee de calculatie rekent. Per zaagbon aan te passen. */
-const STEEKBREEDTE_MM = ZAAG_STANDAARD.steekbreedte
-const VLAK_TOESLAG_MM = ZAAG_STANDAARD.vlakToeslag
-
-export interface PlanContext {
-  artikelId: string
+/** Het materiaal van een artikel zoals het recept het zegt (2026-10-09). */
+export interface ArtikelMateriaal {
   artikelNaam: string
-  aantal: number
-  /** De machine bepaalt de laderlengtes en de opspanning. */
-  machineId: string | null
-  /** Overschrijvingen voor deze ene bon. */
-  overschrijf?: Partial<ZaagParams> & { loaderMinMm?: number; loaderMaxMm?: number }
+  profileId: string
+  gradeId: string
+  dimensions: Record<string, number>
+  werkstukLengteMm: number
+  /** Met de stangenlader van deze machine, of zonder. */
+  lader: LaderGegevens | null
+  /** "1.4301 Rond Ø30" — voor op het scherm en de bestel-todo. */
+  omschrijving: string
 }
 
 export interface PlanUitkomst {
-  plan: ZaagPlan
-  /** Waar de maten vandaan komen, zodat het scherm het kan tonen en iemand kan
-   *  zien wanneer een default gebruikt is in plaats van een echte instelling. */
+  behoefte: MateriaalBehoefte
+  /** Het beste eerst; kiezen doet een mens. */
+  voorstellen: Voorstel[]
   gebruikt: {
-    machineNaam: string | null
+    materiaal: string
     werkstukLengteMm: number
-    params: ZaagParams
-    loaderMinMm: number
-    loaderMaxMm: number
+    lader: LaderGegevens | null
+    zaagsnedeMm: number
+    vlakMm: number
     schrootDrempelMm: number
   }
   /** Staven die meededen, met hun vrije lengte. */
@@ -48,16 +49,15 @@ export interface PlanUitkomst {
 }
 
 /**
- * Het beste zaagplan voor één artikel bij een bepaald aantal.
- *
- * Kijkt alleen naar staven die op het recept passen (profiel + kwaliteit +
- * afmeting) en rekent met de **vrije** lengte: wat al voor een ander project
- * vastligt telt niet mee.
+ * Het materiaal uit het recept: de eerste materiaalregel van de calculatie
+ * (geen exoot — die is op maat besteld en wordt niet uit voorraad gekozen).
+ * Profiel, afmetingen en lengte vallen terug op het oude recept-veld als de
+ * regel ze niet heeft.
  */
-export async function maakPlan(db: Db, ctx: PlanContext): Promise<PlanUitkomst> {
+export async function materiaalVanArtikel(db: Db, artikelId: string): Promise<ArtikelMateriaal> {
   const artikel = await db.article.findUnique({
-    where: { id: ctx.artikelId },
-    select: { id: true, naam: true, recipe: true },
+    where: { id: artikelId },
+    select: { id: true, naam: true, recipe: true, estimate: true },
   })
   if (!artikel) throw new AppError(404, 'NOT_FOUND', 'Artikel niet gevonden')
 
@@ -65,40 +65,63 @@ export async function maakPlan(db: Db, ctx: PlanContext): Promise<PlanUitkomst> 
     profileId?: string; gradeId?: string
     dimensions?: Record<string, number>; lengthPerPieceMm?: number
   } | null
-  if (!recept?.profileId || !recept.gradeId) {
+  const est = artikel.estimate as ArticleEstimate | null
+  const regel = est?.nodes?.find((n) => n.type === 'material' && !n.exoot && n.gradeId)
+  const profileId = regel?.profileId ?? recept?.profileId
+  const gradeId = regel?.gradeId ?? recept?.gradeId
+  const dimensions = regel?.dimensions && Object.keys(regel.dimensions).length > 0
+    ? regel.dimensions : (recept?.dimensions ?? {})
+  if (!profileId || !gradeId || Object.keys(dimensions).length === 0) {
     throw new AppError(409, 'GEEN_RECEPT',
-      `${artikel.naam} heeft nog geen recept — zonder profiel en kwaliteit valt er geen materiaal te kiezen`)
+      `${artikel.naam} heeft nog geen materiaal in het recept — kies eerst een materiaal in de calculatie`)
   }
-  const werkstukLengteMm = Number(recept.lengthPerPieceMm ?? 0)
+  const werkstukLengteMm = Number(regel?.lengthMm ?? recept?.lengthPerPieceMm ?? 0)
   if (werkstukLengteMm <= 0) {
-    throw new AppError(409, 'GEEN_LENGTE',
-      `${artikel.naam} heeft geen werkstuklengte in het recept`)
+    throw new AppError(409, 'GEEN_LENGTE', `${artikel.naam} heeft geen werkstuklengte in het recept`)
   }
 
-  const machine = ctx.machineId
-    ? await db.machine.findUnique({ where: { id: ctx.machineId } })
-    : null
+  const machines = regel?.laderMachineId
+    ? await db.machine.findMany({ where: { id: regel.laderMachineId } })
+    : []
+  const lader = regel ? laderVoorRegel(regel, machines) : null
+
+  const [grade, profile] = await Promise.all([
+    db.grade.findUnique({ where: { id: gradeId }, select: { name: true } }),
+    db.profile.findUnique({ where: { id: profileId }, select: { name: true, volumeFormula: true } }),
+  ])
+  const d = dimensions
+  const maat = profile?.volumeFormula === 'round' ? `Ø${d.diameter}`
+    : profile?.volumeFormula === 'tube' ? `Ø${d.outerDiameter}/Ø${d.innerDiameter}`
+    : Object.values(d).join('×')
+  return {
+    artikelNaam: artikel.naam, profileId, gradeId, dimensions, werkstukLengteMm, lader,
+    omschrijving: [grade?.name, profile?.name, maat].filter(Boolean).join(' '),
+  }
+}
+
+/**
+ * Voorstellen voor één artikel bij een bepaald aantal (2026-10-09).
+ *
+ * Eerst wat er gezaagd moet worden (`materiaalBehoefte`: laderstangen, gelijk
+ * verdeeld), dan die lengtes tegen de voorraad (`materiaalVoorstellen`).
+ * Alleen staven die op het recept passen (profiel + kwaliteit + afmeting) en
+ * met de **vrije** lengte: wat al voor een ander project vastligt telt niet mee.
+ * Nooit een andere kwaliteit (afgesproken 2026-10-09).
+ */
+export async function maakPlan(db: Db, ctx: { artikelId: string; aantal: number }): Promise<PlanUitkomst> {
+  const mat = await materiaalVanArtikel(db, ctx.artikelId)
   const bedrijf = await db.company.findUnique({ where: { id: 'default' } })
-
-  const params: ZaagParams = {
-    steekbreedte: ctx.overschrijf?.steekbreedte ?? STEEKBREEDTE_MM,
-    vlakToeslag: ctx.overschrijf?.vlakToeslag ?? VLAK_TOESLAG_MM,
-    afsteek: ctx.overschrijf?.afsteek ?? machine?.afsteekMm ?? 3,
-    opspanlengte: ctx.overschrijf?.opspanlengte ?? machine?.opspanlengteMm ?? 30,
-  }
-  const loaderMinMm = ctx.overschrijf?.loaderMinMm ?? machine?.barloaderMinMm ?? 500
-  const loaderMaxMm = ctx.overschrijf?.loaderMaxMm ?? machine?.barloaderMaxMm ?? 1100
   const schrootDrempelMm = bedrijf?.schrootDrempelMm ?? 200
+  const behoefte = materiaalBehoefte(mat.werkstukLengteMm, mat.lader, ctx.aantal)
 
-  // Alleen staven die op het recept passen. De afmetingen moeten gelijk zijn,
-  // niet "groot genoeg": een Ø60 opdraaien naar Ø50 is een besluit van een mens,
-  // geen automatische keuze.
+  // De afmetingen moeten gelijk zijn, niet "groot genoeg": een Ø60 opdraaien
+  // naar Ø50 is een besluit van een mens, geen automatische keuze.
   const staven = await db.rawMaterial.findMany({
     // Geen exoten: die zijn op maat voor één klant besteld (2026-10-06).
-    where: { profileId: recept.profileId, gradeId: recept.gradeId, currentStock: { gt: 0 }, exoot: false },
+    where: { profileId: mat.profileId, gradeId: mat.gradeId, currentStock: { gt: 0 }, exoot: false },
     include: { locationSlot: { include: { location: true } } },
   })
-  const passend = staven.filter((s) => dimensiesGelijk(s.dimensions, recept.dimensions))
+  const passend = staven.filter((s) => dimensiesGelijk(s.dimensions, mat.dimensions))
   const vast = await gereserveerdPerStaaf(db, passend.map((s) => s.id))
 
   const kandidaten: PlanStaaf[] = passend
@@ -113,20 +136,16 @@ export async function maakPlan(db: Db, ctx: PlanContext): Promise<PlanUitkomst> 
     }))
     .filter((s) => s.vrijMm > 0)
 
-  const plan = planZaagwerk({
-    aantal: ctx.aantal,
-    werkstukLengteMm,
-    params,
-    loader: { minMm: loaderMinMm, maxMm: loaderMaxMm },
-    schrootDrempelMm,
-    staven: kandidaten,
+  const voorstellen = materiaalVoorstellen({
+    stangen: behoefte.stangen, zaagsnedeMm: ZAAG_STANDAARD.steekbreedte, schrootDrempelMm, staven: kandidaten,
   })
 
   return {
-    plan,
+    behoefte,
+    voorstellen,
     gebruikt: {
-      machineNaam: machine?.name ?? null,
-      werkstukLengteMm, params, loaderMinMm, loaderMaxMm, schrootDrempelMm,
+      materiaal: mat.omschrijving, werkstukLengteMm: mat.werkstukLengteMm, lader: mat.lader,
+      zaagsnedeMm: ZAAG_STANDAARD.steekbreedte, vlakMm: ZAAG_STANDAARD.vlakToeslag, schrootDrempelMm,
     },
     kandidaten,
   }
