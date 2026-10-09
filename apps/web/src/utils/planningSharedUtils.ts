@@ -10,11 +10,11 @@
 
 import type { Project, ProductieOrder, ProductieStap } from '@stockmanager/shared'
 import type { Article } from '../api/articles'
-import type { Machine } from '../api/machines'
+import { machinesApi, type Machine } from '../api/machines'
 import { overheadApi, DEFAULT_MACHINE_ROW } from '../api/overhead'
 import {
   toDateStr, getMaandag, EFFECTIEVE_MIN,
-  berekenStapMin, berekenOrderMin,
+  berekenStapMin, berekenOrderMin, receptMachines, receptMachineVoorStap,
   type PlanningStapItem,
 } from './planningUtils'
 
@@ -123,6 +123,8 @@ export function buildStapItems(
   opts: { includeDone?: boolean } = {},
 ): PlanningStapItem[] {
   const result: PlanningStapItem[] = []
+  // Om een stap aan zijn machine in het recept te koppelen (`berekenStapMin`).
+  const machines = machinesApi.listSync()
   for (const project of projects) {
     if (!teltMeeInPlanning(project)) continue
     for (const order of project.productieOrders) {
@@ -132,7 +134,7 @@ export function buildStapItems(
       if (order.status === 'gereed' && !opts.includeDone) continue
       for (const stap of order.stappen) {
         if (stap.gereedOp && !opts.includeDone) continue
-        const { min, isPlaceholder } = berekenStapMin(stap, order, articles)
+        const { min, isPlaceholder } = berekenStapMin(stap, order, articles, machines)
         result.push({ stap, order, project, duurMin: min, isPlaceholder })
       }
     }
@@ -237,10 +239,14 @@ export function berekenGhostBelasting(
         }
         const { min } = berekenOrderMin(fakeOrder, articles)
         const perOp = min / regel.bewerkingen.length
-        for (const bewerking of regel.bewerkingen) {
+        // Elke bewerking de tijd van zijn eigen machine (2026-10-09), net als een stap.
+        const recept = receptMachines(articles.find(a => a.id === regel.artikelId), machines)
+        regel.bewerkingen.forEach((bewerking, i) => {
           const machine = machines.find(m => matchesMachineNaam(bewerking, m.name))
-          backfillFromDeadline(offerteMap, machine ? machine.name : '', deadlineDay, perOp)
-        }
+          const rm = receptMachineVoorStap(recept, bewerking, i, regel.bewerkingen.length)
+          const duur = rm ? Math.max(1, rm.setupMin + rm.cycleMin * regel.qty) : perOp
+          backfillFromDeadline(offerteMap, machine ? machine.name : '', deadlineDay, duur)
+        })
       }
     }
 
@@ -248,7 +254,7 @@ export function berekenGhostBelasting(
       if (order.status === 'gereed' || order.status === 'gestopt') continue
       for (const stap of order.stappen) {
         if (stap.geplandDatum != null || stap.gereedOp) continue
-        const { min } = berekenStapMin(stap, order, articles)
+        const { min } = berekenStapMin(stap, order, articles, machines)
         backfillFromDeadline(ongeplandMap, effectiveMachine(stap), deadlineDay, min)
       }
     }

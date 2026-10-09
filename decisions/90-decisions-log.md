@@ -2367,3 +2367,18 @@ geheel terugdraaien.
 - **Database leegmaken** met behoud van stamgegevens: `npm run db:leeg -- --ja`
   (er stonden te veel foute gegevens in).
 
+
+## 2026-10-09 — Doorlooptijd per stap uit zijn eigen machine
+
+- Een productiestap kreeg een gelijk deel van de tijd van **alle** machines in
+  het recept (`berekenStapMin`: totaal ÷ aantal stappen). Een zaagstap van 3 uur
+  (bolt M24, 80 st: 20 min setup + 80 × 2 min) werd zo dagen, omdat de
+  draaibank ernaast lang was. De setup werd niet keer het aantal gerekend; dat
+  vermoeden klopte niet.
+- Nu: de stap krijgt de setup van zijn eigen machine één keer plus de
+  cyclustijd van die machine × het aantal van de order. Koppelen gaat zoals de
+  stappen gemaakt worden (`bewerkingenVan`): op volgorde, met de naam als
+  controle, dan op naam; dezelfde machine twee keer in het recept is één stap
+  met beide tijden (`receptMachines`). Valt een stap niet te koppelen (met de
+  hand bijgezet, recept gewijzigd), dan nog het gelijke deel.
+- Hetzelfde voor de bewerkingen van een verstuurde offerte in de Prognose.
