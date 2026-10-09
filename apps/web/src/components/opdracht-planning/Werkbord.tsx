@@ -30,7 +30,7 @@ export function Werkbord(p: WerkbordProps) {
         </div>
         <span className="wb-uitleg">
           {weergave === 'kanban'
-            ? 'Hoger = eerder · naar een andere baan = andere machine van dezelfde soort · 2 s stilstaan = meer info'
+            ? 'Hoger = eerder · naar een andere baan = andere machine van dezelfde soort · 1,5 s stilstaan = meer info'
             : 'Waar elke stap staat; plannen doe je in de KanBan'}
         </span>
       </div>

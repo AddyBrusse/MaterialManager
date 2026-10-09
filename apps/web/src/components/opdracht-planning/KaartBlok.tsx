@@ -15,7 +15,7 @@ export interface KaartProps {
   onWachtUit?: (k: Kaart) => void
 }
 
-/** Eén stap op het werkbord; na 2 s stilstaan meer informatie. */
+/** Eén stap op het werkbord; na 1,5 s stilstaan meer informatie. */
 export function KaartBlok(p: KaartProps) {
   const { k } = p
   const j: QueueJob = k.job

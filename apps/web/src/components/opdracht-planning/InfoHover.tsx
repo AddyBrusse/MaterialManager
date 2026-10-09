@@ -7,10 +7,17 @@ import { materiaalVan } from '../../features/projects/detail/lib/document-gegeve
 import { dagKort, urenKort } from '../planning-tabel/tabel-logica'
 import type { Signaal } from './signalen'
 
-/** Na twee seconden stilstaan (zoals de Tabel): meer informatie. Niet tijdens slepen. */
-export function InfoHover({ uit, inhoud, children }: { uit?: boolean; inhoud: () => ReactNode; children: ReactElement }) {
+/**
+ * Na anderhalve seconde stilstaan (zoals de Tabel): meer informatie. Niet
+ * tijdens slepen. Past hij niet, dan klapt hij om of schuift hij het scherm in
+ * (flip/shift) — een rij over de volle breedte zette hem eerst buiten beeld.
+ */
+export function InfoHover({ uit, inhoud, positie = 'right-start', children }: {
+  uit?: boolean; inhoud: () => ReactNode; positie?: 'right-start' | 'bottom-start'; children: ReactElement
+}) {
   return (
-    <HoverCard openDelay={2000} closeDelay={80} position="right-start" shadow="md" withinPortal disabled={uit} withArrow>
+    <HoverCard openDelay={1500} closeDelay={80} position={positie} shadow="md" withinPortal disabled={uit} withArrow
+      middlewares={{ flip: true, shift: { padding: 8 } }}>
       <HoverCard.Target>{children}</HoverCard.Target>
       <HoverCard.Dropdown p={10} style={{ maxWidth: 460 }}>{inhoud()}</HoverCard.Dropdown>
     </HoverCard>

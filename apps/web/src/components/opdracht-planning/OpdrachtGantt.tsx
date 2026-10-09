@@ -45,7 +45,7 @@ export function OpdrachtGantt({ opdrachten, ws, van, dagen, dicht, info, onKlap,
     const l = o.levering ? dayOffsetForDateStr(o.levering, ws) : null
     const order = a.open[0].item.order
     return (
-      <InfoHover key={a.orderId} inhoud={() => { const i = info(a.orderId); return <ArtikelInhoud order={order} klant={i.klant} stappen={i.stappen} /> }}>
+      <InfoHover key={a.orderId} positie="bottom-start" inhoud={() => { const i = info(a.orderId); return <ArtikelInhoud order={order} klant={i.klant} stappen={i.stappen} /> }}>
         <div className="og-r og-a">
           <div className="og-l">
             {order.artikelId
