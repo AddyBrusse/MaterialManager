@@ -3,7 +3,7 @@ import { matchPath } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList, IconCut, IconBookmark,
   IconUsers, IconClipboardList, IconChartBar, IconArrowsSort, IconListCheck,
-  IconChecklist, IconListNumbers, IconFileText, IconClock, IconTruckDelivery, type Icon as TablerIcon,
+  IconChecklist, IconListNumbers, IconTimeline, IconTable, IconFileText, IconClock, IconTruckDelivery, type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { VoorraadPage } from '../../routes/desktop/VoorraadPage'
 import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
@@ -19,7 +19,8 @@ import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
 import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../features/projects/detail/ProjectDetailPage'
-import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
+import { PlanningQueuePage, PlanningTijdlijnPage, PlanningTabelPage } from '../../routes/desktop/PlanningQueuePage'
+import { WerkbordPage } from '../../routes/desktop/WerkbordPage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
@@ -44,7 +45,11 @@ export interface PageEntry {
 
 export const PAGES: PageEntry[] = [
   // Planning
-  { path: '/planning-queue', label: 'Wachtrij', Icon: IconListNumbers, Component: PlanningQueuePage, poppable: true, hideChrome: true },
+  { path: '/planning-queue', label: 'Opdrachten', Icon: IconListNumbers, Component: PlanningQueuePage, poppable: true, hideChrome: true },
+  { path: '/planning-tijdlijn', label: 'Tijdlijn', Icon: IconTimeline, Component: PlanningTijdlijnPage, poppable: true, hideChrome: true },
+  { path: '/planning-tabel', label: 'Tabel', Icon: IconTable, Component: PlanningTabelPage, poppable: true, hideChrome: true },
+  // Alleen als los venster vanuit Planning → Opdrachten (2026-10-08); niet in het menu.
+  { path: '/planning-werkbord', label: 'Werkbord', Icon: IconListNumbers, Component: WerkbordPage, poppable: true },
   { path: '/prognose',       label: 'Prognose', Icon: IconChartBar,    Component: PrognosePage,      poppable: true },
   { path: '/todos',          label: 'ToDo',     Icon: IconChecklist,   Component: TodosPage,         poppable: true },
   { path: '/tijdregistratie', label: 'Tijdregistratie', Icon: IconClock, Component: TijdregistratiePage, poppable: true },

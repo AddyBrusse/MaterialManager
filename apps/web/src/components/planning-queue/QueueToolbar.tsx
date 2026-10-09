@@ -1,12 +1,11 @@
 import { IconArrowBackUp, IconArrowForwardUp, IconSparkles, IconPictureInPictureOff } from '@tabler/icons-react'
 import type { QueueZoom } from '../../utils/planningQueueUtils'
 
-export type PlanningWeergave = 'tijdlijn' | 'tabel'
+export type PlanningWeergave = 'opdrachten' | 'tijdlijn' | 'tabel'
 
 interface QueueToolbarProps {
-  /** Tijdlijn (de wachtrij met de vlakken) of Tabel (machines × plekken, 2026-10-08). */
+  /** Tijdlijn of Tabel; kiezen gebeurt in het zijmenu (2026-10-09). */
   weergave: PlanningWeergave
-  onWeergave: (w: PlanningWeergave) => void
   zoom: QueueZoom
   onZoom: (z: QueueZoom) => void
   showKpi: boolean
@@ -17,16 +16,10 @@ interface QueueToolbarProps {
 
 const ZOOM_OPTS: [QueueZoom, string][] = [['dag', 'Dag'], ['week', 'Week'], ['maand', 'Maand']]
 
-export function QueueToolbar({ weergave, onWeergave, zoom, onZoom, showKpi, onToggleKpi, onSuggest, onClose }: QueueToolbarProps) {
+export function QueueToolbar({ weergave, zoom, onZoom, showKpi, onToggleKpi, onSuggest, onClose }: QueueToolbarProps) {
   return (
     <div className="plan-toolbar">
-      <span className="tb-label" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>Planning</span>
-      <div className="tb-divider" />
-
-      <div className="seg" role="tablist" aria-label="Weergave">
-        <button data-active={weergave === 'tijdlijn'} onClick={() => onWeergave('tijdlijn')}>Tijdlijn</button>
-        <button data-active={weergave === 'tabel'} onClick={() => onWeergave('tabel')}>Tabel</button>
-      </div>
+      <span className="tb-label" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{weergave === 'tabel' ? 'Tabel' : 'Tijdlijn'}</span>
       <div className="tb-divider" />
 
       {weergave === 'tijdlijn' && (
@@ -40,15 +33,19 @@ export function QueueToolbar({ weergave, onWeergave, zoom, onZoom, showKpi, onTo
         </>
       )}
 
-      <button className="icon-btn" disabled title="Ongedaan maken (nog niet beschikbaar)">
-        <IconArrowBackUp size={14} />
-      </button>
-      <button className="icon-btn" disabled title="Opnieuw (nog niet beschikbaar)">
-        <IconArrowForwardUp size={14} />
-      </button>
-      <button className="btn primary" onClick={onSuggest}>
-        <IconSparkles size={14} /> Stel schema voor
-      </button>
+      {weergave !== 'opdrachten' && (
+        <>
+          <button className="icon-btn" disabled title="Ongedaan maken (nog niet beschikbaar)">
+            <IconArrowBackUp size={14} />
+          </button>
+          <button className="icon-btn" disabled title="Opnieuw (nog niet beschikbaar)">
+            <IconArrowForwardUp size={14} />
+          </button>
+          <button className="btn primary" onClick={onSuggest}>
+            <IconSparkles size={14} /> Stel schema voor
+          </button>
+        </>
+      )}
       {onClose && (
         <button className="icon-btn" title="Terug naar hoofdvenster" onClick={onClose}>
           <IconPictureInPictureOff size={14} />

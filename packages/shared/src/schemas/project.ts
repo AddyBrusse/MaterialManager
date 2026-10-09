@@ -37,6 +37,14 @@ export const ProductieStapSchema = z.object({
   // which matters because a machine's queue can span steps that live in many
   // different Project rows. null = not queued (backlog).
   queuePosition: z.number().nullable().optional(),
+  // Automatisch plannen (2026-10-08): de rang die de planner gaf, lager = eerder.
+  // Los van queuePosition: dat is de volgorde die er op de machine uitkomt, en
+  // een stap die op zijn vorige stap wacht kan daar later staan dan zijn
+  // prioriteit zegt. null = nog nooit ingepland; die komt in op uiterlijk starten.
+  prioriteit: z.number().nullable().optional(),
+  // "Machine laten wachten" (2026-10-09): de planning vult de tijd vóór deze
+  // stap op zijn machine niet met ander werk. Geldt tot de stap gestart is.
+  machineWacht: z.boolean().optional(),
 })
 export type ProductieStap = z.infer<typeof ProductieStapSchema>
 
@@ -62,6 +70,12 @@ export const ProductieOrderSchema = z.object({
   // orderregel nog materiaal in bestelling. Gaat vanzelf uit als alles binnen
   // geboekt is. Zo'n order staat niet op de terminal; de planning ziet hem wel.
   wachtOpMateriaal: z.boolean().optional(),
+  // Afgeleid (2026-10-09): wanneer het materiaal er naar verwachting is, voor
+  // de planning. Besteld: verstuurd + levertijd of de doorgegeven leverdatum.
+  // Nog niet besteld: vandaag + levertijd van de gekozen leverancier. Is van
+  // een open bestelling geen datum te zeggen, dan `materiaalOnbekend`.
+  materiaalVerwacht: z.string().nullable().optional(),
+  materiaalOnbekend: z.boolean().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

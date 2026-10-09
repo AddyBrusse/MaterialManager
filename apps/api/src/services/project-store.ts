@@ -7,7 +7,7 @@
 // tabellen kent.
 import type { Prisma } from '@prisma/client'
 import { AppError } from '../middleware/error'
-import { ObVerzendingSchema, ObWijzigingSchema, wachtOpMateriaal } from '@stockmanager/shared'
+import { ObVerzendingSchema, ObWijzigingSchema, materiaalVerwachtVoor, vandaagIso, wachtOpMateriaal } from '@stockmanager/shared'
 import type {
   Project, Offerte, OfferteRegel, OfferteStatus, Opdrachtbevestiging, OBStatus, ObVerzending, ObWijziging,
   ProductieOrder, ProductieOrderStatus, ProductieStap, Paklijst, Factuur,
@@ -24,10 +24,30 @@ export const PROJECT_INCLUDE = {
   paklijsten: { include: { regels: { orderBy: { sortOrder: 'asc' } } }, orderBy: { createdAt: 'asc' } },
   facturen: { include: { regels: { orderBy: { sortOrder: 'asc' } } }, orderBy: { createdAt: 'asc' } },
   // Voor "wacht op materiaal" (2026-10-07): alleen wat nog niet binnen is.
-  bestelRegels: { where: { status: { not: 'ontvangen' } }, select: { projectId: true, offerteRegelId: true, status: true } },
+  bestelRegels: {
+    where: { status: { not: 'ontvangen' } },
+    select: {
+      projectId: true, offerteRegelId: true, status: true, keuzeLevertijdDagen: true,
+      // Voor de verwachte binnenkomst (2026-10-09, planning).
+      inkoopRegels: {
+        where: { inkooporder: { status: { not: 'vervallen' } } },
+        select: { levertijdDagen: true, verwachtDatum: true, inkooporder: { select: { status: true, verzondenOp: true } } },
+      },
+    },
+  },
 } satisfies Prisma.ProjectInclude
 
 export type ProjectRow = Prisma.ProjectGetPayload<{ include: typeof PROJECT_INCLUDE }>
+
+/** Verwachte binnenkomst van het materiaal van een order, voor de planning. */
+function materiaalVoorPlanning(o: { projectId: string; offerteRegelId: string }, row: ProjectRow) {
+  const regels = row.bestelRegels.map((r) => ({
+    ...r,
+    inkoopRegels: r.inkoopRegels.map((x) => ({ ...x, inkooporder: { status: x.inkooporder.status, verzondenOp: x.inkooporder.verzondenOp ? vandaagIso(x.inkooporder.verzondenOp) : null } })),
+  }))
+  const m = materiaalVerwachtVoor(o, regels, vandaagIso())
+  return { materiaalVerwacht: m.verwacht, materiaalOnbekend: m.onbekend }
+}
 
 // ── Lezen ─────────────────────────────────────────────────────────────────────
 
@@ -132,6 +152,7 @@ export function serialize(row: ProjectRow): Project {
       aantalGereed: o.aantalGereed,
       status: o.status as ProductieOrderStatus,
       wachtOpMateriaal: wachtOpMateriaal(o, row.bestelRegels),
+      ...materiaalVoorPlanning(o, row),
       stappen: o.stappen.map((s): ProductieStap => ({
         id: s.id,
         volgorde: s.volgorde,
@@ -142,6 +163,8 @@ export function serialize(row: ProjectRow): Project {
         geplandDatum: s.geplandDatum,
         geplandMachine: s.geplandMachine,
         queuePosition: s.queuePosition,
+        prioriteit: s.prioriteit,
+        machineWacht: s.machineWacht,
       })),
       createdAt: o.createdAt.toISOString(),
       updatedAt: o.updatedAt.toISOString(),
@@ -397,6 +420,8 @@ export async function persist(tx: Db, next: Project): Promise<void> {
         geplandDatum: s.geplandDatum ?? null,
         geplandMachine: s.geplandMachine ?? null,
         queuePosition: s.queuePosition ?? null,
+        prioriteit: s.prioriteit ?? null,
+        machineWacht: s.machineWacht ?? false,
       }
       await tx.productieStap.upsert({
         where: { id: s.id },

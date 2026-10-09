@@ -8,13 +8,14 @@ import { dagKort, urenKort } from './tabel-logica'
 import type { CelInfo } from './TabelRaster'
 
 /**
- * Na twee seconden stilstaan boven een cel (2026-10-08): alles van die stap,
+ * Na anderhalve seconde stilstaan boven een cel (2026-10-08): alles van die stap,
  * met de preview van het artikel — dezelfde als bij de offerte en op de
  * Productie-tab (STEP-weergave, anders de pdf-tekening). Niet tijdens slepen.
  */
 export function CelTooltip({ j, info, uit, children }: { j: QueueJob; info: CelInfo; uit: boolean; children: ReactElement }) {
   return (
-    <HoverCard openDelay={2000} closeDelay={80} position="right-start" shadow="md" withinPortal disabled={uit} withArrow>
+    <HoverCard openDelay={1500} closeDelay={80} position="right-start" shadow="md" withinPortal disabled={uit} withArrow
+      middlewares={{ flip: true, shift: { padding: 8 } }}>
       <HoverCard.Target>{children}</HoverCard.Target>
       <HoverCard.Dropdown p={10} style={{ maxWidth: 420 }}>
         <Inhoud j={j} info={info} />

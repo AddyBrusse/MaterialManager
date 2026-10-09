@@ -134,3 +134,16 @@ describe('tekst', () => {
     expect(werkdagenTeLaat('2026-10-12', null)).toBe(0)
   })
 })
+
+describe('receptvolgorde in de rij (2026-10-09)', () => {
+  it('stap 2 kan niet boven stap 1 op dezelfde machine', async () => {
+    const { waaromNietHier } = await import('../tabel-logica')
+    const s1 = job({ order: 'A', volgorde: 1, recept: 'DMG', op: 'DMG', pos: 1000 })
+    const x = job({ order: 'B', recept: 'DMG', op: 'DMG', pos: 2000 })
+    const s2 = job({ order: 'A', volgorde: 2, recept: 'DMG', op: 'DMG', pos: 3000 })
+    const w = rijen(['DMG', [s1, x, s2]])
+    expect(waaromNietHier(w, s2, 'DMG', s1.id)).toMatch(/stap 1 .* staat hier nog onder/)
+    expect(waaromNietHier(w, s1, 'DMG', null)).toMatch(/stap 2 .* staat hierboven/)
+    expect(waaromNietHier(w, s2, 'DMG', x.id)).toBeNull()
+  })
+})

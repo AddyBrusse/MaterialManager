@@ -1,0 +1,141 @@
+/* Planning per opdracht (2026-10-08): Gantt boven, werkbord onder. Kleur
+   alleen per machine; rood alleen voor te laat en de leverdatum. */
+.op { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px 12px 10px; }
+.op-alleen-werkbord { height: 100%; }
+.op-balk { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.op-balk .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--bg-card, #fff); }
+.op-balk .seg > button:not(.st-btn) { border: 0; border-left: 1px solid var(--border); background: transparent; padding: 0 10px; height: 26px; font: inherit; font-size: 12px; color: var(--text-2); cursor: pointer; }
+.op-balk .seg > button:first-child { border-left: 0; }
+.op-balk .seg > button[data-active="true"] { background: var(--bg-hover); color: var(--text); font-weight: 600; }
+.op-balk .seg .st-btn { border-radius: 0; border: 0; }
+.op-stand { margin-left: auto; font-size: 12px; color: var(--text-3); }
+.op-stand b { color: var(--danger); }
+.op-titel { font-weight: 600; font-size: 13.5px; }
+.op-gantt { flex: 1.4; min-height: 160px; overflow: auto; background: var(--bg-card, #fff); border: 1px solid var(--border); border-radius: 6px; }
+.op[data-los="true"] .op-gantt { flex: 1; }
+.op-werkbord { flex: 1; min-height: 200px; display: flex; flex-direction: column; background: var(--bg-card, #fff); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.op-los { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-3); padding: 6px 10px; border: 1px dashed var(--border); border-radius: 6px; }
+
+/* Gantt */
+.og { min-width: 900px; position: relative; }
+.og-r { display: grid; grid-template-columns: 330px 1fr; border-bottom: 1px solid var(--border); height: 28px; }
+.og-l { display: flex; align-items: center; gap: 6px; padding: 0 8px; border-right: 1px solid var(--border); white-space: nowrap; overflow: hidden; font-size: 12px; background: var(--bg-card, #fff); position: relative; z-index: 1; }
+.og-t { position: relative; overflow: hidden; }
+.og-kop { position: sticky; top: 0; z-index: 3; height: 24px; background: var(--bg-sidebar, #f6f6f4); }
+.og-kop .og-l { background: var(--bg-sidebar, #f6f6f4); color: var(--text-3); font-size: 11px; }
+.og-as { display: flex; }
+.og-as > div { flex: 1; min-width: 0; font-size: 10.5px; color: var(--text-3); padding: 5px 0 0 3px; border-left: 1px solid var(--border); white-space: nowrap; overflow: hidden; }
+.og-as > div[data-we="true"] { background: var(--bg-hover); }
+.og-as > div[data-vandaag="true"] { color: var(--accent); font-weight: 600; }
+.og-body { position: relative; }
+.og-kolommen { position: absolute; top: 0; bottom: 0; left: 330px; right: 0; display: flex; pointer-events: none; }
+.og-kolommen > div { flex: 1; border-left: 1px solid var(--border); }
+.og-kolommen > div[data-we="true"] { background: var(--bg-hover); }
+.og-kolommen > div[data-vandaag="true"] { background: rgba(45, 109, 246, 0.07); }
+.og-o { cursor: pointer; height: 30px; }
+.og-o .og-l { font-weight: 600; }
+.og-o:hover .og-l { background: var(--bg-hover); }
+.og-pijltje { width: 10px; color: var(--text-3); }
+.og-id { font-family: var(--font-mono); color: var(--text); text-decoration: none; }
+.og-id:hover { text-decoration: underline; }
+.og-naam { font-weight: 400; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; }
+.og-rechts { margin-left: auto; }
+.og-sub { font-weight: 400; color: var(--text-3); font-size: 11px; }
+.og-sub[data-laat="true"] { color: var(--danger); font-weight: 600; }
+.og-a .og-l { padding-left: 28px; }
+.og-art { overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.og-a .og-sub { margin-left: auto; }
+.og-som { position: absolute; top: 9px; height: 12px; border-radius: 2px; background: #d4d7dc; overflow: hidden; }
+.og-som i { position: absolute; left: 0; top: 0; bottom: 0; background: #7c828c; }
+.og-som[data-laat="true"] { background: #f2c2b8; }
+.og-som[data-laat="true"] i { background: var(--danger); }
+.og-stap { position: absolute; top: 6px; height: 16px; border-radius: 2px; color: #fff; font-size: 10.5px; line-height: 16px; padding: 0 4px; white-space: nowrap; overflow: hidden; min-width: 3px; box-sizing: border-box; }
+.og-pijl { position: absolute; top: 14px; border-top: 1px solid #7c828c; }
+.og-lab { position: absolute; top: 6px; font-size: 11px; color: var(--text-3); white-space: nowrap; pointer-events: none; }
+.og-lab-o { top: 7px; color: var(--text-2); }
+.og-lab-o b { color: var(--text); font-weight: 600; }
+.og-laat { color: var(--danger); font-weight: 600; }
+.og-lev { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--danger); }
+.og-leeg { padding: 16px; color: var(--text-3); font-size: 12px; }
+
+/* Werkbord */
+.wb { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wb[data-bezig="true"] { opacity: .7; pointer-events: none; }
+.wb-filter { display: flex; gap: 6px; padding: 7px 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; align-items: center; }
+.wb-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 9px; border: 1px solid var(--border); border-radius: 999px; background: transparent; font: inherit; font-size: 11.5px; color: var(--text-2); cursor: pointer; }
+.wb-chip i { width: 8px; height: 8px; border-radius: 2px; background: var(--mc, #999); }
+.wb-chip[data-on="true"] { background: var(--bg-hover); color: var(--text); font-weight: 600; border-color: var(--border-strong, #ccc); }
+.wb-chip[data-doel="ja"] { border-color: var(--accent); border-style: dashed; color: var(--accent); }
+.wb-chip[data-doel="nee"] { opacity: .35; }
+.wb-hint { font-size: 11px; color: var(--text-3); margin-left: 6px; }
+.wb-kolommen { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; padding: 8px 10px; background: var(--bg-sidebar, #f7f7f5); }
+.wb-kol { display: flex; flex-direction: column; min-height: 0; background: var(--bg-hover); border-radius: 6px; padding: 6px; }
+.wb-kol[data-doel="true"] { box-shadow: inset 0 -3px 0 var(--accent); }
+.wb-kol h4 { margin: 2px 4px 6px; font-size: 11.5px; font-weight: 600; color: var(--text-2); display: flex; justify-content: space-between; }
+.wb-kol h4 span { font-weight: 400; color: var(--text-3); }
+.wb-lijst { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.wb-kaart { position: relative; background: var(--bg-card, #fff); border: 1px solid var(--border); border-radius: 5px; padding: 5px 8px 5px 11px; line-height: 1.4; font-size: 11px; color: var(--text-2); }
+.wb-kaart[draggable="true"] { cursor: grab; }
+.wb-kaart::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; border-radius: 5px 0 0 5px; background: var(--mc, #999); }
+.wb-kaart .r1 { display: flex; justify-content: space-between; gap: 6px; }
+.wb-kaart .r1 b { font-family: var(--font-mono); font-size: 11.5px; color: var(--text); }
+.wb-kaart .r1 span, .wb-kaart .r3 { color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb-kaart .r3 { display: flex; justify-content: space-between; gap: 6px; }
+.wb-kaart[data-gesleept="true"] { opacity: .35; }
+.wb-kaart[data-doel="true"] { box-shadow: 0 -3px 0 var(--accent); }
+
+/* Achter lopen (2026-10-09): rood is altijd achterstand. */
+.og-stap { background: var(--mc, #888); }
+.og-stap[data-achter="true"] { box-shadow: 0 0 0 2px var(--danger); }
+.og-stap[data-bezig="true"] { box-shadow: 0 0 0 2px var(--text); }
+.og-stap[data-materiaal="true"] { background: repeating-linear-gradient(135deg, var(--mc, #888) 0 5px, color-mix(in srgb, var(--mc, #888) 45%, #fff) 5px 10px); color: var(--text); }
+.og-uitloop { position: absolute; top: 6px; height: 16px; border-radius: 0 2px 2px 0; background: repeating-linear-gradient(135deg, var(--danger) 0 4px, var(--danger-soft, #fbe0da) 4px 8px); }
+.og-sub[data-laat="true"] { color: var(--danger); }
+.op-sleutel { display: flex; gap: 14px; align-items: center; font-size: 11px; color: var(--text-3); flex-wrap: wrap; }
+.op-sleutel i { display: inline-block; width: 18px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: #9aa0a8; }
+.op-sleutel i.uitloop { background: repeating-linear-gradient(135deg, var(--danger) 0 4px, var(--danger-soft, #fbe0da) 4px 8px); }
+.op-sleutel i.achter { box-shadow: 0 0 0 2px var(--danger); }
+.op-sleutel i.bezig { box-shadow: 0 0 0 2px var(--text); }
+.op-sleutel i.materiaal { background: repeating-linear-gradient(135deg, #9aa0a8 0 4px, #e2e4e8 4px 8px); }
+.op-sleutel i.lev { width: 0; border-left: 2px solid var(--danger); border-radius: 0; background: none; }
+.op-sleutel .op-achter { color: var(--danger); font-weight: 600; }
+.wb-sig { margin-top: 2px; font-size: 10.5px; font-weight: 600; }
+.wb-sig[data-soort="uitloop"], .wb-sig[data-soort="achter"], .wb-sig[data-soort="geenMachine"] { color: var(--danger); }
+.wb-sig[data-soort="materiaal"] { color: var(--warning, #b7791f); }
+.wb-sig[data-soort="bezig"] { color: var(--text-3); font-weight: 400; }
+.wb-kaart[data-rood="true"] { border-color: var(--danger); }
+.op-balk .seg .st-btn.primary { background: var(--accent); color: #fff; }
+
+/* Herzien 2026-10-09: projectregel = effen band met gegevens, geen blokken of randen. */
+.og-o { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; height: 26px; padding: 0 10px; background: #e9eaec; font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; border: 0; }
+.og-o:hover { background: #e2e4e7; }
+.og-o .og-naam { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.og-o .og-veld { color: var(--text-3); }
+.og-o .og-veld b { color: var(--text); font-weight: 600; }
+.og-o .og-veld[data-laat="true"], .og-o .og-veld[data-laat="true"] b { color: var(--danger); }
+.og-o .og-pct { margin-left: auto; }
+.og-a { cursor: default; }
+.og-link { color: var(--text); text-decoration: none; cursor: pointer; }
+.og-link:hover { text-decoration: underline; color: var(--accent); }
+.og-stap { font-weight: 500; }
+.op-balk + .op-gantt { margin-top: 0; }
+.op .op-sleutel { flex-direction: column; align-items: flex-start; gap: 6px; }
+
+/* Werkbord: schakelaar KanBan / Status */
+.wb-paneel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wb-kop { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.wb-kop .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.wb-kop .seg button { border: 0; border-left: 1px solid var(--border); background: transparent; padding: 0 12px; height: 24px; font: inherit; font-size: 12px; color: var(--text-2); cursor: pointer; }
+.wb-kop .seg button:first-child { border-left: 0; }
+.wb-kop .seg button[data-active="true"] { background: var(--bg-hover); color: var(--text); font-weight: 600; }
+.wb-uitleg { font-size: 11px; color: var(--text-3); }
+.kb { flex: 1; min-height: 0; display: flex; gap: 8px; padding: 8px 10px; overflow-x: auto; background: var(--bg-sidebar, #f7f7f5); }
+.kb[data-bezig="true"] { opacity: .7; pointer-events: none; }
+.kb-baan { flex: 1 0 210px; max-width: 320px; display: flex; flex-direction: column; min-height: 0; background: var(--bg-hover); border-radius: 6px; padding: 6px; border-top: 3px solid var(--mc, #999); }
+.kb-baan[data-doel="true"] { box-shadow: inset 0 -3px 0 var(--accent); }
+.kb-baan h4 { margin: 2px 4px 6px; font-size: 12px; font-weight: 600; display: flex; flex-direction: column; gap: 1px; }
+.kb-baan h4 i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--mc, #999); margin-right: 6px; }
+.kb-sub { font-size: 10.5px; font-weight: 400; color: var(--text-3); }
+.wb-kaart[data-bezig="true"] { box-shadow: 0 0 0 2px var(--text); }
+.wb-wacht { margin-top: 3px; border: 1px dashed var(--border-strong, #bbb); background: transparent; border-radius: 4px; font: inherit; font-size: 10.5px; color: var(--text-2); padding: 1px 6px; cursor: pointer; }
+.wb-wacht:hover { border-color: var(--danger); color: var(--danger); }

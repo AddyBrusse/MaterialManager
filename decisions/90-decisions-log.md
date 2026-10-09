@@ -2229,3 +2229,102 @@ berekende startdag). Code: `components/planning-tabel/`.
 - **Gantt** kreeg een legenda: rood streepje = uiterlijk starten, rode
   stippellijn = levering, grijze lijn = vandaag. Heet de stap zoals de
   machine, dan staat de naam één keer op de balk.
+
+## 2026-10-08 — Automatisch plannen: Gantt per opdracht, werkbord, ongedaan maken
+
+**Besluit.** De planning rekent zelf, op prioriteit per stap en de volgorde van
+het recept; de mens stuurt bij op een werkbord en kan elke herberekening in zijn
+geheel terugdraaien.
+
+- **Waarom niet de wachtrij per machine laten bepalen.** De rij in een kolom
+  zei niets over tijd: stap 2 kon boven stap 1 staan, en de machine wachtte dan
+  stil op het werk van een andere machine. Op dezelfde machine controleerde de
+  planner de vorige stap helemaal niet. Nu begint een stap nooit vóór zijn
+  vorige stap, ook op dezelfde machine, en wat moet wachten laat de machine
+  niet stilstaan: werk met minder voorrang dat wél kan, gaat in het gat
+  (`utils/auto-planning.ts`).
+- **Prioriteit staat los van de plek in de rij.** `ProductieStap.prioriteit` is
+  wat de mens wil (hoger op het werkbord = eerder); `queuePosition` blijft de
+  volgorde die er op de machine uitkomt, zodat Tijdlijn, Tabel en terminal
+  ongewijzigd werken. Nieuw werk komt ertussen op uiterlijk starten.
+- **De berekening wisselt nooit zelf van machine.** De huidige machine, anders
+  die uit het recept, anders de machine van de soort die hem het eerst af heeft.
+  Een andere machine kiezen doet een mens (slepen op een machine-chip, alleen
+  dezelfde soort).
+- **Rekenen in de browser, vastleggen op de server.** Alleen de browser kent de
+  geschatte tijden (uit de calculatie). De server leest zelf de oude waarden en
+  schrijft alles in één transactie, met de projecten op slot zodat een gewone
+  projectwijziging er niet tussendoor schrijft (`services/planning-herberekening.ts`).
+- **Ongedaan maken: helemaal of niet, alleen de nieuwste.** Een oudere
+  terugzetten onder een nieuwere zou die nieuwere half laten staan. Gestart of
+  gereedgemeld sinds de herberekening houdt het tegen; de melding toont wat en
+  wist het met één klik (op verzoek, 2026-10-08): de klok weg (de gemeten tijd
+  gaat verloren, dat staat erbij), de gereedmelding eraf, en werd de order
+  daardoor weer open, de automatische zaagbon-afboeking terug op voorraad met
+  een eigen correctiemutatie. Is er daarna nog iets met die staaf gebeurd, dan
+  weigert hij — blind terugzetten zou dat overschrijven. Met de hand afgeboekte
+  bonnen (gemeten rest) blijven staan.
+- **Geen akkoord nodig**, wel altijd een melding: wat er ingepland is, of de
+  levering gehaald wordt, wat er voor andere orders verschoof. Eén melding
+  tegelijk; de laatste berekeningen staan onder "Laatste".
+- **Vastzetten vervalt**: prioriteit dekt het.
+- **Bekende grenzen.** Een stap die op materiaal wacht, wordt ingepland alsof
+  het op tijd binnen is (de melding zegt het); de verwachte binnenkomst uit de
+  inkoop rekent nog niet mee. Een lopende klok telt van nu met de volle
+  geschatte tijd, niet met wat er nog over is.
+
+## 2026-10-09 — Automatisch plannen: achter lopen, materiaal, receptvolgorde in de Tabel
+
+- **Bezig blijft staan.** Een stap met een lopende klok staat op de tijdlijn
+  waar de klok begon, niet op "nu". Voorbij zijn geplande eind en nog niet
+  gereed = **loopt uit**: de planning rekent hem klaar aan het eind van vandaag
+  (gekozen boven "een kwart erbij": voorspelbaar, en elke dag zonder
+  gereedmelding schuift het zichtbaar een dag op). Wat erna komt op die machine
+  en de volgende stappen van de order schuiven mee.
+- **Zichtbaar achter lopen.** Een sleutel boven de Gantt: zwarte rand = bezig,
+  rood gearceerd = loopt uit, rode rand = had al moeten beginnen,
+  gestreept = wacht op materiaal. Hetzelfde als label op de werkbordkaart, en
+  het aantal achterlopende stappen naast de sleutel. Afgeleid in
+  `opdracht-planning/signalen.ts`, nooit opgeslagen.
+- **Materiaal.** De planning laat een stap die op materiaal wacht niet eerder
+  beginnen dan `materiaalVerwacht` (afgeleid op de server bij het lezen van
+  het project). Verstuurde inkooporder: de doorgegeven leverdatum, anders
+  verstuurd + levertijd. Nog niet besteld: vandaag + levertijd van de gekozen
+  leverancier. Niet te zeggen = onbekend: dan vanaf vandaag, en de melding
+  zegt "vul hem in bij Bestellingen".
+- **Een werkdag loopt voor de planning van 7:00 tot 16:00.** Alleen om "nu" en
+  "gestart om" op de dag te zetten; wat er in een dag past blijft
+  EFFECTIEVE_MIN. Na 16:00 telt als de volgende dag, anders kreeg 's avonds
+  herberekend werk "vandaag" als datum.
+- **De Tabel volgt de receptvolgorde op één machine.** Stap 2 boven stap 1 van
+  dezelfde order slepen weigert hij, met de zin waarom (`waaromNietHier`).
+
+## 2026-10-09 — Planning: indeling, KanBan per machine, "machine laten wachten"
+
+- **Opdrachten, Tijdlijn en Tabel in het zijmenu**, elk een eigen route
+  (`/planning-queue` bleef de route van Opdrachten, zodat bestaande links en
+  losse vensters blijven werken). De Opdrachten-pagina heeft één balk; de
+  legenda is een knop. Zo gaat alle hoogte naar de Gantt en het werkbord.
+- **Projectregel als effen band** met PRJ-nr, klant, omschrijving, afgesproken
+  levering en verwachte levering (eind van de laatste stap; rood als hij na de
+  afspraak ligt). Geen balk meer in die regel: de artikelregels eronder zeggen
+  al wanneer wat gebeurt.
+- **KanBan per machine is de plaats om te plannen**; Status is alleen kijken.
+  De volgorde in een baan is die waarin de machine het werk doet (bezig
+  bovenaan, dan op geplande start). Slepen geeft een rang tussen de buren
+  (`kanbanLos`); naar een andere baan alleen bij dezelfde soort; stap 2 vóór
+  stap 1 van dezelfde order wordt geweigerd.
+- **Vullen of machine laten wachten.** Moet een gesleepte stap wachten (vorige
+  stap, materiaal) en zou werk met minder voorrang dat gat vullen, dan rekent
+  het scherm beide uit en vraagt het eerst. Vullen maakt de gesleepte stap nooit
+  later (werk gaat alleen in een gat als het er helemaal in past); de melding
+  noemt per gevuld stuk werk de eindtijd bij beide keuzes. "Laten wachten" wordt
+  `ProductieStap.machineWacht` (migratie `20261009090000_machine_wacht`): de
+  tijd vóór die stap op zijn machine blijft leeg, ook bij latere
+  herberekeningen, tot de stap gestart is; met één klik op het label op de kaart
+  weer uit. Het veld zit in de oud/nieuw-waarden van een herberekening, dus
+  ongedaan maken zet het mee terug. Melding weggeklikt = er is niets opgeslagen.
+- **Voorrang trekt de keten mee.** Bij het plannen gaat de stap met de meeste
+  voorrang eerst; staat zijn vorige stap nog niet, dan eerst die. Anders kreeg
+  werk met minder voorrang al een plek vóór de vorige stap van een stap die
+  hoger gezet was, en kon "machine laten wachten" niets tegenhouden.

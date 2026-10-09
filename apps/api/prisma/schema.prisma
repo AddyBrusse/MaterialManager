@@ -879,6 +879,12 @@ model ProductieStap {
   geplandDatum   String? @map("gepland_datum")
   geplandMachine String? @map("gepland_machine")
   queuePosition  Float?  @map("queue_position")
+  /// Rang uit het automatisch plannen (lager = eerder). Los van queuePosition:
+  /// dat is de volgorde die er op de machine uitkomt (2026-10-08).
+  prioriteit     Float?
+  /// "Machine laten wachten" (2026-10-09): geen ander werk in de tijd vóór
+  /// deze stap op zijn machine. Geldt tot de stap gestart is.
+  machineWacht   Boolean @default(false) @map("machine_wacht")
 
   order            ProductieOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   tijdregistraties TijdRegistratie[]
@@ -1205,4 +1211,25 @@ model ArticleAlias {
   @@unique([relatieId, externalRef])
   @@index([articleId])
   @@map("article_aliases")
+}
+
+/// Eén keer automatisch plannen (2026-10-08): wat er veranderde, met de oude
+/// waarden erbij, zodat het in zijn geheel terug kan. Ongedaan maken gaat alleen
+/// van nieuw naar oud — een oudere terugzetten onder een nieuwere zou die
+/// nieuwere half laten staan.
+model PlanningHerberekening {
+  id           String    @id @default(uuid())
+  /// Waarom er gerekend werd: "ORD-… vrijgegeven", "Werkbord: … hoger gezet".
+  aanleiding   String
+  door         String
+  op           DateTime  @default(now())
+  /// [{ stapId, projectId, orderId, oud: {…}, nieuw: {…} }]
+  wijzigingen  Json
+  /// Wat de melding liet zien, om hem later terug te lezen.
+  samenvatting Json?
+  ongedaanOp   DateTime? @map("ongedaan_op")
+  ongedaanDoor String?   @map("ongedaan_door")
+
+  @@index([op(sort: Desc)])
+  @@map("planning_herberekeningen")
 }

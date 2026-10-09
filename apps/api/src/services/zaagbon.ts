@@ -147,3 +147,62 @@ export async function boekAfBijGereed(
   }
   return aantal
 }
+
+/**
+ * Het tegenovergestelde van `boekAfBijGereed`, voor ongedaan maken van de
+ * planning (2026-10-08): zet de zaagbonnen van deze order die sinds `sinds`
+ * automatisch zijn afgeboekt terug. De staaf krijgt zijn lengte van vóór de
+ * afboeking terug — met een eigen mutatie, zodat de voorraadhistorie laat zien
+ * wat er gebeurd is in plaats van dat de afboeking verdwijnt — en de bon gaat
+ * weer open. Was er daarna nog iets met de staaf gebeurd, dan weigert hij:
+ * blind terugzetten zou dat overschrijven.
+ */
+export async function herstelAfboekingBijGereed(
+  db: Db, project: Project, orderId: string, sinds: Date, userId: string,
+): Promise<number> {
+  const order = project.productieOrders.find((o) => o.id === orderId)
+  if (!order) return 0
+  const enigeMetArtikel = order.artikelId !== null && project.productieOrders.filter((o) => o.artikelId === order.artikelId).length === 1
+  const bonnen = await db.zaagReservering.findMany({
+    where: { ...bonnenVanOrderWaar({ ...order, projectId: project.id }, enigeMetArtikel), status: 'done', completedAt: { gte: sinds } },
+  })
+  const paren = []
+  for (const bon of bonnen) {
+    const mutatie = await db.stockMovement.findFirst({
+      where: { itemId: bon.barId, createdAt: { gte: sinds }, note: { startsWith: `Zaagbon ${bon.calculatieNr} — automatisch bij gereedmelden` } },
+      orderBy: { createdAt: 'desc' },
+    })
+    // Zonder automatische mutatie is hij met de hand afgeboekt (Zaagflow,
+    // gemeten rest): dat was een echte meting en blijft staan.
+    if (mutatie) paren.push({ bon, mutatie })
+  }
+  // Nieuwste eerst: liggen er twee bonnen op één staaf, dan rekende de tweede
+  // met wat de eerste overliet, en moet hij er dus als eerste af.
+  paren.sort((a, b) => b.mutatie.createdAt.getTime() - a.mutatie.createdAt.getTime())
+  const eigen = new Set(paren.map((p) => p.mutatie.id))
+  for (const { bon, mutatie } of paren) {
+    const later = await db.stockMovement.findMany({
+      where: { itemId: bon.barId, createdAt: { gt: mutatie.createdAt } }, select: { id: true },
+    })
+    if (later.some((m) => !eigen.has(m.id))) {
+      throw new AppError(409, 'VOORWAARDE',
+        `Kan de afboeking van zaagbon ${bon.calculatieNr} niet terugzetten: met staaf ${bon.barCode} is daarna nog iets gebeurd. Zet dat eerst recht in de voorraad.`)
+    }
+    const staaf = await db.rawMaterial.findUnique({ where: { id: bon.barId } })
+    if (!staaf) continue
+    const terug = Number(mutatie.previousStock)
+    await db.rawMaterial.update({ where: { id: staaf.id }, data: { currentStock: terug } })
+    const correctie = await db.stockMovement.create({
+      data: {
+        itemType: 'raw', itemId: staaf.id, userId, kind: 'overwrite', amount: terug,
+        previousStock: Number(staaf.currentStock), newStock: terug, reason: 'correction',
+        note: `Zaagbon ${bon.calculatieNr} — afboeking teruggezet (planning ongedaan gemaakt)`,
+      },
+    })
+    eigen.add(correctie.id)
+    // Of hij vóór de afboeking 'open' of 'in_progress' stond, is niet bewaard;
+    // allebei houden ze het materiaal vast (services/voorraad.ts).
+    await db.zaagReservering.update({ where: { id: bon.id }, data: { status: 'open', restLengteMm: null, completedAt: null } })
+  }
+  return paren.length
+}
