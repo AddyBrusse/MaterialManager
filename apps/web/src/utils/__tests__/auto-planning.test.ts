@@ -29,8 +29,11 @@ function job(o: {
     item: { stap, order: { id: o.order, stappen: [] }, project: { id: `P-${o.order}`, levertijdDatum: o.deadline ?? null }, duurMin: o.min ?? DAG, isPlaceholder: false } as unknown as PlanningStapItem,
   }
 }
-const plan = (jobs: QueueJob[], extra: { lopend?: string[]; opLevertijd?: boolean } = {}) =>
-  planAutomatisch({ jobs, machines: MACHINES, windowStart: WS, lopend: new Set(extra.lopend ?? []), opLevertijd: extra.opLevertijd })
+const plan = (jobs: QueueJob[], extra: { lopend?: string[]; gestart?: [string, string][]; opLevertijd?: boolean; nu?: number } = {}) =>
+  planAutomatisch({
+    jobs, machines: MACHINES, windowStart: WS, lopend: new Set(extra.lopend ?? []), gestart: new Map(extra.gestart ?? []),
+    opLevertijd: extra.opLevertijd, nu: extra.nu ?? 0,
+  })
 
 describe('receptvolgorde', () => {
   it('stap 2 begint nooit vóór stap 1, ook niet op dezelfde machine en met meer voorrang', () => {
@@ -84,7 +87,7 @@ describe('prioriteit', () => {
   it('waar de klok loopt, ligt vast en gaat voor', () => {
     const a = job({ order: 'A', recept: 'DMG', prio: 1000 })
     const b = job({ order: 'B', recept: 'DMG', prio: 2000, op: 'DMG' })
-    const u = plan([a, b], { lopend: [b.id] })
+    const u = plan([a, b], { lopend: [b.id], gestart: [[b.id, '2026-07-13T07:00:00']] })
     expect(u.plaatsen.get(b.id)!.start).toBe(0)
     expect(u.rang[0]).toBe(b.id)
   })
@@ -143,5 +146,55 @@ describe('wat er verandert', () => {
     expect(s.ingepland.map((e) => e.orderId)).toEqual(['NIEUW'])
     expect(s.ingepland[0].nieuwTeLaat).toBe(1) // klaar di 14-07, levering ma 13-07
     expect(s.later).toMatchObject([{ orderId: 'OUD', oudEind: '2026-07-13', nieuwEind: '2026-07-15', oudTeLaat: 0, nieuwTeLaat: 1 }])
+  })
+})
+
+describe('bezig, uitloop en materiaal', () => {
+  it('een stap die bezig is blijft staan waar de klok begon', () => {
+    const a = job({ order: 'A', recept: 'DMG', op: 'DMG', min: DAG * 2 })
+    // gestart vrijdag 10-07 om 7:00, nu maandag 13-07 begin van de dag: gepland eind di 14-07
+    const p = plan([a], { lopend: [a.id], gestart: [[a.id, '2026-07-10T07:00:00']] }).plaatsen.get(a.id)!
+    expect(p.start).toBe(-3)
+    expect(p.geplandDatum).toBe('2026-07-10')
+    expect(p.uitloop).toBe(false)
+  })
+
+  it('voorbij het geplande eind en niet gereed: loopt uit, klaar aan het eind van vandaag, en wat erna komt schuift', () => {
+    const a = job({ order: 'A', recept: 'DMG', op: 'DMG', prio: 1000 })
+    const b = job({ order: 'B', recept: 'DMG', prio: 2000 })
+    const u = plan([a, b], { lopend: [a.id], gestart: [[a.id, '2026-07-09T07:00:00']], nu: 0.5 })
+    const pa = u.plaatsen.get(a.id)!
+    expect(pa.uitloop).toBe(true)
+    expect(pa.eind).toBe(1)
+    expect(pa.reden).toMatch(/loopt uit/)
+    expect(u.plaatsen.get(b.id)!.start).toBeCloseTo(1) // ma 13 vol door de uitloop → di 14
+  })
+
+  it('wacht op materiaal: niet vóór het er naar verwachting is', () => {
+    const a = job({ order: 'A', recept: 'DMG' })
+    a.wachtOpMateriaal = true
+    ;(a.item.order as { materiaalVerwacht?: string }).materiaalVerwacht = '2026-07-16'
+    const p = plan([a]).plaatsen.get(a.id)!
+    expect(p.geplandDatum).toBe('2026-07-16')
+    expect(p.reden).toBeNull()
+  })
+
+  it('leverdatum van het materiaal onbekend: vanaf vandaag, met een zin wat er moet', () => {
+    const a = job({ order: 'A', recept: 'DMG' })
+    a.wachtOpMateriaal = true
+    ;(a.item.order as { materiaalOnbekend?: boolean }).materiaalOnbekend = true
+    const p = plan([a]).plaatsen.get(a.id)!
+    expect(p.start).toBe(0)
+    expect(p.reden).toMatch(/onbekend.*Bestellingen/)
+  })
+})
+
+describe('tijdstip op de werkdag', () => {
+  it('na 16:00 telt als het begin van de volgende dag', async () => {
+    const { tijdstipAlsDag } = await import('../auto-planning')
+    expect(tijdstipAlsDag(new Date(2026, 6, 13, 7, 0), WS)).toBe(0)
+    expect(tijdstipAlsDag(new Date(2026, 6, 13, 11, 30), WS)).toBeCloseTo(0.5)
+    expect(tijdstipAlsDag(new Date(2026, 6, 13, 18, 0), WS)).toBe(1)
+    expect(tijdstipAlsDag(new Date(2026, 6, 13, 5, 0), WS)).toBe(0)
   })
 })

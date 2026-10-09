@@ -67,6 +67,12 @@ export const ProductieOrderSchema = z.object({
   // orderregel nog materiaal in bestelling. Gaat vanzelf uit als alles binnen
   // geboekt is. Zo'n order staat niet op de terminal; de planning ziet hem wel.
   wachtOpMateriaal: z.boolean().optional(),
+  // Afgeleid (2026-10-09): wanneer het materiaal er naar verwachting is, voor
+  // de planning. Besteld: verstuurd + levertijd of de doorgegeven leverdatum.
+  // Nog niet besteld: vandaag + levertijd van de gekozen leverancier. Is van
+  // een open bestelling geen datum te zeggen, dan `materiaalOnbekend`.
+  materiaalVerwacht: z.string().nullable().optional(),
+  materiaalOnbekend: z.boolean().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

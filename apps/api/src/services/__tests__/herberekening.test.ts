@@ -42,3 +42,23 @@ describe('ongedaan maken: wat houdt het tegen', () => {
     expect(zelfdePlanning(nieuw, { ...nieuw, prioriteit: null })).toBe(false)
   })
 })
+
+describe('materiaal verwacht voor de planning', async () => {
+  const { materiaalVerwachtVoor } = await import('@stockmanager/shared')
+  const order = { projectId: 'P', offerteRegelId: 'R' }
+  const regel = (x: object) => ({ projectId: 'P', offerteRegelId: 'R', status: 'besteld', keuzeLevertijdDagen: null, inkoopRegels: [], ...x })
+  it('verstuurd: de doorgegeven datum, anders verstuurd + levertijd', () => {
+    expect(materiaalVerwachtVoor(order, [regel({ inkoopRegels: [{ levertijdDagen: 5, verwachtDatum: '2026-10-20', inkooporder: { status: 'verzonden', verzondenOp: '2026-10-01' } }] })], '2026-10-09'))
+      .toEqual({ verwacht: '2026-10-20', onbekend: false })
+    expect(materiaalVerwachtVoor(order, [regel({ inkoopRegels: [{ levertijdDagen: 5, verwachtDatum: null, inkooporder: { status: 'verzonden', verzondenOp: '2026-10-05' } }] })], '2026-10-09').verwacht)
+      .toBe('2026-10-12')
+  })
+  it('nog niet besteld: vandaag + levertijd van de gekozen leverancier; zonder levertijd onbekend', () => {
+    expect(materiaalVerwachtVoor(order, [regel({ status: 'te_bestellen', keuzeLevertijdDagen: 3 })], '2026-10-09').verwacht).toBe('2026-10-14')
+    expect(materiaalVerwachtVoor(order, [regel({ status: 'te_bestellen' })], '2026-10-09')).toEqual({ verwacht: null, onbekend: true })
+  })
+  it('alleen de bestelregels van deze orderregel, en de laatste datum telt', () => {
+    expect(materiaalVerwachtVoor(order, [regel({ offerteRegelId: 'X', keuzeLevertijdDagen: 1 }), regel({ keuzeLevertijdDagen: 10, status: 'te_bestellen' }), regel({ keuzeLevertijdDagen: 2, status: 'te_bestellen' })], '2026-10-09').verwacht)
+      .toBe('2026-10-23')
+  })
+})

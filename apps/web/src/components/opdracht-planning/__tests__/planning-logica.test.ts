@@ -45,3 +45,22 @@ describe('Gantt per opdracht', () => {
     expect(g.teLaat).toBe(1) // klaar wo 15-07, levering di 14-07
   })
 })
+
+describe('signalen: achter lopen', () => {
+  it('bezig voorbij het geplande eind = loopt uit; niet gestart en start voorbij = had moeten beginnen', async () => {
+    const { stapSignalen, aantalAchter } = await import('../signalen')
+    const M = [{ id: 'DMG', name: 'DMG', worksWeekends: false }] as never
+    const a = job('A-1', 'A', 1)
+    const b = job('B-1', 'B', 1)
+    const c = job('C-1', 'C', 1, { wachtOpMateriaal: true })
+    const schema = new Map([['B-1', { startOffsetDays: -2, durationDays: 1, finishOffsetDays: -1, ghostOffsetDays: 0 }]])
+    const klokken = new Map([['A-1', { gestartOp: '2026-07-09T07:00:00', seconden: 4 * 3600 }]])
+    const { signalen, lopen } = stapSignalen([a, b, c], schema, klokken, M, WS, 0.5)
+    expect(signalen.get('A-1')!.map((s) => s.soort)).toEqual(['uitloop'])
+    expect(signalen.get('A-1')![0].tekst).toMatch(/4 u gemeten van 4,9 u geschat/)
+    expect(lopen.get('A-1')!.tot).toBe(0.5)
+    expect(signalen.get('B-1')!.map((s) => s.soort)).toEqual(['achter'])
+    expect(signalen.get('C-1')!.map((s) => s.tekst)).toEqual(['Materiaal: leverdatum onbekend'])
+    expect(aantalAchter(signalen)).toBe(2)
+  })
+})

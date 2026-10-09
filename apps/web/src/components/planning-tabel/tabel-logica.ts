@@ -56,6 +56,22 @@ export function waaromNietNaar(job: QueueJob, doel: Machine, machines: Machine[]
     : `Van ${doel.name} is de soort niet ingevuld (Instellingen → Machines); deze stap is ${MACHINE_SOORT_LABEL[soort].toLowerCase()}.`
 }
 
+/**
+ * Waarom de stap niet op deze plek in de rij mag, of null (2026-10-09). Op
+ * dezelfde machine volgt de rij de receptvolgorde: stap 2 kan niet boven
+ * stap 1 van dezelfde order staan, want dan wacht de machine op zichzelf.
+ */
+export function waaromNietHier(wachtrijen: Wachtrijen, job: QueueJob, doel: string | null, voorId: string | null): string | null {
+  if (doel == null) return null
+  const rij = verplaats(wachtrijen, job, doel, voorId).wachtrijen.get(doel) ?? []
+  const i = rij.findIndex((x) => x.id === job.id)
+  const eerder = rij.find((x, k) => k > i && x.orderId === job.orderId && x.volgorde < job.volgorde)
+  if (eerder) return `stap ${eerder.volgorde} (${eerder.naam}) van ${job.orderId} staat hier nog onder; die moet eerst.`
+  const later = rij.find((x, k) => k < i && x.orderId === job.orderId && x.volgorde > job.volgorde)
+  if (later) return `stap ${later.volgorde} (${later.naam}) van ${job.orderId} staat hierboven; die kan pas na deze.`
+  return null
+}
+
 /** Melding bij een stap waarvan de soort niet bekend is. */
 export function soortOnbekend(job: QueueJob, machines: Machine[]): string | null {
   return soortVanStap(job, machines)

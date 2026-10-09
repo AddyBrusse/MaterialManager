@@ -7,8 +7,9 @@ import type { DerivedSlot, QueueJob } from '../../utils/planningQueueUtils'
 import type { PlanningStapItem } from '../../utils/planningUtils'
 import { eindDag } from '../../utils/auto-planning'
 import { werkdagenTeLaat } from '../planning-tabel/tabel-logica'
+import type { Loop, Signaal } from './signalen'
 
-export interface GanttStap { job: QueueJob; start: number; eind: number }
+export interface GanttStap { job: QueueJob; start: number; eind: number; tot: number | null; signalen: Signaal[] }
 export interface GanttArtikel { orderId: string; artikel: string; qty: number; stappen: GanttStap[]; open: QueueJob[] }
 export interface GanttOpdracht {
   projectId: string; naam: string; klant: string; levering: string | null
@@ -23,6 +24,7 @@ export interface GanttOpdracht {
 export function bouwGantt(
   alles: PlanningStapItem[], open: QueueJob[], schema: Map<string, DerivedSlot>, ws: Date,
   klantVan: (j: QueueJob) => string = (j) => j.klant,
+  signalen: Map<string, Signaal[]> = new Map(), lopen: Map<string, Loop> = new Map(),
 ): GanttOpdracht[] {
   const perProject = new Map<string, GanttOpdracht>()
   const minuten = new Map<string, { klaar: number; totaal: number }>()
@@ -45,11 +47,14 @@ export function bouwGantt(
       g.artikelen.push(a)
     }
     a.open.push(j)
+    // Bezig: op de tijdlijn waar de klok begon, niet waar hij gepland stond.
+    const loop = lopen.get(j.id)
     const slot = j.item.stap.geplandDatum ? schema.get(j.id) : undefined
-    if (slot) {
-      a.stappen.push({ job: j, start: slot.startOffsetDays, eind: slot.finishOffsetDays })
-      g.begin = Math.min(g.begin ?? Infinity, slot.startOffsetDays)
-      g.eind = Math.max(g.eind ?? -Infinity, slot.finishOffsetDays)
+    const plek = loop ? { start: loop.start, eind: loop.gepland, tot: loop.tot } : slot ? { start: slot.startOffsetDays, eind: slot.finishOffsetDays, tot: null } : null
+    if (plek) {
+      a.stappen.push({ job: j, ...plek, signalen: signalen.get(j.id) ?? [] })
+      g.begin = Math.min(g.begin ?? Infinity, plek.start)
+      g.eind = Math.max(g.eind ?? -Infinity, plek.tot ?? plek.eind)
     }
   }
   for (const g of perProject.values()) {
@@ -75,18 +80,20 @@ export type Kolom = typeof KOLOMMEN[number][0]
 /** Alleen in deze kolommen mag je slepen; bezig en gereed komen van de terminal. */
 export const SLEEPBAAR: Kolom[] = ['materiaal', 'vorige', 'klaar']
 
-export interface Kaart { job: QueueJob; kolom: Kolom; rang: number; stapNr: number; stappen: number }
+export interface Kaart { job: QueueJob; kolom: Kolom; rang: number; stapNr: number; stappen: number; signalen: Signaal[] }
 
-export function werkbord(open: QueueJob[], gereedVandaag: QueueJob[], lopend: Set<string>, rang: Map<string, number>): Record<Kolom, Kaart[]> {
+export function werkbord(
+  open: QueueJob[], gereedVandaag: QueueJob[], lopend: Set<string>, rang: Map<string, number>, signalen: Map<string, Signaal[]> = new Map(),
+): Record<Kolom, Kaart[]> {
   const uit = Object.fromEntries(KOLOMMEN.map(([k]) => [k, [] as Kaart[]])) as Record<Kolom, Kaart[]>
   const perOrder = new Map<string, QueueJob[]>()
   for (const j of open) perOrder.set(j.orderId, [...(perOrder.get(j.orderId) ?? []), j])
   for (const j of open) {
     const voor = (perOrder.get(j.orderId) ?? []).some((x) => x.volgorde < j.volgorde)
     const kolom: Kolom = lopend.has(j.id) ? 'bezig' : j.wachtOpMateriaal ? 'materiaal' : voor ? 'vorige' : 'klaar'
-    uit[kolom].push({ job: j, kolom, rang: rang.get(j.id) ?? Infinity, ...stapVan(j) })
+    uit[kolom].push({ job: j, kolom, rang: rang.get(j.id) ?? Infinity, ...stapVan(j), signalen: signalen.get(j.id) ?? [] })
   }
-  for (const j of gereedVandaag) uit.gereed.push({ job: j, kolom: 'gereed', rang: 0, ...stapVan(j) })
+  for (const j of gereedVandaag) uit.gereed.push({ job: j, kolom: 'gereed', rang: 0, ...stapVan(j), signalen: [] })
   for (const k of Object.values(uit)) k.sort((a, b) => a.rang - b.rang)
   uit.gereed.sort((a, b) => (b.job.item.stap.gereedOp ?? '').localeCompare(a.job.item.stap.gereedOp ?? ''))
   return uit

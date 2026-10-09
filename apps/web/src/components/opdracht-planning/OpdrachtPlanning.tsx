@@ -56,6 +56,14 @@ export function OpdrachtPlanning() {
         <LaatsteBerekeningen />
         {!los && <button className="st-btn sm" onClick={() => openPopout(WERKBORD_PAD)}><IconExternalLink size={13} /> Werkbord in eigen venster</button>}
       </div>
+      <div className="op-sleutel">
+        <span><i className="bezig" />bezig</span>
+        <span><i className="uitloop" />loopt uit (niet op tijd gereed)</span>
+        <span><i className="achter" />had al moeten beginnen</span>
+        <span><i className="materiaal" />wacht op materiaal</span>
+        <span><i className="lev" />levering</span>
+        {d.achter > 0 && <span className="op-achter">{d.achter} {d.achter === 1 ? 'stap loopt' : 'stappen lopen'} achter — Herbereken schuift wat erna komt op</span>}
+      </div>
       <div className="op-gantt">
         <OpdrachtGantt opdrachten={d.gantt} ws={d.ws} van={van} dagen={dagen} dicht={dicht} onKlap={klap} onOpen={(id) => navigate(`/projecten/${id}`)} />
       </div>

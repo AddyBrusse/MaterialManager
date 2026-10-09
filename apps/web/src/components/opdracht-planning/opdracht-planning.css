@@ -83,3 +83,25 @@
 .wb-kaart .r3 { display: flex; justify-content: space-between; gap: 6px; }
 .wb-kaart[data-gesleept="true"] { opacity: .35; }
 .wb-kaart[data-doel="true"] { box-shadow: 0 -3px 0 var(--accent); }
+
+/* Achter lopen (2026-10-09): rood is altijd achterstand. */
+.og-stap { background: var(--mc, #888); }
+.og-stap[data-achter="true"] { box-shadow: 0 0 0 2px var(--danger); }
+.og-stap[data-bezig="true"] { box-shadow: 0 0 0 2px var(--text); }
+.og-stap[data-materiaal="true"] { background: repeating-linear-gradient(135deg, var(--mc, #888) 0 5px, color-mix(in srgb, var(--mc, #888) 45%, #fff) 5px 10px); color: var(--text); }
+.og-uitloop { position: absolute; top: 6px; height: 16px; border-radius: 0 2px 2px 0; background: repeating-linear-gradient(135deg, var(--danger) 0 4px, var(--danger-soft, #fbe0da) 4px 8px); }
+.og-sub[data-laat="true"] { color: var(--danger); }
+.op-sleutel { display: flex; gap: 14px; align-items: center; font-size: 11px; color: var(--text-3); flex-wrap: wrap; }
+.op-sleutel i { display: inline-block; width: 18px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: #9aa0a8; }
+.op-sleutel i.uitloop { background: repeating-linear-gradient(135deg, var(--danger) 0 4px, var(--danger-soft, #fbe0da) 4px 8px); }
+.op-sleutel i.achter { box-shadow: 0 0 0 2px var(--danger); }
+.op-sleutel i.bezig { box-shadow: 0 0 0 2px var(--text); }
+.op-sleutel i.materiaal { background: repeating-linear-gradient(135deg, #9aa0a8 0 4px, #e2e4e8 4px 8px); }
+.op-sleutel i.lev { width: 0; border-left: 2px solid var(--danger); border-radius: 0; background: none; }
+.op-sleutel .op-achter { color: var(--danger); font-weight: 600; }
+.wb-sig { margin-top: 2px; font-size: 10.5px; font-weight: 600; }
+.wb-sig[data-soort="uitloop"], .wb-sig[data-soort="achter"], .wb-sig[data-soort="geenMachine"] { color: var(--danger); }
+.wb-sig[data-soort="materiaal"] { color: var(--warning, #b7791f); }
+.wb-sig[data-soort="bezig"] { color: var(--text-3); font-weight: 400; }
+.wb-kaart[data-rood="true"] { border-color: var(--danger); }
+.op-balk .seg .st-btn.primary { background: var(--accent); color: #fff; }

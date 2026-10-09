@@ -102,6 +102,7 @@ function KaartBlok({ k, slot, ws, sleepbaar, gesleept, doel, onStart, onEind, on
   const st = j.item.stap.geplandDatum ? startDag(slot, ws) : null
   return (
     <div className="wb-kaart" draggable={sleepbaar} data-gesleept={gesleept || undefined} data-doel={doel || undefined}
+      data-rood={k.signalen.some((g) => g.soort === 'uitloop' || g.soort === 'achter') || undefined}
       style={{ ['--mc' as string]: machineAccentColor(j.machineNaam, j.machineNaam) }}
       onDragStart={(e) => onStart(e, k)} onDragEnd={onEind} onDragOver={onOver} onDrop={onDrop}
       title={`${j.item.project.id} · ${j.item.project.naam}`}>
@@ -111,6 +112,7 @@ function KaartBlok({ k, slot, ws, sleepbaar, gesleept, doel, onStart, onEind, on
         <span>stap {k.stapNr} van {k.stappen} · {j.naam} · {urenKort(j.duurMin)}</span>
         <span>{k.kolom === 'gereed' ? '✓' : st ? dagKort(st) : 'niet ingepland'}</span>
       </div>
+      {k.signalen.map((g) => <div key={g.soort} className="wb-sig" data-soort={g.soort}>{g.tekst}</div>)}
     </div>
   )
 }

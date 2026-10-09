@@ -43,6 +43,13 @@ export function openJobs(): QueueJob[] {
   return buildQueueJobs(buildStapItems(projectsApi.list(), articles), articles).filter((j) => !j.gereed)
 }
 
+/** Per stap het vroegste begin van een klok die nu loopt: daar blijft de stap in de planning staan. */
+export function startVanKlokken(klokken: { stapId: string; gestartOp: string }[]): Map<string, string> {
+  const m = new Map<string, string>()
+  for (const k of klokken) if (!m.has(k.stapId) || k.gestartOp < m.get(k.stapId)!) m.set(k.stapId, k.gestartOp)
+  return m
+}
+
 export function wachtrijenVan(jobs: QueueJob[], machines: Machine[]): Map<string, QueueJob[]> {
   return new Map(machines.map((m) => [m.name, sortByQueuePosition(jobs.filter((j) => !isBacklogJob(j) && j.machineNaam === m.name))]))
 }
@@ -58,7 +65,9 @@ export async function herberekenPlanning(opt: HerberekenOpties): Promise<Samenva
     await herlaadProjecten()
     const machines = machinesApi.listSync()
     const jobs = openJobs()
-    const lopend = new Set((await tijdregistratieApi.lopend()).map((r) => r.stapId))
+    const klokken = await tijdregistratieApi.lopend()
+    const lopend = new Set(klokken.map((r) => r.stapId))
+    const gestart = startVanKlokken(klokken)
 
     // De rang van nu vastleggen, dan pas de ene wijziging erop: anders schuift
     // werk dat nog nooit gerangschikt was ineens om de gesleepte stap heen.
@@ -71,7 +80,7 @@ export async function herberekenPlanning(opt: HerberekenOpties): Promise<Samenva
       return k
     })
 
-    const uit = planAutomatisch({ jobs: invoer, machines, windowStart: ws, lopend, opLevertijd: opt.opLevertijd })
+    const uit = planAutomatisch({ jobs: invoer, machines, windowStart: ws, lopend, gestart, opLevertijd: opt.opLevertijd })
     const w = wijzigingen(jobs, uit)
     const oud = deriveShopSchedule(wachtrijenVan(jobs, machines), machines, ws, { honorLockedDates: true })
     const samenvatting = vatSamen(effecten(jobs, oud, uit, ws), new Set(opt.nadruk ?? []))

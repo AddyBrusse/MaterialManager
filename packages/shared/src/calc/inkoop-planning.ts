@@ -364,3 +364,42 @@ export function wachtOpMateriaal(
 ): boolean {
   return bestelRegels.some((b) => b.status !== 'ontvangen' && b.projectId === order.projectId && b.offerteRegelId === order.offerteRegelId)
 }
+
+export interface BestelRegelVoorPlanning {
+  projectId: string | null
+  offerteRegelId: string | null
+  status: string
+  keuzeLevertijdDagen: number | null
+  inkoopRegels: { levertijdDagen: number | null; verwachtDatum: string | null; inkooporder: { status: string; verzondenOp: string | null } }[]
+}
+
+/**
+ * Wanneer is het materiaal van deze order er naar verwachting (2026-10-09)?
+ * De laatste datum over alle open bestelregels van de orderregel. Verstuurd:
+ * de doorgegeven leverdatum, anders verstuurd + levertijd. Nog niet besteld:
+ * vandaag + levertijd van de gekozen leverancier. Niet te zeggen = onbekend;
+ * de planning rekent dan vanaf vandaag en meldt het.
+ */
+export function materiaalVerwachtVoor(
+  order: { projectId: string; offerteRegelId: string },
+  regels: BestelRegelVoorPlanning[],
+  vandaag: string,
+): { verwacht: string | null; onbekend: boolean } {
+  let verwacht: string | null = null
+  let onbekend = false
+  for (const r of regels) {
+    if (r.status === 'ontvangen' || r.projectId !== order.projectId || r.offerteRegelId !== order.offerteRegelId) continue
+    const ink = r.inkoopRegels.find((x) => x.inkooporder.status === 'verzonden')
+      ?? r.inkoopRegels.find((x) => x.inkooporder.status === 'concept')
+    let d: string | null
+    if (ink?.inkooporder.status === 'verzonden') {
+      d = verwachtBinnen(ink.inkooporder.verzondenOp, ink.levertijdDagen, ink.verwachtDatum)
+    } else {
+      const lt = ink?.levertijdDagen ?? r.keuzeLevertijdDagen
+      d = lt != null ? plusWerkdagen(vandaag, lt) : null
+    }
+    if (!d) onbekend = true
+    else if (!verwacht || d > verwacht) verwacht = d
+  }
+  return { verwacht, onbekend }
+}

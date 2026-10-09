@@ -1,7 +1,7 @@
 import { useMemo, useState, type DragEvent } from 'react'
 import type { Machine } from '../../api/machines'
 import type { DerivedSlot, QueueJob } from '../../utils/planningQueueUtils'
-import { preview, soortOnbekend, startDag, verplaats, waaromNietNaar, type Preview, type Wachtrijen } from './tabel-logica'
+import { preview, soortOnbekend, startDag, verplaats, waaromNietHier, waaromNietNaar, type Preview, type Wachtrijen } from './tabel-logica'
 import type { SleepDoel } from './TabelRaster'
 
 /**
@@ -28,14 +28,15 @@ export function useSleepPreview(opts: {
     return m
   }, [schedule, windowStart])
 
-  const nee = (kolom: string | null): string | null => {
+  const nee = (kolom: string | null, voorId?: string | null): string | null => {
     if (!sleep || kolom == null) return null
     const m = machines.find((x) => x.name === kolom)
-    return m ? waaromNietNaar(sleep, m, machines) : null
+    const soort = m ? waaromNietNaar(sleep, m, machines) : null
+    return soort ?? (voorId !== undefined ? waaromNietHier(wachtrijen, sleep, kolom, voorId) : null)
   }
 
   const gevolg: Preview | null = useMemo(() => {
-    if (!sleep || !doel || nee(doel.kolom)) return null
+    if (!sleep || !doel || nee(doel.kolom, doel.voorId)) return null
     if (doel.kolom === sleep.machineNaam && sleep.item.stap.geplandDatum && doel.voorId === volgendeNa(wachtrijen, sleep)) return null
     return preview(huidig, verplaats(wachtrijen, sleep, doel.kolom, doel.voorId), sleep, machines, verplichtKlaar, windowStart)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -43,7 +44,7 @@ export function useSleepPreview(opts: {
 
   return {
     sleep, doel, muis, gevolg,
-    reden: doel ? nee(doel.kolom) : null,
+    reden: doel ? nee(doel.kolom, doel.voorId) : null,
     onbekend: sleep ? soortOnbekend(sleep, machines) : null,
     dicht: (kolom: string | null) => nee(kolom) != null,
     start(e: DragEvent, j: QueueJob) {
@@ -55,13 +56,13 @@ export function useSleepPreview(opts: {
       if (!sleep) return
       setMuis({ x: e.clientX, y: e.clientY })
       if (doel?.kolom !== d.kolom || doel?.voorId !== d.voorId) setDoel(d)
-      if (nee(d.kolom)) { e.dataTransfer.dropEffect = 'none'; return }
+      if (nee(d.kolom, d.voorId)) { e.dataTransfer.dropEffect = 'none'; return }
       e.preventDefault()
       e.dataTransfer.dropEffect = 'move'
     },
     los(e: DragEvent) {
       e.preventDefault()
-      if (sleep && doel && !nee(doel.kolom)) opts.onLos(sleep, doel.kolom, doel.voorId)
+      if (sleep && doel && !nee(doel.kolom, doel.voorId)) opts.onLos(sleep, doel.kolom, doel.voorId)
       setSleep(null); setDoel(null); setMuis(null)
     },
     eind() { setSleep(null); setDoel(null); setMuis(null) },

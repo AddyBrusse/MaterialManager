@@ -2272,3 +2272,29 @@ geheel terugdraaien.
   het op tijd binnen is (de melding zegt het); de verwachte binnenkomst uit de
   inkoop rekent nog niet mee. Een lopende klok telt van nu met de volle
   geschatte tijd, niet met wat er nog over is.
+
+## 2026-10-09 — Automatisch plannen: achter lopen, materiaal, receptvolgorde in de Tabel
+
+- **Bezig blijft staan.** Een stap met een lopende klok staat op de tijdlijn
+  waar de klok begon, niet op "nu". Voorbij zijn geplande eind en nog niet
+  gereed = **loopt uit**: de planning rekent hem klaar aan het eind van vandaag
+  (gekozen boven "een kwart erbij": voorspelbaar, en elke dag zonder
+  gereedmelding schuift het zichtbaar een dag op). Wat erna komt op die machine
+  en de volgende stappen van de order schuiven mee.
+- **Zichtbaar achter lopen.** Een sleutel boven de Gantt: zwarte rand = bezig,
+  rood gearceerd = loopt uit, rode rand = had al moeten beginnen,
+  gestreept = wacht op materiaal. Hetzelfde als label op de werkbordkaart, en
+  het aantal achterlopende stappen naast de sleutel. Afgeleid in
+  `opdracht-planning/signalen.ts`, nooit opgeslagen.
+- **Materiaal.** De planning laat een stap die op materiaal wacht niet eerder
+  beginnen dan `materiaalVerwacht` (afgeleid op de server bij het lezen van
+  het project). Verstuurde inkooporder: de doorgegeven leverdatum, anders
+  verstuurd + levertijd. Nog niet besteld: vandaag + levertijd van de gekozen
+  leverancier. Niet te zeggen = onbekend: dan vanaf vandaag, en de melding
+  zegt "vul hem in bij Bestellingen".
+- **Een werkdag loopt voor de planning van 7:00 tot 16:00.** Alleen om "nu" en
+  "gestart om" op de dag te zetten; wat er in een dag past blijft
+  EFFECTIEVE_MIN. Na 16:00 telt als de volgende dag, anders kreeg 's avonds
+  herberekend werk "vandaag" als datum.
+- **De Tabel volgt de receptvolgorde op één machine.** Stap 2 boven stap 1 van
+  dezelfde order slepen weigert hij, met de zin waarom (`waaromNietHier`).

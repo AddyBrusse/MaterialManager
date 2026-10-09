@@ -37,23 +37,31 @@ export function OpdrachtGantt({ opdrachten, ws, van, dagen, dicht, onKlap, onOpe
   const artikelRij = (o: GanttOpdracht, a: GanttArtikel) => {
     const st = a.stappen
     const los = a.open.length - st.length
-    const laatste = st.length ? st[st.length - 1].eind : null
+    const geenMachine = a.open.some((j) => !st.some((s) => s.job.id === j.id))
+    const laatste = st.length ? Math.max(...st.map((s) => s.tot ?? s.eind)) : null
     return (
       <div className="og-r og-a" key={a.orderId}>
-        <div className="og-l"><span className="og-art">{a.artikel}</span><span className="og-sub">{a.qty} st{los > 0 ? ` · ${los} niet ingepland` : ''}</span></div>
+        <div className="og-l"><span className="og-art">{a.artikel}</span><span className="og-sub" data-laat={geenMachine || undefined}>{a.qty} st{los > 0 ? ` · ${los} niet ingepland` : ''}</span></div>
         <div className="og-t">
           {st.map((s, i) => {
             const volgende = st[i + 1]
+            const eind = s.tot ?? s.eind
+            const soort = (x: string) => s.signalen.some((g) => g.soort === x) || undefined
             return (
               <Fragment key={s.job.id}>
                 {zichtbaar(s.start, s.eind) && (
-                  <div className="og-stap" style={{ left: pct(Math.max(s.start, van)), width: `calc(${breed(s.start, s.eind)} - 1px)`, background: machineAccentColor(s.job.machineNaam, s.job.machineNaam) }}
-                    title={`${s.job.naam} · ${s.job.machineNaam} · ${urenKort(s.job.duurMin)}`}>
+                  <div className="og-stap" data-achter={soort('achter')} data-materiaal={soort('materiaal')} data-bezig={soort('bezig') ?? soort('uitloop')}
+                    style={{ left: pct(Math.max(s.start, van)), width: `calc(${breed(s.start, s.eind)} - 1px)`, ['--mc' as string]: machineAccentColor(s.job.machineNaam, s.job.machineNaam) }}
+                    title={[`${s.job.naam} · ${s.job.machineNaam} · ${urenKort(s.job.duurMin)}`, ...s.signalen.map((g) => g.tekst)].join('\n')}>
                     {s.job.machineNaam}
                   </div>
                 )}
-                {volgende && volgende.start > s.eind && zichtbaar(s.eind, volgende.start) && (
-                  <div className="og-pijl" style={{ left: pct(Math.max(s.eind, van)), width: breed(s.eind, volgende.start) }} />
+                {s.tot != null && s.tot > s.eind && zichtbaar(s.eind, s.tot) && (
+                  <div className="og-uitloop" style={{ left: pct(Math.max(s.eind, van)), width: breed(s.eind, s.tot) }}
+                    title={s.signalen.find((g) => g.soort === 'uitloop')?.tekst} />
+                )}
+                {volgende && volgende.start > eind && zichtbaar(eind, volgende.start) && (
+                  <div className="og-pijl" style={{ left: pct(Math.max(eind, van)), width: breed(eind, volgende.start) }} />
                 )}
               </Fragment>
             )

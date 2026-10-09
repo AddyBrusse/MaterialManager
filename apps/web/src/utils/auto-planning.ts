@@ -22,7 +22,7 @@
 import { MACHINE_SOORTEN, type MachineSoort } from '@stockmanager/shared'
 import type { Machine } from '../api/machines'
 import {
-  computeLatestStart, computeVerplichtKlaar, dateForOffset, isWeekendOffset, walkForward,
+  computeLatestStart, computeVerplichtKlaar, dateForOffset, dayOffsetForDateStr, isWeekendOffset, walkForward,
   type DerivedSlot, type QueueJob,
 } from './planningQueueUtils'
 import { toDateStr } from './planningUtils'
@@ -36,8 +36,34 @@ export interface AutoInvoer {
   windowStart: Date
   /** Stappen waarop nu een klok loopt. */
   lopend?: Set<string>
+  /** Wanneer de klok op die stappen begon (ISO): daar blijft de stap staan. */
+  gestart?: Map<string, string>
+  /** "Nu" als fractionele dag (`nuAlsDag`); voor tests vast te zetten. */
+  nu?: number
   /** Prioriteit opnieuw op uiterlijk starten, de opgeslagen rang vervalt. */
   opLevertijd?: boolean
+}
+
+// Een werkdag loopt voor "nu" en "gestart om" van 7:00 tot 16:00. Alleen om een
+// tijdstip op de dag te zetten; hoeveel werk er in een dag past blijft EFFECTIEVE_MIN.
+const DAG_BEGIN = 7
+const DAG_UREN = 9
+
+/**
+ * Een tijdstip als fractionele dag vanaf windowStart: 7:00 = .0, 11:30 = .5.
+ * Na 16:00 is de werkdag voorbij en telt het als het begin van de volgende dag
+ * — anders krijgt werk dat 's avonds herberekend wordt "vandaag" als datum.
+ */
+export function tijdstipAlsDag(iso: string | Date, ws: Date): number {
+  const d = typeof iso === 'string' ? new Date(iso) : iso
+  const dag = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() - ws.getTime()) / 86400000)
+  const uur = d.getHours() + d.getMinutes() / 60
+  if (uur >= DAG_BEGIN + DAG_UREN) return dag + 1
+  return dag + Math.max(0, (uur - DAG_BEGIN) / DAG_UREN)
+}
+
+export function nuAlsDag(ws: Date): number {
+  return tijdstipAlsDag(new Date(), ws)
 }
 
 export interface AutoPlaats {
@@ -51,6 +77,8 @@ export interface AutoPlaats {
   prioriteit: number
   /** Waarom er iets niet kon of opvalt, of null. */
   reden: string | null
+  /** Bezig en voorbij het geplande eind: gerekend tot het eind van vandaag. */
+  uitloop?: boolean
 }
 
 export interface AutoUitkomst {
@@ -152,6 +180,7 @@ export function planAutomatisch(inv: AutoInvoer): AutoUitkomst {
   const vorige = vorigeStappen(jobs)
   const bezet = new Map<string, [number, number][]>(machines.map((m) => [m.name, []]))
   const plaatsen = new Map<string, AutoPlaats>()
+  const nu = Math.max(0, inv.nu ?? nuAlsDag(ws))
 
   // In volgorde van rang, maar een stap pas als zijn vorige stap staat: stap 2
   // met voorrang wacht zo op stap 1, en rekent met diens echte eind.
@@ -167,7 +196,29 @@ export function planAutomatisch(inv: AutoInvoer): AutoUitkomst {
       plaatsen.set(job.id, { ...basis, machine: null, start: null, eind: vorigEind, geplandDatum: null, queuePosition: null, reden })
       continue
     }
-    const vanaf = lopend.has(job.id) ? 0 : Math.max(0, vorigEind)
+    // Bezig: blijft staan waar de klok begon. Voorbij het geplande eind en nog
+    // niet gereed = loopt uit; dan klaar aan het eind van vandaag (afgesproken
+    // 2026-10-09), en elke dag zonder gereedmelding schuift het een dag op.
+    const begon = lopend.has(job.id) ? inv.gestart?.get(job.id) : undefined
+    if (begon) {
+      const m = lijst[0]
+      const s = Math.min(tijdstipAlsDag(begon, ws), nu)
+      const gepland = walkForward(s, job.duurMin, m.worksWeekends ?? false, ws)
+      const uitloop = gepland < nu
+      const e = uitloop ? Math.max(gepland, Math.floor(nu) + 1) : gepland
+      invoegen(bezet.get(m.name)!, [s, e])
+      plaatsen.set(job.id, {
+        ...basis, machine: m.name, start: s, eind: e, queuePosition: null, uitloop,
+        geplandDatum: toDateStr(dateForOffset(ws, Math.floor(s + EPS))),
+        reden: uitloop ? `${job.orderId} stap ${job.volgorde} loopt uit: gerekend tot het eind van vandaag.` : null,
+      })
+      continue
+    }
+
+    // Wacht op materiaal: niet vóór het er naar verwachting is.
+    const order = job.item.order
+    const mat = job.wachtOpMateriaal && order.materiaalVerwacht ? dayOffsetForDateStr(order.materiaalVerwacht, ws) : 0
+    const vanaf = Math.max(nu, vorigEind, mat)
     let beste: { m: Machine; s: number; e: number } | null = null
     for (const m of lijst) {
       const [s, e] = vroegstePlek(bezet.get(m.name)!, vanaf, job.duurMin, m.worksWeekends ?? false, ws)
@@ -178,7 +229,10 @@ export function planAutomatisch(inv: AutoInvoer): AutoUitkomst {
       ...basis, machine: beste!.m.name, start: beste!.s, eind: beste!.e,
       geplandDatum: toDateStr(dateForOffset(ws, Math.floor(beste!.s + EPS))),
       queuePosition: null,
-      reden: job.wachtOpMateriaal ? 'Wacht op materiaal: de planning gaat ervan uit dat het op tijd binnen is.' : null,
+      reden: !job.wachtOpMateriaal ? null
+        : order.materiaalVerwacht && !order.materiaalOnbekend ? null
+        : order.materiaalVerwacht ? `${job.orderId}: van een deel van het materiaal is de leverdatum onbekend; gerekend met ${order.materiaalVerwacht}.`
+        : `${job.orderId}: leverdatum van het materiaal onbekend, gerekend vanaf vandaag. Vul hem in bij Bestellingen.`,
     })
   }
 
