@@ -27,11 +27,69 @@ export function berekenOrderMin(
   return { min: Math.max(1, Math.round(totalMin)), isPlaceholder: false }
 }
 
+/** De tijd van één machine in het recept: setup één keer, cyclus per stuk. */
+export interface ReceptMachine {
+  naam: string
+  setupMin: number
+  cycleMin: number
+}
+
+/**
+ * De machines uit het recept zoals de stappen ervan gemaakt worden
+ * (`bewerkingenVan`): op naam, in volgorde, dubbele samengenomen — staat
+ * dezelfde machine twee keer in het recept, dan is dat één stap met de tijd
+ * van beide.
+ */
+export function receptMachines(artikel: Article | undefined, machines: { id: string; name: string }[] = []): ReceptMachine[] {
+  const uit: ReceptMachine[] = []
+  for (const n of artikel?.estimate?.nodes ?? []) {
+    if (n.type !== 'machine') continue
+    const naam = (n.machineId ? machines.find(m => m.id === n.machineId)?.name : null) ?? n.name
+    if (!naam) continue
+    const cycleMin = (n.steps ?? []).reduce((s, st) => s + (st.cycleMin || 0), 0)
+    const al = uit.find(m => m.naam === naam)
+    if (al) { al.setupMin += n.setupMin ?? 0; al.cycleMin += cycleMin }
+    else uit.push({ naam, setupMin: n.setupMin ?? 0, cycleMin })
+  }
+  return uit
+}
+
+const zelfdeNaam = (a: string | null | undefined, b: string) => !!a && a.trim().toLowerCase() === b.trim().toLowerCase()
+
+/**
+ * Welke machine uit het recept hoort bij de stap op plek `index` met deze naam?
+ * Eerst op plek (zo worden ze gemaakt) als de naam klopt, dan op naam, dan op
+ * plek als het aantal stappen gelijk is. Anders `null`.
+ */
+export function receptMachineVoorStap(
+  recept: ReceptMachine[], naam: string | null | undefined, index: number, aantalStappen: number,
+): ReceptMachine | null {
+  const opPlek = recept[index]
+  if (opPlek && zelfdeNaam(naam, opPlek.naam)) return opPlek
+  const opNaam = recept.find(m => zelfdeNaam(naam, m.naam))
+  if (opNaam) return opNaam
+  return opPlek && recept.length === aantalStappen ? opPlek : null
+}
+
+/**
+ * Doorlooptijd van één stap (2026-10-09): de setup van zijn eigen machine één
+ * keer, plus de cyclustijd van die machine × het aantal van de order. Tot nu
+ * kreeg elke stap een gelijk deel van de tijd van álle machines samen, zodat
+ * een zaagstap van 3 uur dagen kon duren omdat de draaibank ernaast lang was.
+ * Valt de stap niet aan een machine in het recept te koppelen (met de hand
+ * bijgezet, recept gewijzigd), dan nog wel dat gelijke deel.
+ */
 export function berekenStapMin(
-  _stap: ProductieStap,
+  stap: ProductieStap,
   order: ProductieOrder,
   articles: Article[],
+  machines: { id: string; name: string }[] = [],
 ): { min: number; isPlaceholder: boolean } {
+  const artikel = order.artikelId ? articles.find(a => a.id === order.artikelId) : undefined
+  const recept = receptMachines(artikel, machines)
+  const index = order.stappen.findIndex(s => s.id === stap.id)
+  const m = receptMachineVoorStap(recept, stap.machine ?? stap.naam, index < 0 ? stap.volgorde - 1 : index, order.stappen.length)
+  if (m) return { min: Math.max(1, Math.round(m.setupMin + m.cycleMin * order.qty)), isPlaceholder: false }
   const result = berekenOrderMin(order, articles)
   const nStappen = Math.max(1, order.stappen.length)
   return { min: Math.round(result.min / nStappen), isPlaceholder: result.isPlaceholder }
