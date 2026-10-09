@@ -882,6 +882,9 @@ model ProductieStap {
   /// Rang uit het automatisch plannen (lager = eerder). Los van queuePosition:
   /// dat is de volgorde die er op de machine uitkomt (2026-10-08).
   prioriteit     Float?
+  /// "Machine laten wachten" (2026-10-09): geen ander werk in de tijd vóór
+  /// deze stap op zijn machine. Geldt tot de stap gestart is.
+  machineWacht   Boolean @default(false) @map("machine_wacht")
 
   order            ProductieOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   tijdregistraties TijdRegistratie[]

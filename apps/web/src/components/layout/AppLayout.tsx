@@ -6,7 +6,7 @@ import {
   IconLayersLinked, IconInbox, IconSettings, IconList, IconTruckDelivery,
   IconChevronDown, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
   IconClipboardList, IconChartBar, IconArrowsSort, IconCheck, IconLogout, IconFileText,
-  IconChecklist, IconListNumbers, IconExternalLink, IconClock,
+  IconChecklist, IconListNumbers, IconTimeline, IconTable, IconExternalLink, IconClock,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 import { useQuery } from '@tanstack/react-query'
@@ -34,7 +34,7 @@ import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
 import { ProjectenPage } from '../../routes/desktop/ProjectenPage'
 import { ProjectDetailPage } from '../../features/projects/detail/ProjectDetailPage'
 import { DocumentenPage } from '../../routes/desktop/DocumentenPage'
-import { PlanningQueuePage } from '../../routes/desktop/PlanningQueuePage'
+import { PlanningQueuePage, PlanningTijdlijnPage, PlanningTabelPage } from '../../routes/desktop/PlanningQueuePage'
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
@@ -106,7 +106,9 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
     {
       label: 'Planning',
       items: [
-        { to: '/planning-queue',  label: 'Wachtrij', Icon: IconListNumbers,  count: null },
+        { to: '/planning-queue',  label: 'Opdrachten', Icon: IconListNumbers, count: null },
+        { to: '/planning-tijdlijn', label: 'Tijdlijn',  Icon: IconTimeline,    count: null },
+        { to: '/planning-tabel',  label: 'Tabel',      Icon: IconTable,       count: null },
         { to: '/prognose',        label: 'Prognose', Icon: IconChartBar,     count: null },
         { to: '/todos',           label: 'ToDo',      Icon: IconChecklist,   count: openTodoCount || null },
         { to: '/tijdregistratie', label: 'Tijdregistratie', Icon: IconClock, count: null },
@@ -241,7 +243,9 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
 }
 
 const ROUTE_LABELS: Record<string, [string, string]> = {
-  '/planning-queue':  ['Planning',       'Wachtrij'],
+  '/planning-queue':  ['Planning',       'Opdrachten'],
+  '/planning-tijdlijn': ['Planning',     'Tijdlijn'],
+  '/planning-tabel':  ['Planning',       'Tabel'],
   '/prognose':        ['Planning',       'Prognose'],
   '/todos':           ['Planning',       'ToDo'],
   '/tijdregistratie': ['Planning',       'Tijdregistratie'],
@@ -343,7 +347,9 @@ export function AppLayout() {
             <Route path="/projecten"       element={<ProjectenPage />} />
             <Route path="/projecten/:id"   element={<ProjectDetailPage />} />
             <Route path="/documenten"      element={<DocumentenPage />} />
-            <Route path="/planning-queue"  element={<PopoutAware path="/planning-queue" label="Wachtrij" openRoutes={openRoutes}><PlanningQueuePage /></PopoutAware>} />
+            <Route path="/planning-queue"  element={<PopoutAware path="/planning-queue" label="Opdrachten" openRoutes={openRoutes}><PlanningQueuePage /></PopoutAware>} />
+            <Route path="/planning-tijdlijn" element={<PopoutAware path="/planning-tijdlijn" label="Tijdlijn" openRoutes={openRoutes}><PlanningTijdlijnPage /></PopoutAware>} />
+            <Route path="/planning-tabel"  element={<PopoutAware path="/planning-tabel" label="Tabel" openRoutes={openRoutes}><PlanningTabelPage /></PopoutAware>} />
             <Route path="/prognose"        element={<PopoutAware path="/prognose" label="Prognose" openRoutes={openRoutes}><PrognosePage /></PopoutAware>} />
             <Route path="/todos"           element={<PopoutAware path="/todos" label="ToDo" openRoutes={openRoutes}><TodosPage /></PopoutAware>} />
             <Route path="/tijdregistratie" element={<PopoutAware path="/tijdregistratie" label="Tijdregistratie" openRoutes={openRoutes}><TijdregistratiePage /></PopoutAware>} />

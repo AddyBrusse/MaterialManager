@@ -5,6 +5,7 @@ export function zelfdePlanning(a: StapPlanWaarden, b: StapPlanWaarden): boolean 
   const getal = (x: number | null, y: number | null) => (x == null || y == null ? x === y : Math.abs(x - y) < 1e-6)
   return a.geplandDatum === b.geplandDatum && a.geplandMachine === b.geplandMachine
     && getal(a.queuePosition, b.queuePosition) && getal(a.prioriteit, b.prioriteit)
+    && (a.machineWacht === undefined || b.machineWacht === undefined || !!a.machineWacht === !!b.machineWacht)
 }
 
 export interface StapNu extends StapPlanWaarden {

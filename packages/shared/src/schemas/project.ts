@@ -42,6 +42,9 @@ export const ProductieStapSchema = z.object({
   // een stap die op zijn vorige stap wacht kan daar later staan dan zijn
   // prioriteit zegt. null = nog nooit ingepland; die komt in op uiterlijk starten.
   prioriteit: z.number().nullable().optional(),
+  // "Machine laten wachten" (2026-10-09): de planning vult de tijd vóór deze
+  // stap op zijn machine niet met ander werk. Geldt tot de stap gestart is.
+  machineWacht: z.boolean().optional(),
 })
 export type ProductieStap = z.infer<typeof ProductieStapSchema>
 

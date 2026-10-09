@@ -10,10 +10,12 @@ export function werkbordActies(setBezig: (b: boolean) => void, ververs: () => vo
   }
   const wie = (k: Kaart) => `${k.job.orderId} stap ${k.stapNr} (${k.job.naam})`
   return {
-    prioriteit: (k: Kaart, waarde: number) =>
-      doe({ aanleiding: `Werkbord: ${wie(k)} ${waarde < k.rang ? 'hoger' : 'lager'} gezet`, prioriteit: { stapId: k.job.id, waarde } }),
-    machine: (k: Kaart, m: Machine) =>
-      doe({ aanleiding: `Werkbord: ${wie(k)} naar ${m.name}`, machine: { stapId: k.job.id, naam: m.name } }),
+    los: (k: Kaart, waarde: number, m?: Machine) => doe({
+      aanleiding: `Werkbord: ${wie(k)}${m ? ` naar ${m.name}` : ` ${waarde < k.rang ? 'hoger' : 'lager'} gezet`}`,
+      prioriteit: { stapId: k.job.id, waarde },
+      machine: m ? { stapId: k.job.id, naam: m.name } : undefined,
+    }),
+    wachtUit: (k: Kaart) => doe({ aanleiding: `Werkbord: ${wie(k)} — machine mag weer vullen`, machineWacht: { stapId: k.job.id, waarde: false } }),
     herbereken: (opLevertijd = false) =>
       doe({ aanleiding: opLevertijd ? 'Herbereken op leverdatum' : 'Herbereken', opLevertijd }),
   }

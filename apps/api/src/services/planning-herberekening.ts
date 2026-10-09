@@ -62,8 +62,11 @@ export async function pasToe(db: Db, invoer: HerberekenInvoer, door: string): Pr
     const s = nuPerId.get(w.stapId)!
     return {
       stapId: w.stapId, projectId: perId.get(w.stapId)!.order.projectId, orderId: s.orderId,
-      oud: { geplandDatum: s.geplandDatum, geplandMachine: s.geplandMachine, queuePosition: s.queuePosition, prioriteit: s.prioriteit },
-      nieuw: { geplandDatum: w.geplandDatum, geplandMachine: w.geplandMachine, queuePosition: w.queuePosition, prioriteit: w.prioriteit },
+      oud: { geplandDatum: s.geplandDatum, geplandMachine: s.geplandMachine, queuePosition: s.queuePosition, prioriteit: s.prioriteit, machineWacht: s.machineWacht },
+      nieuw: {
+        geplandDatum: w.geplandDatum, geplandMachine: w.geplandMachine, queuePosition: w.queuePosition, prioriteit: w.prioriteit,
+        machineWacht: w.machineWacht ?? s.machineWacht,
+      },
     }
   })
   for (const w of wijzigingen) await db.productieStap.update({ where: { id: w.stapId }, data: w.nieuw })
@@ -100,6 +103,7 @@ export async function blokkades(db: Db, r: Rij): Promise<Blokkade[]> {
   const perId = new Map<string, StapNu>(stappen.map((s) => [s.id, {
     id: s.id, naam: s.naam, volgorde: s.volgorde, gereedOp: s.gereedOp, gereedDoor: s.gereedDoor,
     geplandDatum: s.geplandDatum, geplandMachine: s.geplandMachine, queuePosition: s.queuePosition, prioriteit: s.prioriteit,
+    machineWacht: s.machineWacht,
   }]))
   const klokRijen = await db.tijdRegistratie.findMany({ where: { stapId: { in: ids }, gestartOp: { gte: r.op } } })
   const klokken: KlokNa[] = klokRijen.map((k) => {

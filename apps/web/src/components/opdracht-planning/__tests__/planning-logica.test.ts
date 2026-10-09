@@ -64,3 +64,33 @@ describe('signalen: achter lopen', () => {
     expect(aantalAchter(signalen)).toBe(2)
   })
 })
+
+describe('KanBan: banen per machine', () => {
+  const M = [{ id: 'DMG', name: 'DMG', soort: 'draaien' }, { id: 'Doosan', name: 'Doosan', soort: 'draaien' }, { id: 'Haas', name: 'Haas', soort: 'frezen' }] as never
+  const op = (id: string, order: string, volgorde: number, machine: string, start: number) => {
+    const j = job(id, order, volgorde, { machineNaam: machine })
+    ;(j.item.stap as { geplandMachine: string; machine: string }).geplandMachine = machine
+    ;(j.item.stap as { machine: string }).machine = machine
+    return { j, slot: [id, { startOffsetDays: start, durationDays: 1, finishOffsetDays: start + 1, ghostOffsetDays: 0 }] as const }
+  }
+  it('per machine in de volgorde waarin hij het doet, bezig bovenaan', async () => {
+    const { kanbanBanen } = await import('../planning-logica')
+    const a = op('A-1', 'A', 1, 'DMG', 2), b = op('B-1', 'B', 1, 'DMG', 0), c = op('C-1', 'C', 1, 'DMG', 1)
+    const banen = kanbanBanen([a.j, b.j, c.j], M, new Map([a.slot, b.slot, c.slot]), new Set(['A-1']), new Map([['A-1', 1000], ['B-1', 2000], ['C-1', 3000]]))
+    expect(banen[0].kaarten.map((k) => k.job.id)).toEqual(['A-1', 'B-1', 'C-1'])
+    expect(banen.map((b) => b.machine?.name)).toEqual(['DMG', 'Doosan', 'Haas'])
+  })
+  it('loslaten: rang tussen de buren, andere machine alleen van dezelfde soort, stap 2 niet vóór stap 1', async () => {
+    const { kanbanBanen, kanbanLos } = await import('../planning-logica')
+    const s1 = op('A-1', 'A', 1, 'DMG', 0), x = op('X-1', 'X', 1, 'DMG', 1), s2 = op('A-2', 'A', 2, 'DMG', 2)
+    const rang = new Map([['A-1', 1000], ['X-1', 2000], ['A-2', 3000]])
+    const banen = kanbanBanen([s1.j, x.j, s2.j], M, new Map([s1.slot, x.slot, s2.slot]), new Set(), rang)
+    const [dmg, doosan, haas] = banen
+    const k = (id: string) => dmg.kaarten.find((q) => q.job.id === id)!
+    expect(kanbanLos(dmg, k('A-2'), 'A-1', M)).toMatchObject({ reden: expect.stringMatching(/Stap 1 .* staat hier nog onder/) })
+    expect(kanbanLos(dmg, k('A-2'), 'X-1', M)).toEqual({ prioriteit: 1500, machine: undefined })
+    expect(kanbanLos(dmg, k('X-1'), 'A-2', M)).toBeNull()
+    expect(kanbanLos(doosan, k('X-1'), null, M)).toEqual({ prioriteit: 2000, machine: 'Doosan' })
+    expect(kanbanLos(haas, k('X-1'), null, M)).toMatchObject({ reden: expect.stringMatching(/frezenmachine/) })
+  })
+})

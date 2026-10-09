@@ -79,6 +79,10 @@ export interface AutoPlaats {
   reden: string | null
   /** Bezig en voorbij het geplande eind: gerekend tot het eind van vandaag. */
   uitloop?: boolean
+  /** "Machine laten wachten": geen ander werk vóór deze stap (vervalt zodra hij bezig is). */
+  machineWacht?: boolean
+  /** Vanaf wanneer de machine op deze stap wacht (alleen met machineWacht). */
+  wachtVan?: number
 }
 
 export interface AutoUitkomst {
@@ -186,8 +190,17 @@ export function planAutomatisch(inv: AutoInvoer): AutoUitkomst {
   // met voorrang wacht zo op stap 1, en rekent met diens echte eind.
   const open = [...rang]
   while (open.length) {
-    const idx = open.findIndex((j) => { const v = vorige.get(j.id); return !v || plaatsen.has(v) })
-    const job = open.splice(idx < 0 ? 0 : idx, 1)[0]
+    // De stap met de meeste voorrang; staat zijn vorige stap nog niet, dan die
+    // eerst (2026-10-09): voorrang trekt de hele keten naar voren, zodat werk
+    // met minder voorrang pas daarna een plek krijgt — in het gat als het past,
+    // of erachter als de machine moet wachten.
+    let kies = open[0]
+    for (let v = vorige.get(kies.id); v && !plaatsen.has(v); v = vorige.get(kies.id)) {
+      const voor = open.find((j) => j.id === v)
+      if (!voor) break
+      kies = voor
+    }
+    const job = open.splice(open.indexOf(kies), 1)[0]
     const v = vorige.get(job.id)
     const vorigEind = v ? plaatsen.get(v)?.eind ?? 0 : 0
     const { lijst, reden } = kandidaten(job, machines)
@@ -224,9 +237,18 @@ export function planAutomatisch(inv: AutoInvoer): AutoUitkomst {
       const [s, e] = vroegstePlek(bezet.get(m.name)!, vanaf, job.duurMin, m.worksWeekends ?? false, ws)
       if (!beste || e < beste.e - EPS) beste = { m, s, e }
     }
-    invoegen(bezet.get(beste!.m.name)!, [beste!.s, beste!.e])
+    const blokken = bezet.get(beste!.m.name)!
+    invoegen(blokken, [beste!.s, beste!.e])
+    // Machine laten wachten (2026-10-09): de tijd tussen het vorige werk en
+    // deze stap blijft leeg, ook voor werk dat er later in zou passen.
+    const machineWacht = !!job.item.stap.machineWacht
+    let wachtVan: number | undefined
+    if (machineWacht) {
+      const vrij = Math.max(werkMoment(nu, beste!.m.worksWeekends ?? false, ws), ...blokken.filter(([b, e]) => e <= beste!.s + EPS && b < beste!.s - EPS).map(([, e]) => e))
+      if (beste!.s - vrij > EPS) { invoegen(blokken, [vrij, beste!.s]); wachtVan = vrij }
+    }
     plaatsen.set(job.id, {
-      ...basis, machine: beste!.m.name, start: beste!.s, eind: beste!.e,
+      ...basis, machine: beste!.m.name, start: beste!.s, eind: beste!.e, machineWacht, wachtVan,
       geplandDatum: toDateStr(dateForOffset(ws, Math.floor(beste!.s + EPS))),
       queuePosition: null,
       reden: !job.wachtOpMateriaal ? null
@@ -254,6 +276,7 @@ export interface StapWijziging {
   geplandMachine: string | null
   queuePosition: number | null
   prioriteit: number | null
+  machineWacht: boolean
 }
 
 /** Alleen de stappen waarvan iets anders wordt dan wat er nu staat. */
@@ -268,9 +291,12 @@ export function wijzigingen(jobs: QueueJob[], uit: AutoUitkomst): StapWijziging[
       geplandMachine: p.machine ?? s.geplandMachine ?? null,
       queuePosition: p.machine ? p.queuePosition : null,
       prioriteit: p.prioriteit,
+      // Bezig of zonder plek: "machine laten wachten" is dan voorbij.
+      machineWacht: !!p.machineWacht,
     }
     if (nieuw.geplandDatum === (s.geplandDatum ?? null) && nieuw.geplandMachine === (s.geplandMachine ?? null)
-      && nieuw.queuePosition === (s.queuePosition ?? null) && nieuw.prioriteit === (s.prioriteit ?? null)) continue
+      && nieuw.queuePosition === (s.queuePosition ?? null) && nieuw.prioriteit === (s.prioriteit ?? null)
+      && nieuw.machineWacht === !!s.machineWacht) continue
     lijst.push({ stapId: j.id, projectId: j.item.project.id, orderId: j.orderId, ...nieuw })
   }
   return lijst

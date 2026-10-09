@@ -198,3 +198,25 @@ describe('tijdstip op de werkdag', () => {
     expect(tijdstipAlsDag(new Date(2026, 6, 13, 5, 0), WS)).toBe(0)
   })
 })
+
+describe('machine laten wachten (2026-10-09)', () => {
+  it('zonder: werk met minder voorrang vult de wachttijd; met: de machine wacht en dat werk komt erna', () => {
+    const a1 = job({ order: 'A', volgorde: 1, recept: 'Zaag', prio: 1000 })
+    const a2 = job({ order: 'A', volgorde: 2, recept: 'DMG', prio: 2000 })
+    const b1 = job({ order: 'B', volgorde: 1, recept: 'DMG', prio: 3000 })
+    expect(plan([a1, a2, b1]).plaatsen.get(b1.id)!.start).toBe(0)
+    ;(a2.item.stap as { machineWacht?: boolean }).machineWacht = true
+    const u = plan([a1, a2, b1])
+    expect(u.plaatsen.get(a2.id)!.start).toBeCloseTo(1)
+    expect(u.plaatsen.get(a2.id)!.wachtVan).toBe(0)
+    expect(u.plaatsen.get(b1.id)!.start).toBeCloseTo(2)
+    expect(wijzigingen([a2], u)[0]?.machineWacht ?? true).toBe(true)
+  })
+  it('vervalt zodra de stap bezig is', () => {
+    const a = job({ order: 'A', recept: 'DMG', op: 'DMG' })
+    ;(a.item.stap as { machineWacht?: boolean }).machineWacht = true
+    const u = plan([a], { lopend: [a.id], gestart: [[a.id, '2026-07-13T07:00:00']] })
+    expect(u.plaatsen.get(a.id)!.machineWacht).toBeFalsy()
+    expect(wijzigingen([a], u)[0].machineWacht).toBe(false)
+  })
+})

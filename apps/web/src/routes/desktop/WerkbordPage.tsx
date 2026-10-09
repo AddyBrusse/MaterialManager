@@ -22,8 +22,8 @@ export function WerkbordPage() {
         <LaatsteBerekeningen />
       </div>
       <div className="op-werkbord">
-        <Werkbord kolommen={d.kolommen} machines={d.machines} schema={d.schema} ws={d.ws} bezig={bezig}
-          onPrioriteit={acties.prioriteit} onMachine={acties.machine} />
+        <Werkbord banen={d.banen} kolommen={d.kolommen} machines={d.machines} schema={d.schema} ws={d.ws} bezig={bezig}
+          info={d.info} onLos={acties.los} onWachtUit={acties.wachtUit} />
       </div>
     </div>
   )

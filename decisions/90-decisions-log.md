@@ -2298,3 +2298,33 @@ geheel terugdraaien.
   herberekend werk "vandaag" als datum.
 - **De Tabel volgt de receptvolgorde op één machine.** Stap 2 boven stap 1 van
   dezelfde order slepen weigert hij, met de zin waarom (`waaromNietHier`).
+
+## 2026-10-09 — Planning: indeling, KanBan per machine, "machine laten wachten"
+
+- **Opdrachten, Tijdlijn en Tabel in het zijmenu**, elk een eigen route
+  (`/planning-queue` bleef de route van Opdrachten, zodat bestaande links en
+  losse vensters blijven werken). De Opdrachten-pagina heeft één balk; de
+  legenda is een knop. Zo gaat alle hoogte naar de Gantt en het werkbord.
+- **Projectregel als effen band** met PRJ-nr, klant, omschrijving, afgesproken
+  levering en verwachte levering (eind van de laatste stap; rood als hij na de
+  afspraak ligt). Geen balk meer in die regel: de artikelregels eronder zeggen
+  al wanneer wat gebeurt.
+- **KanBan per machine is de plaats om te plannen**; Status is alleen kijken.
+  De volgorde in een baan is die waarin de machine het werk doet (bezig
+  bovenaan, dan op geplande start). Slepen geeft een rang tussen de buren
+  (`kanbanLos`); naar een andere baan alleen bij dezelfde soort; stap 2 vóór
+  stap 1 van dezelfde order wordt geweigerd.
+- **Vullen of machine laten wachten.** Moet een gesleepte stap wachten (vorige
+  stap, materiaal) en zou werk met minder voorrang dat gat vullen, dan rekent
+  het scherm beide uit en vraagt het eerst. Vullen maakt de gesleepte stap nooit
+  later (werk gaat alleen in een gat als het er helemaal in past); de melding
+  noemt per gevuld stuk werk de eindtijd bij beide keuzes. "Laten wachten" wordt
+  `ProductieStap.machineWacht` (migratie `20261009090000_machine_wacht`): de
+  tijd vóór die stap op zijn machine blijft leeg, ook bij latere
+  herberekeningen, tot de stap gestart is; met één klik op het label op de kaart
+  weer uit. Het veld zit in de oud/nieuw-waarden van een herberekening, dus
+  ongedaan maken zet het mee terug. Melding weggeklikt = er is niets opgeslagen.
+- **Voorrang trekt de keten mee.** Bij het plannen gaat de stap met de meeste
+  voorrang eerst; staat zijn vorige stap nog niet, dan eerst die. Anders kreeg
+  werk met minder voorrang al een plek vóór de vorige stap van een stap die
+  hoger gezet was, en kon "machine laten wachten" niets tegenhouden.

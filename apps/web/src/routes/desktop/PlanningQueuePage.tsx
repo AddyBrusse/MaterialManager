@@ -38,7 +38,11 @@ interface PendingCascade {
   commit: () => void
 }
 
-export function PlanningQueuePage() {
+/** Planning → Tijdlijn en → Tabel (2026-10-09): eigen items in het zijmenu. */
+export const PlanningTijdlijnPage = () => <PlanningQueuePage weergave="tijdlijn" />
+export const PlanningTabelPage = () => <PlanningQueuePage weergave="tabel" />
+
+export function PlanningQueuePage({ weergave = 'opdrachten' }: { weergave?: PlanningWeergave } = {}) {
   const navigate = useNavigate()
   const isPopout = useLocation().pathname.startsWith('/pop')
 
@@ -51,8 +55,6 @@ export function PlanningQueuePage() {
 
   const [zoom, setZoom] = useLocalStorage<QueueZoom>({ key: 'sm_wq_zoom', defaultValue: 'week' })
   const [showKpi, setShowKpi] = useLocalStorage<boolean>({ key: 'sm_wq_kpi', defaultValue: false })
-  // Tabel naast Tijdlijn (2026-10-08); per pc onthouden, zoals de zoom.
-  const [weergave, setWeergave] = useLocalStorage<PlanningWeergave>({ key: 'sm_wq_weergave', defaultValue: 'opdrachten' })
   const [showConnections, setShowConnections] = useState(false)
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [selectedMachineName, setSelectedMachineName] = useState('')
@@ -287,10 +289,13 @@ export function PlanningQueuePage() {
     flash(`Toegepast: ${option.title} (${changes} stap${changes === 1 ? '' : 'pen'} herschikt)`)
   }
 
+  // Opdrachten heeft zijn eigen balk: alle hoogte voor de Gantt en het werkbord.
+  if (weergave === 'opdrachten') return <div className="wq pg-root"><OpdrachtPlanning /></div>
+
   return (
     <div className="wq pg-root">
       <QueueToolbar
-        weergave={weergave} onWeergave={setWeergave}
+        weergave={weergave}
         zoom={zoom} onZoom={setZoom}
         showKpi={showKpi} onToggleKpi={() => setShowKpi(v => !v)}
         onSuggest={() => setSuggestOpen(true)}
@@ -298,9 +303,7 @@ export function PlanningQueuePage() {
       />
       {weergave === 'tijdlijn' && showKpi && <QueueKpiStrip kpis={kpis} />}
 
-      {weergave === 'opdrachten' ? (
-        <OpdrachtPlanning />
-      ) : weergave === 'tabel' ? (
+      {weergave === 'tabel' ? (
         <PlanningTabel
           allJobs={allJobs} backlog={backlog} wachtrijen={machineQueues} machines={machines}
           schedule={schedule} verplichtKlaar={verplichtKlaar} windowStart={windowStart} onGewijzigd={bump}

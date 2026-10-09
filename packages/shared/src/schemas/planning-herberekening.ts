@@ -11,6 +11,8 @@ export const StapPlanWaardenSchema = z.object({
   geplandMachine: z.string().nullable(),
   queuePosition: z.number().nullable(),
   prioriteit: z.number().nullable(),
+  /** Ontbreekt in herberekeningen van vóór 2026-10-09; dan blijft hij staan. */
+  machineWacht: z.boolean().optional(),
 })
 export type StapPlanWaarden = z.infer<typeof StapPlanWaardenSchema>
 

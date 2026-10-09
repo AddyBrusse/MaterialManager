@@ -105,3 +105,37 @@
 .wb-sig[data-soort="bezig"] { color: var(--text-3); font-weight: 400; }
 .wb-kaart[data-rood="true"] { border-color: var(--danger); }
 .op-balk .seg .st-btn.primary { background: var(--accent); color: #fff; }
+
+/* Herzien 2026-10-09: projectregel = effen band met gegevens, geen blokken of randen. */
+.og-o { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; height: 26px; padding: 0 10px; background: #e9eaec; font-size: 12px; cursor: pointer; white-space: nowrap; overflow: hidden; border: 0; }
+.og-o:hover { background: #e2e4e7; }
+.og-o .og-naam { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 0 1 auto; }
+.og-o .og-veld { color: var(--text-3); }
+.og-o .og-veld b { color: var(--text); font-weight: 600; }
+.og-o .og-veld[data-laat="true"], .og-o .og-veld[data-laat="true"] b { color: var(--danger); }
+.og-o .og-pct { margin-left: auto; }
+.og-a { cursor: default; }
+.og-link { color: var(--text); text-decoration: none; cursor: pointer; }
+.og-link:hover { text-decoration: underline; color: var(--accent); }
+.og-stap { font-weight: 500; }
+.op-balk + .op-gantt { margin-top: 0; }
+.op .op-sleutel { flex-direction: column; align-items: flex-start; gap: 6px; }
+
+/* Werkbord: schakelaar KanBan / Status */
+.wb-paneel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wb-kop { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+.wb-kop .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.wb-kop .seg button { border: 0; border-left: 1px solid var(--border); background: transparent; padding: 0 12px; height: 24px; font: inherit; font-size: 12px; color: var(--text-2); cursor: pointer; }
+.wb-kop .seg button:first-child { border-left: 0; }
+.wb-kop .seg button[data-active="true"] { background: var(--bg-hover); color: var(--text); font-weight: 600; }
+.wb-uitleg { font-size: 11px; color: var(--text-3); }
+.kb { flex: 1; min-height: 0; display: flex; gap: 8px; padding: 8px 10px; overflow-x: auto; background: var(--bg-sidebar, #f7f7f5); }
+.kb[data-bezig="true"] { opacity: .7; pointer-events: none; }
+.kb-baan { flex: 1 0 210px; max-width: 320px; display: flex; flex-direction: column; min-height: 0; background: var(--bg-hover); border-radius: 6px; padding: 6px; border-top: 3px solid var(--mc, #999); }
+.kb-baan[data-doel="true"] { box-shadow: inset 0 -3px 0 var(--accent); }
+.kb-baan h4 { margin: 2px 4px 6px; font-size: 12px; font-weight: 600; display: flex; flex-direction: column; gap: 1px; }
+.kb-baan h4 i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--mc, #999); margin-right: 6px; }
+.kb-sub { font-size: 10.5px; font-weight: 400; color: var(--text-3); }
+.wb-kaart[data-bezig="true"] { box-shadow: 0 0 0 2px var(--text); }
+.wb-wacht { margin-top: 3px; border: 1px dashed var(--border-strong, #bbb); background: transparent; border-radius: 4px; font: inherit; font-size: 10.5px; color: var(--text-2); padding: 1px 6px; cursor: pointer; }
+.wb-wacht:hover { border-color: var(--danger); color: var(--danger); }
