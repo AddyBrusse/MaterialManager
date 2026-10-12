@@ -2382,3 +2382,29 @@ geheel terugdraaien.
   met beide tijden (`receptMachines`). Valt een stap niet te koppelen (met de
   hand bijgezet, recept gewijzigd), dan nog het gelijke deel.
 - Hetzelfde voor de bewerkingen van een verstuurde offerte in de Prognose.
+
+
+## 2026-10-12 — Bestellingen: bijlagen, dichtgetimmerd vrijgeven, meldingen, AI-assistent
+
+- **Offerte van de leverancier bijvoegen** per leverancier per prijsaanvraag
+  (zichtbaar bij alle regels van die aanvraag), en los bij een bestelregel of
+  een inkooporder (orderbevestiging). Eén tabel `inkoop_bijlagen` met precies
+  één doel; het bestand staat in `uploads/inkoop`. Prijzen overtypen; uitlezen
+  met AI later.
+- **In productie geven zonder vastgelegd materiaal kan niet meer.** Eerder was
+  dat een waarschuwing en kon een tekort onopgemerkt de hal in gaan. Nu: per
+  order gereserveerd of op de bestellijst, anders weigert de server (409). Een
+  artikel zonder voorraadmateriaal (alleen exoot of geen materiaalregel) telt
+  als "niets nodig". Oude bestelregels zonder `offerteRegelId` tellen alleen
+  mee als het project maar één order met dat artikel heeft.
+- **Meldingen afgeleid, niet opgeslagen**: wegklikken bestaat niet, een melding
+  verdwijnt als de oorzaak weg is. Iedereen ziet dezelfde lijst. Een
+  prijsaanvraag zonder antwoord meldt zich na 4 werkdagen.
+- **AI-assistent leest en stelt voor, wijzigt nooit.** Afgesproken met de
+  gebruiker. Het model krijgt alleen leestools; een "actie" is een knop naar een
+  scherm, waar een mens het met de gewone voorwaarden doet. Zo kan een verkeerd
+  begrepen vraag niets in de database veranderen. Het bericht op vaste tijden
+  wordt één keer per moment gemaakt en bewaard, anders kost elke pagina-lading
+  een aanroep; mislukt de aanroep, dan tien minuten niet opnieuw en intussen
+  een bericht uit de gegevens zelf. Gegevens gaan naar Anthropic — akkoord van
+  de gebruiker. De chat verlaat de app niet (geen mail, geen Teams).

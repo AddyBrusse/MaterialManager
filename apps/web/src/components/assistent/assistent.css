@@ -1,0 +1,19 @@
+/* AI-assistent (2026-10-09): paneel rechts, altijd te openen. */
+.as-paneel { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 290; background: var(--bg-2); border-left: 1px solid var(--border); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; }
+.as-kop { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.as-kop b { font-size: 14px; }
+.as-kop .sub { color: var(--text-3); font-size: 11.5px; }
+.as-kop .sluit { margin-left: auto; }
+.as-romp { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.as-bericht { border: 1px solid var(--border); border-radius: var(--radius-md, 8px); padding: 10px 12px; font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
+.as-bericht.vast { background: var(--bg-sidebar); }
+.as-bericht.gebruiker { align-self: flex-end; max-width: 85%; background: var(--accent-soft, var(--bg-sidebar)); border-color: transparent; }
+.as-bericht.assistent { align-self: flex-start; max-width: 95%; }
+.as-bericht.fout { border-color: var(--danger); color: var(--danger); }
+.as-meta { color: var(--text-3); font-size: 11px; margin-bottom: 4px; white-space: normal; }
+.as-acties { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
+.as-voet { border-top: 1px solid var(--border); padding: 10px 14px; display: flex; gap: 8px; align-items: flex-end; }
+.as-voet textarea { flex: 1; resize: none; min-height: 36px; max-height: 120px; font: inherit; font-size: 12.5px; }
+.as-uitleg { color: var(--text-3); font-size: 11px; padding: 0 14px 8px; }
+.as-knop[data-nieuw]::after { content: ''; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.as-knop { position: relative; }

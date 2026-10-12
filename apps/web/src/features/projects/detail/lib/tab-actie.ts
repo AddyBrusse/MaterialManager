@@ -46,7 +46,6 @@ export interface TabKeuze {
   /** De aangevinkte orders in voorbereiding op de Productie-tab. */
   gekozenOrders: string[]
   /** Regel-id's met een open todo "materiaal kiezen" — todo's zitten niet in het project. */
-  regelsZonderMateriaal: string[]
 }
 
 const kan = (label: string, stap: Stap): TabActie => ({ label, kan: true, stap })
@@ -151,12 +150,9 @@ function vrijgevenActie(p: Project, keuze: TabKeuze): TabActie | null {
   const wachtend = p.productieOrders.filter((o) => o.status === 'voorbereiding')
   if (wachtend.length === 0) return null
   const gekozen = wachtend.filter((o) => keuze.gekozenOrders.includes(o.id))
-  const stap = (orders: typeof wachtend): Stap => {
-    const namen = orders
-      .filter((o) => keuze.regelsZonderMateriaal.includes(o.offerteRegelId))
-      .map((o) => o.artikelNaam)
-    return { soort: 'vrijgeven', orderIds: orders.map((o) => o.id), waarschuwingen: waarschuwingenBijVrijgeven(p, namen) }
-  }
+  // Materiaal kiezen gebeurt in de stap zelf (2026-10-09), niet als waarschuwing.
+  const stap = (orders: typeof wachtend): Stap =>
+    ({ soort: 'vrijgeven', orderIds: orders.map((o) => o.id), waarschuwingen: waarschuwingenBijVrijgeven(p) })
   const label = `${gekozen.length}/${wachtend.length} vrijgeven`
   const menu = [{ label: 'Alles vrijgeven', stap: stap(wachtend) }]
   return gekozen.length === 0

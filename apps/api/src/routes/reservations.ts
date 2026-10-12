@@ -342,7 +342,7 @@ const BevestigSchema = PlanSchemaIn.extend({
     verbruikMm: z.number().positive(),
     /** De rest meteen afboeken (2026-10-09): de hele vrije lengte gaat vast. */
     restAfboeken: z.boolean().default(false),
-  })).min(1),
+  })),
   /** De todo die hiermee afgerond wordt. */
   todoId: z.string().optional(),
   /** De orderregel waar dit materiaal voor is. */
@@ -359,6 +359,11 @@ router.post(
   '/materiaal-plan/bevestig',
   asyncHandler(async (req, res) => {
     const body = BevestigSchema.parse(req.body)
+    // Niets op voorraad mag (2026-10-09): dan gaat alles op de bestellijst.
+    // Maar er moet altijd iets vastgelegd worden — anders is er niets gekozen.
+    if (body.regels.length === 0 && !body.tekort) {
+      throw new AppError(400, 'VALIDATION', 'Kies staven uit de voorraad, of zet het tekort op de bestellijst')
+    }
 
     const uit = await prisma.$transaction(async (tx) => {
       const mat = await materiaalVanArtikel(tx, body.artikelId)
@@ -419,12 +424,18 @@ router.post(
         }))
       }
 
-      if (body.todoId) {
-        await tx.todo.updateMany({
-          where: { id: body.todoId, done: false },
-          data: { done: true, completedAt: new Date() },
-        })
-      }
+      // De todo "materiaal selecteren" van deze regel is hiermee gedaan, ook
+      // als er via "In productie geven" gekozen is in plaats van via de todo.
+      await tx.todo.updateMany({
+        where: {
+          done: false,
+          OR: [
+            ...(body.todoId ? [{ id: body.todoId }] : []),
+            ...(body.offerteRegelId ? [{ soort: 'materiaal_selecteren', projectId: body.projectId, offerteRegelId: body.offerteRegelId }] : []),
+          ],
+        },
+        data: { done: true, completedAt: new Date() },
+      })
 
       let bestelTodoId: string | null = null
       if (body.tekort) {
