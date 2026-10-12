@@ -42,6 +42,25 @@ function SectionHeader({ title, desc }: { title: string; desc?: string }) {
   )
 }
 
+/** Tijden van de assistent: een lijst uu:mm, hooguit zes. */
+function AssistentTijden({ tijden, onChange }: { tijden: string[]; onChange: (t: string[]) => void }) {
+  const zet = (i: number, v: string) => onChange(tijden.map((t, j) => (j === i ? v : t)))
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+      {tijden.map((t, i) => (
+        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          <input className="st-input cell-mono" type="text" inputMode="numeric" placeholder="uu:mm" maxLength={5} style={{ width: 70 }} value={t} aria-label={`Tijd ${i + 1}`}
+            onChange={(e) => zet(i, e.target.value)} />
+          <button type="button" className="st-icon-btn" title="Tijd weghalen" onClick={() => onChange(tijden.filter((_, j) => j !== i))}>×</button>
+        </span>
+      ))}
+      {tijden.length < 6 && (
+        <button type="button" className="st-btn" onClick={() => onChange([...tijden, '12:00'])}>+ Tijd</button>
+      )}
+    </div>
+  )
+}
+
 // ── Bedrijf tab ───────────────────────────────────────────────────────────────
 
 function BedrijfTab() {
@@ -173,6 +192,19 @@ function BedrijfTab() {
             />
             <span style={{ fontSize: 12, color: 'var(--text-3)' }}>werkdagen</span>
           </div>
+        </SettingRow>
+      </div>
+
+      <SectionHeader title="Assistent" desc="Een bericht op vaste tijden: wat er opgepakt moet worden. Iedereen ziet hetzelfde bericht." />
+      <div style={{ borderTop: '1px solid var(--border)' }}>
+        <SettingRow title="Assistent aan" desc="Uit = geen bericht op vaste tijden. Het chatpaneel blijft werken zolang de server een API-sleutel heeft.">
+          <ToggleSwitch on={form.assistentAan ?? true} onChange={(v) => { setForm((f) => ({ ...f, assistentAan: v })); setDirty(true) }} />
+        </SettingRow>
+        <SettingRow title="Tijden" desc="Op deze tijden maakt de assistent een nieuw bericht. Standaard 08:00 en 15:00.">
+          <AssistentTijden
+            tijden={form.assistentTijden ?? ['08:00', '15:00']}
+            onChange={(t) => { setForm((f) => ({ ...f, assistentTijden: t })); setDirty(true) }}
+          />
         </SettingRow>
       </div>
 

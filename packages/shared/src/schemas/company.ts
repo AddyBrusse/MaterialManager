@@ -30,6 +30,9 @@ export const CompanySchema = z.object({
    * nodig heeft. Uiterlijk bestellen = nodig − levertijd − deze marge.
    */
   inkoopMargeDagen: z.number().int().min(0, 'Minimaal 0 dagen').max(30, 'Maximaal 30 werkdagen').default(2),
+  /** AI-assistent (2026-10-09): op deze tijden (uu:mm) een bericht met wat er open staat. */
+  assistentTijden: z.array(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Tijd als uu:mm, bijvoorbeeld 08:00')).max(6, 'Maximaal 6 tijden').default(['08:00', '15:00']),
+  assistentAan: z.boolean().default(true),
   updatedAt:      z.string(),
 })
 export type Company = z.infer<typeof CompanySchema>

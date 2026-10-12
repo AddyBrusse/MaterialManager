@@ -39,7 +39,21 @@ export interface BevestigVraag {
   tekort?: { stuks: number; mm: number }
 }
 
+/** Per order: ligt het materiaal vast (2026-10-09, `services/materiaal-stand.ts`). */
+export interface OrderMateriaal {
+  orderId: string
+  offerteRegelId: string
+  artikelNaam: string
+  nodig: boolean
+  gereserveerd: { barCode: string; stuks: number; status: string }[]
+  bestelRegels: { id: string; status: string; materiaal: string; stuks: number; lengteMm: number }[]
+  vastgelegd: boolean
+}
+
 export const materiaalPlanApi = {
+  stand: (projectId: string) =>
+    apiFetch<OrderMateriaal[]>(`/projects/${projectId}/materiaal-stand`).then((r) => r.data),
+
   plan: (body: { artikelId: string; aantal: number }) =>
     apiFetch<PlanUitkomst>('/reservations/materiaal-plan', {
       method: 'POST', body: JSON.stringify(body),

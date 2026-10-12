@@ -39,7 +39,9 @@ import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
 import { todosApi } from '../../api/todos'
-import { InkoopBel, useInkoopMeldingen } from '../inkoop/overzicht/InkoopBel'
+import { useInkoopMeldingen } from '../inkoop/overzicht/InkoopBel'
+import { MeldingenBel } from '../meldingen/MeldingenBel'
+import { AssistentKnop } from '../assistent/AssistentKnop'
 import { GlobalTabs } from './GlobalTabs'
 import { pageTabs } from '../../utils/pageTabs'
 import { resolvePage, tabLabelFor } from './pageRegistry'
@@ -236,7 +238,8 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
           <div className="st-sb-user">{user?.name ?? '—'}</div>
           <div className="st-sb-user-sub">{role}</div>
         </div>
-        <InkoopBel />
+        <AssistentKnop />
+        <MeldingenBel />
       </div>
     </aside>
   )

@@ -6,6 +6,7 @@ import {
 import { prisma } from '../db/client'
 import { leesRegels, vergelijkData } from './bestellingen'
 import { leverancierEmail } from './prijsaanvragen'
+import { bijlagenVoor, vanAanvraag } from './inkoop-bijlagen'
 
 /**
  * Het inkoopoverzicht (2026-10-07): per regel wanneer hij nodig is voor de
@@ -69,6 +70,11 @@ export async function leesOverzicht(db: Db, f: OverzichtFilter = {}, nu = new Da
     }),
   ])
   const marge = company?.inkoopMargeDagen ?? 2
+  const bijlagen = await bijlagenVoor(db, {
+    aanvraagIds: [...new Set(aanvraagRegels.map((ar) => ar.prijsaanvraagId))],
+    regelIds: ids,
+    inkooporderIds: [...new Set(inkoopRegels.map((x) => x.inkooporder.id))],
+  })
 
   const naamVan = new Map(relaties.map((r) => [r.id, r.naam]))
   for (const l of v?.leveranciers ?? []) naamVan.set(l.id, l.naam)
@@ -76,6 +82,15 @@ export async function leesOverzicht(db: Db, f: OverzichtFilter = {}, nu = new Da
   const nodigVan = (r: BestelRegel): NodigVoor => {
     const eigen = orders.filter((o) => o.projectId === r.projectId && (!r.offerteRegelId || o.offerteRegelId === r.offerteRegelId))
     return nodigVoorProductie(eigen.flatMap((o) => o.stappen), r.nodigVoor)
+  }
+
+  // Bij een regel: de offerte van de gekozen leverancier (via zijn antwoord),
+  // wat los aan de regel hangt en wat aan zijn inkooporder hangt.
+  const bijlagenVanRegel = (regelId: string, antwoordId: string | null, inkooporderId: string | null) => {
+    const a = antwoordId ? aanvraagRegels.flatMap((ar) => ar.prijsaanvraag.antwoorden).find((x) => x.id === antwoordId) : null
+    return bijlagen.filter((b) => b.bestelRegelId === regelId
+      || (inkooporderId && b.inkooporderId === inkooporderId)
+      || (a && b.prijsaanvraagId === a.prijsaanvraagId && b.leverancierId === a.leverancierId))
   }
 
   const uit: InkoopOverzichtRegel[] = regels.map((r) => {
@@ -143,9 +158,11 @@ export async function leesOverzicht(db: Db, f: OverzichtFilter = {}, nu = new Da
               id: a.id, prijsSoort: a.prijsSoort as 'per_kg' | 'per_stuk' | 'totaal', prijs: Number(a.prijs),
               zaagkostenPerSnede: a.zaagkostenPerSnede == null ? null : Number(a.zaagkostenPerSnede), levertijdDagen: a.levertijdDagen,
             } : null,
+            bijlagen: vanAanvraag(bijlagen, ar.prijsaanvraagId, l.leverancierId),
           }
         }))
         .sort((x, y) => x.naam.localeCompare(y.naam, 'nl')),
+      bijlagen: bijlagenVanRegel(r.id, r.keuze?.antwoordId ?? null, ink?.inkooporder.id ?? null),
       binnenOp: binnen[0]?.createdAt.toISOString() ?? null,
       gereserveerd: binnen.some((o) => !!o.gereserveerdVoor),
     }

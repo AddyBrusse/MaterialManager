@@ -8,7 +8,7 @@ import type { TabId } from '../../types'
 /** De echte rekenkern erbij, zodat de test niet met een verzonnen voortgang
  *  test wat het scherm met de echte doet. */
 const actie = (p: Project, tab: TabId = 'productie', open: string | null = null, gekozenOrders: string[] = []) =>
-  tabActie(p, berekenVoortgang(p), tab, { openVersie: open, gekozenOrders, regelsZonderMateriaal: [] })!
+  tabActie(p, berekenVoortgang(p), tab, { openVersie: open, gekozenOrders })!
 
 function stap(over: Partial<ProductieStap> = {}): ProductieStap {
   return {
@@ -358,7 +358,7 @@ describe('tabActie: per tab een eigen knop', () => {
   it('tabs zonder eigen document hebben geen knop', () => {
     const p = project({ status: 'productie', offertes: [geaccepteerd] })
     for (const tab of ['algemeen', 'nacalculatie'] as const) {
-      expect(tabActie(p, berekenVoortgang(p), tab, { openVersie: null, gekozenOrders: [], regelsZonderMateriaal: [] })).toBeNull()
+      expect(tabActie(p, berekenVoortgang(p), tab, { openVersie: null, gekozenOrders: [] })).toBeNull()
     }
   })
 })
@@ -388,12 +388,12 @@ describe('tabActie: vrijgeven', () => {
     expect(uit.menu).toHaveLength(1)
   })
 
-  it('geeft de waarschuwingen mee: opdracht niet verstuurd, materiaal niet gekozen', () => {
+  it('geeft de waarschuwing mee: opdracht niet verstuurd (materiaal kiezen hoort bij de stap zelf)', () => {
     const p = project({ status: 'bevestigd', productieOrders: [vb('P1'), vb('P2')] })
-    const uit = tabActie(p, berekenVoortgang(p), 'productie', { openVersie: null, gekozenOrders: ['P1', 'P2'], regelsZonderMateriaal: ['r-P2'] })!
+    const uit = tabActie(p, berekenVoortgang(p), 'productie', { openVersie: null, gekozenOrders: ['P1', 'P2'] })!
     expect(uit.stap).toMatchObject({
       soort: 'vrijgeven',
-      waarschuwingen: ['De opdrachtbevestiging is nog niet naar de klant verstuurd.', 'Voor "Art P2" is nog geen materiaal gekozen.'],
+      waarschuwingen: ['De opdrachtbevestiging is nog niet naar de klant verstuurd.'],
     })
   })
 

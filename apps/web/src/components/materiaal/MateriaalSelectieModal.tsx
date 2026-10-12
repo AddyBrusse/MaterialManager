@@ -19,6 +19,12 @@ export interface MateriaalSelectieProps {
   /** De orderregel waar het materiaal voor is — komt op de reservering. */
   offerteRegelId?: string
   calculatieNr: string
+  /** Na vastleggen, vóór `onClose` (in productie geven gaat dan verder). */
+  onVastgelegd?: () => void
+  /** Tekst van de knop om te sluiten zonder te kiezen. */
+  sluitTekst?: string
+  /** Wat er gebeurt als je sluit zonder te kiezen — voor de onderregel. */
+  sluitUitleg?: string
   onClose: () => void
 }
 
@@ -60,11 +66,15 @@ export function MateriaalSelectieModal(props: MateriaalSelectieProps) {
       qc.invalidateQueries({ queryKey: ['reservations'] })
       qc.invalidateQueries({ queryKey: ['raw-materials'] })
       qc.invalidateQueries({ queryKey: ['todos'] })
+      for (const k of ['materiaal-stand', 'projects', 'inkoop', 'bestel-regels', 'meldingen']) qc.invalidateQueries({ queryKey: [k] })
       notifications.show({
         color: 'green', title: 'Materiaal vastgelegd',
-        message: `${uit.reserveringen.length} ${uit.reserveringen.length === 1 ? 'staaf' : 'staven'} gereserveerd voor ${props.artikelNaam}`
-          + (uit.bestelTodoId ? ' — er staat een bestel-todo klaar voor het tekort' : ''),
+        message: uit.reserveringen.length === 0
+          ? `Alles voor ${props.artikelNaam} staat op de bestellijst (Bestellingen → Te bestellen)`
+          : `${uit.reserveringen.length} ${uit.reserveringen.length === 1 ? 'staaf' : 'staven'} gereserveerd voor ${props.artikelNaam}`
+            + (uit.bestelTodoId ? ' — het tekort staat op de bestellijst' : ''),
       })
+      props.onVastgelegd?.()
       props.onClose()
     },
     onError: (fout) => meldFout({
@@ -73,16 +83,21 @@ export function MateriaalSelectieModal(props: MateriaalSelectieProps) {
     }),
   })
 
+  // Niets op voorraad: dan gaat alles op de bestellijst (2026-10-09). Ook dat
+  // is vastleggen — het tekort is daarna zichtbaar en geregeld.
   const vastleggen = () => {
-    if (!voorstel || voorstel.regels.length === 0) {
+    if (!voorstel) {
       notifications.show({
-        color: 'orange', title: 'Er ligt niets op voorraad om te reserveren',
-        message: 'Bestel het materiaal eerst (Inkoop → Te bestellen). De todo blijft staan, zodat je hier terugkomt als het binnen is.',
+        color: 'orange', title: 'Er valt nog niets vast te leggen',
+        message: error instanceof Error ? error.message : 'De voorstellen worden nog berekend.',
       })
       return
     }
     bevestig.mutate()
   }
+  const knopTekst = !voorstel ? 'Vastleggen'
+    : voorstel.regels.length === 0 ? 'Alles op de bestellijst'
+    : `Gebruik voorstel ${String.fromCharCode(65 + keuze)}${voorstel.tekortStuks > 0 ? ' + tekort bestellen' : ''}`
 
   const schaal = Math.max(1, ...(data?.kandidaten.map((k) => k.vrijMm) ?? [1]))
   const inVoorstel = new Set(voorstel?.regels.map((r) => r.barId))
@@ -140,10 +155,10 @@ export function MateriaalSelectieModal(props: MateriaalSelectieProps) {
           )}
         </div>
         <div className="mk-voet">
-          <div className="som">Niets wordt vanzelf vastgelegd. Sluit je zonder kiezen, dan blijft de todo staan en kom je hier later terug.</div>
-          <button type="button" className="st-btn" onClick={props.onClose}>Later kiezen</button>
+          <div className="som">{props.sluitUitleg ?? 'Niets wordt vanzelf vastgelegd. Sluit je zonder kiezen, dan blijft de todo staan en kom je hier later terug.'}</div>
+          <button type="button" className="st-btn" onClick={props.onClose}>{props.sluitTekst ?? 'Later kiezen'}</button>
           <button type="button" className="st-btn primary" onClick={vastleggen} disabled={bevestig.isPending}>
-            <IconCheck size={14} />{bevestig.isPending ? 'Vastleggen…' : `Gebruik voorstel ${String.fromCharCode(65 + keuze)}`}
+            <IconCheck size={14} />{bevestig.isPending ? 'Vastleggen…' : knopTekst}
           </button>
         </div>
       </div>

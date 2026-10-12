@@ -1,4 +1,4 @@
-import { useCallback, useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { notifications } from '@mantine/notifications'
@@ -22,7 +22,8 @@ import type { NaarProjectKeuze } from './tabs/NaarProjectModal'
 import { ApiFout } from '../../../api/client'
 import { herberekenPlanning } from '../../../components/opdracht-planning/herbereken'
 import { MateriaalSelectieModal } from '../../../components/materiaal/MateriaalSelectieModal'
-import { todosApi } from '../../../api/todos'
+import { materiaalPlanApi } from '../../../api/materiaal-plan'
+import { VrijgegevenOverzicht } from './components/VrijgegevenOverzicht'
 
 /**
  * Alles wat dit scherm schrijft, op één plek.
@@ -111,9 +112,12 @@ export function useProjectActies(
   // Vrijgeven met waarschuwingen: eerst de zinnen, dan pas doen (principe 2026-09-28).
   const [vrijMetVraag, setVrijMetVraag] = useState<{ orderIds: string[]; waarschuwingen: string[] } | null>(null)
   const [teAccepteren, setTeAccepteren] = useState<string | null>(null)
-  // Na in productie geven: materiaal kiezen per order die nog niets heeft
-  // (2026-10-09). Sluiten zonder kiezen laat de todo staan.
-  const [teKiezen, setTeKiezen] = useState<{ orderId: string; todoId: string }[]>([])
+  // In productie geven = eerst het materiaal vastleggen (2026-10-09): per order
+  // zonder vastgelegd materiaal het keuzevenster, dan pas vrijgeven, dan het
+  // overzicht. Annuleren = er gaat niets de hal in.
+  const [vrijKeuze, setVrijKeuze] = useState<{ orderIds: string[]; nog: string[] } | null>(null)
+  const zojuistVast = useRef<string | null>(null)
+  const [overzicht, setOverzicht] = useState<string[] | null>(null)
 
   const ververs = useCallback(() => {
     if (!project) return
@@ -345,8 +349,28 @@ export function useProjectActies(
     }
   }
 
+  /** Eerst kijken welk materiaal nog niet vastligt; dat eerst kiezen. */
   const vrijgevenNu = (orderIds: string[]) => {
     setVrijMetVraag(null)
+    const actie = `${orderIds.length} ${orderIds.length === 1 ? 'order' : 'orders'} in productie geven`
+    try {
+      eis(waaromNietVrijgeven(project, orderIds))
+    } catch (fout) {
+      meldFout({ actie, fout, gevolg: 'Er is niets vrijgegeven.' })
+      return
+    }
+    materiaalPlanApi.stand(id).then(
+      (stand) => {
+        const nog = stand.filter((s) => orderIds.includes(s.orderId) && !s.vastgelegd).map((s) => s.orderId)
+        if (nog.length) setVrijKeuze({ orderIds, nog })
+        else zetInDeHal(orderIds)
+      },
+      (fout) => meldFout({ actie, fout, gevolg: 'Er is niets vrijgegeven: zonder de materiaalstand gaat er niets de hal in.' }),
+    )
+  }
+
+  const zetInDeHal = (orderIds: string[]) => {
+    setVrijKeuze(null)
     const n = orderIds.length
     const gedaan = doe(
       `${n} ${n === 1 ? 'order' : 'orders'} in productie geven`,
@@ -358,32 +382,32 @@ export function useProjectActies(
     )
     // Daarna plant de planning het vanzelf in (2026-10-08) — pas als de server
     // het vrijgeven bevestigd heeft, anders rekent hij met orders die er niet zijn.
+    // Het overzicht komt na de planning: dan staat de start erin.
     if (gedaan) {
-      void wachtOpOpslag(id).then((ok) => {
+      void wachtOpOpslag(id).then(async (ok) => {
         if (!ok) return
-        void herberekenPlanning({ aanleiding: `${orderIds.join(', ')} in productie gegeven`, nadruk: orderIds })
-        void kiesMateriaalNa(orderIds)
+        await herberekenPlanning({ aanleiding: `${orderIds.join(', ')} in productie gegeven`, nadruk: orderIds })
+        ververs()
+        setOverzicht(orderIds)
       })
     }
   }
 
-  /** Orders zonder gekozen materiaal = met een open todo "materiaal selecteren". */
-  const kiesMateriaalNa = async (orderIds: string[]) => {
-    try {
-      const { data: todos } = await todosApi.list()
-      const open = orderIds.flatMap((oid) => {
-        const order = project.productieOrders.find((o) => o.id === oid)
-        const todo = order?.artikelId && todos.find((t) => !t.done && t.soort === 'materiaal_selecteren'
-          && t.projectId === id && t.offerteRegelId === order.offerteRegelId)
-        return todo ? [{ orderId: oid, todoId: todo.id }] : []
+  /** Het keuzevenster is dicht: vastgelegd → volgende (of de hal in), anders afgebroken. */
+  const keuzeDicht = () => {
+    if (!vrijKeuze) return
+    const [huidig, ...rest] = vrijKeuze.nog
+    if (zojuistVast.current !== huidig) {
+      setVrijKeuze(null)
+      notifications.show({
+        color: 'orange', title: 'Niet in productie gegeven',
+        message: `Voor ${huidig} ligt het materiaal nog niet vast, dus er is niets vrijgegeven. Wat je al koos voor andere orders blijft vastgelegd.`,
       })
-      setTeKiezen(open)
-    } catch (fout) {
-      meldFout({
-        actie: 'Materiaal kiezen na in productie geven', fout,
-        gevolg: 'De orders zijn wel vrijgegeven. Kies het materiaal via de todo of op de Opdracht-tab.',
-      })
+      return
     }
+    zojuistVast.current = null
+    if (rest.length) setVrijKeuze({ ...vrijKeuze, nog: rest })
+    else zetInDeHal(vrijKeuze.orderIds)
   }
 
   // Eerst het venster met de opdrachtreferentie; de handeling zelf gebeurt
@@ -421,7 +445,7 @@ export function useProjectActies(
   }
   const accOfferte = teAccepteren ? project.offertes.find((x) => x.id === teAccepteren) : undefined
 
-  const kiesOrder = teKiezen[0] ? project.productieOrders.find((o) => o.id === teKiezen[0].orderId) : undefined
+  const kiesOrder = vrijKeuze ? project.productieOrders.find((o) => o.id === vrijKeuze.nog[0]) : undefined
 
   return {
     dialoog: kiesOrder?.artikelId ? (
@@ -429,13 +453,17 @@ export function useProjectActies(
         key={kiesOrder.id}
         projectId={project.id}
         artikelId={kiesOrder.artikelId}
-        artikelNaam={kiesOrder.artikelNaam}
+        artikelNaam={`${kiesOrder.id} · ${kiesOrder.artikelNaam}`}
         aantal={kiesOrder.qty}
-        todoId={teKiezen[0].todoId}
         offerteRegelId={kiesOrder.offerteRegelId}
         calculatieNr={project.opdrachtbevestiging?.id ?? project.id}
-        onClose={() => setTeKiezen((q) => q.slice(1))}
+        sluitTekst="Annuleren — niet in productie"
+        sluitUitleg={`In productie geven kan pas als het materiaal vastligt: uit voorraad gereserveerd, of het tekort op de bestellijst.${vrijKeuze!.nog.length > 1 ? ` Daarna nog ${vrijKeuze!.nog.length - 1} ${vrijKeuze!.nog.length - 1 === 1 ? 'order' : 'orders'}.` : ''}`}
+        onVastgelegd={() => { zojuistVast.current = kiesOrder.id }}
+        onClose={keuzeDicht}
       />
+    ) : overzicht ? (
+      <VrijgegevenOverzicht project={project} orderIds={overzicht} onSluit={() => setOverzicht(null)} />
     ) : vrijMetVraag ? (
       <BevestigModal
         titel={`${vrijMetVraag.orderIds.length} ${vrijMetVraag.orderIds.length === 1 ? 'order' : 'orders'} in productie geven?`}
