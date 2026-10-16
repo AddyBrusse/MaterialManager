@@ -5,10 +5,9 @@ import { notifications } from '@mantine/notifications'
 import { Drawer, Modal, SegmentedControl, NumberInput, Textarea, Stack, Group, Button, Text } from '@mantine/core'
 import {
   IconDownload, IconScan, IconPlus, IconAlertTriangle,
-  IconPackage, IconLayersLinked, IconArrowUp, IconArrowDown,
-  IconCircle, IconSquare, IconMinus, IconTestPipe, IconX,
+  IconPackage, IconLayersLinked, IconArrowUp, IconArrowDown, IconX,
   IconChevronRight, IconFilter, IconLayoutGrid, IconList,
-  IconEdit, IconTrash, IconArrowsExchange, IconFlame,
+  IconEdit, IconArrowsExchange, IconFlame,
 } from '@tabler/icons-react'
 import { rawMaterialsApi, formatDimensions, formatLocation } from '../../api/raw-materials'
 import { RawMaterialForm } from '../../components/raw-materials/RawMaterialForm'
@@ -24,31 +23,15 @@ import { useReserveringen } from '../../hooks/useReserveringen'
 import { useUserPreference } from '../../hooks/useUserPreference'
 import { FilterChip, BereikChip } from '../../components/voorraad/FilterChips'
 import { filterVoorraad, filtersActief, leesFilters, LEGE_FILTERS, type VoorraadFilters, type ExootFilter } from '../../components/voorraad/voorraad-filters'
+import { groepeerExoten } from '../../components/voorraad/exoot-groepen'
+import { ExootGroepRij } from '../../components/voorraad/ExootGroepRij'
+import { VoorraadRij } from '../../components/voorraad/VoorraadRij'
+import { statusFor, statusTag, fmm, formatRelative, TypeGlyph } from '../../components/voorraad/weergave'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-// v = remaining mm, min = threshold mm, orig = original length mm
-function statusFor(v: number, min: number, orig: number) {
-  if (v === 0)              return { tag: 'uit',  label: 'Verbruikt',   cls: 'danger' }
-  if (v < min)              return { tag: 'laag', label: 'Kort',        cls: 'warn'   }
-  if (v >= orig * 0.85)     return { tag: 'vol',  label: 'Volledig',    cls: 'info'   }
-  return                           { tag: 'ok',   label: 'In gebruik',  cls: 'ok'     }
-}
-
-/** Format mm as "x,xxx m" (3 decimal places, Dutch locale) */
-function fmm(mm: number) {
-  return (mm / 1000).toLocaleString('nl-NL', { minimumFractionDigits: 3 }) + ' m'
-}
-
-function formatRelative(iso: string) {
-  const d = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
-  if (d === 0) return 'vandaag'
-  if (d === 1) return 'gisteren'
-  if (d < 7)  return `${d}d geleden`
-  if (d < 30) return `${Math.floor(d / 7)}w geleden`
-  return `${Math.floor(d / 30)}m geleden`
-}
+// statusFor, fmm, formatRelative en TypeGlyph staan in components/voorraad/weergave.tsx.
 
 function exportToCSV(rows: RawMaterialRow[]) {
   const headers = ['Code', 'Profiel', 'Kwaliteit', 'Afmeting', 'Afwerking', 'Lengte orig (mm)', 'Resterend (mm)', 'Min drempel (mm)', 'Gewicht (kg)', 'Locatie']
@@ -66,16 +49,6 @@ function exportToCSV(rows: RawMaterialRow[]) {
   a.download = `voorraad-${new Date().toISOString().slice(0, 10)}.csv`
   a.click()
   URL.revokeObjectURL(url)
-}
-
-// ── profile glyph ─────────────────────────────────────────────────────────────
-function TypeGlyph({ volumeFormula, size = 16 }: { volumeFormula: string; size?: number }) {
-  switch (volumeFormula) {
-    case 'round':  return <IconCircle   size={size} />
-    case 'square': return <IconSquare   size={size} />
-    case 'tube':   return <IconTestPipe size={size} />
-    default:       return <IconMinus    size={size} />
-  }
 }
 
 // ── sort helpers ──────────────────────────────────────────────────────────────
@@ -547,6 +520,7 @@ function ItemDrawer({ row, barReservations, onClose, onEdit, onMutatie }: {
             <dt>Afmeting</dt>   <dd className="cell-mono">{formatDimensions(row.profile, row.dimensions)}</dd>
             <dt>Afwerking</dt>  <dd>{row.surfaceFinish?.name ?? '—'}</dd>
             {row.exoot && <><dt>Exoot voor</dt><dd>{row.klant?.naam ?? '—'}</dd></>}
+            {row.exoot && <><dt>Artikel</dt><dd>{row.artikel?.naam ?? '—'}</dd></>}
             <dt>Orig. lengte</dt><dd className="cell-mono">{Number(row.lengthMm).toLocaleString('nl-NL')} mm</dd>
             <dt>Resterend</dt>  <dd className="cell-mono">{remaining.toLocaleString('nl-NL')} mm</dd>
             <dt>Gewicht</dt>    <dd className="cell-mono">{(row.weightKg * remaining / original).toFixed(2)} kg</dd>
@@ -663,6 +637,8 @@ export function VoorraadPage() {
   const [mutatieRow, setMutatieRow] = useState<RawMaterialRow | null>(null)
   const [deleteConfirmRow, setDeleteConfirmRow] = useState<RawMaterialRow | null>(null)
   const [topOpen, setTopOpen]       = useState(false)
+  // Uitgeklapte exoten (sleutel uit exoot-groepen.ts). Niet bewaard.
+  const [uitgeklapt, setUitgeklapt] = useState<Set<string>>(new Set())
 
   const { data, isLoading } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
   const { data: gradesData }   = useQuery({ queryKey: ['grades'],   queryFn: gradesApi.list   })
@@ -690,8 +666,16 @@ export function VoorraadPage() {
 
   const source = data?.data ?? []
 
+  // Wat er bekeken wordt: alles, of vanaf een project alleen wat daarvoor
+  // vastligt. Een uitgeklapte exoot haalt zijn stukken hieruit.
+  const scope = useMemo(() => {
+    if (!voorProject) return source
+    const vast = new Set(allReservations.filter((r) => r.projectId === voorProject && houdtVast(r)).map((r) => r.barId))
+    return source.filter((r) => vast.has(r.id))
+  }, [source, voorProject, allReservations])
+
   const filtered = useMemo(() => {
-    let f = source
+    let f = scope
     if (q.trim()) {
       const Q = q.toLowerCase()
       f = f.filter(r =>
@@ -702,14 +686,19 @@ export function VoorraadPage() {
         formatLocation(r.locationSlot).toLowerCase().includes(Q)
       )
     }
-    if (voorProject) {
-      const vast = new Set(allReservations.filter((r) => r.projectId === voorProject && houdtVast(r)).map((r) => r.barId))
-      f = f.filter((r) => vast.has(r.id))
-    }
-    f = filterVoorraad(f, filters, (r) => statusFor(Number(r.currentStock), Number(r.minStock) || 0, Number(r.lengthMm)).tag)
+    f = filterVoorraad(f, filters, statusTag)
     return applySort(f, sort.key, sort.dir, reservedByBar)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, q, JSON.stringify(filters), sort, reservedByBar, voorProject, allReservations])
+  }, [scope, q, JSON.stringify(filters), sort, reservedByBar])
+
+  // Eén regel per exoot (2026-10-16); gewone staven blijven een regel per stuk.
+  const regels = useMemo(() => groepeerExoten(filtered, scope), [filtered, scope])
+  const klap = (sleutel: string) => setUitgeklapt((s) => {
+    const n = new Set(s)
+    if (n.has(sleutel)) n.delete(sleutel)
+    else n.add(sleutel)
+    return n
+  })
 
   const stats = useMemo(() => {
     // totalKg: weight proportional to remaining length
@@ -723,11 +712,14 @@ export function VoorraadPage() {
     }).length
     // Een exoot op 0 is nog niet besteld of binnen, niet op: die telt hier niet.
     const out = source.filter(r => !r.exoot && Number(r.currentStock) === 0).length
+    // Wat er ligt. Was "artikelen − niet op voorraad", en dan telde een exoot
+    // die nog moest komen of al verbruikt was mee als stuk met restlengte.
+    const metRest = source.filter(r => Number(r.currentStock) > 0).length
     // top consumed row by length
     const topRow = [...source]
       .map(r => ({ r, consumed: Number(r.lengthMm) - Number(r.currentStock) }))
       .sort((a, b) => b.consumed - a.consumed)[0] ?? null
-    return { totalKg, skus: source.length, low, out, topRow }
+    return { totalKg, skus: source.length, low, out, metRest, topRow }
   }, [source])
 
   const allSelected = filtered.length > 0 && filtered.every(r => selected.has(r.id))
@@ -739,6 +731,11 @@ export function VoorraadPage() {
   const toggleOne = (id: string) => {
     const next = new Set(selected)
     next.has(id) ? next.delete(id) : next.add(id)
+    setSelected(next)
+  }
+  const zetSelectie = (ids: string[], aan: boolean) => {
+    const next = new Set(selected)
+    for (const id of ids) aan ? next.add(id) : next.delete(id)
     setSelected(next)
   }
 
@@ -801,7 +798,7 @@ export function VoorraadPage() {
         <div className="st-stat">
           <div className="st-stat-lbl"><IconLayersLinked size={13} />Artikelen</div>
           <div className="st-stat-val">{stats.skus}</div>
-          <div className="st-stat-foot"><span>{stats.skus - stats.out} met restlengte</span></div>
+          <div className="st-stat-foot"><span>{stats.metRest} met restlengte</span></div>
         </div>
         <div className="st-stat">
           <div className="st-stat-lbl" style={{ color: 'var(--warning)' }}><IconAlertTriangle size={13} />Te kort</div>
@@ -855,8 +852,8 @@ export function VoorraadPage() {
         <BereikChip label="Maat"   value={filters.maat}   onChange={(b) => zetFilter('maat', b)} />
         <BereikChip label="Lengte" value={filters.lengte} eenheid="mm" onChange={(b) => zetFilter('lengte', b)} />
         <FilterChip label="Exoot"     value={filters.exoot}     options={[['', 'Alle'], ['alleen', 'Alleen exoten'], ['zonder', 'Zonder exoten']]} onChange={(v) => zetFilter('exoot', v as ExootFilter)} />
-        {/* Wat op is staat standaard niet in de lijst; "Verbruikt" toont juist dat. */}
-        <FilterChip label="Status"    value={filters.status}    options={[['', 'Alle'], ['ok', 'In gebruik'], ['vol', 'Volledig'], ['laag', 'Kort'], ['uit', 'Verbruikt']]} onChange={(v) => zetFilter('status', v)} />
+        {/* Wat er niet ligt staat standaard niet in de lijst; "Verbruikt" en "Nog niet binnen" tonen juist dat. */}
+        <FilterChip label="Status"    value={filters.status}    options={[['', 'Alle'], ['ok', 'In gebruik'], ['vol', 'Volledig'], ['laag', 'Kort'], ['uit', 'Verbruikt'], ['nietbinnen', 'Nog niet binnen']]} onChange={(v) => zetFilter('status', v)} />
         <div style={{ flex: 1 }} />
         {filtersActief(filters) && (
           <button className="st-btn ghost sm" onClick={() => filterPref.setValue(LEGE_FILTERS)}>
@@ -897,89 +894,37 @@ export function VoorraadPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((row) => {
-                  const remaining = Number(row.currentStock)
-                  const original  = Number(row.lengthMm)
-                  const min       = Number(row.minStock) || 0
-                  const st        = statusFor(remaining, min, original)
-                  const pct       = original > 0 ? Math.min(100, (remaining / original) * 100) : 0
-                  const lvlCls    = st.cls === 'ok' || st.cls === 'info' ? '' : st.cls
-
-                  return (
-                    <tr key={row.id} data-selected={selected.has(row.id)} onClick={() => setDrawerRow(row)}>
-                      <td className="col-checkbox" onClick={(e) => e.stopPropagation()}>
-                        <span className="st-ck" data-on={selected.has(row.id)} onClick={() => toggleOne(row.id)} />
-                      </td>
-                      <td>
-                        <span className="cell-mono cell-strong" style={{ fontSize: 12 }}>{row.code}</span>
-                      </td>
-                      <td>
-                        <div className="st-art-cell">
-                          <div className="st-type-pic">
-                            <TypeGlyph volumeFormula={row.profile.volumeFormula} />
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <div className="st-art-name">{row.profile.name}{row.exoot && <> <ExootLabel klant={row.klant} compact /></>}</div>
-                            <div className="st-art-desc">L{Number(row.lengthMm).toLocaleString('nl-NL')} mm{row.exoot && row.klant ? ` · ${row.klant.naam}` : ''}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="cell-mono">{row.grade.name}</td>
-                      <td className="cell-mono cell-muted">{formatDimensions(row.profile, row.dimensions)}</td>
-                      <td><span className="cell-muted" style={{ fontSize: 12 }}>{row.surfaceFinish?.name ?? '—'}</span></td>
-                      <td className="cell-num cell-strong cell-mono" style={{ fontSize: 12 }}>{fmm(remaining)}</td>
-                      <td className="cell-num cell-mono" style={{ fontSize: 12 }}>
-                        {(() => {
-                          const res = reservedByBar[row.id] ?? 0
-                          return res > 0
-                            ? <span style={{ color: 'var(--warning)', fontWeight: 600 }}>{fmm(res)}</span>
-                            : <span className="cell-muted">—</span>
-                        })()}
-                      </td>
-                      <td>
-                        <div className={`st-lvl${lvlCls ? ` ${lvlCls}` : ''}`}>
-                          <div className="st-lvl-bar"><i style={{ width: `${pct}%` }} /></div>
-                          <span className="st-lvl-num">{Math.round(pct)}%</span>
-                        </div>
-                      </td>
-                      <td><span className="cell-muted">{formatLocation(row.locationSlot)}</span></td>
-                      <td>
-                        {/* Een exoot op 0 is nog niet binnen, niet verbruikt. */}
-                        {row.exoot && remaining === 0
-                          ? <span className="st-badge exoot"><span className="dot" />Te bestellen</span>
-                          : <span className={`st-badge ${st.cls}`}><span className="dot" />{st.label}</span>}
-                      </td>
-                      <td>
-                        <span className="cell-muted" style={{ fontSize: 11.5 }}>{formatRelative(row.updatedAt)}</span>
-                      </td>
-                      <td className="col-actions" onClick={(e) => e.stopPropagation()}>
-                        <div className="row-actions">
-                          <button
-                            className="st-icon-btn"
-                            title="Mutatie boeken"
-                            onClick={() => openMutatie(row)}
-                          >
-                            <IconArrowsExchange size={14} />
-                          </button>
-                          <button
-                            className="st-icon-btn"
-                            title="Bewerken"
-                            onClick={() => setEditItem(row)}
-                          >
-                            <IconEdit size={14} />
-                          </button>
-                          <button
-                            className="st-icon-btn danger"
-                            title="Verwijderen"
-                            onClick={(e) => handleDelete(row, e)}
-                            disabled={deleteMutation.isPending}
-                          >
-                            <IconTrash size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                {regels.flatMap((regel) => {
+                  const stuk = (row: RawMaterialRow, onderGroep = false) => (
+                    <VoorraadRij
+                      key={row.id}
+                      row={row}
+                      gereserveerdMm={reservedByBar[row.id] ?? 0}
+                      geselecteerd={selected.has(row.id)}
+                      onderGroep={onderGroep}
+                      verwijderenBezig={deleteMutation.isPending}
+                      onSelecteer={() => toggleOne(row.id)}
+                      onOpen={() => setDrawerRow(row)}
+                      onMutatie={() => openMutatie(row)}
+                      onBewerk={() => setEditItem(row)}
+                      onVerwijder={(e) => handleDelete(row, e)}
+                    />
                   )
+                  if (regel.soort === 'stuk') return [stuk(regel.rij)]
+                  const g = regel.groep
+                  const open = uitgeklapt.has(g.sleutel)
+                  return [
+                    <ExootGroepRij
+                      key={g.sleutel}
+                      groep={g}
+                      open={open}
+                      gereserveerdPerStaaf={reservedByBar}
+                      geselecteerd={selected}
+                      onKlap={() => klap(g.sleutel)}
+                      onSelecteer={zetSelectie}
+                    />,
+                    ...(open ? g.stukken.map((r) => stuk(r, true)) : []),
+                  ]
                 })}
                 {filtered.length === 0 && (
                   <tr><td colSpan={13} className="st-empty">Geen artikelen gevonden voor deze filters.</td></tr>

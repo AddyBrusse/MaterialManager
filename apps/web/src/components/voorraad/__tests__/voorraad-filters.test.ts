@@ -42,10 +42,24 @@ describe('van–tot', () => {
 })
 
 describe('filteren', () => {
-  it('materiaal dat op is staat standaard niet in de lijst, een exoot op 0 wel', () => {
+  it('wat er niet ligt staat standaard niet in de lijst, ook een exoot op 0', () => {
+    // Tot 2026-10-16 bleef een exoot op 0 staan, ook als hij al verbruikt was.
     const op = rij({ currentStock: '0' })
     const exoot = rij({ currentStock: '0', exoot: true })
-    expect(filterVoorraad([rij(), op, exoot], LEGE_FILTERS, status)).toEqual([rij(), exoot])
+    const exootBinnen = rij({ currentStock: '300', exoot: true })
+    expect(filterVoorraad([rij(), op, exoot, exootBinnen], LEGE_FILTERS, status)).toEqual([rij(), exootBinnen])
+  })
+  it('"Alleen exoten" toont alle exoten, ook wat nog moet komen of verbruikt is', () => {
+    const exoot = rij({ currentStock: '0', exoot: true })
+    const exootBinnen = rij({ currentStock: '300', exoot: true })
+    expect(filterVoorraad([rij(), exoot, exootBinnen], { ...LEGE_FILTERS, exoot: 'alleen' }, status)).toEqual([exoot, exootBinnen])
+  })
+  it('status "nog niet binnen" en "verbruikt" scheiden de exoten op 0', () => {
+    const nietBinnen = rij({ currentStock: '0', exoot: true, code: 'a' } as never)
+    const verbruikt = rij({ currentStock: '0', exoot: true, code: 'b' } as never)
+    const tag = (r: FilterRij) => ((r as unknown as { code: string }).code === 'a' ? 'nietbinnen' : 'uit')
+    expect(filterVoorraad([nietBinnen, verbruikt], { ...LEGE_FILTERS, status: 'nietbinnen' }, tag)).toEqual([nietBinnen])
+    expect(filterVoorraad([nietBinnen, verbruikt], { ...LEGE_FILTERS, status: 'uit' }, tag)).toEqual([verbruikt])
   })
   it('status "uit" toont juist wat op is', () => {
     const op = rij({ currentStock: '0' })

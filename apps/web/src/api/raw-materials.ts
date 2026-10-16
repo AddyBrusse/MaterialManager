@@ -1,4 +1,4 @@
-import type { CreateRawMaterial, UpdateRawMaterial, MovementReason } from '@stockmanager/shared'
+import type { CreateRawMaterial, UpdateRawMaterial, MovementReason, ExootStand } from '@stockmanager/shared'
 import { apiFetch } from './client'
 
 export type GradeInfo = {
@@ -29,6 +29,18 @@ export type SurfaceFinishInfo = {
   createdAt: string
 }
 
+/**
+ * De volgende vrije #NNNNN, zoals de server die bij het binnen boeken ook kiest
+ * (`volgendeCode` in services/ontvangst.ts). Alleen codes van precies die vorm
+ * tellen: een materiaalnummer als 260001-1 (2026-10-07) gaf eerder "#260002",
+ * en dat weigert de server, waardoor Toevoegen, Nieuw materiaal en Exoot
+ * aanmaken mislukten zodra er iets met een materiaalnummer binnen was.
+ */
+export function volgendeVoorraadCode(rows: { code: string }[]): string {
+  const max = rows.reduce((m, { code }) => (/^#\d{5}$/.test(code) ? Math.max(m, Number(code.slice(1))) : m), 0)
+  return `#${String(max + 1).padStart(5, '0')}`
+}
+
 export type RawMaterialRow = {
   id: string
   code: string
@@ -52,6 +64,9 @@ export type RawMaterialRow = {
   klantId: string | null
   artikelId: string | null
   klant: { id: string; naam: string } | null
+  artikel: { id: string; naam: string } | null
+  /** Bij een exoot: binnen, nog niet binnen of verbruikt (server, `services/exoot-stand.ts`). */
+  exootStand: ExootStand | null
   createdAt: string
   updatedAt: string
   grade: GradeInfo
