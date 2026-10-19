@@ -44,7 +44,7 @@ function ZaagbonPreview({
   const first      = items[0]
   const machine    = first.machine
   const materiaal  = first.materiaal
-  const diameter   = first.diameter
+  const afmeting   = first.afmeting
   const werkstukL  = first.werkstukLengte
   const productLen = first.productLen
   const kerf       = first.steekbreedte ?? (productLen - werkstukL - (first.vlakToeslag ?? 0))
@@ -103,7 +103,7 @@ function ZaagbonPreview({
         </div>
         <div style={{ background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 4, padding: '8px 12px', fontSize: 12, display: 'flex', gap: 24, flexWrap: 'wrap' }}>
           <span><strong>Materiaal:</strong> {materiaal}</span>
-          <span><strong>Diameter:</strong> Ø{diameter} mm</span>
+          <span><strong>Maat:</strong> {afmeting}</span>
           <span><strong>Werkstuk:</strong> {werkstukL} mm</span>
           <span><strong>Product lengte:</strong> {productLen} mm</span>
           <span><strong>Kerf:</strong> {kerf} mm</span>
@@ -120,7 +120,7 @@ function ZaagbonPreview({
             <th>As nummer</th>
             <th>Materiaal</th>
             <th>Vorm</th>
-            <th>Diameter</th>
+            <th>Maat</th>
             <th>Locatie</th>
             <th style={{ textAlign: 'right' }}>Stuks</th>
             <th>Zaagopdracht</th>
@@ -132,7 +132,7 @@ function ZaagbonPreview({
               <td className="cell-mono cell-strong" style={{ fontSize: 12 }}>{r.barCode}</td>
               <td>{r.materiaal}</td>
               <td>{r.barVorm ?? 'Rond'}</td>
-              <td className="cell-mono">Ø{r.diameter}</td>
+              <td className="cell-mono">{r.afmeting}</td>
               <td className="cell-muted" style={{ fontSize: 12 }}>{r.barLocation ?? '—'}</td>
               <td className="cell-num cell-strong">{r.pieces}</td>
               <td>
@@ -220,7 +220,7 @@ function ReservationGroup({
           <tr>
             <th>As nummer</th>
             <th>Materiaal</th>
-            <th style={{ textAlign: 'right' }}>Diameter</th>
+            <th style={{ textAlign: 'right' }}>Maat</th>
             <th style={{ textAlign: 'right' }}>Werkstuk</th>
             <th style={{ textAlign: 'right' }}>Stuks</th>
             <th style={{ textAlign: 'right' }}>Gereserveerde lengte</th>
@@ -237,7 +237,7 @@ function ReservationGroup({
                 <span className="cell-mono cell-strong" style={{ fontSize: 12 }}>{r.barCode}</span>
               </td>
               <td>{r.materiaal}</td>
-              <td className="cell-num cell-mono" style={{ fontSize: 12 }}>Ø{r.diameter} mm</td>
+              <td className="cell-num cell-mono" style={{ fontSize: 12 }}>{r.afmeting}</td>
               <td className="cell-num cell-mono" style={{ fontSize: 12 }}>{fmm(r.werkstukLengte)}</td>
               <td className="cell-num cell-strong">{r.pieces}</td>
               <td className="cell-num cell-mono" style={{ fontSize: 12, color: 'var(--accent)' }}>

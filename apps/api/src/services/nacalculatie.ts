@@ -126,20 +126,24 @@ export async function materiaalWerkelijk(
   if (reserveringen.length === 0) return null
 
   const grades = await db.grade.findMany()
-  const profiles = await db.profile.findMany()
+  // Vorm en maat komen van de staaf zelf. Tot 2026-10-19 ging dit ervan uit dat
+  // een zaagbon altijd rond materiaal was, en rekende een platte exoot (diameter
+  // 0 op de bon) op € 0.
+  const staven = await db.rawMaterial.findMany({
+    where: { id: { in: [...new Set(reserveringen.map((r) => r.barId))] } },
+    select: { id: true, dimensions: true, profile: { select: { volumeFormula: true } } },
+  })
 
   let totaal = 0
   for (const r of reserveringen) {
     // De zaagbon noemt de kwaliteit bij naam, niet bij id.
     const grade = grades.find((g) => g.name === r.materiaal)
     if (!grade || grade.pricePerKg == null) continue
-    // Een zaagbon is altijd rond materiaal uit de stangenlader; het profiel doet
-    // er alleen toe voor de volumeformule en die is hier bekend.
-    const profiel = profiles.find((p) => p.volumeFormula === 'round')
-    const formule = (profiel?.volumeFormula ?? 'round') as VolumeFormula
+    // Staaf weg: dan alleen wat de bon zelf weet, de diameter.
+    const staaf = staven.find((s) => s.id === r.barId)
     const kg = computeWeightKg(
-      formule,
-      { diameter: num(r.diameter) },
+      (staaf?.profile.volumeFormula ?? 'round') as VolumeFormula,
+      staaf ? (staaf.dimensions ?? {}) as Record<string, number> : { diameter: num(r.diameter) },
       num(r.fysiekeLengte),
       num(grade.densityKgM3),
     )
