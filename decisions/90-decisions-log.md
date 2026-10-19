@@ -2419,3 +2419,31 @@ geheel terugdraaien.
   materiaalnummer binnen geboekt was. Nu één functie,
   `volgendeVoorraadCode` (`apps/web/src/api/raw-materials.ts`), die alleen
   naar `#00000`-codes kijkt, net als `volgendeCode` in `services/ontvangst.ts`.
+
+## 2026-10-19 — Mutatie met de hand en zaagbonnen; maat op de zaagbon
+
+- **Een mutatie met de hand die een staaf onder wat er vastligt brengt, gaat
+  niet door** (Addy koos "Weigeren"). Eerder raakte een mutatie alleen de
+  fysieke voorraad: na "Afboeken" naar 0 stond er 0 mm fysiek en toch nog
+  300 mm gereserveerd, en de Zaagflow bood de staaf nog aan tot de order gereed
+  was. Nu zegt het mutatievenster al tijdens het intypen welke zaagbon in de weg
+  zit, met de zin uit `waaromNietMutatie` (`packages/shared/calc/mutatie.ts`):
+  eerst afboeken in de Zaagflow of de reservering annuleren bij Reserveringen.
+  De server vraagt het nog eens (`eisRuimteVoorMutatie` in
+  `services/voorraad.ts`, `409 VOORWAARDE`). Alleen als de mutatie de staaf
+  lager zet dan wat er vastligt; toevoegen en kleinere mutaties gaan zoals ze
+  gingen.
+- **Afgewezen: kiezen in het venster** (afboeken of vrijgeven vanuit de
+  mutatie) en **vanzelf vrijgeven** (de order verliest stil zijn materiaal).
+- **De maat op een zaagbon komt van de staaf** (`afmeting`, afgeleid bij het
+  lezen in `routes/reservations.ts` met `zaagbonAfmeting`). De bon bewaart
+  alleen een diameter, en die is 0 bij alles wat niet rond is: een platte exoot
+  stond als "Ø0 mm" op Reserveringen, Zaagflow, Zaagplanner, de terminal en de
+  zaagbon-pdf. Opslaan zou bestaande bonnen niet repareren. De keuring in de
+  Zaagflow vraagt bij een plaat naar de maat in plaats van de diameter.
+- **Dezelfde oorzaak in de nacalculatie**: `materiaalWerkelijk` rekende elke
+  afgeboekte bon als rond, dus een platte exoot kostte € 0. Nu met vorm en maat
+  van de staaf; is de staaf weg, dan de diameter van de bon zoals voorheen.
+- **De teller "Voorraad" in het zijmenu telt wat er ligt** (voorraad > 0,
+  `aantalInVoorraad`), net als de tegel "met restlengte". Hij telde elke regel,
+  ook verbruikte staven en exoten die nog moesten komen.

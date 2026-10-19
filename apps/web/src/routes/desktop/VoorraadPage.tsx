@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
-import { Drawer, Modal, SegmentedControl, NumberInput, Textarea, Stack, Group, Button, Text } from '@mantine/core'
+import { Drawer, Modal, Stack, Group, Button, Text } from '@mantine/core'
 import {
   IconDownload, IconScan, IconPlus, IconAlertTriangle,
   IconPackage, IconLayersLinked, IconArrowUp, IconArrowDown, IconX,
@@ -22,10 +22,11 @@ import { movementsApi, MOVEMENT_REASON_LABELS, type StockMovementRow } from '../
 import { useReserveringen } from '../../hooks/useReserveringen'
 import { useUserPreference } from '../../hooks/useUserPreference'
 import { FilterChip, BereikChip } from '../../components/voorraad/FilterChips'
-import { filterVoorraad, filtersActief, leesFilters, LEGE_FILTERS, type VoorraadFilters, type ExootFilter } from '../../components/voorraad/voorraad-filters'
+import { aantalInVoorraad, filterVoorraad, filtersActief, leesFilters, LEGE_FILTERS, type VoorraadFilters, type ExootFilter } from '../../components/voorraad/voorraad-filters'
 import { groepeerExoten } from '../../components/voorraad/exoot-groepen'
 import { ExootGroepRij } from '../../components/voorraad/ExootGroepRij'
 import { VoorraadRij } from '../../components/voorraad/VoorraadRij'
+import { MutatieModal } from '../../components/voorraad/MutatieModal'
 import { statusFor, statusTag, fmm, formatRelative, TypeGlyph } from '../../components/voorraad/weergave'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
@@ -216,157 +217,6 @@ function TopVerbruikDrawer({ rows, onClose }: { rows: RawMaterialRow[]; onClose:
               </div>
             )}
           </div>
-        </div>
-      </aside>
-    </>
-  )
-}
-
-// ── mutatie modal ─────────────────────────────────────────────────────────────
-function MutatieModal({ row, opened, onClose }: {
-  row: RawMaterialRow | null; opened: boolean; onClose: () => void
-}) {
-  const qc = useQueryClient()
-  const [type, setType]    = useState<string>('toevoegen')
-  const [lengte, setLengte] = useState<number | string>('')
-  const [reden, setReden]  = useState('')
-
-  const adjustMut = useMutation({
-    mutationFn: ({ id, newStock, reason, note }: {
-      id: string; newStock: number; reason: 'received' | 'used' | 'correction'; note?: string
-    }) => rawMaterialsApi.adjustStock(id, newStock, reason, note),
-    onSuccess: (_data, vars) => {
-      qc.invalidateQueries({ queryKey: ['raw-materials'] })
-      const mm = Number(lengte)
-      const mStr = (mm / 1000).toLocaleString('nl-NL', { minimumFractionDigits: 3 })
-      const label2 = type === 'toevoegen' ? 'Toevoegen' : type === 'afboeken' ? 'Afboeken' : 'Correctie'
-      notifications.show({
-        color: 'green',
-        title: 'Mutatie verwerkt',
-        message: `${label2}: nieuw resterend ${fmm(vars.newStock)}`,
-      })
-      setLengte('')
-      setReden('')
-      onClose()
-    },
-    onError: () => notifications.show({ color: 'red', message: 'Mutatie mislukt' }),
-  })
-
-  if (!row) return null
-
-  const safeRow     = row
-  const label       = type === 'toevoegen' ? 'Toevoegen' : type === 'afboeken' ? 'Afboeken' : 'Corrigeren'
-  const remainingMm = Number(safeRow.currentStock)   // remaining length of this piece
-  const originalMm  = Number(safeRow.lengthMm)       // original full length
-
-  function handleSubmit() {
-    const mm = Number(lengte)
-    if (mm <= 0 || isNaN(mm)) {
-      notifications.show({ color: 'red', message: 'Voer een geldige lengte in' })
-      return
-    }
-
-    let newStock: number
-    if (type === 'toevoegen') {
-      // Add: no upper cap — receiving more material is valid
-      newStock = remainingMm + mm
-    } else if (type === 'afboeken') {
-      // Deduct: floor at 0
-      newStock = Math.max(remainingMm - mm, 0)
-    } else {
-      // Correctie: direct new total, only floor at 0
-      newStock = Math.max(mm, 0)
-    }
-
-    const reason = type === 'toevoegen' ? 'received' : type === 'afboeken' ? 'used' : 'correction'
-    adjustMut.mutate({ id: safeRow.id, newStock, reason, note: reden || undefined })
-  }
-
-  return (
-    <>
-      <div className="st-drawer-scrim" onClick={onClose} />
-      <aside className="st-drawer" style={{ width: 420 }}>
-        {/* header */}
-        <div className="st-drawer-hd">
-          <div style={{ flex: 1 }}>
-            <div className="ttl">Voorraadmutatie</div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-              {safeRow.code} · {safeRow.profile.name} {formatDimensions(safeRow.profile, safeRow.dimensions)}
-            </div>
-          </div>
-          <button className="st-icon-btn" onClick={onClose}><IconX size={16} /></button>
-        </div>
-
-        {/* body */}
-        <div className="st-drawer-bd">
-          <Stack gap="md">
-            <div className="st-field">
-              <label style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-3)' }}>
-                Type mutatie
-              </label>
-              <SegmentedControl
-                value={type}
-                onChange={setType}
-                data={[
-                  { label: 'Toevoegen', value: 'toevoegen' },
-                  { label: 'Afboeken',  value: 'afboeken'  },
-                  { label: 'Correctie', value: 'correctie' },
-                ]}
-                fullWidth
-                mt={6}
-              />
-            </div>
-
-            {/* current length stat */}
-            <div style={{ background: 'var(--bg-sidebar)', borderRadius: 6, padding: '10px 14px' }}>
-              <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-3)', marginBottom: 4 }}>
-                Resterend
-              </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 20, fontWeight: 500, color: 'var(--text)' }}>
-                {fmm(remainingMm)}
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
-                van {fmm(originalMm)} origineel · {Math.round(remainingMm / originalMm * 100)}% over
-              </div>
-            </div>
-
-            <NumberInput
-              label={type === 'correctie' ? 'Nieuwe totaallengte (mm)' : 'Lengte (mm)'}
-              description={type !== 'correctie' ? `Voer de lengte in meters: 1 m = 1000 mm` : undefined}
-              placeholder="bijv. 6000"
-              value={lengte}
-              onChange={setLengte}
-              min={0}
-              allowDecimal
-              decimalScale={1}
-              size="sm"
-              suffix=" mm"
-            />
-
-            <div className="st-field">
-              <label style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-3)' }}>
-                Locatie
-              </label>
-              <Text size="sm" mt={4}>{formatLocation(safeRow.locationSlot)}</Text>
-              <Text size="xs" c="dimmed" mt={2}>Wijzig de locatie via "Bewerken" op het materiaal.</Text>
-            </div>
-
-            <Textarea
-              label="Reden / opmerking"
-              placeholder="Bijv. ontvangst van leverancier, correctie na telling…"
-              value={reden}
-              onChange={(e) => setReden(e.currentTarget.value)}
-              autosize
-              minRows={2}
-              size="sm"
-            />
-          </Stack>
-        </div>
-
-        {/* footer */}
-        <div className="st-drawer-ft">
-          <Button variant="default" size="xs" onClick={onClose}>Annuleren</Button>
-          <Button size="xs" loading={adjustMut.isPending} onClick={handleSubmit}>{label}</Button>
         </div>
       </aside>
     </>
@@ -714,7 +564,7 @@ export function VoorraadPage() {
     const out = source.filter(r => !r.exoot && Number(r.currentStock) === 0).length
     // Wat er ligt. Was "artikelen − niet op voorraad", en dan telde een exoot
     // die nog moest komen of al verbruikt was mee als stuk met restlengte.
-    const metRest = source.filter(r => Number(r.currentStock) > 0).length
+    const metRest = aantalInVoorraad(source)
     // top consumed row by length
     const topRow = [...source]
       .map(r => ({ r, consumed: Number(r.lengthMm) - Number(r.currentStock) }))
@@ -971,7 +821,6 @@ export function VoorraadPage() {
       {/* mutatie modal */}
       <MutatieModal
         row={mutatieRow}
-        opened={!!mutatieRow}
         onClose={() => setMutatieRow(null)}
       />
 

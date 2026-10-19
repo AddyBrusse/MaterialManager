@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filtersActief, kopmaat, zetVan, inBereik, bereikTekst, filterVoorraad, leesFilters, LEGE_FILTERS, GEEN_BEREIK, type FilterRij } from '../voorraad-filters'
+import { aantalInVoorraad, filtersActief, kopmaat, zetVan, inBereik, bereikTekst, filterVoorraad, leesFilters, LEGE_FILTERS, GEEN_BEREIK, type FilterRij } from '../voorraad-filters'
 
 const rij = (o: Partial<FilterRij> & { vf?: string; dims?: Record<string, number> } = {}): FilterRij => ({
   grade: { name: 'C45' }, profile: { name: 'Rond', volumeFormula: o.vf ?? 'round' }, surfaceFinish: null,
@@ -83,5 +83,18 @@ describe('filteren', () => {
   it('een oudere bewaarde voorkeur wordt aangevuld', () => {
     expect(leesFilters({ kwaliteit: 'C45' })).toEqual({ ...LEGE_FILTERS, kwaliteit: 'C45' })
     expect(leesFilters(null)).toEqual(LEGE_FILTERS)
+  })
+})
+
+describe('aantalInVoorraad', () => {
+  it('telt wat er ligt: geen verbruikte staaf, geen exoot die nog moet komen of op is', () => {
+    const rijen = [
+      rij({ currentStock: '3000' }),
+      rij({ currentStock: '0' }),
+      rij({ currentStock: '300', exoot: true }),
+      rij({ currentStock: '0', exoot: true }),
+      rij({ currentStock: '0.5' }),
+    ]
+    expect(aantalInVoorraad(rijen)).toBe(3)
   })
 })

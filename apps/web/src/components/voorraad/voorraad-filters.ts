@@ -103,6 +103,15 @@ export function isOp(r: FilterRij): boolean {
   return Number(r.currentStock) === 0
 }
 
+/**
+ * Hoeveel stukken er liggen: de teller "Voorraad" in het zijmenu en de tegel
+ * "met restlengte". De teller telde tot 2026-10-19 elke regel, ook verbruikte
+ * staven en exoten die nog moesten komen.
+ */
+export function aantalInVoorraad(rijen: { currentStock: string | number }[]): number {
+  return rijen.filter((r) => Number(r.currentStock) > 0).length
+}
+
 export function filterVoorraad<T extends FilterRij>(rijen: T[], f: VoorraadFilters, statusVan: (r: T) => string): T[] {
   return rijen.filter((r) => {
     if (f.kwaliteit && r.grade.name !== f.kwaliteit) return false

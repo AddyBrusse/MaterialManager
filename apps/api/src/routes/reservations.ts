@@ -7,7 +7,7 @@ import { AppError } from '../middleware/error'
 import { beschikbaarheidVan, gereserveerdPerStaaf, mm, OPEN_STATUSSEN } from '../services/voorraad'
 import { maakPlan, bestelTodo, materiaalVanArtikel } from '../services/materiaal-selectie'
 import { boekZaagbonAf } from '../services/zaagbon'
-import { ZAAG_STANDAARD } from '@stockmanager/shared'
+import { ZAAG_STANDAARD, zaagbonAfmeting } from '@stockmanager/shared'
 
 const router = Router()
 
@@ -42,13 +42,16 @@ export function toNum(v: unknown): number {
   return Number(v)
 }
 
+/** Wat de zaagbon van zijn staaf nodig heeft om de maat te tonen. */
+type StaafMaat = { volumeFormula: string; dimensions: Record<string, number> }
+
 function serialize(r: {
   id: string; calculatieNr: string; projectId: string | null; artikelId: string | null; offerteRegelId: string | null; barId: string; barCode: string; barLocation: string; barVorm: string
   pieces: number; productLen: unknown; sawLength: unknown; fysiekeLengte: unknown; materiaal: string
   diameter: unknown; werkstukLengte: unknown; steekbreedte: unknown; vlakToeslag: unknown; machine: string
   priority: number | null; rush: boolean; status: string; restLengteMm: unknown; completedAt: Date | null; createdAt: Date
   stangen?: unknown; restAfboeken?: boolean
-}) {
+}, staaf: StaafMaat | null) {
   return {
     id: r.id,
     calculatieNr: r.calculatieNr,
@@ -65,6 +68,9 @@ function serialize(r: {
     fysiekeLengte: toNum(r.fysiekeLengte),
     materiaal: r.materiaal,
     diameter: toNum(r.diameter),
+    /** De maat van de staaf (Ø50 mm, 250×30 mm), afgeleid bij het lezen. De
+     *  bon bewaart alleen een diameter, en die is 0 bij alles wat niet rond is. */
+    afmeting: zaagbonAfmeting({ barVorm: r.barVorm, diameter: toNum(r.diameter) }, staaf),
     werkstukLengte: toNum(r.werkstukLengte),
     steekbreedte: toNum(r.steekbreedte),
     vlakToeslag: toNum(r.vlakToeslag),
@@ -80,6 +86,23 @@ function serialize(r: {
   }
 }
 
+/** Elke bon met de maat van zijn staaf; één query voor de hele lijst. */
+async function serializeAlle(rows: Parameters<typeof serialize>[0][]) {
+  const ids = [...new Set(rows.map((r) => r.barId))]
+  const staven = ids.length === 0 ? [] : await prisma.rawMaterial.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, dimensions: true, profile: { select: { volumeFormula: true } } },
+  })
+  const perId = new Map(staven.map((s) => [s.id, {
+    volumeFormula: s.profile.volumeFormula, dimensions: (s.dimensions ?? {}) as Record<string, number>,
+  }]))
+  return rows.map((r) => serialize(r, perId.get(r.barId) ?? null))
+}
+
+async function serializeEen(row: Parameters<typeof serialize>[0]) {
+  return (await serializeAlle([row]))[0]
+}
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -90,7 +113,7 @@ router.get(
       where: projectId ? { projectId } : undefined,
       orderBy: { createdAt: 'desc' },
     })
-    res.json({ data: rows.map(serialize) })
+    res.json({ data: await serializeAlle(rows) })
   }),
 )
 
@@ -148,7 +171,7 @@ router.post(
       }
       return rijen
     })
-    res.status(201).json({ data: created.map(serialize) })
+    res.status(201).json({ data: await serializeAlle(created) })
   }),
 )
 
@@ -172,7 +195,7 @@ router.patch(
       where: { id: req.params.id },
       data: { priority },
     })
-    res.json({ data: serialize(row) })
+    res.json({ data: await serializeEen(row) })
   }),
 )
 
@@ -195,7 +218,7 @@ router.post(
       ),
     )
     const rows = await prisma.zaagReservering.findMany({ orderBy: { createdAt: 'desc' } })
-    res.json({ data: rows.map(serialize) })
+    res.json({ data: await serializeAlle(rows) })
   }),
 )
 
@@ -224,7 +247,7 @@ router.patch(
       where: { id: req.params.id },
       data: { status },
     })
-    res.json({ data: serialize(row) })
+    res.json({ data: await serializeEen(row) })
   }),
 )
 
@@ -261,7 +284,7 @@ router.post(
 
     res.json({
       data: {
-        reservering: serialize(uitkomst.row),
+        reservering: await serializeEen(uitkomst.row),
         mutatieId: uitkomst.mutatie.id,
         schroot: uitkomst.schroot,
         vorigeVoorraadMm: uitkomst.vorigeVoorraad,
@@ -291,7 +314,7 @@ router.post(
       where: { id: req.params.id },
       data: { status: 'geannuleerd' },
     })
-    res.json({ data: serialize(row) })
+    res.json({ data: await serializeEen(row) })
   }),
 )
 
@@ -449,7 +472,7 @@ router.post(
 
     res.status(201).json({
       data: {
-        reserveringen: uit.reserveringen.map(serialize),
+        reserveringen: await serializeAlle(uit.reserveringen),
         bestelTodoId: uit.bestelTodoId,
       },
     })

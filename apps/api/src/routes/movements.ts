@@ -3,6 +3,7 @@ import { prisma } from '../db/client'
 import { CreateMovementSchema } from '@stockmanager/shared'
 import { AppError } from '../middleware/error'
 import { asyncHandler } from '../lib/async-handler'
+import { eisRuimteVoorMutatie } from '../services/voorraad'
 
 const router = Router()
 
@@ -35,6 +36,8 @@ router.post(
         previousStock = Number(item.currentStock)
         newStock =
           body.kind === 'delta' ? previousStock + body.amount : body.amount
+        // Niet onder wat er vastligt: eerst afboeken of annuleren (2026-10-19).
+        await eisRuimteVoorMutatie(tx, item.id, previousStock, newStock)
         await tx.rawMaterial.update({
           where: { id: body.itemId },
           data: { currentStock: newStock },

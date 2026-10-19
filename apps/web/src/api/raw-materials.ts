@@ -1,4 +1,5 @@
 import type { CreateRawMaterial, UpdateRawMaterial, MovementReason, ExootStand } from '@stockmanager/shared'
+import { afmetingTekst } from '@stockmanager/shared'
 import { apiFetch } from './client'
 
 export type GradeInfo = {
@@ -75,14 +76,10 @@ export type RawMaterialRow = {
   locationSlot: LocationSlotWithLocation | null
 }
 
+/** De maat zoals elk scherm hem toont; de tekst zelf staat in `@stockmanager/shared`
+ *  (`afmetingTekst`), zodat de zaagbon van de server dezelfde maat noemt. */
 export function formatDimensions(profile: Pick<ProfileInfo, 'volumeFormula'>, dims: Record<string, number>): string {
-  switch (profile.volumeFormula) {
-    case 'round':  return `Ø${dims.diameter}`
-    case 'square': return `${dims.side}×${dims.side}`
-    case 'flat':   return `${dims.width}×${dims.height}`
-    case 'tube':   return `Ø${dims.outerDiameter}/Ø${dims.innerDiameter}`
-    default:       return Object.values(dims).join('×')
-  }
+  return afmetingTekst(profile.volumeFormula, dims)
 }
 
 // De gewichtsformule staat in `@stockmanager/shared` — de API rekent er ook mee.

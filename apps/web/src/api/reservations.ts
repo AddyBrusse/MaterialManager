@@ -40,7 +40,12 @@ export interface ZaagReservation {
   sawLength: number
   fysiekeLengte: number
   materiaal: string
+  /** 0 bij alles wat niet rond is; voor het tonen is er `afmeting`. */
   diameter: number
+  /** De maat van de staaf (Ø50 mm, 250×30 mm), van de server en afgeleid bij
+   *  het lezen. Tot 2026-10-19 toonden de schermen `Ø{diameter}`, en stond een
+   *  platte exoot als "Ø0 mm" op de zaagbon. */
+  afmeting: string
   werkstukLengte: number
   steekbreedte: number
   vlakToeslag: number
@@ -59,7 +64,7 @@ export interface ZaagReservation {
 
 export type CreateReservationInput = Omit<
   ZaagReservation,
-  'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt' | 'stangen' | 'restAfboeken'
+  'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt' | 'stangen' | 'restAfboeken' | 'afmeting'
 >
 
 export interface Beschikbaarheid {
