@@ -14,7 +14,7 @@ via `@map`, `camelCase` in Prisma en TypeScript.
 | Gebied | Modellen |
 |---|---|
 | Stamgegevens | `Company`, `User`, `UserPreference`, `Location`, `LocationSlot`, `Grade`, `Profile`, `SurfaceFinish`, `Machine`, `Relatie` |
-| Voorraad | `RawMaterial`, `FinishedGood`, `StockMovement`, `Label` |
+| Voorraad | `RawMaterial`, `StockMovement` (`FinishedGood` en `Label` zijn op 2026-10-23 weggehaald) |
 | Sloten | `Lock`, `LockRequest` |
 | Artikelen | `Article`, `ArtikelPrijsSnapshot`, `ArticleAlias` |
 | Project en documenten | `Project`, `Offerte`, `OfferteRegel`, `Opdrachtbevestiging`, `ObRegel`, `Paklijst`, `PaklijstRegel`, `Factuur`, `FactuurRegel`, `DocSequence` |

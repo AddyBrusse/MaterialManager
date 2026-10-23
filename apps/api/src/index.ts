@@ -18,13 +18,11 @@ import bestelRegelsRouter from './routes/bestel-regels'
 import prijsaanvragenRouter from './routes/prijsaanvragen'
 import inkoopordersRouter from './routes/inkooporders'
 import inkoopRouter from './routes/inkoop'
-import finishedGoodsRouter from './routes/finished-goods'
 import movementsRouter from './routes/movements'
 import locationsRouter from './routes/locations'
 import gradesRouter from './routes/grades'
 import profilesRouter from './routes/profiles'
 import surfaceFinishesRouter from './routes/surface-finishes'
-import labelsRouter from './routes/labels'
 import locksRouter from './routes/locks'
 import uploadsRouter from './routes/uploads'
 import pdfRouter from './routes/pdf'
@@ -81,13 +79,11 @@ app.use('/api/bestel-regels', bestelRegelsRouter)
 app.use('/api/prijsaanvragen', prijsaanvragenRouter)
 app.use('/api/inkooporders', inkoopordersRouter)
 app.use('/api/inkoop', inkoopRouter)
-app.use('/api/finished-goods', finishedGoodsRouter)
 app.use('/api/movements', movementsRouter)
 app.use('/api/locations', locationsRouter)
 app.use('/api/grades', gradesRouter)
 app.use('/api/profiles', profilesRouter)
 app.use('/api/surface-finishes', surfaceFinishesRouter)
-app.use('/api/labels', labelsRouter)
 app.use('/api/locks', locksRouter)
 app.use('/api/uploads', uploadsRouter)
 app.use('/api/settings', settingsRouter)

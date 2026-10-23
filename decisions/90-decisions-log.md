@@ -2415,12 +2415,23 @@ omdat hij het hele orderproces doet, niet omdat er rommel in zit.
   werden (verwijderd), waaronder `Topbar` in `AppLayout`, `sendViaMicrosoft365`,
   `useZaagplanOpslaan`, `machineAvailableHours` en `regelNaam`.
 
-**Niet weg, bewust:** `Label` met `routes/labels.ts` (labelprinter geparkeerd)
-en `FinishedGood` (voedt alleen nog de ToDo-melding "lage voorraad"; volgens
-`features/31-items-finished.md` ingehaald door `Article`). Beide wachten op een
-besluit van Addy. Ook niet aangeraakt: het terugvallen op `localStorage` bij
-*schrijven* in dezelfde `api/*.ts`-bestanden, waar een mislukte opslag stil in
-de browser landt; dat is een aparte wijziging.
+**Ook weg, na een besluit van Addy dezelfde dag:** `Label` met `routes/labels.ts`
+en `services/label.ts` (labelprinter geparkeerd, nooit een scherm voor gemaakt)
+en `FinishedGood` met `routes/finished-goods.ts` (de oude cataloguslijst van
+vóór `Article`; voedde alleen nog de ToDo-melding "lage voorraad", die nu alleen
+materiaal telt). Migratie `20261023120000_label_finished_good_weg` dropt de
+tabellen `labels` en `finished_goods` **met inhoud** en de enum `LabelStatus`.
+De waarde `finished` blijft in de Postgres-enum `ItemType` staan voor oude
+regels in `stock_movements`; de Zod-schema's `ItemTypeSchema` en
+`LockItemTypeSchema` kennen hem niet meer, dus de API neemt hem niet meer aan.
+Bijvangst: de hand geschreven migratie van 2026-09-14 maakte een index
+`users_machine_id_idx` die niet in `schema.prisma` stond; `prisma migrate dev`
+wilde hem daarom droppen. De index staat nu ook in het schema (`@@index([machineId])`),
+zodat `migrate diff` tussen migraties en schema weer leeg is.
+
+**Niet aangeraakt:** het terugvallen op `localStorage` bij *schrijven* in de
+`api/*.ts`-bestanden, waar een mislukte opslag stil in de browser landt; dat is
+een aparte wijziging.
 
 **Vanaf nu:** `npm run knip` draait in de CI (`.github/workflows/ci.yml`,
 config in `knip.json`). Een export die nergens gebruikt wordt, een bestand dat

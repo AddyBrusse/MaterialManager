@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
 // Locks cover more entities than stock movements do, so they get their own
-// item-type enum instead of reusing the movement ItemTypeSchema ('raw' |
-// 'finished'). 'project' was added so a project detail page can be locked to
-// a single editing user. itemId is a plain string (project ids look like
-// "PRJ-2026-001", not UUIDs).
-export const LockItemTypeSchema = z.enum(['raw', 'finished', 'project'])
+// item-type enum instead of reusing the movement ItemTypeSchema. 'project' was
+// added so a project detail page can be locked to a single editing user; itemId
+// is a plain string (project ids look like "PRJ-2026-001", not UUIDs).
+// 'finished' went with FinishedGood on 2026-10-23.
+export const LockItemTypeSchema = z.enum(['raw', 'project'])
 export type LockItemType = z.infer<typeof LockItemTypeSchema>
 
 export const LockSchema = z.object({

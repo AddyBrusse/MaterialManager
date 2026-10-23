@@ -10,7 +10,7 @@ An item is "low stock" when `current_stock < min_stock` (and `min_stock` is set)
 
 ## Where it's set
 
-- Per-item: `min_stock` field on `raw_materials` and `finished_goods`
+- Per-item: `min_stock` field on `raw_materials` (`finished_goods` is gone since 2026-10-23; articles have no stock counter)
 - Optionally: a default at the grade level for raw materials (decide during build — start with per-item only)
 
 ## Where it surfaces
