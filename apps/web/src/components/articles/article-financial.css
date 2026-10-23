@@ -50,6 +50,19 @@
   flex-shrink: 0;
 }
 
+/* Staffel onder de getallen: klein en grijs, het is een bijzaak (2026-10-23) */
+.afc-staffel {
+  margin-top: -5px;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.afc-staffel b {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
 .afc-sell-baseline {
   display: flex;
   align-items: baseline;

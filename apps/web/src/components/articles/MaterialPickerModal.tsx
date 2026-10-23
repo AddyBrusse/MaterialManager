@@ -23,8 +23,23 @@ interface MaterialPickerModalProps {
   ctx: EstimateCtx
   /** Werkstuklengte om mee te beginnen (uit het recept). */
   startLengte: number | null
+  /**
+   * De regel die gewijzigd wordt (dubbelklik in de calculator, 2026-10-23):
+   * zijn materiaal staat dan al aangeklikt, met zijn lengte en lader. Leeg =
+   * een nieuwe regel toevoegen.
+   */
+  huidig?: { gradeId?: string | null; profileId?: string | null; dimensions?: Record<string, number> | null; lengthMm?: number | null; laderMachineId?: string | null } | null
   onPick: (row: RawMaterialRow, keuze: Keuze) => void
   onCreated: (row: RawMaterialRow) => void
+}
+
+/** De groep in de tabel die bij een bestaande receptregel hoort (zelfde kwaliteit, vorm en maat). */
+function groepVan(groepen: MateriaalGroep[], huidig: MaterialPickerModalProps['huidig']): MateriaalGroep | null {
+  if (!huidig?.gradeId || !huidig.profileId || !huidig.dimensions) return null
+  const sleutel = (d: Record<string, number>) => Object.keys(d).sort().map((k) => `${k}=${d[k]}`).join(',')
+  const doel = sleutel(huidig.dimensions)
+  return groepen.find((g) => !g.exoot && g.rij.gradeId === huidig.gradeId && g.rij.profileId === huidig.profileId
+    && sleutel(g.rij.dimensions) === doel) ?? null
 }
 
 const uniek = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'nl'))
@@ -36,13 +51,15 @@ const uniek = (xs: string[]) => [...new Set(xs.filter(Boolean))].sort((a, b) => 
  * één stuk: geen aantal — dat komt uit de offerte.
  */
 export function MaterialPickerModal(p: MaterialPickerModalProps) {
+  const groepen = useMemo(() => groepeer(p.stockRows), [p.stockRows])
   const [f, setF] = useState<MateriaalFilter>(LEEG_FILTER)
   const [sort, setSort] = useState<{ op: Sorteer; oplopend: boolean }>({ op: 'maat', oplopend: true })
-  const [gekozen, setGekozen] = useState<MateriaalGroep | null>(null)
-  const [keuze, setKeuze] = useState<Keuze>({ lengthMm: p.startLengte, laderMachineId: null })
+  const [gekozen, setGekozen] = useState<MateriaalGroep | null>(() => groepVan(groepen, p.huidig))
+  const [keuze, setKeuze] = useState<Keuze>(() => p.huidig
+    ? { lengthMm: p.huidig.lengthMm ?? p.startLengte, laderMachineId: p.huidig.laderMachineId ?? null }
+    : { lengthMm: p.startLengte, laderMachineId: null })
   const [nieuw, setNieuw] = useState(false)
 
-  const groepen = useMemo(() => groepeer(p.stockRows), [p.stockRows])
   const opties = useMemo(() => ({
     kwaliteiten: uniek(groepen.map((g) => g.kwaliteit)),
     vormen: uniek(groepen.map((g) => g.vorm)),
@@ -65,7 +82,7 @@ export function MaterialPickerModal(p: MaterialPickerModalProps) {
     <div className="mk-overlay" onClick={p.onClose}>
       <div className="mk-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Materiaal kiezen">
         <div className="mk-kop">
-          <b>Materiaal kiezen</b>
+          <b>{p.huidig ? 'Materiaal wijzigen' : 'Materiaal kiezen'}</b>
           <span className="sub">voor één stuk — het aantal komt uit de offerte</span>
           <button type="button" className="st-icon-btn sluit" onClick={p.onClose} aria-label="Sluiten"><IconX size={16} /></button>
         </div>
@@ -100,7 +117,7 @@ export function MaterialPickerModal(p: MaterialPickerModalProps) {
           </div>
           <button type="button" className="st-btn" onClick={() => setNieuw(true)}><IconPlus size={14} />Nieuw materiaal</button>
           <button type="button" className="st-btn" onClick={p.onClose}>Annuleren</button>
-          <button type="button" className="st-btn primary" onClick={() => neem(gekozen)}>Kies dit materiaal</button>
+          <button type="button" className="st-btn primary" onClick={() => neem(gekozen)}>{p.huidig ? 'Wijzig de regel' : 'Kies dit materiaal'}</button>
         </div>
       </div>
     </div>

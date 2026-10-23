@@ -1,6 +1,7 @@
 import type { OfferteRegel, OpdrachtWijziging, Project, ProjectVoortgang } from '@stockmanager/shared'
 import { IconPlus, IconTrash } from '@tabler/icons-react'
 import type { ZaagReservation } from '../../../../../api/reservations'
+import type { OrderRegelDekking } from '../../../../../api/materiaal-plan'
 import { articlesApi } from '../../../../../api/articles'
 import { Card } from '../../components/Card'
 import { VoortgangBalk, voortgangTekst } from '../../components/VoortgangBalk'
@@ -14,6 +15,8 @@ interface Props {
   project: Project
   voortgang: ProjectVoortgang
   reserveringen: ZaagReservation[]
+  /** Per orderregel wat er per materiaalregel geregeld is (server). */
+  dekking: OrderRegelDekking[] | undefined
   geblokkeerd: boolean
   onKiesMateriaal: (regel: OfferteRegel) => void
   onNaarReserveringen: () => void
@@ -35,6 +38,7 @@ export function ObRegels({
   project: p,
   voortgang,
   reserveringen,
+  dekking,
   geblokkeerd,
   onKiesMateriaal,
   onNaarReserveringen,
@@ -119,7 +123,7 @@ export function ObRegels({
                   )}
                 </td>
                 <MateriaalCel
-                  materiaal={materiaalVanRegel(r, ob.regels, reserveringen)}
+                  materiaal={materiaalVanRegel(r, ob.regels, reserveringen, dekking?.find((d) => d.offerteRegelId === r.id))}
                   geblokkeerd={geblokkeerd}
                   onKiezen={() => onKiesMateriaal(r)}
                   onNaarReserveringen={onNaarReserveringen}

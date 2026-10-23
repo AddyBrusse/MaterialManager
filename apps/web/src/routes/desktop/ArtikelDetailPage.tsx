@@ -1,21 +1,22 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { IconUpload, IconExternalLink } from '@tabler/icons-react'
 import { pageTabs } from '../../utils/pageTabs'
 import { usePopoutRoutes } from '../../hooks/usePopout'
 import { focusPopout, requestClosePopout } from '../../utils/popout'
-import { articlesApi, type Article, type ArticleEstimate } from '../../api/articles'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
 import { relatiesApi } from '../../api/relaties'
 import { buildEstimateCtx, computeEstimateTotals } from '../../api/estimate'
 import { useUserStore } from '../../stores/user'
+import { useEditLock } from '../../hooks/useEditLock'
+import { useArtikelBewerken } from '../../hooks/useArtikelBewerken'
 import { useArticleAttachmentUpload } from '../../hooks/useArticleAttachmentUpload'
 import { useWholePageDrop } from '../../hooks/useWholePageDrop'
 import { ArticleCalculator } from '../../components/articles/ArticleCalculator'
-import { ArticleInfoCard, toArticleMeta, type ArticleMeta } from '../../components/articles/ArticleInfoStrip'
+import { ArticleInfoCard } from '../../components/articles/ArticleInfoStrip'
 import { ArticleFinancialCard } from '../../components/articles/ArticleFinancialCard'
 import { ArticleFileViewer } from '../../components/articles/ArticleFileViewer'
 import { LocationPickerModal } from '../../components/articles/LocationPickerModal'
@@ -23,23 +24,22 @@ import { ArticleFilesTab } from '../../components/articles/ArticleFilesTab'
 import { ArticleHistoryTab, buildHistory } from '../../components/articles/ArticleHistoryTab'
 import { ArticlePrijshistorieTab } from '../../components/articles/ArticlePrijshistorieTab'
 import { ArtikelNacalculatieTab } from '../../components/nacalculatie/ArtikelNacalculatieTab'
+import { ArtikelStand, zegWaaromDicht } from '../../components/articles/ArtikelStand'
+import { ArtikelTabs, type ArtikelTab } from '../../components/articles/ArtikelTabs'
 import { Ic, Icon, TypeGlyph, type GlyphKind } from '../../components/articles/calc-icons'
 
-const EMPTY_EST: ArticleEstimate = { marginPct: 35, nodes: [], updatedAt: '' }
-
-const BLANK_META: ArticleMeta = {
-  naam: '', relatieId: null, contactId: null, klant: '', tekening: '', rev: '',
-  operations: [], currentStock: '', minStock: '', maxStock: '', locatie: '',
-}
-
-/** Stock status from live values. Accepts strings/'' because the API returns
- *  numeric fields as strings and the inline `meta` holds '' for a cleared field
- *  — coercing keeps a zero-stock article from slipping past `=== 0`. */
-function statusFor(currentStock: number | string, minStock: number | string | null, maxStock: number | string | null) {
+/**
+ * Voorraadstand voor de badge in de titel. Getallen kunnen als tekst binnenkomen
+ * (de API geeft decimalen als string, een leeg veld is ''), vandaar de omzetting.
+ *
+ * Rood "Uit" alleen als er een minimumvoorraad is (2026-10-23): een artikel dat
+ * op bestelling gemaakt wordt staat bijna altijd op 0, en dat is dan geen alarm.
+ */
+export function statusFor(currentStock: number | string, minStock: number | string | null, maxStock: number | string | null) {
   const cur = Number(currentStock) || 0
   const min = minStock === '' || minStock == null ? null : Number(minStock)
   const max = maxStock === '' || maxStock == null ? null : Number(maxStock)
-  if (cur === 0) return { label: 'Uit', cls: 'danger' }
+  if (cur === 0) return min == null ? { label: 'Geen voorraad', cls: '' } : { label: 'Uit', cls: 'danger' }
   if (min != null && cur < min) return { label: 'Laag', cls: 'warn' }
   if (max != null && cur >= max * 0.85) return { label: 'Vol', cls: 'info' }
   return { label: 'Op voorraad', cls: 'ok' }
@@ -56,25 +56,19 @@ function profileToGlyphKind(formula?: string): GlyphKind {
   }
 }
 
-type Tab = 'calculatie' | 'bestanden' | 'nacalculatie' | 'prijshistorie' | 'historie'
-
 export function ArtikelDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const returnTo = searchParams.get('returnTo') ?? null
-  const qc = useQueryClient()
   const isAdmin = useUserStore(s => s.user?.role === 'admin')
-  const [tab, setTab] = useState<Tab>('calculatie')
+  const [tab, setTab] = useState<ArtikelTab>('calculatie')
   const [locModalOpen, setLocModalOpen] = useState(false)
 
-  const { data: articles = [] }   = useQuery({ queryKey: ['articles'], queryFn: () => articlesApi.list() })
-  const { data: gradesData }      = useQuery({ queryKey: ['grades'],   queryFn: gradesApi.list })
-  const { data: profilesData }    = useQuery({ queryKey: ['profiles'], queryFn: profilesApi.list })
-  const { data: machinesData }    = useQuery({ queryKey: ['machines'], queryFn: machinesApi.list })
-  const { data: relatiesData }    = useQuery({ queryKey: ['relaties'], queryFn: relatiesApi.list })
-
-  const article = articles.find(a => a.id === id) ?? null
+  const { data: gradesData }   = useQuery({ queryKey: ['grades'],   queryFn: gradesApi.list })
+  const { data: profilesData } = useQuery({ queryKey: ['profiles'], queryFn: profilesApi.list })
+  const { data: machinesData } = useQuery({ queryKey: ['machines'], queryFn: machinesApi.list })
+  const { data: relatiesData } = useQuery({ queryKey: ['relaties'], queryFn: relatiesApi.list })
 
   const poppedOut = usePopoutRoutes()
   // This component also renders inside the detached popout window; only the MAIN
@@ -82,102 +76,26 @@ export function ArtikelDetailPage() {
   const inPopoutWindow = window.location.pathname.startsWith('/pop/')
   const isPoppedOut    = !inPopoutWindow && poppedOut.has(`/artikelen/${id}`)
 
+  // Wie het artikel open heeft mag bewerken; wie daarna komt kijkt mee (2026-10-23).
+  const slot = useEditLock('article', id, !isPoppedOut)
+  const { article, laden, kopie, kanBewerken, meta, setMeta, est, changeEst, opslag, opgeslagenOm, opnieuwOpslaan } =
+    useArtikelBewerken(id, slot.isHolder)
+  const alleenLezen = !kanBewerken
+  const waaromDicht = zegWaaromDicht(slot, kopie)
+
   // Whole-article-page drop target: any drop anywhere on this page attaches the
   // file(s) — see useWholePageDrop for why that's a window listener.
   const attachmentUpload = useArticleAttachmentUpload(article)
-  const dragging = useWholePageDrop(isAdmin && !!article, files => {
+  const dragging = useWholePageDrop(isAdmin && !!article && !alleenLezen, files => {
     attachmentUpload.uploadFiles(files)
     setTab('bestanden')
   })
-
-  // ── Inline meta editing (no edit mode) — resync when the article id changes,
-  //    otherwise treat local `meta` as the source of truth so a background
-  //    refetch (triggered by our own debounced save) never clobbers typing. ──
-  const [meta, setMetaState] = useState<ArticleMeta>(BLANK_META)
-  const metaArticleId = useRef<string | null>(null)
-  const metaDirty = useRef(false)
-  useEffect(() => {
-    if (article && metaArticleId.current !== article.id) {
-      setMetaState(toArticleMeta(article))
-      metaArticleId.current = article.id
-      metaDirty.current = false
-    }
-  }, [article])
-  const setMeta = (patch: Partial<ArticleMeta>) => {
-    metaDirty.current = true
-    setMetaState(m => ({ ...m, ...patch }))
-  }
-
-  // ── Estimate (calculator + margin) — same id-tracked, dirty-gated pattern ──
-  const [est, setEst] = useState<ArticleEstimate>(EMPTY_EST)
-  const estArticleId = useRef<string | null>(null)
-  const estDirty = useRef(false)
-  useEffect(() => {
-    if (article && estArticleId.current !== article.id) {
-      setEst(article.estimate ?? EMPTY_EST)
-      estArticleId.current = article.id
-      estDirty.current = false
-    }
-  }, [article])
-  const changeEst: Dispatch<SetStateAction<ArticleEstimate>> = update => {
-    estDirty.current = true
-    setEst(update)
-  }
-
-  // Debounced persist of meta.
-  useEffect(() => {
-    if (!article || metaArticleId.current !== article.id || !metaDirty.current) return
-    const t = setTimeout(() => saveMeta(article), 400)
-    return () => clearTimeout(t)
-  }, [meta]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Register (and keep labelled) an open-articles tab for whatever article is
   // on screen — covers every entry point (list click, direct URL, offerte link).
   useEffect(() => {
     if (article) pageTabs.open(`/artikelen/${article.id}`, meta.naam.trim() || article.naam)
   }, [article?.id, meta.naam]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Debounced persist of the estimate (+ derived primary-material recipe).
-  useEffect(() => {
-    if (!article || estArticleId.current !== article.id || !estDirty.current) return
-    const t = setTimeout(() => {
-      const primaryMat = est.nodes.find(n =>
-        // Een exoot is geen recept: die wordt besteld, niet uit de voorraad gezaagd.
-        n.type === 'material' && !n.exoot && n.gradeId && n.profileId &&
-        n.dimensions && Object.keys(n.dimensions).length > 0
-      )
-      const recipeUpdate = primaryMat ? {
-        gradeId: primaryMat.gradeId!,
-        profileId: primaryMat.profileId!,
-        dimensions: primaryMat.dimensions as Record<string, number>,
-        lengthPerPieceMm: primaryMat.lengthMm ?? 0,
-      } : undefined
-
-      articlesApi.update(article.id, {
-        estimate: { ...est, updatedAt: new Date().toISOString() },
-        ...(recipeUpdate ? { recipe: recipeUpdate } : {}),
-      })
-      qc.invalidateQueries({ queryKey: ['articles'] })
-    }, 400)
-    return () => clearTimeout(t)
-  }, [est]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function saveMeta(a: Article) {
-    articlesApi.update(a.id, {
-      naam: meta.naam.trim() || a.naam,
-      relatieId: meta.relatieId,
-      contactId: meta.contactId,
-      klant: meta.klant.trim() || null,
-      tekening: meta.tekening.trim() || null,
-      rev: meta.rev.trim() || null,
-      operations: meta.operations.map((tp, i) => ({ id: `op_${i}_${tp}`, type: tp })),
-      currentStock: Number(meta.currentStock) || 0,
-      minStock: meta.minStock === '' ? null : Number(meta.minStock),
-      maxStock: meta.maxStock === '' ? null : Number(meta.maxStock),
-      locatie: meta.locatie.trim() || null,
-    })
-    qc.invalidateQueries({ queryKey: ['articles'] })
-  }
 
   const relatieOptions = (relatiesData?.data ?? [])
     .filter(r => r.type !== 'leverancier')
@@ -186,15 +104,17 @@ export function ArtikelDetailPage() {
   if (!article) {
     return (
       <div className="ad-page">
-          {returnTo && (
-            <div className="ad-crumb">
-              <button className="ad-crumb-link" onClick={() => navigate(returnTo)}>
-                <Ic d={Icon.chevronRight} />Offerte
-              </button>
-            </div>
-          )}
-          <div className="st-empty" style={{ marginTop: 32 }}>Het artikel <strong>{id}</strong> bestaat niet (meer).</div>
+        {returnTo && (
+          <div className="ad-crumb">
+            <button className="ad-crumb-link" onClick={() => navigate(returnTo)}>
+              <Ic d={Icon.chevronRight} />Offerte
+            </button>
+          </div>
+        )}
+        <div className="st-empty" style={{ marginTop: 32 }}>
+          {laden ? 'Artikel laden…' : <>Het artikel <strong>{id}</strong> bestaat niet (meer).</>}
         </div>
+      </div>
     )
   }
 
@@ -221,13 +141,13 @@ export function ArtikelDetailPage() {
   if (isPoppedOut) {
     return (
       <div className="st-popout-placeholder">
-          <div className="ic"><IconExternalLink size={22} /></div>
-          <div className="t">{meta.naam || article.naam} is open in een apart venster</div>
-          <div className="d">Gebruik dat venster, of haal het artikel terug naar het hoofdvenster.</div>
-          <div className="actions">
-            <button className="btn" onClick={() => focusPopout(`/artikelen/${id}`)}>Venster tonen</button>
-            <button className="btn primary" onClick={() => requestClosePopout(`/artikelen/${id}`)}>Sluit venster, toon hier</button>
-          </div>
+        <div className="ic"><IconExternalLink size={22} /></div>
+        <div className="t">{meta.naam || article.naam} is open in een apart venster</div>
+        <div className="d">Gebruik dat venster, of haal het artikel terug naar het hoofdvenster.</div>
+        <div className="actions">
+          <button className="btn" onClick={() => focusPopout(`/artikelen/${id}`)}>Venster tonen</button>
+          <button className="btn primary" onClick={() => requestClosePopout(`/artikelen/${id}`)}>Sluit venster, toon hier</button>
+        </div>
       </div>
     )
   }
@@ -262,64 +182,62 @@ export function ArtikelDetailPage() {
           <div className="ad-title-row">
             <h1 className="ad-h1">{meta.naam || article.naam}</h1>
             <span className={`badge ${st.cls}`}><span className="dot" />{st.label}</span>
+            {/* Links bij de titel, niet rechtsboven: daar komen de meldingen, en
+                een foutmelding lag dan precies over "Opnieuw opslaan". */}
+            <ArtikelStand slot={slot} opslag={opslag} opgeslagenOm={opgeslagenOm} kopie={kopie} onOpnieuw={opnieuwOpslaan} />
           </div>
           <div className="ad-metaline">{metaLine}</div>
         </div>
-        <div className="ad-title-actions">
-          <button className="ad-btn primary" onClick={() => saveMeta(article)}><Ic d={Icon.check} size={14} />Opslaan</button>
-        </div>
       </div>
 
-      {/* 3-column header */}
+      {/* 3-column header; de twee kaarten om te bewerken staan dicht als je meekijkt */}
       <div className="ad-grid">
-        <ArticleInfoCard
-          artikelNr={article.id}
-          meta={meta}
-          onChange={setMeta}
-          relatieOptions={relatieOptions}
-          relatie={relatie}
-          onOpenLocation={() => setLocModalOpen(true)}
-        />
-        <ArticleFinancialCard
-          est={est}
-          ctx={ctx}
-          totals={totals}
-          onMarginChange={pct => changeEst(e => ({ ...e, marginPct: pct }))}
-        />
+        <fieldset className="ad-slot" disabled={alleenLezen} onPointerDown={waaromDicht}>
+          <ArticleInfoCard
+            artikelNr={article.id}
+            meta={meta}
+            onChange={setMeta}
+            relatieOptions={relatieOptions}
+            relatie={relatie}
+            onOpenLocation={() => setLocModalOpen(true)}
+          />
+        </fieldset>
+        <fieldset className="ad-slot" disabled={alleenLezen} onPointerDown={waaromDicht}>
+          <ArticleFinancialCard
+            est={est}
+            ctx={ctx}
+            totals={totals}
+            onMarginChange={pct => changeEst(e => ({ ...e, marginPct: pct }))}
+          />
+        </fieldset>
         <ArticleFileViewer article={article} />
       </div>
 
-      {/* Tabs */}
-      <div className="ad-tabs">
-        <button data-active={tab === 'calculatie'} onClick={() => setTab('calculatie')}>
-          <Ic d={Icon.calc} />Calculatie
-        </button>
-        <button data-active={tab === 'bestanden'} onClick={() => setTab('bestanden')}>
-          <Ic d={Icon.file} />Bestanden{article.attachments.length > 0 && <span className="tab-count">{article.attachments.length}</span>}
-        </button>
-        <button data-active={tab === 'nacalculatie'} onClick={() => setTab('nacalculatie')}>
-          <Ic d={Icon.calc} />Nacalculatie
-        </button>
-        <button data-active={tab === 'prijshistorie'} onClick={() => setTab('prijshistorie')}>
-          <Ic d={Icon.euro} />Prijshistorie
-        </button>
-        <button data-active={tab === 'historie'} onClick={() => setTab('historie')}>
-          <Ic d={Icon.history} />Historie{historyEvents.length > 0 && <span className="tab-count">{historyEvents.length}</span>}
-        </button>
-      </div>
+      <ArtikelTabs actief={tab} onKies={setTab}
+        aantallen={{ bestanden: article.attachments.length, historie: historyEvents.length }} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {tab === 'calculatie' && <ArticleCalculator article={article} est={est} onEstChange={changeEst} />}
-        {tab === 'bestanden' && (
-          <ArticleFilesTab
-            article={article}
-            uploading={attachmentUpload.uploading}
-            uploadFiles={attachmentUpload.uploadFiles}
-            removeAttachment={attachmentUpload.removeAttachment}
-            setMachine={attachmentUpload.setMachine}
-          />
+        {tab === 'calculatie' && (
+          <fieldset className="ad-slot" disabled={alleenLezen} onPointerDown={waaromDicht}>
+            <ArticleCalculator article={article} est={est} onEstChange={changeEst} readOnly={alleenLezen} />
+          </fieldset>
         )}
-        {tab === 'nacalculatie' && <ArtikelNacalculatieTab artikelId={article.id} />}
+        {tab === 'bestanden' && (
+          <fieldset className="ad-slot" disabled={alleenLezen} onPointerDown={waaromDicht}>
+            <ArticleFilesTab
+              article={article}
+              uploading={attachmentUpload.uploading}
+              uploadFiles={attachmentUpload.uploadFiles}
+              removeAttachment={attachmentUpload.removeAttachment}
+              setMachine={attachmentUpload.setMachine}
+            />
+          </fieldset>
+        )}
+        {tab === 'nacalculatie' && (
+          <fieldset className="ad-slot" disabled={alleenLezen} onPointerDown={waaromDicht}>
+            <ArtikelNacalculatieTab artikelId={article.id} />
+          </fieldset>
+        )}
         {tab === 'prijshistorie' && <ArticlePrijshistorieTab articleId={article.id} />}
         {tab === 'historie' && <ArticleHistoryTab events={historyEvents} />}
       </div>

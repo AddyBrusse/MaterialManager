@@ -13,7 +13,8 @@ import { mm } from './bestel-tekst'
 /**
  * Iets binnen van een inkooporder (2026-10-06): hoeveel stuks, en waar ze
  * komen te liggen (mag leeg blijven). Elk stuk wordt een regel in de
- * materiaallijst; een exoot gaat meteen vast voor zijn project.
+ * materiaallijst; een exoot gaat meteen vast voor zijn project, een tekort
+ * voor wat zijn order nog nodig heeft (2026-10-23).
  */
 export function OntvangstVenster({ order, regel, onSluit }: { order: Inkooporder; regel: InkooporderRegel; onSluit: () => void }) {
   const qc = useQueryClient()
@@ -65,6 +66,7 @@ export function OntvangstVenster({ order, regel, onSluit }: { order: Inkooporder
         <Text size="xs" c="dimmed">
           Elk stuk komt als eigen regel in de materiaallijst, met een mutatie "ontvangen".
           {regel.exoot && regel.projectId ? ` Een exoot gaat meteen vast voor ${regel.projectId}.` : ''}
+          {regel.tekort && regel.projectId ? ` Besteld voor een tekort: wat ${regel.projectId} er nog van nodig heeft gaat meteen vast, de rest van de staaf blijft vrij.` : ''}
         </Text>
         {regel.projectId && (
           <div className="ib-melding" style={{ background: 'var(--success-soft)' }}>

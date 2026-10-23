@@ -24,6 +24,7 @@ enum ItemType {
   raw
   finished
   project
+  article
 }
 
 enum MovementKind {
@@ -540,6 +541,8 @@ model BestelRegel {
   projectId      String?  @map("project_id")
   artikelId      String?  @map("artikel_id")
   offerteRegelId String?  @map("offerte_regel_id")
+  /// Bij een tekort: voor welke materiaalregel van het artikel (2026-10-23).
+  materiaalRegelId String? @map("materiaal_regel_id")
   notitie        String?
   /// Bij wie we een prijs vragen (tab Te bestellen, 2026-10-07).
   leverancierIds String[] @default([]) @map("leverancier_ids")
@@ -1052,6 +1055,9 @@ model ZaagReservering {
   /// Voor welke orderregel. Zonder dit is materiaal alleen per artikel te
   /// vinden, en tonen twee regels met hetzelfde artikel dezelfde staaf.
   offerteRegelId String?   @map("offerte_regel_id")
+  /// Voor welke materiaalregel van het artikel (id van de knoop in de
+  /// calculatie, 2026-10-23). Leeg = van daarvóór: telt voor de eerste.
+  materiaalRegelId String? @map("materiaal_regel_id")
   barId          String    @map("bar_id")
   barCode        String    @map("bar_code")
   barLocation    String    @map("bar_location")

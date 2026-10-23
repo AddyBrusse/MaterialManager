@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import type { OfferteRegel } from '@stockmanager/shared'
+import { voorraadRegels, type OfferteRegel } from '@stockmanager/shared'
 import type { Article } from '../../../../api/articles'
 import { ArtikelPreviewThumb } from '../../../../components/projecten/ArtikelPreviewThumb'
 import { buildEstimateCtx, computeEstimateTotals, laderVoorRegel, materiaalBehoefte, nettoLengte } from '../../../../api/estimate'
@@ -87,15 +87,20 @@ function kostprijsPerStuk(artikel: Article | null, qty: number): number | null {
 }
 
 /** "Materiaal: 3 × 1.086 + 4 × 998 mm (7.271 mm, lader Mazak)" — wat er bij dit aantal gezaagd wordt (2026-10-09). */
+/** Per materiaalregel uit voorraad wat er gezaagd wordt (elke regel sinds 2026-10-23). */
 function materiaalTekst(artikel: Article | null, qty: number): string {
-  const regel = artikel?.estimate?.nodes.find((n) => n.type === 'material' && !n.exoot)
-  if (!artikel || !regel) return ''
+  const regels = voorraadRegels(artikel?.estimate)
+  if (!artikel || regels.length === 0) return ''
   const ctx = buildEstimateCtx(artikel, gradesApi.listSync(), profilesApi.listSync(), machinesApi.listSync())
-  const lader = laderVoorRegel(regel, ctx.machines)
-  const b = materiaalBehoefte(nettoLengte(regel, ctx), lader, qty)
-  if (!b.totaalMm) return ''
-  const lengtes = lader ? `${b.stangen.length} laderstangen: ${stangenTekst(b.stangen)}` : `${qty} × ${b.stukMm} mm`
-  return `\nMateriaal: ${lengtes} — ${Math.round(b.totaalMm).toLocaleString('nl-NL')} mm te zagen${lader ? ` (lader ${lader.machineNaam})` : ''}`
+  const grades = gradesApi.listSync()
+  return regels.map((regel) => {
+    const lader = laderVoorRegel(regel, ctx.machines)
+    const b = materiaalBehoefte(nettoLengte(regel, ctx), lader, qty)
+    if (!b.totaalMm) return ''
+    const naam = regels.length > 1 ? ` ${grades.find((g) => g.id === regel.gradeId)?.name ?? regel.name}` : ''
+    const lengtes = lader ? `${b.stangen.length} laderstangen: ${stangenTekst(b.stangen)}` : `${qty} × ${b.stukMm} mm`
+    return `\nMateriaal${naam}: ${lengtes} — ${Math.round(b.totaalMm).toLocaleString('nl-NL')} mm te zagen${lader ? ` (lader ${lader.machineNaam})` : ''}`
+  }).join('')
 }
 
 /**
