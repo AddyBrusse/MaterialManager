@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { IconTrash, IconCut, IconAlertTriangle, IconPrinter, IconX, IconBan } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'

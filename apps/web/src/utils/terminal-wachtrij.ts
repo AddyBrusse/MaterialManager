@@ -25,7 +25,7 @@ export function normaliseerMachine(naam: string | null | undefined): string {
   return (naam ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-export type MachineToewijzing =
+type MachineToewijzing =
   /** De stap staat op deze machine. */
   | { soort: 'eigen' }
   /** De stap staat op een andere, bestaande machine. */

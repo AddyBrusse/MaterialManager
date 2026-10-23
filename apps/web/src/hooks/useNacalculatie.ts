@@ -2,22 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import { nacalculatieApi } from '../api/nacalculatie'
 
-export function useProjectNacalculatie(projectId: string | null) {
-  return useQuery({
-    queryKey: ['nacalculatie', 'project', projectId],
-    queryFn: () => nacalculatieApi.project(projectId!),
-    enabled: !!projectId,
-  })
-}
-
-export function useOrderNacalculatie(orderId: string | null) {
-  return useQuery({
-    queryKey: ['nacalculatie', 'order', orderId],
-    queryFn: () => nacalculatieApi.order(orderId!),
-    enabled: !!orderId,
-  })
-}
-
 export function useArtikelNacalculatie(artikelId: string | null) {
   return useQuery({
     queryKey: ['nacalculatie', 'artikel', artikelId],

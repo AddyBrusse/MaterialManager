@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-export const ItemTypeSchema = z.enum(['raw', 'finished'])
+// Alleen nog materiaal: 'finished' (FinishedGood) is op 2026-10-23 weggehaald,
+// artikelen leven in `articles` en hebben geen voorraadteller. De Postgres-enum
+// `ItemType` houdt de waarde voor oude mutatieregels.
+export const ItemTypeSchema = z.enum(['raw'])
 export type ItemType = z.infer<typeof ItemTypeSchema>
 
 export const MovementKindSchema = z.enum(['delta', 'overwrite'])

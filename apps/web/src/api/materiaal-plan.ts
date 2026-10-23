@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { LaderGegevens, MateriaalBehoefte, PlanStaaf, TeZagen, Voorstel, VoorstelRegel } from '@stockmanager/shared'
+import type { LaderGegevens, MateriaalBehoefte, PlanStaaf, TeZagen, Voorstel } from '@stockmanager/shared'
 import type { ZaagReservation } from './reservations'
 
 /**
@@ -11,7 +11,7 @@ import type { ZaagReservation } from './reservations'
  * bedoeld was.
  */
 
-export type { Voorstel, VoorstelRegel, TeZagen }
+export type { Voorstel }
 
 export interface PlanUitkomst {
   behoefte: MateriaalBehoefte
@@ -28,7 +28,7 @@ export interface PlanUitkomst {
   kandidaten: PlanStaaf[]
 }
 
-export interface BevestigVraag {
+interface BevestigVraag {
   artikelId: string
   aantal: number
   projectId: string

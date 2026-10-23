@@ -79,9 +79,6 @@ export const KOLOMMEN = [
 ] as const
 export type Kolom = typeof KOLOMMEN[number][0]
 
-/** Alleen in deze kolommen mag je slepen; bezig en gereed komen van de terminal. */
-export const SLEEPBAAR: Kolom[] = ['materiaal', 'vorige', 'klaar']
-
 export interface Kaart { job: QueueJob; kolom: Kolom; rang: number; stapNr: number; stappen: number; signalen: Signaal[] }
 
 export function werkbord(
@@ -144,7 +141,7 @@ export function kanbanBanen(
   return banen
 }
 
-export type KanbanLos = { reden: string } | { prioriteit: number; machine?: string } | null
+type KanbanLos = { reden: string } | { prioriteit: number; machine?: string } | null
 
 /**
  * Wat loslaten in een baan betekent: een nieuwe rang (hoger = eerder) en zo

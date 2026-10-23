@@ -1,7 +1,7 @@
 import type { MailImport, MailImportStatus, MailIntent } from '@stockmanager/shared'
 import { apiFetch, apiUpload, MODEL_TIMEOUT_MS } from './client'
 
-export interface IngestResult {
+interface IngestResult {
   mailImport: MailImport
   /** True als deze mail al eerder was binnengehaald — er is niets nieuws gemaakt. */
   duplicate: boolean
@@ -16,7 +16,7 @@ export interface IngestSchatting {
   gebaseerdOp: number
 }
 
-export interface UpdateMailImport {
+interface UpdateMailImport {
   relatieId?: string | null
   contactId?: string | null
   intent?: MailIntent
@@ -29,7 +29,7 @@ export interface UpdateMailImport {
  * niet, dan mist het artikel een tekening en moet dat gezegd worden in plaats
  * van stilzwijgend een leeg artikel op te leveren.
  */
-export interface CopyFilesResultaat {
+interface CopyFilesResultaat {
   bestanden: { name: string; path: string; sizeBytes: number; kind: string }[]
   overgeslagen: { naam: string; reden: string }[]
 }

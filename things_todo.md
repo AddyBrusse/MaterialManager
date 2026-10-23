@@ -25,8 +25,6 @@ leave them in place rather than deleting, so there's a record.
 
 ## Productie — Zaagcalculator (`/zaagcalculator`)
 
-## Productie — Zaagplanner (`/zaagplanner`)
-
 ## Productie — ZaagFlow (`/zaagflow`)
 
 ## Materiaalbeheer — Voorraad (`/voorraad`)

@@ -17,7 +17,7 @@ import { AppError } from '../middleware/error'
 type Db = typeof prisma | Prisma.TransactionClient
 const num = (d: Prisma.Decimal | null) => (d == null ? null : Number(d))
 
-export const REGEL_INCLUDE = {
+const REGEL_INCLUDE = {
   grade: true,
   profile: true,
   keuzeLeverancier: { select: { naam: true } },
@@ -28,7 +28,7 @@ export const REGEL_INCLUDE = {
 type Rij = Prisma.BestelRegelGetPayload<{ include: typeof REGEL_INCLUDE }>
 
 /** Rijen naar het schermformaat, met project, klant en artikel erbij. */
-export async function naarRegels(db: Db, rijen: Rij[]): Promise<BestelRegel[]> {
+async function naarRegels(db: Db, rijen: Rij[]): Promise<BestelRegel[]> {
   const projectIds = [...new Set(rijen.map((r) => r.projectId).filter((x): x is string => !!x))]
   const artikelIds = [...new Set(rijen.map((r) => r.artikelId).filter((x): x is string => !!x))]
   const [projecten, artikelen] = await Promise.all([
@@ -104,7 +104,7 @@ const dimsGelijk = (a: unknown, b: Record<string, number>) => {
   return k.length > 0 && k.length === Object.keys(x ?? {}).length && k.every((s) => Number(x[s]) === Number(b[s]))
 }
 
-export const naarPrijs = (r: Prisma.LeverancierPrijsGetPayload<{ include: { leverancier: { select: { naam: true } } } }>): LeverancierPrijs => ({
+const naarPrijs = (r: Prisma.LeverancierPrijsGetPayload<{ include: { leverancier: { select: { naam: true } } } }>): LeverancierPrijs => ({
   id: r.id, leverancierId: r.leverancierId, leverancierNaam: r.leverancier.naam,
   rawMaterialId: r.rawMaterialId, gradeId: r.gradeId, prijsSoort: r.prijsSoort as LeverancierPrijs['prijsSoort'],
   prijs: Number(r.prijs), zaagkostenPerSnede: num(r.zaagkostenPerSnede), minimumBedrag: num(r.minimumBedrag),

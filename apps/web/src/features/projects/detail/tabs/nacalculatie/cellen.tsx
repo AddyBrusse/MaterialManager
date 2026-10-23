@@ -4,14 +4,6 @@ import { minToHm, secondenNaarUren } from '@stockmanager/shared'
 import { eur, pct } from '../../lib/format'
 import { DEV_BREEDTE, devBalk, devKleurVar, kleurClass } from '../../lib/nacalculatie'
 
-/**
- * Kolommen: omschrijving · tijd gecalculeerd · tijd werkelijk · kosten
- * gecalculeerd · kosten werkelijk · verschil · % · afwijking. Gecalculeerd en
- * werkelijk elk in een eigen kolom (2026-10-02): "1:00 u → 0:45 u" in één cel
- * was niet te lezen.
- */
-export const KOLOMMEN = 8
-
 /** Tijd gecalculeerd (minuten) en werkelijk (seconden), of een streepje. */
 export function TijdCellen({ gecalcMin, werkSec }: { gecalcMin: number | null; werkSec: number | null }) {
   return (

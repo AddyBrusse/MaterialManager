@@ -28,7 +28,7 @@ export interface ProjectNacalculatie {
   gemeten: boolean
 }
 
-export interface ArtikelNacalculatie {
+interface ArtikelNacalculatie {
   artikelId: string
   orders: OrderNacalculatie[]
   aantalOrders: number
@@ -39,7 +39,7 @@ export interface ArtikelNacalculatie {
 }
 
 /** Eén regel per artikel voor de artikelenlijst — niet de hele nacalculatie. */
-export interface ArtikelSamenvatting {
+interface ArtikelSamenvatting {
   artikelId: string
   aantalOrders: number
   gemetenOrders: number

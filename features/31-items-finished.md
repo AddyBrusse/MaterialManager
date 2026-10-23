@@ -6,11 +6,11 @@ model (`Article` in `apps/web/src/api/articles.ts`) carries identity/stock
 fields, a structured **recipe**, an **operations/routing** list, a **setup
 sheet**, a link to a **Relatie** (customer), and a cost **estimate**.
 
-> **Backend note:** `apps/api/prisma/schema.prisma`'s `FinishedGood` model
-> still reflects the old simple-catalog shape (no recipe/operations/estimate).
-> The frontend `Article` type is ahead of the backend — see the 2026-06-15
-> "mock phase" decision log entry. Reconcile the Prisma model with `Article`
-> when building the real articles backend.
+> **Backend note (2026-10-23):** the old simple-catalog model `FinishedGood`
+> (table `finished_goods`, `/api/finished-goods`) has been removed together
+> with its shared schema; articles live in the `Article` model and
+> `/api/articles` only. Articles have no stock counter — the "lage voorraad"
+> alert in `utils/todoAlerts.ts` now covers raw materials only.
 
 ## Identity
 

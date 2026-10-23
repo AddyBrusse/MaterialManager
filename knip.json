@@ -1,0 +1,5 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": ["design_handoff_staaltrack/**"],
+  "ignoreDependencies": ["zod"]
+}

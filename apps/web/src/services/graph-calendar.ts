@@ -1,7 +1,7 @@
 import { acquireToken } from './graph-mail'
 import type { Todo } from '@stockmanager/shared'
 
-export interface CalendarEventResult {
+interface CalendarEventResult {
   id: string
 }
 

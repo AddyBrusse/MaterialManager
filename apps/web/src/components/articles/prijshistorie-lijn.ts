@@ -47,7 +47,7 @@ export function naarLijn(snapshots: PrijsSnapshot[]): LijnPunt[] {
     }))
 }
 
-export interface Samenvatting {
+interface Samenvatting {
   laatsteKostprijs: number | null
   laatsteVerkoopprijs: number | null
   /** Verschil tussen de eerste en de laatste kostprijs, in procenten. Null bij

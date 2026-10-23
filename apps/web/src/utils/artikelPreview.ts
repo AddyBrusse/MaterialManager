@@ -53,14 +53,14 @@ export function resolvePreviewSourceFromFiles(
 
 // ── Row thumbnail vs. hover-preview render sizes ────────────────────────────
 
-export const PREVIEW_SIZE_SM = 200 // 2x the 100px row thumbnail, for crispness
+const PREVIEW_SIZE_SM = 200 // 2x the 100px row thumbnail, for crispness
 export const PREVIEW_SIZE_LG = 1000 // 2x the 500px hover preview, same logic
 
 // ── PDF: render page 1 to a canvas ──────────────────────────────────────────
 
 const pdfThumbCache = new Map<string, Promise<string>>()
 
-export function renderPdfThumbnail(url: string, sizePx: number = PREVIEW_SIZE_SM): Promise<string> {
+function renderPdfThumbnail(url: string, sizePx: number = PREVIEW_SIZE_SM): Promise<string> {
   const key = `${url}::${sizePx}`
   const cached = pdfThumbCache.get(key)
   if (cached) return cached
@@ -95,7 +95,7 @@ export function renderPdfThumbnail(url: string, sizePx: number = PREVIEW_SIZE_SM
 
 const stepThumbCache = new Map<string, Promise<string>>()
 
-export function renderStepThumbnail(url: string, sizePx: number = PREVIEW_SIZE_SM): Promise<string> {
+function renderStepThumbnail(url: string, sizePx: number = PREVIEW_SIZE_SM): Promise<string> {
   const key = `${url}::${sizePx}`
   const cached = stepThumbCache.get(key)
   if (cached) return cached

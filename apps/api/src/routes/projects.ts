@@ -7,9 +7,9 @@ import {
   waaromNietVersturen, waaromNietAccepteren, waaromNietWijzigen,
   waaromNietVerwijderen, waaromNietIntrekken, projectNaIntrekken,
   waaromNietVersturenOB, obInhoud, wijzigOpdracht,
-  type ProductieOrder, type ProductieStap, type Paklijst, type Factuur,
+  type ProductieOrder, type Paklijst, type Factuur,
   type Opdrachtbevestiging, type OBStatus,
-  berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie,
+  kopieerOfferte, volgendeVersie,
   isVrijgegeven, orderStatusNaStappen, vrijgeven, terugNaarVoorbereiding,
   waaromNietVrijgeven, waaromNietTerugNaarVoorbereiding,
   statusNaLevering, waaromNietPakbon, waaromNietDeelsGereed,
@@ -34,8 +34,6 @@ const router = Router()
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function now() { return new Date().toISOString() }
-
-type Db = typeof prisma | Prisma.TransactionClient
 
 /** Een voorwaarde uit `offerte-voorwaarden` die niet klopt → 409 met die zin. */
 function eis(reden: string | null): void {
@@ -72,15 +70,6 @@ function orderVoorRegel(p: Project, regel: OfferteRegel, qty: number, id: string
     createdAt: now(),
     updatedAt: now(),
   }
-}
-
-/** De naam van een offerteregel zoals op het scherm, voor in een melding. */
-function regelNaam(p: Project, offerteRegelId: string): string {
-  for (const o of p.offertes) {
-    const r = o.regels.find(x => x.id === offerteRegelId)
-    if (r) return `"${r.naam}"`
-  }
-  return offerteRegelId
 }
 
 // Every mutation below goes through this helper: it locks the project row

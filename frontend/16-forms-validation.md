@@ -31,7 +31,6 @@ for this doc's sake.
 
 - `userSchema`
 - `rawMaterialSchema`
-- `finishedGoodSchema` (legacy catalog shape — see `features/31-items-finished.md` for the drift vs. the frontend `Article` type)
 - `locationSchema`
 - `gradeSchema` (incl. optional `pricePerKg`)
 - `profileSchema`

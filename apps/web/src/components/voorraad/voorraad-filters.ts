@@ -97,7 +97,7 @@ export interface FilterRij {
  * "Verbruikt", dan juist wel. Een exoot op 0 is nog niet binnen, niet op, en
  * blijft dus zichtbaar.
  */
-export function isOp(r: FilterRij): boolean {
+function isOp(r: FilterRij): boolean {
   return !r.exoot && Number(r.currentStock) === 0
 }
 

@@ -22,7 +22,7 @@ export const PROJECT_STATUS_CONFIG: Record<Project['status'], { label: string; c
 }
 
 // Stage index for the mini pipeline (0-based, matching the 7 main stages)
-export const STATUS_STAGE: Record<Project['status'], number> = {
+const STATUS_STAGE: Record<Project['status'], number> = {
   concept: 0, offerte: 1, bevestigd: 2, productie: 3,
   paklijst: 4, verzonden: 5, gefactureerd: 6,
   on_hold: -1, geannuleerd: -1,
@@ -112,7 +112,7 @@ const countSort = (n: number) => (n > 0 ? n : null)
  * Status is a plain String column server-side (no DB enum) and the read path
  * casts it unchecked, so one drifted row must not take the whole list down.
  */
-export function statusCfg(status: Project['status']) {
+function statusCfg(status: Project['status']) {
   return PROJECT_STATUS_CONFIG[status] ?? { label: String(status || '—'), cls: 'prj-neutral' }
 }
 /** Lifecycle position; on_hold/geannuleerd (-1) and unknown sink rather than lead. */
@@ -466,7 +466,7 @@ export const COLUMN_BY_ID: Record<string, ProjectColumn> =
 // ── Column tints ──────────────────────────────────────────────────────────────
 // Low-alpha so a tint reads the same over the light and dark table backgrounds.
 
-export interface ColumnTint { key: string; label: string }
+interface ColumnTint { key: string; label: string }
 
 export const COLUMN_TINTS: ColumnTint[] = [
   { key: '',       label: 'Geen'   },
@@ -530,4 +530,3 @@ export function resolveAllColumns(order: string[]): ProjectColumn[] {
 }
 
 export const DEFAULT_HIDDEN = PROJECT_COLUMNS.filter(c => !c.defaultVisible).map(c => c.id)
-export const DEFAULT_ORDER = PROJECT_COLUMNS.map(c => c.id)

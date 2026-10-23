@@ -19,7 +19,7 @@ import { leesOverzicht } from './inkoop-overzicht'
 
 type Db = typeof prisma | Prisma.TransactionClient
 
-export const ORDER_INCLUDE = {
+const ORDER_INCLUDE = {
   leverancier: { select: { naam: true, email: true, contacten: true } },
   regels: {
     orderBy: { positie: 'asc' },
