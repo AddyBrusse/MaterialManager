@@ -47,6 +47,8 @@ export const BestelRegelSchema = z.object({
   projectId: z.string().nullable(),
   artikelId: z.string().nullable(),
   offerteRegelId: z.string().nullable(),
+  /** Bij een tekort: voor welke materiaalregel van het artikel (2026-10-23). */
+  materiaalRegelId: z.string().nullable().optional(),
   notitie: z.string().nullable(),
   /** Bij wie we een prijs gaan vragen (tab Te bestellen). */
   leverancierIds: z.array(z.string()),

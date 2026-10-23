@@ -3,6 +3,8 @@ import { materiaalSamenvatting } from '../../lib/materiaal-stand'
 
 const STAND = {
   kiezen: { tekst: 'Nog kiezen', klasse: 'warn', uitleg: 'nog geen materiaal gekozen voor deze regel' },
+  deels: { tekst: 'Deels gekozen', klasse: 'warn', uitleg: '' },
+  besteld: { tekst: 'Besteld', klasse: 'accent', uitleg: 'niets op voorraad: staat op de bestellijst' },
   gereserveerd: { tekst: 'Gereserveerd', klasse: 'accent', uitleg: '' },
   gezaagd: { tekst: 'Gezaagd', klasse: 'ok', uitleg: '' },
   geen: { tekst: 'Geen materiaal', klasse: '', uitleg: 'regel zonder artikel' },
@@ -29,9 +31,12 @@ export function MateriaalCel({
   const s = STAND[materiaal.stand]
   const samenvatting = materiaalSamenvatting(materiaal.reserveringen)
   const codes = materiaal.reserveringen.map((r) => r.barCode).join(', ')
+  const extra = [materiaal.deelTekst, materiaal.besteld && materiaal.stand !== 'besteld' ? 'rest besteld' : null]
+    .filter(Boolean).join(' · ')
   return (
     <td>
       <span className={`pdv2-pill ${s.klasse}`}>{s.tekst}</span>
+      {extra && <span className="sub">{extra}</span>}
       {samenvatting ? (
         <span className="sub" title={codes ? `Staven: ${codes}` : undefined}>
           {samenvatting}
@@ -39,7 +44,7 @@ export function MateriaalCel({
       ) : (
         s.uitleg && <span className="sub">{s.uitleg}</span>
       )}
-      {materiaal.stand === 'kiezen' && (
+      {(materiaal.stand === 'kiezen' || materiaal.stand === 'deels') && (
         <button
           type="button"
           className="pdv2-btn s"
@@ -47,10 +52,10 @@ export function MateriaalCel({
           disabled={geblokkeerd}
           onClick={onKiezen}
         >
-          Materiaal kiezen
+          {materiaal.stand === 'deels' ? 'Verder kiezen' : 'Materiaal kiezen'}
         </button>
       )}
-      {materiaal.stand === 'gereserveerd' && (
+      {(materiaal.stand === 'gereserveerd' || materiaal.stand === 'deels') && materiaal.reserveringen.some((r) => r.status !== 'done') && (
         <button type="button" className="pdv2-link" onClick={onNaarReserveringen}>
           naar Reserveringen
         </button>

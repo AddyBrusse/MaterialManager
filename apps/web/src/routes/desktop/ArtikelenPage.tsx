@@ -13,6 +13,7 @@ import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
 import { formatDimensions } from '../../api/raw-materials'
+import { materiaalRegelsVan, materiaalRegelTekst } from '../../utils/artikel-materialen'
 import { buildEstimateCtx, computeEstimateTotals, type EstimateTotals } from '../../api/estimate'
 import { useUserStore } from '../../stores/user'
 import { ArticleForm } from '../../components/articles/ArticleForm'
@@ -99,11 +100,13 @@ export function ArtikelenPage() {
   const totalsOf = (id: string): EstimateTotals =>
     totalsByArticle.get(id) ?? { materialTotal: 0, machiningTotal: 0, setupTotal: 0, cycleTotal: 0, externalTotal: 0, cost: 0, marginPct: 0, sell: 0, timeMin: 0, setupMin: 0, cycleMinPerPiece: 0 }
 
-  function formatRecipe(a: Article): { text: string; grade: string } | null {
+  function formatRecipe(a: Article): { text: string; grade: string; meer: string[] } | null {
     if (!a.recipe) return null
     const p = profileById(a.recipe.profileId)
     const dims = p ? formatDimensions(p, a.recipe.dimensions) : ''
-    return { text: `${p?.name ?? '?'} ${dims}`.trim(), grade: gradeName(a.recipe.gradeId) }
+    // De andere materiaalregels (2026-10-23): het recept is alleen de eerste.
+    const meer = materiaalRegelsVan(a).slice(1).map(materiaalRegelTekst)
+    return { text: `${p?.name ?? '?'} ${dims}`.trim(), grade: gradeName(a.recipe.gradeId), meer }
   }
 
   const [q, setQ]               = useState('')
@@ -319,6 +322,9 @@ export function ArtikelenPage() {
                         <>
                           <span className="cell-muted" style={{ fontSize: 12 }}>{rec.text}</span>
                           <span className="cell-mono cell-muted" style={{ marginLeft: 6, fontSize: 11 }}>· {rec.grade}</span>
+                          {rec.meer.length > 0 && (
+                            <span className="cell-muted" style={{ marginLeft: 6, fontSize: 11 }} title={rec.meer.join('\n')}>+{rec.meer.length}</span>
+                          )}
                         </>
                       ) : <span className="cell-muted" style={{ fontSize: 12, fontStyle: 'italic' }}>geen recept</span>}
                     </td>

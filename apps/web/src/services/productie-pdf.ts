@@ -3,8 +3,7 @@ import QRCode from 'qrcode'
 import type { Project, ProductieOrder } from '@stockmanager/shared'
 import { articlesApi } from '../api/articles'
 import { relatiesApi } from '../api/relaties'
-import { gradesApi } from '../api/grades'
-import { profilesApi } from '../api/profiles'
+import { materiaalRegelsVan, materiaalRegelTekst } from '../utils/artikel-materialen'
 import { companyApi } from '../api/company'
 
 const C = {
@@ -73,22 +72,11 @@ function formatDatum(iso: string | null): string {
 
 // ── Data helpers ───────────────────────────────────────────────────────────────
 
-function buildMaterialSpec(artikelId: string | null): string {
-  if (!artikelId) return ''
-  try {
-    const artikel = articlesApi.list().find(a => a.id === artikelId)
-    if (!artikel?.recipe) return ''
-    const { recipe } = artikel
-    const grade   = gradesApi.listSync().find(g => g.id === recipe.gradeId)
-    const profile  = profilesApi.listSync().find(p => p.id === recipe.profileId)
-    const dimStr = profile?.dimensionSchema
-      .map(d => `${d.label} ${recipe.dimensions[d.key] ?? '?'}${d.unit}`)
-      .join(' · ') ?? ''
-    return [grade?.name, profile?.name, dimStr, `L=${recipe.lengthPerPieceMm}mm`]
-      .filter(Boolean).join(' · ')
-  } catch {
-    return ''
-  }
+/** Eén regel per materiaal van het artikel (elke materiaalregel sinds 2026-10-23). */
+function buildMaterialSpecs(artikelId: string | null): string[] {
+  if (!artikelId) return []
+  const artikel = articlesApi.list().find(a => a.id === artikelId)
+  return materiaalRegelsVan(artikel).map(materiaalRegelTekst)
 }
 
 export function getOrdersWithMissingDrawing(orders: ProductieOrder[]): string[] {
@@ -160,8 +148,8 @@ async function drawProductieFormulier(doc: jsPDF, order: ProductieOrder, project
   let lyL = y
   lyL = infoItem('ARTIKEL',  order.artikelNaam,                    A4_M, lyL)
   lyL = infoItem('AANTAL',   `${order.qty} ${order.eenheid}`,      A4_M, lyL)
-  const spec = buildMaterialSpec(order.artikelId)
-  if (spec) lyL = infoItem('MATERIAAL', spec, A4_M, lyL)
+  const specs = buildMaterialSpecs(order.artikelId)
+  specs.forEach((spec, i) => { lyL = infoItem(specs.length > 1 ? `MATERIAAL ${i + 1}` : 'MATERIAAL', spec, A4_M, lyL) })
 
   let lyR = y
   lyR = infoItem('PROJECT',   `${project.id} — ${project.naam}`, rX, lyR)
@@ -398,7 +386,7 @@ async function drawLoopkaart(doc: jsPDF, order: ProductieOrder, project: Project
   }
 
   // Material band at bottom
-  const spec = buildMaterialSpec(order.artikelId)
+  const spec = buildMaterialSpecs(order.artikelId).join('  /  ')
   if (spec) {
     const bandH = 40
     const bandY = A5_H - A5_M - bandH

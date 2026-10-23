@@ -56,7 +56,7 @@ export async function naarRegels(db: Db, rijen: Rij[]): Promise<BestelRegel[]> {
       id: r.id, status: r.status as BestelStatus, bron: r.bron as BestelBron,
       gradeId: r.gradeId, profileId: r.profileId, dimensions: dims, lengteMm: maat.lengteMm, stuks: r.stuks,
       rawMaterialId: r.rawMaterialId, exoot: !!r.rawMaterial?.exoot,
-      projectId: r.projectId, artikelId: r.artikelId, offerteRegelId: r.offerteRegelId, notitie: r.notitie,
+      projectId: r.projectId, artikelId: r.artikelId, offerteRegelId: r.offerteRegelId, materiaalRegelId: r.materiaalRegelId, notitie: r.notitie,
       leverancierIds: r.leverancierIds,
       materiaal: `${r.grade.name} ${r.profile.name} ${maatTekst(r.profile.volumeFormula, dims)}`,
       gradeNaam: r.grade.name, profielNaam: r.profile.name,
@@ -314,23 +314,33 @@ export async function exootRegelsBijOpdracht(
 
 /**
  * Een tekort uit de materiaalselectie: één stuk van de lengte die ontbreekt,
- * naar het recept van het artikel. Lengte en stuks zijn daarna aan te passen.
+ * van het materiaal van die materiaalregel (2026-10-23; daarvóór altijd het
+ * recept, dus de eerste regel). Lengte en stuks zijn daarna aan te passen.
+ * Eén open regel per materiaalregel: twee keer kiezen zet hem er niet twee
+ * keer op.
  */
 export async function tekortRegel(
-  db: Db, ctx: { projectId: string; artikelId: string; offerteRegelId: string | null; tekortMm: number; door: string },
+  db: Db,
+  ctx: {
+    projectId: string; artikelId: string; offerteRegelId: string | null
+    materiaalRegelId: string | null; gradeId: string; profileId: string; dimensions: Record<string, number>
+    tekortMm: number; door: string
+  },
 ): Promise<string | null> {
-  const artikel = await db.article.findUnique({ where: { id: ctx.artikelId }, select: { recipe: true } })
-  const recept = artikel?.recipe as { gradeId?: string; profileId?: string; dimensions?: Record<string, number> } | null
-  if (!recept?.gradeId || !recept.profileId || !recept.dimensions || ctx.tekortMm <= 0) return null
+  if (!ctx.gradeId || !ctx.profileId || Object.keys(ctx.dimensions).length === 0 || ctx.tekortMm <= 0) return null
   const open = await db.bestelRegel.findFirst({
-    where: { bron: 'tekort', projectId: ctx.projectId, artikelId: ctx.artikelId, status: 'te_bestellen' }, select: { id: true },
+    where: {
+      bron: 'tekort', projectId: ctx.projectId, artikelId: ctx.artikelId, status: 'te_bestellen',
+      offerteRegelId: ctx.offerteRegelId, materiaalRegelId: ctx.materiaalRegelId,
+    },
+    select: { id: true },
   })
   if (open) return null
   const r = await db.bestelRegel.create({
     data: {
-      bron: 'tekort', gradeId: recept.gradeId, profileId: recept.profileId, dimensions: recept.dimensions,
+      bron: 'tekort', gradeId: ctx.gradeId, profileId: ctx.profileId, dimensions: ctx.dimensions,
       lengteMm: Math.ceil(ctx.tekortMm), stuks: 1, projectId: ctx.projectId, artikelId: ctx.artikelId,
-      offerteRegelId: ctx.offerteRegelId, toegevoegdDoor: ctx.door,
+      offerteRegelId: ctx.offerteRegelId, materiaalRegelId: ctx.materiaalRegelId, toegevoegdDoor: ctx.door,
     },
   })
   return r.id

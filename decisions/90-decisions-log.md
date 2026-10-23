@@ -2446,3 +2446,59 @@ punten en hun oorzaak:
   `CalcBewerkingen`, `CalcUitbestedingen`, `CalcNodeModal`, `calc-kit`).
 - Nog niet omgezet: `articlesApi.update`/`create` (artikelformulier, mail-import)
   vallen nog stil terug op de browserkopie.
+
+## 2026-10-23 — Elke materiaalregel uit voorraad (B1)
+
+Tot vandaag deed alleen de **eerste** materiaalregel van een artikel mee in
+materiaal kiezen, reserveren, afboeken en tekort bestellen. Een tweede regel
+(een as én een bus) werd wel in de kostprijs gerekend, maar nooit gekozen:
+geen reservering, niets afgeboekt, niet besteld. Addy koos voor de grote
+versie: elke regel uit voorraad.
+
+- **Welke regels**: alle materiaalregels met een kwaliteit, behalve een exoot
+  (`voorraadRegels` in `packages/shared/calc/materiaal-regels.ts`). Een exoot
+  volgt zijn eigen weg (bestelregel bij de opdracht, gereserveerd bij
+  ontvangst). Een artikel met alleen exoten krijgt geen todo "materiaal
+  selecteren" meer: er valt niets uit voorraad te kiezen.
+- **Per regel een eigen plan en een eigen vastlegging.** Elke regel heeft een
+  eigen maat, lengte en lader, dus elk zijn eigen `materiaalBehoefte` en
+  voorstellen. Reservering en tekort-bestelregel onthouden de regel
+  (`materiaalRegelId`, het id van de knoop in de calculatie; migratie
+  `20261023120000_materiaal_per_regel`). Leeg = van vóór vandaag en telt voor de
+  eerste regel, want toen was er alleen die (`regelVan`).
+- **Bewuste beperking**: regels van hetzelfde materiaal worden na elkaar
+  gekozen, niet samen op één staaf genest. De tweede ziet wat de eerste
+  vastlegde, maar een zuiniger gezamenlijke indeling zoekt hij niet. Komt zelden
+  voor; samen nesten zou het venster en de reservering ingewikkelder maken dan
+  het oplevert.
+- **Wat er per regel geregeld is, zegt de server** (`dekkingPerRegel`,
+  `services/materiaal-selectie.ts` → `GET /reservations/materiaal-dekking`).
+  In **stuks**, niet in lengtes: de lengtes per stang hangen af van het aantal
+  (gelijk verdeeld), dus bij een hoger aantal na het kiezen passen de oude
+  stangen niet op de nieuwe verdeling, maar de stuks die vastliggen blijven
+  gedekt en het venster rekent alleen de rest. Een regel is **klaar** als alle
+  stuks vastliggen (open, bezig of al afgeboekt) of als er voor die regel een
+  tekort-bestelregel openstaat.
+- **De todo gaat pas dicht als elke regel klaar is.** Het venster legt per
+  regel vast en springt dan naar de volgende; "Later kiezen" laat de rest
+  staan. De Opdracht-tab toont tussendoor "Deels gekozen · 1 van 2 materialen"
+  en "Verder kiezen"; alles op de bestellijst zonder voorraad heet "Besteld".
+- **Niets op voorraad** is geen doodlopende weg meer: "Op bestellijst zetten"
+  legt het hele tekort vast zonder staaf. Vroeger bleef de todo dan staan met
+  alleen de melding dat je zelf moest gaan bestellen.
+- **Tekort per materiaal**: `tekortRegel` neemt het materiaal van die regel,
+  niet meer het recept (dat is altijd de eerste regel). Eén open regel per
+  materiaalregel; de bestel-todo ook per materiaal.
+- **Een staaf moet ook in maat gelijk zijn** bij het vastleggen. Alleen
+  kwaliteit en vorm werden gecontroleerd; een Ø60 kon voor een Ø50-regel
+  worden vastgelegd als het verzoek dat vroeg.
+- **Nacalculatie rekende de hele staaf.** `materiaalWerkelijk` gebruikte
+  `fysiekeLengte` (de staaf bij het reserveren) en altijd rond materiaal: 300 mm
+  van een staaf van 3 m kostte 3 m, een vierkant woog als een ronde staaf met
+  diameter 0. Nu `sawLength` (wat er volgens de bon af ging, met een
+  meegenomen rest) en de vorm, maat en kwaliteit van de staaf zelf. Een
+  gemeten rest uit de Zaagflow telt nog niet apart mee.
+- **Documenten en lijsten** tonen alle materialen: kwaliteiten op offerte,
+  opdracht en factuur (`materiaalVan`), één regel per materiaal op de werkbon,
+  per regel in de tooltip van de marge, "+1" in de artikelenlijst
+  (`utils/artikel-materialen.ts`).
