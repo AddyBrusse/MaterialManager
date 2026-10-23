@@ -104,8 +104,10 @@ export function ArtikelenPage() {
     if (!a.recipe) return null
     const p = profileById(a.recipe.profileId)
     const dims = p ? formatDimensions(p, a.recipe.dimensions) : ''
-    // De andere materiaalregels (2026-10-23): het recept is alleen de eerste.
-    const meer = materiaalRegelsVan(a).slice(1).map(materiaalRegelTekst)
+    // De andere materiaalregels (2026-10-23): het recept is alleen de eerste die geen exoot is.
+    const alle = materiaalRegelsVan(a)
+    const recept = alle.findIndex((r) => !r.exoot)
+    const meer = alle.filter((_, i) => i !== recept).map(materiaalRegelTekst)
     return { text: `${p?.name ?? '?'} ${dims}`.trim(), grade: gradeName(a.recipe.gradeId), meer }
   }
 
