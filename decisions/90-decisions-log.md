@@ -2382,3 +2382,67 @@ geheel terugdraaien.
   met beide tijden (`receptMachines`). Valt een stap niet te koppelen (met de
   hand bijgezet, recept gewijzigd), dan nog het gelijke deel.
 - Hetzelfde voor de bewerkingen van een verstuurde offerte in de Prognose.
+
+
+## 2026-10-23 — Artikelreceptpagina: opslaan via de server, slot, kleine punten in één ronde
+
+Addy liep op de receptpagina tegen te veel kleine dingen aan. Werkwijze: één
+lijst per pagina met Doen / Niet / Later, in één ronde gebouwd en getest. De
+punten en hun oorzaak:
+
+- **Lezen en opslaan via de server.** De pagina las uit de kopie in de browser
+  (`sm_articles`) en `articlesApi.update` slikte fouten in. Gevolg: een direct
+  geopend artikel kon een oude stand tonen, en die ging bij de volgende wijziging
+  terug naar de server; een mislukte opslag zag niemand. Nu `articlesApi.haal` /
+  `opslaan` (`hooks/useArtikelBewerken.ts`): lezen van de server, vanzelf
+  opslaan 0,4 s na de laatste wijziging, één verzoek tegelijk, groen pas na
+  antwoord. De knop "Opslaan" (sloeg alleen de kop op) is weg; de stand staat
+  naast de titel, niet rechtsboven, want daar komen de meldingen en een
+  foutmelding lag precies over "Opnieuw opslaan".
+- **Een mislukte opslag blijft op het scherm staan**, rood gemarkeerd, met
+  "Opnieuw opslaan" en één melding per reeks. Dit wijkt bewust af van "een
+  optimistische wijziging die mislukt gaat van het scherm af" (CLAUDE.md): hier
+  zou dat getypt werk weggooien, terwijl het scherm duidelijk zegt dat het niet
+  op de server staat. Weggaan binnen de 0,4 s slaat meteen op; de pagina
+  sluiten met iets onopgeslagens vraagt de browser eerst.
+- **Slot op het artikel** (`ItemType` + `article`, migratie
+  `20261023090000_artikel_slot`; `hooks/useEditLock.ts`, nu ook onder
+  `useProjectLock`). Wie eerst komt bewerkt, de rest kijkt mee en ziet
+  wijzigingen binnen 5 s; klikken op een dicht veld zegt waarom. Net als bij
+  projecten handhaaft de server het slot niet bij opslaan. Het slot is per
+  gebruiker: dezelfde persoon in twee tabbladen deelt het, en sluiten van het ene
+  geeft het even vrij tot het andere het binnen 5 s terugpakt.
+- **Recept volgt de calculatie** (`receptUitCalculatie`): de eerste
+  materiaalregel die geen exoot is, is het recept; de laatste weg = recept leeg.
+  Het recept bleef eerder staan op wat er bij het aanmaken stond.
+- **Eén materiaalkiezer.** Dubbelklik op een materiaalregel opende nog het oude
+  venster met keuzelijsten, zonder stangenlader. Nu opent dezelfde kiezer als
+  "Materiaal kiezen", met de regel al aangeklikt. Een vaste prijs blijft alleen
+  bij hetzelfde materiaal; een naam die het oude materiaal beschreef gaat mee,
+  een zelf gegeven naam blijft.
+- **Dezelfde machine twee keer in het recept = twee stappen.** Dit draait het
+  besluit van 2026-10-09 ("één stap met beide tijden") terug. Een machineknoop
+  is een opspanning; twee knopen op de draaibank (voordraaien, nadraaien) zijn
+  twee keer werk, en de prijs telde ze al allebei. `bewerkingenVan` ontdubbelt
+  niet meer. Orders van vóór vandaag hebben per machine één stap; die krijgt bij
+  het plannen nog steeds de tijd van alle knopen samen (`receptMachineVoorStap`).
+  De nacalculatie telt per machine en verandert dus niet.
+- **Getallen met komma** in de calculator (`AcalcNum` is een tekstveld,
+  `leesGetal`/`toonGetal`): `type="number"` volgt de taal van de browser.
+- **Verwijderen met "Ongedaan maken"** (8 s), terug op dezelfde plek: één klik
+  op de prullenbak kon een machine met al zijn stappen kosten.
+- **"Uit" alleen bij een minimumvoorraad**: een artikel op bestelling staat op 0
+  en dat is dan "Geen voorraad", geen alarm.
+- **Staffel**: klein onder de getallen, de prijs per stuk bij 10, 25 en 50 stuks
+  (insteltijd en uitbesteding verdeeld). Bewust niet prominent; zonder
+  insteltijd verdwijnt de regel.
+- **Exoot**: het aantal staat in de lengtekolom, de laderkolom zegt "geen lader".
+- **Stangenlader-balk** krimpt mee met zijn kolom (`LaderStangBalk vullend`) en
+  steekt niet meer over de keuze van de lader.
+- **Nieuwe bewerking** begint leeg met een placeholder, in plaats van een naam
+  die je eerst moest weghalen.
+- **Tabs** in de vorm van de rest van de app (mapjes zoals `.pdv2-tab`).
+- **Calculator opgesplitst** in een bestand per sectie (`CalcMaterialen`,
+  `CalcBewerkingen`, `CalcUitbestedingen`, `CalcNodeModal`, `calc-kit`).
+- Nog niet omgezet: `articlesApi.update`/`create` (artikelformulier, mail-import)
+  vallen nog stil terug op de browserkopie.

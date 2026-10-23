@@ -10,13 +10,19 @@ const HALF_VLAK = ZAAG_STANDAARD.vlakToeslag / 2
  * afsteek, dan het grijpstuk, en wat er tot de maximale laderlengte niet
  * gebruikt wordt. Elke lengte zijn eigen kleur.
  */
-export function LaderStangBalk({ werkstukMm, lader, stuks, breedte = 520, legenda = true }: {
+export function LaderStangBalk({ werkstukMm, lader, stuks, breedte = 520, legenda = true, vullend = false }: {
   werkstukMm: number
   lader: LaderGegevens
   /** Standaard een volle stang. */
   stuks?: number
   breedte?: number
   legenda?: boolean
+  /**
+   * Krimpt mee met zijn kolom, tot hooguit `breedte` (2026-10-23). In de
+   * calculator stak de balk met een vaste breedte uit zijn kolom en over de
+   * keuze van de stangenlader heen.
+   */
+  vullend?: boolean
 }) {
   const stuk = stukOpStang(werkstukMm, lader)
   if (stuk <= 0) return <div className="mt-leeg">Vul een werkstuklengte in</div>
@@ -34,7 +40,10 @@ export function LaderStangBalk({ werkstukMm, lader, stuks, breedte = 520, legend
   const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round((lader.barloaderMaxMm * f) / 50) * 50)
   return (
     <div className="mt-balk">
-      <svg width={breedte} height={46} role="img" aria-label={`Laderstang ${nl(x)} mm met ${k} stuks`}>
+      <svg role="img" aria-label={`Laderstang ${nl(x)} mm met ${k} stuks`}
+        {...(vullend
+          ? { width: '100%', viewBox: `0 -2 ${breedte} 48`, style: { maxWidth: breedte } }
+          : { width: breedte, height: 46 })}>
         {delen.map((d, i) => <rect key={i} x={d.x * S} y={0} width={Math.max(0.6, d.w * S)} height={30} className={`mt-${d.c}`} />)}
         {over > 0 && <rect x={x * S} y={0} width={over * S} height={30} className="mt-rest-leeg" />}
         <line x1={lader.barloaderMaxMm * S - 0.5} x2={lader.barloaderMaxMm * S - 0.5} y1={-2} y2={32} className="mt-max" />

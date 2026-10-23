@@ -36,9 +36,9 @@ export interface ReceptMachine {
 
 /**
  * De machines uit het recept zoals de stappen ervan gemaakt worden
- * (`bewerkingenVan`): op naam, in volgorde, dubbele samengenomen — staat
- * dezelfde machine twee keer in het recept, dan is dat één stap met de tijd
- * van beide.
+ * (`bewerkingenVan`): op naam, in volgorde, één per machineknoop. Staat
+ * dezelfde machine twee keer in het recept, dan zijn dat sinds 2026-10-23 twee
+ * stappen, elk met de tijd van zijn eigen knoop.
  */
 export function receptMachines(artikel: Article | undefined, machines: { id: string; name: string }[] = []): ReceptMachine[] {
   const uit: ReceptMachine[] = []
@@ -47,28 +47,42 @@ export function receptMachines(artikel: Article | undefined, machines: { id: str
     const naam = (n.machineId ? machines.find(m => m.id === n.machineId)?.name : null) ?? n.name
     if (!naam) continue
     const cycleMin = (n.steps ?? []).reduce((s, st) => s + (st.cycleMin || 0), 0)
-    const al = uit.find(m => m.naam === naam)
-    if (al) { al.setupMin += n.setupMin ?? 0; al.cycleMin += cycleMin }
-    else uit.push({ naam, setupMin: n.setupMin ?? 0, cycleMin })
+    uit.push({ naam, setupMin: n.setupMin ?? 0, cycleMin })
   }
   return uit
 }
 
-const zelfdeNaam = (a: string | null | undefined, b: string) => !!a && a.trim().toLowerCase() === b.trim().toLowerCase()
+const zelfdeNaam = (a: string | null | undefined, b: string | null | undefined) =>
+  !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase()
 
 /**
- * Welke machine uit het recept hoort bij de stap op plek `index` met deze naam?
- * Eerst op plek (zo worden ze gemaakt) als de naam klopt, dan op naam, dan op
- * plek als het aantal stappen gelijk is. Anders `null`.
+ * Welke machine uit het recept hoort bij de stap op plek `index`?
+ *
+ * Op naam, en bij een machine die vaker in het recept staat de zoveelste: de
+ * tweede stap op de draaibank hoort bij de tweede draaibankknoop. Een order van
+ * vóór 2026-10-23 heeft per machine maar één stap (toen werden dubbele
+ * samengenomen); die stap krijgt dan de tijd van alle knopen samen, zoals toen.
+ * Benoemt de stap geen machine uit het recept, dan op plek als het aantal
+ * stappen gelijk is. Anders `null`.
  */
 export function receptMachineVoorStap(
-  recept: ReceptMachine[], naam: string | null | undefined, index: number, aantalStappen: number,
+  recept: ReceptMachine[], naam: string | null | undefined, index: number, stapNamen: (string | null | undefined)[],
 ): ReceptMachine | null {
+  const zelfde = recept.filter(m => zelfdeNaam(naam, m.naam))
+  if (zelfde.length > 0) {
+    const stappenZelfde = stapNamen.filter(n => zelfdeNaam(n, naam)).length
+    if (stappenZelfde === 1 && zelfde.length > 1) {
+      return {
+        naam: zelfde[0].naam,
+        setupMin: zelfde.reduce((s, m) => s + m.setupMin, 0),
+        cycleMin: zelfde.reduce((s, m) => s + m.cycleMin, 0),
+      }
+    }
+    const k = stapNamen.slice(0, Math.max(0, index)).filter(n => zelfdeNaam(n, naam)).length
+    return zelfde[Math.min(k, zelfde.length - 1)]
+  }
   const opPlek = recept[index]
-  if (opPlek && zelfdeNaam(naam, opPlek.naam)) return opPlek
-  const opNaam = recept.find(m => zelfdeNaam(naam, m.naam))
-  if (opNaam) return opNaam
-  return opPlek && recept.length === aantalStappen ? opPlek : null
+  return opPlek && recept.length === stapNamen.length ? opPlek : null
 }
 
 /**
@@ -88,7 +102,9 @@ export function berekenStapMin(
   const artikel = order.artikelId ? articles.find(a => a.id === order.artikelId) : undefined
   const recept = receptMachines(artikel, machines)
   const index = order.stappen.findIndex(s => s.id === stap.id)
-  const m = receptMachineVoorStap(recept, stap.machine ?? stap.naam, index < 0 ? stap.volgorde - 1 : index, order.stappen.length)
+  const m = receptMachineVoorStap(
+    recept, stap.machine ?? stap.naam, index < 0 ? stap.volgorde - 1 : index, order.stappen.map(s => s.machine ?? s.naam),
+  )
   if (m) return { min: Math.max(1, Math.round(m.setupMin + m.cycleMin * order.qty)), isPlaceholder: false }
   const result = berekenOrderMin(order, articles)
   const nStappen = Math.max(1, order.stappen.length)

@@ -243,7 +243,7 @@ export function berekenGhostBelasting(
         const recept = receptMachines(articles.find(a => a.id === regel.artikelId), machines)
         regel.bewerkingen.forEach((bewerking, i) => {
           const machine = machines.find(m => matchesMachineNaam(bewerking, m.name))
-          const rm = receptMachineVoorStap(recept, bewerking, i, regel.bewerkingen.length)
+          const rm = receptMachineVoorStap(recept, bewerking, i, regel.bewerkingen)
           const duur = rm ? Math.max(1, rm.setupMin + rm.cycleMin * regel.qty) : perOp
           backfillFromDeadline(offerteMap, machine ? machine.name : '', deadlineDay, duur)
         })

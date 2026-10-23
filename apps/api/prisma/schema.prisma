@@ -24,6 +24,7 @@ enum ItemType {
   raw
   finished
   project
+  article
 }
 
 enum MovementKind {

@@ -7,6 +7,7 @@ import type { ArticleEstimate } from '../../api/articles'
 import type { EstimateCtx, EstimateTotals } from '../../api/estimate'
 import { Ic, Icon } from './calc-icons'
 import { ArticleSankey, buildLegend, buildSankey } from './ArticleSankey'
+import { staffelPrijzen } from './calc-helpers'
 
 const euro = (n: number): string =>
   `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -25,6 +26,11 @@ export function ArticleFinancialCard({ est, ctx, totals, onMarginChange }: Artic
   // the column labels stay over their (shifted) node columns.
   const { shiftX } = buildSankey(est, ctx, totals.sell)
   const headShift = `translateX(${((shiftX / 520) * 100).toFixed(2)}%)`
+  // Wat een stuk kost in een serie (2026-10-23): insteltijd en uitbesteding
+  // over meer stuks verdeeld. Bewust klein; zonder insteltijd is elk aantal
+  // even duur en zegt de regel niets.
+  const staffel = staffelPrijzen(est, ctx)
+  const toonStaffel = staffel.some(s => Math.abs(s.perStuk - totals.sell) >= 0.005)
 
   return (
     <div className="afc-card">
@@ -66,6 +72,14 @@ export function ArticleFinancialCard({ est, ctx, totals, onMarginChange }: Artic
           </div>
         </div>
       </div>
+
+      {toonStaffel && (
+        <div className="afc-staffel" title="Verkoopprijs per stuk bij een serie: insteltijd en uitbesteding verdeeld over de stuks, materiaal in hele laderstangen">
+          Per stuk bij {staffel.map((s, i) => (
+            <span key={s.aantal}>{i > 0 && ' · '}{s.aantal} st <b>{euro(s.perStuk)}</b></span>
+          ))}
+        </div>
+      )}
 
       {/* ── Prijsopbouw ──────────────────────────────────────────────── */}
       <div className="afc-buildup">

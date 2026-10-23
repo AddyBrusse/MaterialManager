@@ -71,7 +71,7 @@ describe('bewerkingenVan', () => {
     { id: 'm2', name: 'Draaibank' },
   ]
 
-  it('geeft de machinenamen, zonder dubbelen', () => {
+  it('geeft de machinenamen in de volgorde van het recept, materiaal niet', () => {
     const a = artikel({
       estimate: {
         marginPct: 20, updatedAt: '',
@@ -83,7 +83,7 @@ describe('bewerkingenVan', () => {
         ],
       },
     })
-    expect(bewerkingenVan(a, MACHINES)).toEqual(['DMG 450TC EcoLine', 'Draaibank'])
+    expect(bewerkingenVan(a, MACHINES)).toEqual(['DMG 450TC EcoLine', 'Draaibank', 'DMG 450TC EcoLine'])
   })
 
   it('neemt de naam uit de machinelijst, niet die van de knoop', () => {
@@ -100,9 +100,10 @@ describe('bewerkingenVan', () => {
     expect(bewerkingenVan(a, MACHINES)).toEqual(['DMG 450TC EcoLine'])
   })
 
-  it('dedupliceert op de opgeloste naam, niet op die van de knoop', () => {
-    // Twee knopen met verschillende namen op dezelfde machine zijn één
-    // bewerking; zonder dit stonden er twee identieke stappen op de order.
+  it('elke machineknoop is een eigen bewerking, ook op dezelfde machine', () => {
+    // Sinds 2026-10-23: een knoop is een opspanning. Twee knopen op dezelfde
+    // machine zijn twee keer werk aan die machine, dus twee stappen op de
+    // order. Tot dan werden ze samengenomen terwijl de prijs ze allebei telde.
     const a = artikel({
       estimate: {
         marginPct: 20, updatedAt: '',
@@ -112,7 +113,7 @@ describe('bewerkingenVan', () => {
         ],
       },
     })
-    expect(bewerkingenVan(a, MACHINES)).toEqual(['DMG 450TC EcoLine'])
+    expect(bewerkingenVan(a, MACHINES)).toEqual(['DMG 450TC EcoLine', 'DMG 450TC EcoLine'])
   })
 
   it('houdt de naam van de knoop als de machine niet te herleiden is', () => {

@@ -43,50 +43,63 @@ becomes the article recipe.
 
 ---
 
-## Component structure
+## Component structure (2026-10-23)
+
+The calculator was one file of 730 lines; it is now a shell plus one file per
+section. What the sections share is passed as a `CalcKit` (`calc-kit.tsx`):
+the estimate context, `readOnly`, open/closed state, `updateNode`, `verwijder`
+(delete with "Ongedaan maken"), drag props and the fixed bits of a row.
 
 ```
-ArticleCalculator
-├── MaterialConfig   — grade/profile/dimensions/length fields for a material node
-├── MachineConfig    — machine select + active-machine preview for a machine node
-├── MaterialModalFields  — full edit form for a material node (uses MaterialConfig)
-├── MachineModalFields   — full edit form for a machine node (uses MachineConfig)
-├── ExternalModalFields  — full edit form for an external node
-├── NodeEditModal    — single shared Modal that renders one of the above based on `state.type`
-└── (main component) — renders the three tree-table sections + wires up the modal
+ArtikelDetailPage                 routes/desktop — title, cards, tabs, read-only fieldsets
+├── useEditLock('article', id)    hooks — who may edit (same lock as projects)
+├── useArtikelBewerken(id, slot)  hooks — read from the server, auto-save, status
+├── ArtikelStand                  status next to the title (opgeslagen / niet opgeslagen / je kijkt mee)
+├── ArtikelTabs                   folder tabs like the project page (.ad-tab)
+└── ArticleCalculator             shell: data, ctx, modals, CalcKit
+    ├── CalcMaterialen            MateriaalRegel / ExootRegel per node
+    ├── CalcBewerkingen           machine head + setup row + step rows
+    ├── CalcUitbestedingen        external rows
+    ├── CalcNodeModal             add/edit modal for machine and external only
+    └── MaterialPickerModal       the one material picker: add ("Materiaal kiezen")
+                                  and change (double-click a row, `huidig`)
 ```
 
-### The "embedded" dual-context pattern
+Helpers without JSX live in `calc-helpers.ts` (tested): `leesGetal`/`toonGetal`
+(comma decimals), `duurTekst`, `materialName`, `hoofdmateriaal`,
+`receptUitCalculatie`, `staffelPrijzen`.
 
-`MaterialConfig` and `MachineConfig` are used in **two places**:
+### Saving, lock and read-only (2026-10-23)
 
-1. **Inline, in a `Popover`** (compact editing directly from the tree row) —
-   default props: `embedded={false}`, `size="xs"`.
-2. **Inside `NodeEditModal`** (full add/edit dialog) — passed
-   `embedded size="sm"`.
-
-Rules for this pattern:
-
-- Signature shape: `{ node, ...data, onChange, embedded?: boolean, size?: 'xs' | 'sm' }`,
-  defaulting to `embedded = false, size = 'xs'`.
-- All `Select`/`NumberInput`/`TextInput` inside the shared component use
-  `size={size}` — never hardcode a size.
-- The component's own header (icon + title row with a border-bottom) is wrapped
-  in `{!embedded && (...)}` — the modal supplies its own title and section
-  Dividers, so the embedded header would be redundant.
-- Muted/info text (e.g. "Geen materialen beschikbaar", the grade/profile preview
-  box) uses a conditional size: `embedded ? 12.5 : 11` (or `11.5` for the preview
-  box), and `padding: embedded ? '10px 12px' : '8px 10px'` for the preview box.
-  Embedded (modal) context gets the larger, more breathing-room values.
-- **Do not duplicate** `MaterialConfig`/`MachineConfig` for the modal — extend
-  the existing component with `embedded`/`size` props, as done here.
+- **Read** from the server (`articlesApi.haal`), not from the browser copy in
+  `sm_articles`. If the server can't be reached the copy is shown, marked, and
+  read-only.
+- **Save** 0.4 s after the last change (`articlesApi.opslaan`), one request at a
+  time. The status says "Bezig met opslaan…" from the first keystroke and turns
+  green only after the server answered. On failure the input stays on screen,
+  the status turns red with "Opnieuw opslaan", and one `meldFout` per series
+  (removed again once a retry succeeds). Leaving the page within the 0.4 s
+  saves immediately; closing the tab with unsaved work asks first.
+- **Recipe** follows the calculation (`receptUitCalculatie`): the first
+  non-exoot material row is the recipe; removing the last one clears it.
+- **Lock**: the first to open the article edits; later visitors see
+  "<naam> heeft dit artikel open: je kijkt mee", everything sits in a disabled
+  `fieldset.ad-slot`, and clicking a locked control explains why
+  (`zegWaaromDicht`, on `pointerdown` because disabled controls get no click).
+  When the holder leaves, the viewer gets the lock within ~5 s.
+- **Numbers** in the calculator are `AcalcNum`: a text input with comma
+  decimals and arrow up/down, never `type="number"` (that follows the browser
+  locale and showed "3.71").
+- **Delete** always offers "Ongedaan maken" (8 s), back at the same position.
 
 ---
 
 ## The add/edit modal pattern (`NodeEditModal`)
 
-All three sections (material/machine/external) share **one** modal component and
-**one** state shape:
+Machine and external rows share **one** modal component (`CalcNodeModal`) and
+**one** state shape. A material row never uses it: adding and changing a
+material both go through `MaterialPickerModal` (2026-10-23; there was a second,
+older material dialog without the bar loader).
 
 ```ts
 type ModalState = { type: EstimateNodeType; mode: 'add' | 'edit'; draft: EstimateNode }
@@ -101,8 +114,8 @@ Flow:
   node) and call `setModal({ type, mode: 'add', draft })`. The node is **not**
   inserted into `nodes` yet.
 - **Edit**: `openEditNode(node)` calls `setModal({ type: node.type, mode: 'edit', draft: { ...node } })`.
-  Triggered by **double-clicking the row** (`onDoubleClick={() => openEditNode(node)}`)
-  or by the edit icon button.
+  Triggered by **double-clicking the row**, also on the name. The pencil only
+  unlocks the name field for typing.
 - **Field changes**: all modal field components call `onChange(partial)`, which
   is `updateDraft(p) => setModal(m => m ? { ...m, draft: { ...m.draft, ...p } } : m)`.
 - **Confirm**: `confirmModal()` — if `mode === 'add'`, append `modal.draft` to
@@ -180,9 +193,9 @@ hardcoding — the same component serves both contexts.
 - Row actions live in a `.row-actions` wrapper (CSS: `opacity: 0`, revealed via
   `.calc-row:hover .row-actions { opacity: 1 }`, icons sized 14px in 24px buttons).
 - **Icon order is always edit-then-delete**: the pencil (`Icon.edit`,
-  `title="<Type> bewerken"`, `onClick={() => openEditNode(node)}`) goes **before**
-  the trash (`Icon.trash`, `title="<Type> verwijderen"`, `onClick={() => removeNode(node.id)}`).
-  Apply this order to any new row type.
+  `title="Naam bewerken"`, unlocks the name) goes **before** the trash
+  (`Prullenbak`, `title="<Type> verwijderen"`, `kit.verwijder(node, '<Type>')`,
+  which offers "Ongedaan maken"). Apply this order to any new row type.
 - "Add new" rows: `<div className="calc-row"><div className="calc-addrow"><button type="button" className="calc-add" onClick={openAdd...}><Ic d={Icon.plus} /><Label> toevoegen</button></div></div>`.
   Nested add rows (e.g. "Bewerking toevoegen" under a machine) use
   `className="calc-addrow indent"`.
