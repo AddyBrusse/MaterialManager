@@ -30,7 +30,7 @@ function alsOptie(leverancierId: string, naam: string, c: Cel, goedkoopst: boole
   }
 }
 
-export interface OverzichtFilter {
+interface OverzichtFilter {
   projectId?: string
   regelIds?: string[]
 }

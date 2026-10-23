@@ -31,7 +31,7 @@ export type TabStand =
   /** Wacht op iets buiten dit scherm — niemand hoeft nu iets te doen. */
   | 'wacht'
 
-export interface TabStandBron {
+interface TabStandBron {
   project: Project
   nacalc: ProjectNacalculatie | null
   /** Open todo's van dít project. */

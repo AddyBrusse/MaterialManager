@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import {
-  reservationsApi, houdtVast,
+  reservationsApi,
   type CreateReservationInput, type ZaagReservation,
 } from '../api/reservations'
 
@@ -13,16 +13,10 @@ import {
  * toont het ene scherm een staaf die het andere al opgebruikt heeft.
  */
 
-export const RESERVERINGEN_KEY = ['reservations'] as const
+const RESERVERINGEN_KEY = ['reservations'] as const
 
 export function useReserveringen() {
   return useQuery({ queryKey: RESERVERINGEN_KEY, queryFn: reservationsApi.list })
-}
-
-/** Alleen wat nog materiaal vasthoudt. */
-export function useOpenReserveringen() {
-  const q = useReserveringen()
-  return { ...q, data: (q.data ?? []).filter(houdtVast) }
 }
 
 function ververs(qc: QueryClient) {
@@ -96,24 +90,5 @@ export function useZetReserveringStatus() {
       reservationsApi.setStatus(v.id, v.status),
     onSuccess: () => ververs(qc),
     onError: meldFout('Status bijwerken mislukt'),
-  })
-}
-
-export function useZetPrioriteit() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (v: { id: string; priority: number | null }) =>
-      reservationsApi.setPriority(v.id, v.priority),
-    onSuccess: () => ververs(qc),
-    onError: meldFout('Prioriteit bijwerken mislukt'),
-  })
-}
-
-export function useZaagplanOpslaan() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (jobs: { ids: string[]; rush: boolean }[]) => reservationsApi.applyPlan(jobs),
-    onSuccess: () => ververs(qc),
-    onError: meldFout('Planning opslaan mislukt'),
   })
 }

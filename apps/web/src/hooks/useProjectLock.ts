@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { locksApi } from '../api/locks'
 import { useUserStore } from '../stores/user'
 
-export interface ProjectLockState {
+interface ProjectLockState {
   /** This user holds the edit lock — the page is editable. */
   isHolder: boolean
   /** Someone else holds the lock — the page must be read-only. */

@@ -20,7 +20,7 @@ import { meldFout } from '../../utils/fout-melding-toon'
 import { toonPlanningMelding } from './PlanningMelding'
 import { gevuldGat, toonGatKeuze } from './GatKeuze'
 
-export interface HerberekenOpties {
+interface HerberekenOpties {
   aanleiding: string
   /** Orders die net vrijgegeven zijn: de melding noemt die als "ingepland". */
   nadruk?: string[]
@@ -41,7 +41,7 @@ export function vandaag(): Date {
 }
 
 /** De open stappen zoals elk planningscherm ze ziet. */
-export function openJobs(): QueueJob[] {
+function openJobs(): QueueJob[] {
   const articles = articlesApi.list()
   return buildQueueJobs(buildStapItems(projectsApi.list(), articles), articles).filter((j) => !j.gereed)
 }

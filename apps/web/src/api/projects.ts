@@ -1,13 +1,13 @@
 import type {
   Project, CreateProject, UpdateProject,
-  Offerte, OfferteRegel, OfferteStatus,
+  OfferteRegel, OfferteStatus,
   ProductieOrder,
   Paklijst, Factuur,
   Opdrachtbevestiging, OBStatus,
   OpdrachtWijziging, PakbonRegelKeuze, FactuurRegelKeuze,
 } from '@stockmanager/shared'
 import {
-  berekenVoortgang, basisRegels, kopieerOfferte, volgendeVersie, projectNaIntrekken, obInhoud,
+  projectNaIntrekken, obInhoud,
   isVrijgegeven, orderStatusNaStappen, vrijgeven, terugNaarVoorbereiding, waaromNietTerugNaarVoorbereiding,
   statusNaLevering, waaromNietPakbon, voorstelPakbon, pakbonRegels, waaromNietPakbonWijzigen,
   BTW_PCT, factuurBedragen, factuurRegels, factuurMailadres, voorstelFactuur, voorstelCredit, waaromNietFactuur,
@@ -19,15 +19,6 @@ import { relatiesApi } from './relaties'
 import { meldFout } from '../utils/fout-melding-toon'
 import type { LaadFout } from '../utils/fout-melding'
 import { Weigering } from '../utils/fout-melding'
-
-// Bedragen worden op twee plekken berekend (hier optimistisch, op de server
-// definitief). Zelfde afronding, anders springt het bedrag zodra het antwoord
-// binnenkomt.
-function geldbedragen(regels: { totaal: number }[], btwPct: number) {
-  const subtotaal = Math.round(regels.reduce((s, r) => s + r.totaal, 0) * 100) / 100
-  const btwBedrag = Math.round(subtotaal * (btwPct / 100) * 100) / 100
-  return { subtotaal, btwBedrag, totaalInclBtw: Math.round((subtotaal + btwBedrag) * 100) / 100 }
-}
 
 // ── Cache layer ────────────────────────────────────────────────────────────────
 
@@ -1236,7 +1227,7 @@ export const projectsApi = {
 // waarheid waarvan er één stil verkeerd was — vandaar weg. Wie de status wil
 // weten leest `project.status`.
 
-export function getAcceptedOfferte(p: Project) {
+function getAcceptedOfferte(p: Project) {
   return p.offertes.find(o => o.status === 'geaccepteerd') ?? null
 }
 
@@ -1244,10 +1235,6 @@ export function getProjectSubtotaal(p: Project): number {
   const off = getAcceptedOfferte(p)
   if (!off) return 0
   return off.regels.reduce((s, r) => s + r.totaal, 0)
-}
-
-export function allOrdersGereed(p: Project): boolean {
-  return p.productieOrders.length > 0 && p.productieOrders.every(o => o.status === 'gereed' || o.status === 'gestopt')
 }
 
 export function formatBedrag(n: number): string {

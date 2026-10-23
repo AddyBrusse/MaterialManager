@@ -74,7 +74,7 @@ interface RegistratieRij {
  * Uren optellen. Alleen afgeronde registraties: lopend werk is nog geen feit, en
  * een klok die nu toevallig draait hoort een nacalculatie niet te laten schommelen.
  */
-export function telUren(rijen: RegistratieRij[], tarieven: Tarieven): GemetenUren & { stuks: number; instelMetingen: number[] } {
+function telUren(rijen: RegistratieRij[], tarieven: Tarieven): GemetenUren & { stuks: number; instelMetingen: number[] } {
   let instellenSeconden = 0, draaienSeconden = 0
   let instellenKosten = 0, draaienKosten = 0, onbemandSeconden = 0
   let aantalRegistraties = 0, stuks = 0
@@ -117,7 +117,7 @@ export function telUren(rijen: RegistratieRij[], tarieven: Tarieven): GemetenUre
  * is het eerlijker om het gecalculeerde bedrag te laten staan dan een nul te
  * tonen die als besparing gelezen wordt.
  */
-export async function materiaalWerkelijk(
+async function materiaalWerkelijk(
   db: Db, waar: Prisma.ZaagReserveringWhereInput,
 ): Promise<number | null> {
   const reserveringen = await db.zaagReservering.findMany({
@@ -206,7 +206,7 @@ function naarKlokregel(r: RegistratieRij & {
   }
 }
 
-export interface OrderNacalculatie extends Nacalculatie {
+interface OrderNacalculatie extends Nacalculatie {
   orderId: string
   projectId: string
   artikelId: string | null
@@ -292,7 +292,7 @@ async function bouwVoorOrder(db: Db, order: OrderRij): Promise<OrderNacalculatie
   }
 }
 
-export interface ProjectNacalculatie {
+interface ProjectNacalculatie {
   projectId: string
   orders: OrderNacalculatie[]
   gecalculeerdTotaal: number
@@ -339,7 +339,7 @@ export async function voorProject(db: Db, projectId: string): Promise<ProjectNac
   }
 }
 
-export interface ArtikelNacalculatie {
+interface ArtikelNacalculatie {
   artikelId: string
   orders: OrderNacalculatie[]
   /** Over alle orders heen: hoe vaak dit artikel gemeten is. */

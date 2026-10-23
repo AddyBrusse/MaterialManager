@@ -76,15 +76,15 @@ const CAD_EXTENSIONS = new Set([
 const GENERIEKE_NAMEN =
   /^(scan|scans|tekening|tekeningen|drawing|drawings|document|documenten|bijlage|bijlagen|attachment|attachments|afbeelding|afbeeldingen|foto|fotos|bestand|bestanden|file|files|pagina|page)\b/i
 
-export const ATTACHMENT_KINDS = ['document', 'tekening', 'overig'] as const
-export type AttachmentKind = typeof ATTACHMENT_KINDS[number]
+const ATTACHMENT_KINDS = ['document', 'tekening', 'overig'] as const
+type AttachmentKind = typeof ATTACHMENT_KINDS[number]
 
-export function extensionOf(filename: string): string {
+function extensionOf(filename: string): string {
   const dot = filename.lastIndexOf('.')
   return dot === -1 ? '' : filename.slice(dot).toLowerCase()
 }
 
-export function baseNameOf(filename: string): string {
+function baseNameOf(filename: string): string {
   const dot = filename.lastIndexOf('.')
   return (dot === -1 ? filename : filename.slice(0, dot)).trim()
 }

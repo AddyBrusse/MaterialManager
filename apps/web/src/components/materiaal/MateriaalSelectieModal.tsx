@@ -9,7 +9,7 @@ import './materiaal.css'
 
 const nl = (n: number, d = 0) => n.toLocaleString('nl-NL', { maximumFractionDigits: d })
 
-export interface MateriaalSelectieProps {
+interface MateriaalSelectieProps {
   projectId: string
   artikelId: string
   artikelNaam: string

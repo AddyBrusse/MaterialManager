@@ -1,5 +1,9 @@
 # 37 — Low Stock
 
+> **Status (2026-10-23):** de API-route `GET /api/low-stock` is verwijderd; geen
+> enkel scherm riep hem aan. Lage voorraad wordt in de browser bepaald uit de
+> materiaallijst (`apps/web/src/utils/todoAlerts.ts`) en als ToDo-melding getoond.
+
 ## Definition
 
 An item is "low stock" when `current_stock < min_stock` (and `min_stock` is set).

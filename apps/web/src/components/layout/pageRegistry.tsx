@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 import { matchPath } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList, IconCut, IconBookmark,
-  IconUsers, IconClipboardList, IconChartBar, IconArrowsSort, IconListCheck,
+  IconUsers, IconClipboardList, IconChartBar, IconListCheck,
   IconChecklist, IconListNumbers, IconTimeline, IconTable, IconFileText, IconClock, IconTruckDelivery, type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { VoorraadPage } from '../../routes/desktop/VoorraadPage'
@@ -13,7 +13,6 @@ import { BestellingenPage } from '../../routes/desktop/BestellingenPage'
 import { InstellingenPage } from '../../routes/desktop/InstellingenPage'
 import { ZaagCalculatorPage } from '../../routes/desktop/ZaagCalculatorPage'
 import { ReserveringenPage } from '../../routes/desktop/ReserveringenPage'
-import { ZaagPlannerPage } from '../../routes/desktop/ZaagPlannerPage'
 import { ZaagflowPage } from '../../routes/desktop/ZaagflowPage'
 import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
 import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
@@ -33,7 +32,7 @@ import { DocumentenPage } from '../../routes/desktop/DocumentenPage'
 // `labelFor` derives a per-instance label for detail pages from route params;
 // the detail page itself later refines it to the real entity name via
 // pageTabs.open (see ProjectDetailPage / ArtikelDetailPage).
-export interface PageEntry {
+interface PageEntry {
   path: string
   label: string
   Icon: TablerIcon
@@ -43,7 +42,7 @@ export interface PageEntry {
   labelFor?: (params: Record<string, string | undefined>) => string
 }
 
-export const PAGES: PageEntry[] = [
+const PAGES: PageEntry[] = [
   // Planning
   { path: '/planning-queue', label: 'Opdrachten', Icon: IconListNumbers, Component: PlanningQueuePage, poppable: true, hideChrome: true },
   { path: '/planning-tijdlijn', label: 'Tijdlijn', Icon: IconTimeline, Component: PlanningTijdlijnPage, poppable: true, hideChrome: true },
@@ -58,7 +57,6 @@ export const PAGES: PageEntry[] = [
   { path: '/projecten/:id',  label: 'Project',       Icon: IconClipboardList, Component: ProjectDetailPage, poppable: true, labelFor: p => `Project ${p.id ?? ''}`.trim() },
   { path: '/documenten',     label: 'Documenten',    Icon: IconFileText,      Component: DocumentenPage,    poppable: true },
   { path: '/zaagcalculator', label: 'Zaagcalculator', Icon: IconCut,          Component: ZaagCalculatorPage, poppable: true },
-  { path: '/zaagplanner',    label: 'Zaagplanner',   Icon: IconArrowsSort,    Component: ZaagPlannerPage,   poppable: true },
   { path: '/zaagflow',       label: 'ZaagFlow',      Icon: IconListCheck,     Component: ZaagflowPage,      poppable: true },
   // Materiaalbeheer
   { path: '/voorraad',       label: 'Voorraad',      Icon: IconLayersLinked, Component: VoorraadPage,      poppable: true },

@@ -1,7 +1,6 @@
 import type { ProductieOrder } from '@stockmanager/shared'
 import { articlesApi } from '../../../../../api/articles'
 import { ArtikelPreviewThumb } from '../../../../../components/projecten/ArtikelPreviewThumb'
-import { datum, dagenTot } from '../../lib/format'
 import { StappenTabel } from './StappenTabel'
 
 function orderPill(o: ProductieOrder) {

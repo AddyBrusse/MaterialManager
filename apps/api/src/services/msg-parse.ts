@@ -29,7 +29,7 @@ export function looksLikeMsg(buf: Buffer): boolean {
   return buf.length >= 8 && buf.subarray(0, 8).equals(OLE2_MAGIC)
 }
 
-export interface ParsedMsg {
+interface ParsedMsg {
   mail: NormalizedMail
   /**
    * Berichten die als bijlage meekwamen. "Doorsturen als bijlage" levert hier

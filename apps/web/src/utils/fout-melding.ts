@@ -13,7 +13,7 @@ import { ApiFout } from '../api/client'
  *
  * Een pure functie, los van Mantine, zodat de tekst te testen is.
  */
-export interface FoutTekst {
+interface FoutTekst {
   titel: string
   wat: string
   waar: string

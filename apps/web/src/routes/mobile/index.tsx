@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { AppShell, Group, ActionIcon, Text, SegmentedControl } from '@mantine/core'
+import { AppShell, Group, Text, SegmentedControl } from '@mantine/core'
 import { IconPackage, IconBox, IconArrowsExchange } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 

@@ -45,7 +45,7 @@ function getChannel(): BroadcastChannel | null {
   try { return new BroadcastChannel(CHANNEL_NAME) } catch { return null }
 }
 
-export function broadcastPopout(msg: PopoutMessage): void {
+function broadcastPopout(msg: PopoutMessage): void {
   const bc = getChannel()
   bc?.postMessage(msg)
   bc?.close()
@@ -128,9 +128,4 @@ export function requestClosePopout(path: string): void {
   window.setTimeout(() => {
     if (loadOpenRoutes().has(path)) markClosed(path)
   }, CLOSE_ACK_MS)
-}
-
-export function isKnownOpener(path: string): boolean {
-  const win = windowRefs.get(path)
-  return !!win && !win.closed
 }

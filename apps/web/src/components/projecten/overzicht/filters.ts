@@ -54,8 +54,8 @@ function plusDagen(d: Date, n: number): string {
 }
 
 /** De soorten die je ook kunt omdraaien: "alles behalve deze klant". */
-export type OmkeerbaarFilter = Extract<Filter, { niet?: true }>
-export const isOmkeerbaar = (f: Filter): f is OmkeerbaarFilter =>
+type OmkeerbaarFilter = Extract<Filter, { niet?: true }>
+const isOmkeerbaar = (f: Filter): f is OmkeerbaarFilter =>
   f.soort === 'signaal' || f.soort === 'status' || f.soort === 'klant' || f.soort === 'contact'
 
 export function past(p: Project, f: Filter, ctx: FilterCtx): boolean {

@@ -75,6 +75,7 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - Forms: Mantine `useForm` with a `validate` map (Dutch messages) — see `frontend/16-forms-validation.md`
 - File naming: kebab-case files, PascalCase React components
 - Log any non-obvious architectural choice in `decisions/90-decisions-log.md`
+- **Geen dode code**: `npm run knip` draait in de CI en wordt rood bij een export, bestand of pakket dat nergens gebruikt wordt (`knip.json`). Iets dat "straks nodig" is, komt in de PR waarin het nodig wordt (besluit 2026-10-23)
 
 ## Foutmeldingen: wat, waar, gevolg
 

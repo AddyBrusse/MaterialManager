@@ -26,7 +26,6 @@
 // backward from the project deadline), not just a raw comparison against
 // the project's overall deadline.
 
-import type { Project } from '@stockmanager/shared'
 import type { Machine } from '../api/machines'
 import type { Article } from '../api/articles'
 import { type PlanningStapItem, toDateStr, projectKleur } from './planningUtils'
@@ -74,10 +73,6 @@ export function buildQueueJobs(items: PlanningStapItem[], articles: Article[]): 
     gereed: item.stap.gereedOp != null,
     item,
   }))
-}
-
-export function klantNaamProject(project: Project): string {
-  return project.klantRef ?? project.naam
 }
 
 /** Strips the ORD-/PROD- prefix for compact display (timeline blocks, queue cards). */
@@ -134,7 +129,7 @@ export function computeInsertPosition(orderedJobs: QueueJob[], beforeId: string 
 // ── Derived schedule (whole-shop simulation) ────────────────────────────────
 
 export const EFFECTIEVE_MIN = 294 // 4.9h/day effective (70% of a 7h day) — matches planningUtils
-export const DAY_MIN = 420        // one full working day, minute-width unit for node sizing
+const DAY_MIN = 420        // one full working day, minute-width unit for node sizing
 
 export interface DerivedSlot {
   startOffsetDays: number
@@ -414,7 +409,7 @@ export function hasDownstreamDependent(job: QueueJob, allJobs: QueueJob[]): Queu
   return successor
 }
 
-export interface GroupInfo { label: string; partnerJob: QueueJob; direction: 'upstream' | 'downstream' }
+interface GroupInfo { label: string; partnerJob: QueueJob; direction: 'upstream' | 'downstream' }
 
 /**
  * Cross-machine routing link for badge/callout display — "Groep: zagen →
@@ -607,4 +602,3 @@ export function isWeekendOffset(windowStart: Date, dayIdx: number): boolean {
   return isWeekend(dayIdx, windowStart)
 }
 
-export { effectiveMachine } from './planningSharedUtils'

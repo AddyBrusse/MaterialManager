@@ -4,7 +4,7 @@ import { aantalTekst } from '../bestellingen/bestel-tekst'
 import { NodigCel, VoorCel, StandChip, ddmm, ddmmjjjj, lokaleDag } from '../overzicht/tekst'
 
 /** De regel bij een getypt labelnummer, of waarom er geen is. */
-export function zoekOpNummer(ov: InkoopOverzicht, invoer: string): { regel: InkoopOverzichtRegel | null; melding: string | null } {
+function zoekOpNummer(ov: InkoopOverzicht, invoer: string): { regel: InkoopOverzichtRegel | null; melding: string | null } {
   const nr = normaliseerMateriaalNummer(invoer)
   if (!isMateriaalNummer(nr)) return { regel: null, melding: invoer.trim() ? 'Een nummer is jaar + volgnummer, bijvoorbeeld 260042.' : null }
   const r = ov.regels.find((x) => x.order?.materiaalNummer === nr)

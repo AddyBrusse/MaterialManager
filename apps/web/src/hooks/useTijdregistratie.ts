@@ -4,8 +4,8 @@ import { notifications } from '@mantine/notifications'
 import { tijdregistratieApi, type TijdRegistratieDTO } from '../api/tijdregistratie'
 import { effectieveSeconden } from '@stockmanager/shared'
 
-export const TIJD_LOPEND_KEY = ['tijdregistratie', 'lopend'] as const
-export const TIJD_DAG_KEY = ['tijdregistratie', 'dag'] as const
+const TIJD_LOPEND_KEY = ['tijdregistratie', 'lopend'] as const
+const TIJD_DAG_KEY = ['tijdregistratie', 'dag'] as const
 
 /**
  * Hoe vaak we de server vragen wat er loopt.
@@ -38,14 +38,6 @@ export function useTijdVanStap(stapId: string | null) {
     queryKey: ['tijdregistratie', 'stap', stapId],
     queryFn: () => tijdregistratieApi.perStap(stapId!),
     enabled: !!stapId,
-  })
-}
-
-export function useTijdVanOrder(orderId: string | null) {
-  return useQuery({
-    queryKey: ['tijdregistratie', 'order', orderId],
-    queryFn: () => tijdregistratieApi.perOrder(orderId!),
-    enabled: !!orderId,
   })
 }
 

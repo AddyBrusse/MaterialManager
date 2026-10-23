@@ -37,10 +37,10 @@ export type Stap =
  * `stap` is wat de knop doet; `null` als hij uit staat (dan zegt `reden` waarom).
  * `menu` maakt er een splitsknop van: de keuzes onder het pijltje.
  */
-export type TabActie = ActieVM & { stap: Stap | null; menu?: { label: string; stap: Stap }[] }
+type TabActie = ActieVM & { stap: Stap | null; menu?: { label: string; stap: Stap }[] }
 
 /** Wat de pagina weet en het project niet: wat er open of aangevinkt staat. */
-export interface TabKeuze {
+interface TabKeuze {
   /** De opengeklapte versie op de Offertes-tab. */
   openVersie: string | null
   /** De aangevinkte orders in voorbereiding op de Productie-tab. */

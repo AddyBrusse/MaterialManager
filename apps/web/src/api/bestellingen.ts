@@ -49,6 +49,3 @@ export const prijsaanvragenApi = {
   cel: (id: string, leverancierId: string, regelId: string, cel: AntwoordCel) =>
     apiFetch<Prijsaanvraag>(`/prijsaanvragen/${id}/antwoorden/${leverancierId}/regels/${regelId}`, { method: 'PUT', body: JSON.stringify(cel) }).then((r) => r.data),
 }
-
-/** Alles wat na een wijziging opnieuw gelezen moet worden. */
-export const BESTEL_SLEUTELS = [['bestel-regels'], ['prijsaanvragen'], ['vergelijk'], ['leverancier-prijzen'], ['inkoop'], ['bestel-geschiedenis']] as const

@@ -20,7 +20,7 @@ interface Props {
 }
 
 /** "½", "⅓", "¼" of "1/5": het deel van één exoot dat een werkstuk kost. */
-export function deelTekst(aantal: number, n: number): string {
+function deelTekst(aantal: number, n: number): string {
   if (n === 1) return `${aantal}`
   const breuk: Record<number, string> = { 2: '½', 3: '⅓', 4: '¼' }
   return aantal === 1 && breuk[n] ? breuk[n] : `${aantal}/${n}`

@@ -48,7 +48,6 @@ export function ColumnSettings({
   const all = resolveAllColumns(prefs.order)
   const hiddenSet = new Set(prefs.hidden)
   const visibleCount = PROJECT_COLUMNS.length - PROJECT_COLUMNS.filter(c => hiddenSet.has(c.id)).length
-  const idsInOrder = all.map(c => c.id)
 
   // Each of these recomputes from `prev` rather than the rendered `prefs`, so
   // rapid clicks (or two updates in one tick) can't drop each other's changes.

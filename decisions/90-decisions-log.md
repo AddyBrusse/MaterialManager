@@ -2382,3 +2382,48 @@ geheel terugdraaien.
   met beide tijden (`receptMachines`). Valt een stap niet te koppelen (met de
   hand bijgezet, recept gewijzigd), dan nog het gelijke deel.
 - Hetzelfde voor de bewerkingen van een verstuurde offerte in de Prognose.
+
+---
+
+## 2026-10-23 — Dode code opgeruimd; knip in de CI houdt het zo
+
+**Aanleiding:** Addy schrok van de omvang (60.500 regels, 47 tabellen) en vroeg
+of alles nodig is. Gemeten met [knip](https://knip.dev) en `tsc --noUnusedLocals`:
+ongeveer 1.400 regels (2 à 3 %) was dood, de rest is in gebruik. De app is groot
+omdat hij het hele orderproces doet, niet omdat er rommel in zit.
+
+**Weg:**
+- `services/productie-pdf.ts` (vervangen door `services/document/`) en
+  `components/nacalculatie/ProjectNacalculatieTab.tsx` (vervangen door
+  `features/projects/detail/tabs/NacalculatieTab.tsx`): nergens geïmporteerd.
+- `routes/desktop/ZaagPlannerPage.tsx` met route, registratie en het
+  uitgeschakelde menu-item ("Hiervoor gaan we een andere applicatie gebruiken").
+  Daarmee ook `@hello-pangea/dnd`, de laatste gebruiker.
+- API-routes `GET /api/low-stock` en `GET /api/search`: geen enkel scherm riep
+  ze aan. Lage voorraad komt uit `utils/todoAlerts.ts` in de browser, zoeken
+  gebeurt in de schermen zelf. `features/36-search.md` en `37-low-stock.md`
+  hebben een statusregel gekregen.
+- De `MOCK_*`-nepgegevens in `api/{grades,profiles,machines,locations,
+  surface-finishes,relaties}.ts`. De `localStorage`-kopie blijft als terugval
+  bij lezen; zonder kopie begint hij nu leeg in plaats van met verzonnen rijen.
+- Het tabblad "Op mutaties" in de drawer "Meest verbruikt" op Voorraad: dat
+  toonde een vaste tabel (`m1`…`m7`, ids die niet bestaan) plus een formule
+  uit de lengte, dus verzonnen aantallen. Echte aantallen vragen de
+  mutatiehistorie per staaf; tot die er is, alleen "Op lengte".
+- `qrcode` (ongebruikt pakket), 166 exports die nergens geïmporteerd werden
+  (het `export`-woord eraf) en 49 symbolen die daarna nergens meer gebruikt
+  werden (verwijderd), waaronder `Topbar` in `AppLayout`, `sendViaMicrosoft365`,
+  `useZaagplanOpslaan`, `machineAvailableHours` en `regelNaam`.
+
+**Niet weg, bewust:** `Label` met `routes/labels.ts` (labelprinter geparkeerd)
+en `FinishedGood` (voedt alleen nog de ToDo-melding "lage voorraad"; volgens
+`features/31-items-finished.md` ingehaald door `Article`). Beide wachten op een
+besluit van Addy. Ook niet aangeraakt: het terugvallen op `localStorage` bij
+*schrijven* in dezelfde `api/*.ts`-bestanden, waar een mislukte opslag stil in
+de browser landt; dat is een aparte wijziging.
+
+**Vanaf nu:** `npm run knip` draait in de CI (`.github/workflows/ci.yml`,
+config in `knip.json`). Een export die nergens gebruikt wordt, een bestand dat
+niemand importeert of een pakket dat niemand laadt maakt de build rood. Dat is
+geen stijlregel maar een signaal: elk van de weggehaalde stukken was ooit
+"straks nodig" en bleef daarna maanden staan.

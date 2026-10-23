@@ -23,7 +23,7 @@ function num(v: unknown): number {
   return typeof v === 'number' ? v : Number(v ?? 0)
 }
 
-export async function bronnenLaden(db: Db): Promise<PrijsBronnen> {
+async function bronnenLaden(db: Db): Promise<PrijsBronnen> {
   const [grades, profiles, machines] = await Promise.all([
     db.grade.findMany(),
     db.profile.findMany(),
@@ -131,7 +131,7 @@ export async function snapshotBijCalculatie(
   })
 }
 
-export interface OrderRegel {
+interface OrderRegel {
   artikelId: string | null
   id: string
   qty: number

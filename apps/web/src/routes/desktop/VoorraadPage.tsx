@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
-import { Drawer, Modal, SegmentedControl, NumberInput, Textarea, Stack, Group, Button, Text } from '@mantine/core'
+import { Modal, SegmentedControl, NumberInput, Textarea, Stack, Group, Button, Text } from '@mantine/core'
 import {
   IconDownload, IconScan, IconPlus, IconAlertTriangle,
   IconPackage, IconLayersLinked, IconArrowUp, IconArrowDown,
@@ -122,25 +122,14 @@ function SortTh({ k, sort, onSort, align, style, children }: {
 }
 
 // ── top-verbruik drawer ───────────────────────────────────────────────────────
-// Mock mutation counts per material (until real history is available)
-const MOCK_MUTATION_COUNTS: Record<string, number> = {
-  m1: 14, m2: 9, m3: 3, m4: 11, m5: 6, m6: 2, m7: 7,
-}
-
+// Alleen op verbruikte lengte. Het tabblad "Op mutaties" toonde verzonnen
+// aantallen (een vaste tabel plus een formule uit de lengte) en is op
+// 2026-10-23 weggehaald; echte aantallen vragen de mutatiehistorie per staaf.
 function TopVerbruikDrawer({ rows, onClose }: { rows: RawMaterialRow[]; onClose: () => void }) {
-  const [tab, setTab] = useState<'lengte' | 'mutaties'>('lengte')
-
-  const byLength = [...rows]
+  const items = [...rows]
     .map(r => ({ r, consumed: Number(r.lengthMm) - Number(r.currentStock) }))
     .sort((a, b) => b.consumed - a.consumed)
     .slice(0, 10)
-
-  const byMutations = [...rows]
-    .map(r => ({ r, count: MOCK_MUTATION_COUNTS[r.id] ?? Math.floor((Number(r.lengthMm) - Number(r.currentStock)) / 500 + 1) }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10)
-
-  const items = tab === 'lengte' ? byLength : byMutations
 
   return (
     <>
@@ -157,32 +146,11 @@ function TopVerbruikDrawer({ rows, onClose }: { rows: RawMaterialRow[]; onClose:
         </div>
 
         <div className="st-drawer-bd">
-          {/* tab toggle */}
-          <div style={{ display: 'flex', gap: 4, marginBottom: 16, background: 'var(--bg-sidebar)', borderRadius: 6, padding: 4 }}>
-            {(['lengte', 'mutaties'] as const).map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                style={{
-                  flex: 1, padding: '5px 0', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 500,
-                  background: tab === t ? 'var(--bg-2)' : 'transparent',
-                  color: tab === t ? 'var(--text)' : 'var(--text-3)',
-                  boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,.08)' : 'none',
-                  transition: 'all .15s',
-                }}
-              >
-                {t === 'lengte' ? 'Op lengte (mm)' : 'Op mutaties'}
-              </button>
-            ))}
-          </div>
-
           {/* list */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {items.map(({ r, ...vals }, i) => {
-              const consumed = tab === 'lengte' ? (vals as { consumed: number }).consumed : undefined
-              const count    = tab === 'mutaties' ? (vals as { count: number }).count : undefined
-              const orig     = Number(r.lengthMm)
-              const pct      = orig > 0 && consumed != null ? Math.min(100, (consumed / orig) * 100) : 0
+            {items.map(({ r, consumed }, i) => {
+              const orig = Number(r.lengthMm)
+              const pct  = orig > 0 ? Math.min(100, (consumed / orig) * 100) : 0
 
               return (
                 <div key={r.id} style={{
@@ -208,30 +176,17 @@ function TopVerbruikDrawer({ rows, onClose }: { rows: RawMaterialRow[]; onClose:
                       <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-4)' }}>{r.code}</span>
                     </div>
                     <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{r.grade.name}</div>
-                    {tab === 'lengte' && (
-                      <div style={{ marginTop: 5, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 2 }} />
-                      </div>
-                    )}
+                    <div style={{ marginTop: 5, height: 3, background: 'var(--border)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 2 }} />
+                    </div>
                   </div>
 
                   {/* metric */}
                   <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                    {tab === 'lengte' ? (
-                      <>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>
-                          {fmm(consumed!)}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>{Math.round(pct)}% van orig.</div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>
-                          {count} ×
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>mutaties</div>
-                      </>
-                    )}
+                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>
+                      {fmm(consumed)}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 1 }}>{Math.round(pct)}% van orig.</div>
                   </div>
                 </div>
               )
@@ -264,8 +219,6 @@ function MutatieModal({ row, opened, onClose }: {
     }) => rawMaterialsApi.adjustStock(id, newStock, reason, note),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ['raw-materials'] })
-      const mm = Number(lengte)
-      const mStr = (mm / 1000).toLocaleString('nl-NL', { minimumFractionDigits: 3 })
       const label2 = type === 'toevoegen' ? 'Toevoegen' : type === 'afboeken' ? 'Afboeken' : 'Correctie'
       notifications.show({
         color: 'green',

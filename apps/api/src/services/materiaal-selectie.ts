@@ -20,7 +20,7 @@ import { gereserveerdPerStaaf } from './voorraad'
 type Db = Prisma.TransactionClient
 
 /** Het materiaal van een artikel zoals het recept het zegt (2026-10-09). */
-export interface ArtikelMateriaal {
+interface ArtikelMateriaal {
   artikelNaam: string
   profileId: string
   gradeId: string
@@ -32,7 +32,7 @@ export interface ArtikelMateriaal {
   omschrijving: string
 }
 
-export interface PlanUitkomst {
+interface PlanUitkomst {
   behoefte: MateriaalBehoefte
   /** Het beste eerst; kiezen doet een mens. */
   voorstellen: Voorstel[]

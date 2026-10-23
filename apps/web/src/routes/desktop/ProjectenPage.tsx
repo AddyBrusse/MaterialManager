@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
-  IconPlus, IconDownload, IconDots, IconFolder,
+  IconPlus, IconDownload, IconDots,
   IconArrowUp, IconArrowDown, IconUsers,
 } from '@tabler/icons-react'
 import { projectsApi, herlaadProjecten } from '../../api/projects'
@@ -25,11 +25,6 @@ import { useRijActies } from '../../components/projecten/overzicht/useRijActies'
 import { ProjectTegels, type TegelTellingen } from '../../components/projecten/overzicht/ProjectTegels'
 import { FilterBalk } from '../../components/projecten/overzicht/FilterBalk'
 import { getProjectSubtotaal } from '../../api/projects'
-
-// PROJECT_STATUS_CONFIG moved to components/projecten/projectColumns so the
-// column registry can own status display; re-exported here because the detail
-// page has always imported it from this module.
-export { PROJECT_STATUS_CONFIG } from '../../components/projecten/projectColumns'
 
 // Used until the user saves a layout of their own; `hidden` seeds from the
 // registry's defaultVisible flags, so the niche columns start collapsed.
@@ -67,7 +62,6 @@ function SortIndicator({ dir }: { dir: 'asc' | 'desc' }) {
 
 export function ProjectenPage() {
   const navigate = useNavigate()
-  const qc = useQueryClient()
 
   // projectsApi.list() reads a synchronous in-memory cache that's only
   // populated once the background initProjects() fetch resolves — without
