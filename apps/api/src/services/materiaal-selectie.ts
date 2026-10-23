@@ -464,6 +464,96 @@ export async function legVast(
 }
 
 /**
+ * Een tekort dat binnenkomt (2026-10-23): de staaf meteen
+ * vastleggen voor de order en materiaalregel waarvoor hij besteld is — alleen
+ * wat die regel nog nodig heeft; de rest van de staaf blijft vrij. Zoals een
+ * exoot bij ontvangst. Zonder dit lag de staaf los in het rek: een ander
+ * project kon hem pakken en bij gereedmelden werd hij niet afgeboekt.
+ *
+ * Het besluit is al genomen toen iemand "tekort bestellen" koos voor deze
+ * order; het scherm Binnen boeken zegt voor welk project hij vastligt. Past
+ * de staaf niet meer (maat aangepast bij het bestellen) of is er niets meer
+ * nodig, dan gebeurt er niets. Geeft het aantal vastgelegde stuks terug.
+ */
+export async function reserveerTekortBijOntvangst(
+  db: Db,
+  b: { bron: string; projectId: string | null; artikelId: string | null; offerteRegelId: string | null; materiaalRegelId: string | null },
+  staaf: { id: string; code: string; gradeId: string; profileId: string; dimensions: unknown; currentStock: unknown },
+): Promise<number> {
+  if (b.bron !== 'tekort' || !b.projectId || !b.artikelId || !b.offerteRegelId) return 0
+  const regel = await db.obRegel.findUnique({ where: { id: b.offerteRegelId }, select: { qty: true } })
+    ?? await db.offerteRegel.findUnique({ where: { id: b.offerteRegelId }, select: { qty: true } })
+  if (!regel) return 0
+  let alles: ArtikelMaterialen
+  try { alles = await materialenVanArtikel(db, b.artikelId) } catch (e) { if (e instanceof AppError) return 0; throw e }
+  const ids = alles.regels.map((r) => r.regelId)
+  const regelId = b.materiaalRegelId ?? ids[0]
+  const mat = alles.regels.find((r) => r.regelId === regelId)
+  if (!mat || mat.fout) return 0
+  if (staaf.gradeId !== mat.gradeId || staaf.profileId !== mat.profileId || !dimensiesGelijk(staaf.dimensions, mat.dimensions)) return 0
+
+  const sleutel = { projectId: b.projectId, offerteRegelId: b.offerteRegelId, artikelId: b.artikelId }
+  const d = (await dekkingVanOrderRegel(db, sleutel, ids, regel.qty))[ids.indexOf(regelId)]
+  // Niet `nogTeKiezen`: de bestelregel zelf staat nog open, dus de regel telt als klaar.
+  const nog = Math.max(0, d.nodigStuks - d.gedektStuks)
+  if (nog === 0) return 0
+
+  const bedrijf = await db.company.findUnique({ where: { id: 'default' } })
+  const behoefte = materiaalBehoefte(mat.werkstukLengteMm, mat.lader, nog)
+  const vast = (await gereserveerdPerStaaf(db, [staaf.id])).get(staaf.id) ?? 0
+  const [voorstel] = materiaalVoorstellen({
+    stangen: behoefte.stangen, zaagsnedeMm: ZAAG_STANDAARD.steekbreedte, schrootDrempelMm: bedrijf?.schrootDrempelMm ?? 200,
+    staven: [{ id: staaf.id, code: staaf.code, vrijMm: Number(staaf.currentStock) - vast }],
+  })
+  const r = voorstel?.regels[0]
+  if (!r) return 0
+  const s = await db.rawMaterial.findUnique({ where: { id: staaf.id }, include: { grade: true, profile: true } })
+  if (!s) return 0
+  const ob = await db.opdrachtbevestiging.findUnique({ where: { projectId: b.projectId }, select: { id: true } })
+  await db.zaagReservering.create({
+    data: {
+      id: `res_${Date.now()}_t_${Math.random().toString(36).slice(2, 6)}`,
+      calculatieNr: ob?.id ?? b.projectId, projectId: b.projectId, artikelId: b.artikelId,
+      offerteRegelId: b.offerteRegelId, materiaalRegelId: mat.regelId,
+      barId: s.id, barCode: s.code, barLocation: '', barVorm: s.profile.name,
+      pieces: r.stuks,
+      productLen: mat.werkstukLengteMm + ZAAG_STANDAARD.vlakToeslag + (mat.lader?.afsteekMm ?? 0),
+      // Een rest onder de schrootgrens gaat mee, zoals bij het kiezen: dan ligt de hele vrije lengte vast.
+      sawLength: r.restWordtSchroot ? r.vrijMm : r.verbruikMm, fysiekeLengte: Number(s.currentStock),
+      materiaal: s.grade.name, diameter: Number((s.dimensions as Record<string, number>)?.diameter ?? 0),
+      werkstukLengte: mat.werkstukLengteMm, steekbreedte: ZAAG_STANDAARD.steekbreedte, vlakToeslag: ZAAG_STANDAARD.vlakToeslag,
+      machine: mat.lader?.machineNaam ?? '', stangen: r.stangen as unknown as Prisma.InputJsonValue,
+      restAfboeken: r.restWordtSchroot,
+    },
+  })
+  return r.stuks
+}
+
+/**
+ * Na de laatste ontvangst van een tekort: is de regel nog niet helemaal gedekt
+ * (de staaf was te kort, of het aantal ging omhoog), dan gaat de todo weer
+ * open. Anders weet niemand dat er nog iets te kiezen is.
+ */
+export async function heropenTodoAlsNodig(
+  db: Db, b: { projectId: string | null; artikelId: string | null; offerteRegelId: string | null },
+): Promise<boolean> {
+  if (!b.projectId || !b.artikelId || !b.offerteRegelId) return false
+  const regel = await db.obRegel.findUnique({ where: { id: b.offerteRegelId }, select: { qty: true } })
+    ?? await db.offerteRegel.findUnique({ where: { id: b.offerteRegelId }, select: { qty: true } })
+  if (!regel) return false
+  let alles: ArtikelMaterialen
+  try { alles = await materialenVanArtikel(db, b.artikelId) } catch (e) { if (e instanceof AppError) return false; throw e }
+  const dekking = await dekkingVanOrderRegel(db,
+    { projectId: b.projectId, offerteRegelId: b.offerteRegelId, artikelId: b.artikelId }, alles.regels.map((r) => r.regelId), regel.qty)
+  if (dekking.every((d) => d.klaar)) return false
+  const n = await db.todo.updateMany({
+    where: { soort: 'materiaal_selecteren', done: true, projectId: b.projectId, offerteRegelId: b.offerteRegelId },
+    data: { done: false, completedAt: null },
+  })
+  return n.count > 0
+}
+
+/**
  * Todo's bij het aanmaken van een opdracht: per artikel één "materiaal
  * selecteren".
  *

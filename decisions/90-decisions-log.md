@@ -2498,6 +2498,16 @@ versie: elke regel uit voorraad.
   diameter 0. Nu `sawLength` (wat er volgens de bon af ging, met een
   meegenomen rest) en de vorm, maat en kwaliteit van de staaf zelf. Een
   gemeten rest uit de Zaagflow telt nog niet apart mee.
+- **Een besteld tekort gaat bij ontvangst meteen vast** voor zijn order en
+  materiaalregel, alleen wat die nog nodig heeft; de rest van de staaf blijft
+  vrij (`reserveerTekortBijOntvangst`, `services/ontvangst.ts`). Zoals een
+  exoot. Dit gat bestond al: de todo ging dicht bij "tekort bestellen", en de
+  staaf die binnenkwam hing nergens aan, kon door een ander project gepakt
+  worden en werd bij gereedmelden niet afgeboekt. Het wijkt af van "nooit
+  automatisch vastleggen", maar het besluit is al genomen toen iemand voor
+  deze order het tekort bestelde, en Binnen boeken zegt voor welk project hij
+  vastgaat. Past de staaf niet (te kort, of de maat is bij het bestellen
+  veranderd), dan wordt vastgelegd wat past en gaat de todo weer open.
 - **Documenten en lijsten** tonen alle materialen: kwaliteiten op offerte,
   opdracht en factuur (`materiaalVan`), één regel per materiaal op de werkbon,
   per regel in de tooltip van de marge, "+1" in de artikelenlijst
