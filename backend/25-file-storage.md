@@ -11,8 +11,10 @@ Filesystem, not Postgres BLOBs. DB stores the relative path.
 │   └── finished/<uuid>.jpg
 ├── drawings/
 │   └── finished/<uuid>.pdf
-└── attachments/
-    └── <articleId>/<timestamp>-<bestandsnaam>
+├── attachments/
+│   └── <articleId>/<timestamp>-<bestandsnaam>
+└── verbeterpunten/
+    └── <todo-id>.png
 ```
 
 `/data` is a mounted Docker volume on QNAP. In dev: `./data/uploads`.
@@ -67,3 +69,12 @@ foto's en tekeningen, waar de naam een UUID is. Dat is bewust: een monteur
 moet een NC-programma aan zijn naam kunnen herkennen in de verkenner.
 
 Limiet 150 MB per bestand, want CAD-samenstellingen lopen in de tientallen MB.
+
+## Verbeterpunten
+
+**Gebouwd** (2026-10-24). De schermafbeelding bij "Dit klopt niet" komt mee in
+hetzelfde verzoek als het punt zelf: `POST /api/todos/verbeterpunt`, multipart
+met `gegevens` (JSON) en `schermafbeelding` (png/jpg/webp, max 15 MB). De naam is
+het id van de todo, dus één bestand per punt. Verwijderen van het punt haalt het
+bestand weg; afvinken niet, want een opgelost punt wil je soms nog terugzien.
+Code: `apps/api/src/services/verbeterpunten.ts`.

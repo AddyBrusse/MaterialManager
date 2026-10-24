@@ -46,6 +46,9 @@ const TOEGESTAAN: Regel[] = [
   // geen prijs: de zaagbon zegt niets over wat het kost.
   // req.path bevat de querystring niet, dus geen ? in dit patroon.
   { patroon: /^\/reservations$/ },
+  // "Dit klopt niet" (2026-10-24): de werkvloer mag een verbeterpunt melden.
+  // Alleen maken; de lijst zelf lezen of afvinken hoort op kantoor.
+  { patroon: /^\/todos\/verbeterpunt$/, schrijven: true },
 ]
 
 const ALLEEN_LEZEN = new Set(['GET', 'HEAD'])

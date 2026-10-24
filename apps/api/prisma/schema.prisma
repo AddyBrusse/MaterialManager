@@ -1103,10 +1103,17 @@ model Todo {
   // Waar deze todo over gaat. Een losse todo heeft dit niet; een todo die het
   // programma zelf aanmaakt wel, zodat de lijst er een knop naast kan zetten
   // die de bijbehorende handeling opent in plaats van alleen een zin te tonen.
-  soort          String? // 'materiaal_selecteren' | 'bestellen'
+  soort          String? // 'materiaal_selecteren' | 'bestellen' | 'verbeterpunt'
   projectId      String?      @map("project_id")
   artikelId      String?      @map("artikel_id")
   offerteRegelId String?      @map("offerte_regel_id")
+  // Verbeterpunt (knop "Dit klopt niet", 2026-10-24): waar het gezien is en hoe
+  // het eruitzag. De schermafbeelding staat als bestand onder /uploads, zoals
+  // tekeningen; hier alleen het pad.
+  paginaUrl        String? @map("pagina_url")
+  paginaNaam       String? @map("pagina_naam")
+  schermafbeelding String?
+  context          Json?
 
   createdByUserId String    @map("created_by_user_id")
   claimedByUserId String?   @map("claimed_by_user_id")

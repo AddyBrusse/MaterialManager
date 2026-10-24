@@ -59,6 +59,13 @@ describe('terminalScope', () => {
     expect(doe('terminal', 'POST', '/projects/PRJ-1/orders/PROD-1/deels-gereed')).toBeUndefined()
   })
 
+  it('laat een terminal een verbeterpunt melden, maar niet de lijst lezen (2026-10-24)', () => {
+    expect(doe('terminal', 'POST', '/todos/verbeterpunt')).toBeUndefined()
+    for (const [method, pad] of [['GET', '/todos'], ['POST', '/todos'], ['GET', '/todos/verbeterpunten/export'], ['DELETE', '/todos/abc']]) {
+      expect((doe('terminal', method, pad) as { status: number }).status, `${method} ${pad}`).toBe(403)
+    }
+  })
+
   it('laat de terminal niet méér dan gereedmelden op een stap', () => {
     // Terugzetten en herplannen zijn kantoorbeslissingen.
     for (const pad of [
