@@ -11,7 +11,7 @@ import { recenteFouten, type RecenteFout } from '../utils/recente-fouten'
 /** Wat de omgeving weet die de knop niet weet: de paginanaam, op de terminal wie er staat. */
 export type VerbeterpuntBron = () => { paginaNaam: string | null; operator?: string }
 
-export type Beeld = { blob: Blob; bron: 'nagebouwd' | 'geplakt' }
+type Beeld = { blob: Blob; bron: 'nagebouwd' | 'geplakt' }
 
 interface State {
   open: boolean

@@ -12,7 +12,7 @@ import { AppError } from '../middleware/error'
  * Eén map, één bestand per punt, genoemd naar het id van de todo. Net als bij
  * tekeningen staat in de database alleen het pad (backend/25-file-storage.md).
  */
-export const MAP = 'verbeterpunten'
+const MAP = 'verbeterpunten'
 
 /** Een schermafbeelding van een groot scherm op 2× is een paar MB; dit laat ruimte. */
 export const MAX_SCHERMAFBEELDING = 15 * 1024 * 1024
@@ -43,7 +43,7 @@ export function verwijderSchermafbeelding(pad: string | null): void {
   if (bestand) fs.rmSync(bestand, { force: true })
 }
 
-export interface ExportPunt {
+interface ExportPunt {
   id: string
   title: string
   createdAt: Date
