@@ -110,14 +110,20 @@ function telUren(rijen: RegistratieRij[], tarieven: Tarieven): GemetenUren & { s
  * Werkelijk materiaalverbruik in euro's, uit de afgeboekte zaagbonnen.
  *
  * Alleen afgeboekte reserveringen ('done'): open reserveringen houden materiaal
- * vast maar hebben het nog niet verbruikt. Het gewicht volgt uit de fysieke
- * lengte die van de staaf af is gegaan, tegen de kiloprijs van de kwaliteit.
+ * vast maar hebben het nog niet verbruikt. Het gewicht volgt uit wat er volgens
+ * de bon van de staaf af ging (`sawLength`, met de rest als die bij het kiezen
+ * mee afgeboekt werd), met de vorm, maat en kwaliteit van die staaf.
+ *
+ * Tot 2026-10-23 rekende dit met `fysiekeLengte` — de hele staaf zoals hij bij
+ * het reserveren lag — en altijd als rond materiaal: een order die 300 mm van
+ * een staaf van 3 m nam, kreeg 3 m in rekening, en een vierkant of buis het
+ * gewicht van een ronde staaf met diameter 0.
  *
  * Null als er niets afgeboekt is — dan valt er over materiaal niets te zeggen en
  * is het eerlijker om het gecalculeerde bedrag te laten staan dan een nul te
  * tonen die als besparing gelezen wordt.
  */
-async function materiaalWerkelijk(
+export async function materiaalWerkelijk(
   db: Db, waar: Prisma.ZaagReserveringWhereInput,
 ): Promise<number | null> {
   const reserveringen = await db.zaagReservering.findMany({
@@ -125,24 +131,33 @@ async function materiaalWerkelijk(
   })
   if (reserveringen.length === 0) return null
 
+  const staven = await db.rawMaterial.findMany({
+    where: { id: { in: [...new Set(reserveringen.map((r) => r.barId))] } },
+    include: { grade: true, profile: true },
+  })
   const grades = await db.grade.findMany()
-  const profiles = await db.profile.findMany()
 
   let totaal = 0
   for (const r of reserveringen) {
-    // De zaagbon noemt de kwaliteit bij naam, niet bij id.
+    const lengte = num(r.sawLength)
+    const staaf = staven.find((s) => s.id === r.barId)
+    if (staaf) {
+      if (staaf.grade.pricePerKg == null) continue
+      const kg = computeWeightKg(
+        staaf.profile.volumeFormula as VolumeFormula,
+        (staaf.dimensions ?? {}) as Record<string, number>,
+        lengte,
+        num(staaf.grade.densityKgM3),
+      )
+      totaal += kg * num(staaf.grade.pricePerKg)
+      continue
+    }
+    // De staaf bestaat niet meer: alleen wat de bon zelf weet — de kwaliteit
+    // bij naam en een diameter. Dat is rond materiaal; zonder diameter valt er
+    // niets te wegen.
     const grade = grades.find((g) => g.name === r.materiaal)
-    if (!grade || grade.pricePerKg == null) continue
-    // Een zaagbon is altijd rond materiaal uit de stangenlader; het profiel doet
-    // er alleen toe voor de volumeformule en die is hier bekend.
-    const profiel = profiles.find((p) => p.volumeFormula === 'round')
-    const formule = (profiel?.volumeFormula ?? 'round') as VolumeFormula
-    const kg = computeWeightKg(
-      formule,
-      { diameter: num(r.diameter) },
-      num(r.fysiekeLengte),
-      num(grade.densityKgM3),
-    )
+    if (!grade || grade.pricePerKg == null || num(r.diameter) <= 0) continue
+    const kg = computeWeightKg('round', { diameter: num(r.diameter) }, lengte, num(grade.densityKgM3))
     totaal += kg * num(grade.pricePerKg)
   }
   return totaal

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import {
-  reservationsApi,
+  reservationsApi, houdtVast,
   type CreateReservationInput, type ZaagReservation,
 } from '../api/reservations'
 
@@ -13,10 +13,16 @@ import {
  * toont het ene scherm een staaf die het andere al opgebruikt heeft.
  */
 
-const RESERVERINGEN_KEY = ['reservations'] as const
+export const RESERVERINGEN_KEY = ['reservations'] as const
 
 export function useReserveringen() {
   return useQuery({ queryKey: RESERVERINGEN_KEY, queryFn: reservationsApi.list })
+}
+
+/** Alleen wat nog materiaal vasthoudt. */
+export function useOpenReserveringen() {
+  const q = useReserveringen()
+  return { ...q, data: (q.data ?? []).filter(houdtVast) }
 }
 
 function ververs(qc: QueryClient) {

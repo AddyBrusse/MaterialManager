@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
+import { meldFout } from '../utils/fout-melding-toon'
 import {
   articlesApi, inferAttachmentKind, uploadArticleAttachmentFile, deleteArticleAttachmentFile,
   type Article, type ArticleAttachment,
@@ -16,10 +17,22 @@ export function useArticleAttachmentUpload(article: Article | null) {
   const qc = useQueryClient()
   const [uploading, setUploading] = useState(false)
 
-  function persist(next: ArticleAttachment[]) {
-    if (!article) return
-    articlesApi.update(article.id, { attachments: next })
-    qc.invalidateQueries({ queryKey: ['articles'] })
+  /**
+   * De bijlagenlijst opslaan en op de server wachten (2026-10-23). Lukt dat
+   * niet, dan een melding: het bestand staat dan wel op de server, maar hangt
+   * niet aan het artikel — en dat zie je anders pas als iemand het zoekt.
+   */
+  async function persist(next: ArticleAttachment[], actie: string, gevolg: string): Promise<boolean> {
+    if (!article) return false
+    try {
+      const nieuw = await articlesApi.opslaan(article.id, { attachments: next })
+      qc.setQueryData(['article', article.id], nieuw)
+      qc.invalidateQueries({ queryKey: ['articles'] })
+      return true
+    } catch (fout) {
+      meldFout({ actie, fout, gevolg })
+      return false
+    }
   }
 
   async function uploadFiles(files: FileList | File[]) {
@@ -43,13 +56,16 @@ export function useArticleAttachmentUpload(article: Article | null) {
           path,
           uploadedAt: new Date().toISOString(),
         })
-      } catch {
-        notifications.show({ color: 'red', message: `Uploaden mislukt: ${f.name}` })
+      } catch (fout) {
+        meldFout({ actie: `${f.name} uploaden`, fout, gevolg: 'Dit bestand staat niet bij het artikel; de andere gaan gewoon door.' })
       }
     }
     if (uploaded.length > 0) {
-      persist([...article.attachments, ...uploaded])
-      notifications.show({ message: `${uploaded.length} bestand${uploaded.length === 1 ? '' : 'en'} toegevoegd` })
+      const gelukt = await persist(
+        [...article.attachments, ...uploaded], 'Bestanden aan het artikel hangen',
+        'De bestanden staan op de server, maar hangen niet aan het artikel. Voeg ze opnieuw toe.',
+      )
+      if (gelukt) notifications.show({ message: `${uploaded.length} bestand${uploaded.length === 1 ? '' : 'en'} toegevoegd` })
     }
     setUploading(false)
   }
@@ -57,13 +73,19 @@ export function useArticleAttachmentUpload(article: Article | null) {
   function removeAttachment(attId: string) {
     if (!article) return
     const att = article.attachments.find(a => a.id === attId)
-    persist(article.attachments.filter(a => a.id !== attId))
-    if (att?.path) deleteArticleAttachmentFile(article.id, att.path)
+    // Het bestand pas weghalen als het artikel er niet meer naar wijst.
+    void persist(
+      article.attachments.filter(a => a.id !== attId), 'Bestand verwijderen',
+      'Het bestand hangt nog aan het artikel; er is niets verwijderd.',
+    ).then(gelukt => { if (gelukt && att?.path) deleteArticleAttachmentFile(article.id, att.path) })
   }
 
   function setMachine(attId: string, machine: string | null) {
     if (!article) return
-    persist(article.attachments.map(a => a.id === attId ? { ...a, machine } : a))
+    void persist(
+      article.attachments.map(a => a.id === attId ? { ...a, machine } : a), 'Machine bij een bestand zetten',
+      'De machine bij dit bestand is niet opgeslagen.',
+    )
   }
 
   return { uploading, uploadFiles, removeAttachment, setMachine }

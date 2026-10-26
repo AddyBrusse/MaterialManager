@@ -29,12 +29,6 @@ export function waaromNietZaagbon(reserveringen: ZaagReservation[], projectId: s
     : null
 }
 
-/** Rond met de diameter; een andere vorm alleen bij naam (de "diameter" is daar geen Ø). */
-function vormTekst(r: ZaagReservation): string {
-  const vorm = (r.barVorm || 'rond').trim()
-  return vorm.toLowerCase() === 'rond' ? `Ø${r.diameter}` : vorm.charAt(0).toUpperCase() + vorm.slice(1)
-}
-
 export function zaagbonGegevens(p: Project, reserveringen: ZaagReservation[], nu = new Date()): ZaagbonDoc {
   const { relatie } = klantVan(p)
   return {
@@ -44,7 +38,7 @@ export function zaagbonGegevens(p: Project, reserveringen: ZaagReservation[], nu
     datum: nu.toISOString(),
     regels: teZagen(reserveringen, p.id).map((r) => ({
       staaf: r.barCode,
-      materiaal: `${r.materiaal} ${vormTekst(r)}`,
+      materiaal: `${r.materiaal} ${r.afmeting}`,
       locatie: r.barLocation || null,
       stuks: `${r.pieces} × ${r.werkstukLengte} mm`,
       zaaglengte: r.sawLength,

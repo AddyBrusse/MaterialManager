@@ -16,6 +16,8 @@
 // rekende elk scherm het zelf uit en waren ze het oneens: de voorraadpagina
 // telde afgeronde reserveringen niet mee, de zaagcalculator wel.
 import type { Prisma } from '@prisma/client'
+import { waaromNietMutatie } from '@stockmanager/shared'
+import { AppError } from '../middleware/error'
 
 type Db = Prisma.TransactionClient
 
@@ -76,4 +78,21 @@ export async function beschikbaarheidVan(
 /** "1.200 mm" — voor foutmeldingen die een monteur moet kunnen lezen. */
 export function mm(v: number): string {
   return `${Math.round(v).toLocaleString('nl-NL')} mm`
+}
+
+/**
+ * Een mutatie met de hand mag een staaf niet onder wat er vastligt brengen
+ * (2026-10-19, Addy: weigeren). Anders bleef de reservering openstaan op een
+ * staaf die er niet meer is. Eerst afboeken in de Zaagflow of annuleren; de
+ * zin komt uit `waaromNietMutatie`, dezelfde die het scherm al toonde.
+ */
+export async function eisRuimteVoorMutatie(db: Db, barId: string, vorigeMm: number, nieuweMm: number): Promise<void> {
+  const open = await db.zaagReservering.findMany({
+    where: { barId, status: { in: [...OPEN_STATUSSEN] } },
+    select: { id: true, calculatieNr: true, sawLength: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  const bonnen = open.map((b) => ({ id: b.id, calculatieNr: b.calculatieNr, sawLength: Number(b.sawLength) }))
+  const reden = waaromNietMutatie(vorigeMm, nieuweMm, bonnen)
+  if (reden) throw new AppError(409, 'VOORWAARDE', reden, { zaagbonnen: bonnen })
 }

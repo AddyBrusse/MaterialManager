@@ -10,7 +10,6 @@ export {
   buildEstimateCtx,
   machineMinutes,
   computeEstimateTotals,
-  minToHm,
   brutoLengte,
   laderVoorRegel,
   materiaalBehoefte,

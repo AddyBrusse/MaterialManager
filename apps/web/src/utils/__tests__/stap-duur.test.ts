@@ -51,16 +51,30 @@ describe('berekenStapMin', () => {
 })
 
 describe('receptMachines', () => {
-  it('dezelfde machine twee keer in het recept is één stap met de tijd van beide', () => {
-    const dubbel = { ...bolt, estimate: { ...bolt.estimate!, nodes: [...bolt.estimate!.nodes, { id: 'z2', type: 'machine', name: 'Zaag', machineId: 'zaag', setupMin: 5, steps: [{ id: 'x', name: 'na', cycleMin: 1 }] }] } } as unknown as Article
+  // Draaien, zagen, nog eens zagen: twee knopen op dezelfde zaag (2026-10-23).
+  const dubbel = { ...bolt, estimate: { ...bolt.estimate!, nodes: [...bolt.estimate!.nodes, { id: 'z2', type: 'machine', name: 'Zaag', machineId: 'zaag', setupMin: 5, steps: [{ id: 'x', name: 'na', cycleMin: 1 }] }] } } as unknown as Article
+
+  it('elke machineknoop apart, ook als de machine al eerder in het recept staat', () => {
     expect(receptMachines(dubbel, machines)).toEqual([
-      { naam: 'Amada Zaag', setupMin: 25, cycleMin: 3 },
+      { naam: 'Amada Zaag', setupMin: 20, cycleMin: 2 },
       { naam: 'DMG 450TC', setupMin: 60, cycleMin: 10 },
+      { naam: 'Amada Zaag', setupMin: 5, cycleMin: 1 },
     ])
+  })
+
+  it('de tweede stap op een machine krijgt de tijd van de tweede knoop', () => {
+    const st = [stap(0, 'Amada Zaag'), stap(1, 'DMG 450TC'), stap(2, 'Amada Zaag')]
+    expect(berekenStapMin(st[0], order(st), [dubbel], machines).min).toBe(20 + 80 * 2)
+    expect(berekenStapMin(st[2], order(st), [dubbel], machines).min).toBe(5 + 80 * 1)
+  })
+
+  it('een order van vóór 2026-10-23 (één stap per machine) houdt de tijd van beide knopen', () => {
+    const st = [stap(0, 'Amada Zaag'), stap(1, 'DMG 450TC')]
+    expect(berekenStapMin(st[0], order(st), [dubbel], machines).min).toBe(25 + 80 * 3)
   })
 
   it('zonder machinelijst de naam van de knoop', () => {
     expect(receptMachines(bolt).map((m) => m.naam)).toEqual(['Zaag', 'DMG'])
-    expect(receptMachineVoorStap(receptMachines(bolt), 'Amada Zaag', 0, 2)?.naam).toBe('Zaag')
+    expect(receptMachineVoorStap(receptMachines(bolt), 'Amada Zaag', 0, ['Amada Zaag', 'DMG 450TC'])?.naam).toBe('Zaag')
   })
 })

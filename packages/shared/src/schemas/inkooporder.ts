@@ -17,6 +17,8 @@ export const InkooporderRegelSchema = z.object({
   bestelRegelId: z.string(),
   materiaal: z.string(),
   exoot: z.boolean(),
+  /** Een tekort uit de materiaalselectie: gaat bij ontvangst vast voor zijn order (2026-10-23). */
+  tekort: z.boolean().optional(),
   stuks: z.number().int(),
   lengteMm: z.number(),
   kg: z.number(),

@@ -93,12 +93,23 @@ export interface FilterRij {
 }
 
 /**
- * Materiaal dat op is staat standaard niet in de lijst; kies je bij Status
- * "Verbruikt", dan juist wel. Een exoot op 0 is nog niet binnen, niet op, en
- * blijft dus zichtbaar.
+ * Wat er niet ligt, staat standaard niet in de lijst: materiaal dat op is, en
+ * sinds 2026-10-16 ook een exoot op 0 (nog niet binnen of verbruikt). De lijst
+ * is de stand op locatie; wat onderweg is staat op Bestellingen. Status
+ * "Verbruikt" of "Nog niet binnen" toont het juist, en "Alleen exoten" toont
+ * alle exoten, met hun stand.
  */
 function isOp(r: FilterRij): boolean {
-  return !r.exoot && Number(r.currentStock) === 0
+  return Number(r.currentStock) === 0
+}
+
+/**
+ * Hoeveel stukken er liggen: de teller "Voorraad" in het zijmenu en de tegel
+ * "met restlengte". De teller telde tot 2026-10-19 elke regel, ook verbruikte
+ * staven en exoten die nog moesten komen.
+ */
+export function aantalInVoorraad(rijen: { currentStock: string | number }[]): number {
+  return rijen.filter((r) => Number(r.currentStock) > 0).length
 }
 
 export function filterVoorraad<T extends FilterRij>(rijen: T[], f: VoorraadFilters, statusVan: (r: T) => string): T[] {
@@ -111,6 +122,6 @@ export function filterVoorraad<T extends FilterRij>(rijen: T[], f: VoorraadFilte
     if (f.exoot === 'alleen' && !r.exoot) return false
     if (f.exoot === 'zonder' && r.exoot) return false
     if (f.status) return statusVan(r) === f.status
-    return !isOp(r)
+    return f.exoot === 'alleen' || !isOp(r)
   })
 }

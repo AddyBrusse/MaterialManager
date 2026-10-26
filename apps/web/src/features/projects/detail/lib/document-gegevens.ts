@@ -1,6 +1,6 @@
 import { basisRegels, type Project, type Relatie } from '@stockmanager/shared'
 import { articlesApi, type Article } from '../../../../api/articles'
-import { gradesApi } from '../../../../api/grades'
+import { materiaalRegelsVan } from '../../../../utils/artikel-materialen'
 import { relatiesApi } from '../../../../api/relaties'
 import type { DocPartij, PrijsRegel } from '../../../../services/document/documenten'
 
@@ -54,11 +54,13 @@ export function artikelVanRegel(project: Project, offerteRegelId: string | null 
   return id ? articlesApi.get(id) : null
 }
 
-/** De kwaliteit uit de artikelcalculatie ("S355", "304 RVS"); leeg zonder calculatie. */
+/**
+ * De kwaliteit(en) uit de artikelcalculatie ("S355", "C45, 304 RVS"); leeg
+ * zonder calculatie. Elke materiaalregel telt (2026-10-23), niet alleen de
+ * eerste; dezelfde kwaliteit twee keer staat er één keer.
+ */
 export function materiaalVan(artikel: Article | null): string {
-  const gradeId = artikel?.recipe?.gradeId
-  if (!gradeId) return ''
-  return gradesApi.listSync().find((g) => g.id === gradeId)?.name ?? ''
+  return [...new Set(materiaalRegelsVan(artikel).map((r) => r.kwaliteit).filter(Boolean))].join(', ')
 }
 
 /** De tweede regel onder de naam: omschrijving en tekening met revisie. */

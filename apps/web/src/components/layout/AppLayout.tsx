@@ -14,6 +14,7 @@ import { useInitAppData } from '../../hooks/useInitAppData'
 import { usePopoutRoutes } from '../../hooks/usePopout'
 import { openPopout, focusPopout, requestClosePopout, POPOUT_ROUTES } from '../../utils/popout'
 import { rawMaterialsApi } from '../../api/raw-materials'
+import { aantalInVoorraad } from '../voorraad/voorraad-filters'
 import { houdtVast, type ZaagReservation } from '../../api/reservations'
 import { useReserveringen } from '../../hooks/useReserveringen'
 import { usersApi } from '../../api/users'
@@ -80,7 +81,8 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
 
   // Live counts
   const { data: rawData } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
-  const voorraadCount = rawData?.data?.length ?? 0
+  // Wat er ligt, niet hoeveel regels er bestaan (zie `aantalInVoorraad`).
+  const voorraadCount = aantalInVoorraad(rawData?.data ?? [])
 
   // Reserverings- en zaagflowtellers. Komen uit dezelfde query als de rest van
   // het programma, dus een reservering die ergens gemaakt of afgeboekt wordt
