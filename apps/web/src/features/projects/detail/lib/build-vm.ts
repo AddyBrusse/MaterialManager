@@ -321,7 +321,7 @@ export function bouwReserveringen(res: ZaagReservation[]): ReserveringVM[] {
     const vast = houdtVast(r)
     const lengte = (r.sawLength * r.pieces) / 1000
     return {
-      materiaal: `${r.materiaal}${r.diameter ? ` Ø${r.diameter}` : ''}`,
+      materiaal: `${r.materiaal} ${r.afmeting}`,
       hoeveelheid: `${lengte.toFixed(2).replace('.', ',')} m`,
       toestand: vast
         ? `gereserveerd · ${r.pieces}× ${r.sawLength} mm · staaf ${r.barCode}`

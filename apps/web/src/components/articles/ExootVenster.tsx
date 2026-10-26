@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Group, Modal, NumberInput, Select, SimpleGrid, Stack, Text } from '@mantine/core'
+import { Alert, Button, Group, Modal, NumberInput, Select, SimpleGrid, Stack, Text } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { rawMaterialsApi, computeWeightKg, type ProfileInfo, type RawMaterialRow } from '../../api/raw-materials'
+import { rawMaterialsApi, computeWeightKg, volgendeVoorraadCode, type ProfileInfo, type RawMaterialRow } from '../../api/raw-materials'
 import { relatiesApi } from '../../api/relaties'
 import { ApiFout } from '../../api/client'
 import { meldFout } from '../../utils/fout-melding-toon'
 import { eis } from '../../utils/fout-melding'
+import { bestaandeExoot } from './bestaande-exoot'
 
 const eur = (n: number) => `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const kg = (n: number) => `${n.toLocaleString('nl-NL', { maximumFractionDigits: 2 })} kg`
@@ -18,11 +19,6 @@ interface Props {
   artikel: { id: string; naam: string; relatieId: string | null }
   onGemaakt: (row: RawMaterialRow, stuksUitEen: number) => void
   onSluit: () => void
-}
-
-function nextCode(rows: RawMaterialRow[]): string {
-  const nums = rows.map((r) => parseInt(r.code.replace('#', ''), 10)).filter((n) => !isNaN(n))
-  return `#${String((nums.length ? Math.max(...nums) : 0) + 1).padStart(5, '0')}`
 }
 
 /**
@@ -51,6 +47,11 @@ export function ExootVenster({ grades, profiles, stockRows, artikel, onGemaakt, 
   const gewicht = compleet && grade ? computeWeightKg(profiel!.volumeFormula, maten, Number(lengte), Number(grade.densityKgM3)) : 0
   const perExoot = gewicht * (grade?.pricePerKg ?? 0)
   const n = Math.max(1, Math.floor(Number(stuks) || 1))
+  const bestaand = compleet ? bestaandeExoot(stockRows, { klantId, gradeId, profileId, maten, lengte: Number(lengte), artikelId: artikel.id }) : undefined
+  const gebruikBestaand = (row: RawMaterialRow) => {
+    notifications.show({ color: 'green', message: `Bestaande exoot ${row.code} gebruikt` })
+    onGemaakt(row, n)
+  }
 
   const maak = useMutation({
     mutationFn: async () => {
@@ -59,7 +60,7 @@ export function ExootVenster({ grades, profiles, stockRows, artikel, onGemaakt, 
       eis(!compleet ? 'Vul alle maten en de lengte in, groter dan 0.' : null)
       eis(!klantId ? 'Kies de klant: een exoot is voor één klant.' : null)
       const r = await rawMaterialsApi.create({
-        code: nextCode(stockRows), gradeId: gradeId!, profileId: profileId!, dimensions: maten,
+        code: volgendeVoorraadCode(stockRows), gradeId: gradeId!, profileId: profileId!, dimensions: maten,
         lengthMm: Number(lengte), exoot: true, klantId, artikelId: artikel.id,
       })
       return r.data
@@ -104,10 +105,19 @@ export function ExootVenster({ grades, profiles, stockRows, artikel, onGemaakt, 
             ? `${kg(gewicht)} per exoot · ${eur(perExoot)} bij ${eur(grade.pricePerKg ?? 0)}/kg (kwaliteit) · ${eur(perExoot / n)} per werkstuk`
             : 'Vul kwaliteit, maten en lengte in om het gewicht en de prijs te zien.'}
         </div>
-        <Text size="xs" c="dimmed">Voor het artikel {artikel.naam}. Leveranciers en hun prijzen koppel je daarna in de voorraad.</Text>
+        {bestaand && (
+          <Alert color="grape" p="xs" title="Deze exoot bestaat al">
+            <Text size="xs">
+              {bestaand.code}{bestaand.klant ? ` voor ${bestaand.klant.naam}` : ''}{bestaand.artikel ? `, gemaakt voor ${bestaand.artikel.naam}` : ''}.
+              Gebruik je die, dan staan de stukken in de voorraad op één regel en gelden zijn leveranciersprijzen.
+            </Text>
+            <Button size="xs" mt={6} color="grape" variant="light" onClick={() => gebruikBestaand(bestaand)}>Bestaande gebruiken</Button>
+          </Alert>
+        )}
+        <Text size="xs" c="dimmed">Voor het artikel {artikel.naam}. Leveranciers en hun prijzen koppel je daarna in de voorraad (filter Exoot → Alleen exoten) of bij de leverancier onder Prijzen.</Text>
         <Group justify="flex-end" gap="xs">
           <Button size="xs" variant="default" onClick={onSluit}>Annuleren</Button>
-          <Button size="xs" color="grape" loading={maak.isPending} onClick={() => maak.mutate()}>Aanmaken en gebruiken</Button>
+          <Button size="xs" color="grape" variant={bestaand ? 'default' : 'filled'} loading={maak.isPending} onClick={() => maak.mutate()}>{bestaand ? 'Toch nieuw aanmaken' : 'Aanmaken en gebruiken'}</Button>
         </Group>
       </Stack>
     </Modal>

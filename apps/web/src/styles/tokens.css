@@ -571,6 +571,14 @@ table.st-tbl tbody tr { cursor: pointer; }
 table.st-tbl tbody tr:hover { background: var(--bg-hover); }
 table.st-tbl tbody tr[data-selected="true"] { background: var(--accent-soft); }
 table.st-tbl tbody tr:last-child td { border-bottom: 0; }
+/* Eén regel per exoot (2026-10-16): de groepsregel klapt de stukken uit. */
+.st-groep-code { display: inline-flex; align-items: center; gap: 4px; }
+.st-groep-code .st-chev { color: var(--text-3); transition: transform .15s; }
+table.st-tbl tbody tr.st-groep.open .st-chev { transform: rotate(90deg); }
+table.st-tbl tbody tr.st-sub td { background: var(--bg-sidebar); }
+table.st-tbl tbody tr.st-sub td:nth-child(2) { padding-left: 26px; }
+table.st-tbl tbody tr.st-sub:hover td { background: var(--bg-hover); }
+table.st-tbl tbody tr.st-sub[data-selected="true"] td { background: var(--accent-soft); }
 .st-tbl-foot {
   flex-shrink: 0; border-top: 1px solid var(--border); padding: 8px 14px;
   display: flex; align-items: center; gap: 12px;

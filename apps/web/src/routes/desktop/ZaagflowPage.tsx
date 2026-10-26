@@ -8,7 +8,7 @@ import { notifications } from '@mantine/notifications'
 import {
   useReserveringen, useAfboeken, useZetReserveringStatus,
 } from '../../hooks/useReserveringen'
-import { buildJobs, type ZaagJob } from '../../api/zaag-jobs'
+import { buildJobs, maatWoord, type ZaagJob } from '../../api/zaag-jobs'
 
 // Gelijk aan MIN_REST_MM in apps/api/src/services/zaagbon.ts: een rest
 // hieronder is geen bruikbaar stuk staal meer. De server beslist het, hier
@@ -58,7 +58,7 @@ function JobCard({ job, onClick }: { job: ZaagJob; onClick: () => void }) {
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-3)', display: 'flex', gap: 16 }}>
             <span>{job.machine}</span>
-            <span>{job.materiaal} Ø{job.diameter} mm</span>
+            <span>{job.materiaal} {job.afmeting}</span>
             <span>{job.reservations.length} {job.reservations.length === 1 ? 'as' : 'assen'} · {job.totalPcs} stuks</span>
           </div>
         </div>
@@ -119,6 +119,9 @@ function JobModal({ job, onClose }: {
   const bar  = bars[barIdx]
   const bs   = barStates[bar.id]
   const grijp = bar.sawLength - bar.pieces * bar.productLen
+  // Bij een plaat is er geen diameter: dan vraagt de keuring naar de maat.
+  const maat = maatWoord(bar.afmeting)
+  const Maat = maat === 'diameter' ? 'Diameter' : 'Maat'
 
   // Completion gates
   const keuringDone = bs.materiaalOk !== null && bs.diameterOk !== null && bs.lengteOk !== null && !bs.showIssue
@@ -233,7 +236,7 @@ function JobModal({ job, onClose }: {
         <div className="zf-modal-hd">
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="zf-job-title">{job.calcNr}</div>
-            <div className="zf-job-sub">{job.machine} · {job.materiaal} Ø{job.diameter} mm · {job.totalPcs} stuks</div>
+            <div className="zf-job-sub">{job.machine} · {job.materiaal} {job.afmeting} · {job.totalPcs} stuks</div>
           </div>
 
           {/* Bar position indicator (multi-bar only) */}
@@ -280,7 +283,7 @@ function JobModal({ job, onClose }: {
               <div className="zf-issue-title">Overleg met Bart</div>
               <div className="zf-issue-sub">
                 {bs.issueField === 'materiaal' ? 'Verkeerd materiaalnummer'
-                  : bs.issueField === 'diameter' ? 'Diameter klopt niet'
+                  : bs.issueField === 'diameter' ? `${Maat} klopt niet`
                   : 'Lengte klopt niet'} — overleg vóór je verdergaat.
               </div>
               <textarea
@@ -300,12 +303,12 @@ function JobModal({ job, onClose }: {
               <div className="zf-check-hero-block">
                 <div className="zf-question-type">
                   {checkField === 'materiaal' ? '① Materiaalnummer'
-                    : checkField === 'diameter' ? '② Diameter controle'
+                    : checkField === 'diameter' ? `② ${Maat} controle`
                     : '③ Lengte controle'}
                 </div>
                 <div className="zf-question-lbl">
                   {checkField === 'materiaal' ? 'Heb je het juiste materiaal gepakt?'
-                    : checkField === 'diameter' ? 'Is de diameter correct?'
+                    : checkField === 'diameter' ? `Is de ${maat} correct?`
                     : 'Klopt de lengte van de staaf?'}
                 </div>
                 <div
@@ -313,7 +316,7 @@ function JobModal({ job, onClose }: {
                   style={checkField === 'materiaal' && bar.barCode.length > 7 ? { fontSize: 36 } : undefined}
                 >
                   {checkField === 'materiaal' ? bar.barCode
-                    : checkField === 'diameter' ? `Ø ${bar.diameter} mm`
+                    : checkField === 'diameter' ? bar.afmeting
                     : fmm(bar.fysiekeLengte)}
                 </div>
                 {checkField === 'materiaal' && (
@@ -347,7 +350,7 @@ function JobModal({ job, onClose }: {
                   )}
                   {bs.diameterOk !== null && checkField !== 'diameter' && (
                     <span className={`zf-pill${bs.diameterOk ? ' ok' : ' nok'}`}>
-                      Ø {bar.diameter} mm {bs.diameterOk ? '✓' : '✗'}
+                      {bar.afmeting} {bs.diameterOk ? '✓' : '✗'}
                     </span>
                   )}
                 </div>
@@ -367,7 +370,7 @@ function JobModal({ job, onClose }: {
                   {bar.barCode} {bs.materiaalOk ? '✓' : '✗'}
                 </span>
                 <span className={`zf-pill${bs.diameterOk ? ' ok' : ' nok'}`}>
-                  Ø {bar.diameter} mm {bs.diameterOk ? '✓' : '✗'}
+                  {bar.afmeting} {bs.diameterOk ? '✓' : '✗'}
                 </span>
                 <span className={`zf-pill${bs.lengteOk ? ' ok' : ' nok'}`}>
                   {fmm(bar.fysiekeLengte)} {bs.lengteOk ? '✓' : '✗'}

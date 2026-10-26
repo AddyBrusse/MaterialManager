@@ -2383,6 +2383,70 @@ geheel terugdraaien.
   hand bijgezet, recept gewijzigd), dan nog het gelijke deel.
 - Hetzelfde voor de bewerkingen van een verstuurde offerte in de Prognose.
 
+## 2026-10-16 — Voorraad: één regel per exoot
+
+- **Waarom**: binnen boeken maakt één regel per stuk (elk stuk een eigen
+  materiaalnummer, `260001-1`, `260001-2`, …). Twintig platen voor één opdracht
+  stonden zo als twintig gelijke regels in de voorraad, en ook de verbruikte
+  bleven staan. Weggooien kan niet: het recept en de leveranciersprijzen wijzen
+  naar de exoot, en een bestelregel heeft hem nodig.
+- **Uitzondering op 2026-10-07 (elke staaf een eigen regel)**, alleen voor
+  exoten: de stukken van één exoot (zelfde klant, artikel, kwaliteit, profiel,
+  afwerking, maten en lengte, `exootSleutel` in
+  `components/voorraad/exoot-groepen.ts`) staan op één regel met de telling
+  erbij ("6 stuks: 3 in het rek, 1 nog niet binnen, 2 verbruikt"). Uitklappen
+  toont de stukken; muteren, bewerken en verwijderen blijft per stuk. Een
+  gewone staaf houdt zijn eigen regel (eigen restlengte), een exoot met één
+  stuk ook.
+- **De stand van een exootstuk wordt afgeleid, nooit opgeslagen**:
+  `exootStand` (`packages/shared/calc/exoot.ts`) = binnen (voorraad > 0),
+  verbruikt (op 0 en ooit een voorraadmutatie met een nieuwe stand boven 0),
+  anders nog niet binnen. De API levert hem mee
+  (`services/exoot-stand.ts`). Daarvóór heetten "nooit binnen geweest" en
+  "allang gezaagd" allebei "Te bestellen".
+- **Standaard weg wat niet in het rek ligt**: het filter "Op" verbergt nu ook
+  een exoot op 0. "Exoot → Alleen exoten" toont ze allemaal; de status "Nog
+  niet binnen" is een eigen filter. De telling op de groepsregel telt wél alle
+  stukken, ook de verborgen.
+- **Exoot aanmaken stelt een bestaande voor** (`bestaandeExoot`): zelfde
+  klant, kwaliteit, profiel, maten en lengte, liefst voor hetzelfde artikel.
+  "Bestaande gebruiken" koppelt het recept aan die exoot en maakt niets nieuws;
+  "Toch nieuw aanmaken" blijft kunnen.
+- **Gevonden en hersteld**: het volgende voorraadnummer werd in de browser
+  geraden uit de hoogste code, ook uit een materiaalnummer als `260001-1`. Dat
+  gaf `#260002`, wat de server weigert (`#` + 5 cijfers). Toevoegen, Nieuw
+  materiaal en Exoot aanmaken faalden daardoor zodra er iets met een
+  materiaalnummer binnen geboekt was. Nu één functie,
+  `volgendeVoorraadCode` (`apps/web/src/api/raw-materials.ts`), die alleen
+  naar `#00000`-codes kijkt, net als `volgendeCode` in `services/ontvangst.ts`.
+
+## 2026-10-19 — Mutatie met de hand en zaagbonnen; maat op de zaagbon
+
+- **Een mutatie met de hand die een staaf onder wat er vastligt brengt, gaat
+  niet door** (Addy koos "Weigeren"). Eerder raakte een mutatie alleen de
+  fysieke voorraad: na "Afboeken" naar 0 stond er 0 mm fysiek en toch nog
+  300 mm gereserveerd, en de Zaagflow bood de staaf nog aan tot de order gereed
+  was. Nu zegt het mutatievenster al tijdens het intypen welke zaagbon in de weg
+  zit, met de zin uit `waaromNietMutatie` (`packages/shared/calc/mutatie.ts`):
+  eerst afboeken in de Zaagflow of de reservering annuleren bij Reserveringen.
+  De server vraagt het nog eens (`eisRuimteVoorMutatie` in
+  `services/voorraad.ts`, `409 VOORWAARDE`). Alleen als de mutatie de staaf
+  lager zet dan wat er vastligt; toevoegen en kleinere mutaties gaan zoals ze
+  gingen.
+- **Afgewezen: kiezen in het venster** (afboeken of vrijgeven vanuit de
+  mutatie) en **vanzelf vrijgeven** (de order verliest stil zijn materiaal).
+- **De maat op een zaagbon komt van de staaf** (`afmeting`, afgeleid bij het
+  lezen in `routes/reservations.ts` met `zaagbonAfmeting`). De bon bewaart
+  alleen een diameter, en die is 0 bij alles wat niet rond is: een platte exoot
+  stond als "Ø0 mm" op Reserveringen, Zaagflow, Zaagplanner, de terminal en de
+  zaagbon-pdf. Opslaan zou bestaande bonnen niet repareren. De keuring in de
+  Zaagflow vraagt bij een plaat naar de maat in plaats van de diameter.
+- **Dezelfde oorzaak in de nacalculatie**: `materiaalWerkelijk` rekende elke
+  afgeboekte bon als rond, dus een platte exoot kostte € 0. Nu met vorm en maat
+  van de staaf; is de staaf weg, dan de diameter van de bon zoals voorheen.
+- **De teller "Voorraad" in het zijmenu telt wat er ligt** (voorraad > 0,
+  `aantalInVoorraad`), net als de tegel "met restlengte". Hij telde elke regel,
+  ook verbruikte staven en exoten die nog moesten komen.
 
 ## 2026-10-23 — Artikelreceptpagina: opslaan via de server, slot, kleine punten in één ronde
 

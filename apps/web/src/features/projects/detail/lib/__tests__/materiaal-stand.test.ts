@@ -7,7 +7,7 @@ function res(p: Partial<ZaagReservation>): ZaagReservation {
   return {
     id: 'r', calculatieNr: 'OB-1', projectId: 'PRJ', artikelId: 'ART-1', offerteRegelId: null,
     barId: 'bar1', barCode: 'B-001', barLocation: '', barVorm: 'rond', pieces: 10, productLen: 120,
-    sawLength: 1700, fysiekeLengte: 3000, materiaal: '42CrMo4', diameter: 45, werkstukLengte: 123,
+    sawLength: 1700, fysiekeLengte: 3000, materiaal: '42CrMo4', diameter: 45, afmeting: 'Ø45 mm', werkstukLengte: 123,
     steekbreedte: 3, vlakToeslag: 3, machine: 'Draaibank', createdAt: '', priority: null, rush: false,
     status: 'open', restLengteMm: null, completedAt: null, ...p,
   }

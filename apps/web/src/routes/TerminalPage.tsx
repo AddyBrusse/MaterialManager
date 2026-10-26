@@ -583,7 +583,7 @@ export function TerminalPage() {
                   <span className="st-sb-group-lbl">Materiaal</span>
                   <div className="tr-mat">
                     <div>
-                      <div className="tr-mat-groot">{zaagbon.materiaal} &Oslash;{zaagbon.diameter}</div>
+                      <div className="tr-mat-groot">{zaagbon.materiaal} {zaagbon.afmeting}</div>
                       <div className="tr-mat-sub">{zaagbon.barLocation}</div>
                     </div>
                     <div className="tr-mat-sep" />

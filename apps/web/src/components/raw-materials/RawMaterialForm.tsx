@@ -4,7 +4,7 @@ import { useForm } from '@mantine/form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import { IconX, IconLock } from '@tabler/icons-react'
-import { rawMaterialsApi } from '../../api/raw-materials'
+import { rawMaterialsApi, volgendeVoorraadCode } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { surfaceFinishesApi } from '../../api/surface-finishes'
@@ -13,13 +13,6 @@ import { locksApi } from '../../api/locks'
 import type { RawMaterialRow } from '../../api/raw-materials'
 
 const LOCK_HEARTBEAT_MS = 60_000
-
-/** Derive next unique code from existing rows: max numeric part + 1, zero-padded to 5 digits. */
-function nextCode(rows: RawMaterialRow[]): string {
-  const nums = rows.map(r => parseInt(r.code.replace('#', ''), 10)).filter(n => !isNaN(n))
-  const next = nums.length ? Math.max(...nums) + 1 : 1
-  return `#${String(next).padStart(5, '0')}`
-}
 
 type FormValues = {
   code: string
@@ -53,7 +46,7 @@ export function RawMaterialForm({ mode, item, opened, onClose, allRows = [] }: P
   const { data: surfaceFinishesData } = useQuery({ queryKey: ['surface-finishes'], queryFn: surfaceFinishesApi.list })
   const { data: locationsData }      = useQuery({ queryKey: ['locations'],       queryFn: locationsApi.list })
 
-  const autoCode = useMemo(() => nextCode(allRows), [allRows])
+  const autoCode = useMemo(() => volgendeVoorraadCode(allRows), [allRows])
 
   // Editing an existing item requires holding a lock (enforced server-side on
   // PATCH /raw-materials/:id) — acquire it while the drawer is open, refresh
