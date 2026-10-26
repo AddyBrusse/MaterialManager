@@ -5,7 +5,7 @@ import { dagKort, startDag, urenKort } from '../planning-tabel/tabel-logica'
 import type { Kaart } from './planning-logica'
 import { ArtikelInhoud, InfoHover, type StapRegel } from './InfoHover'
 
-export interface KaartProps {
+interface KaartProps {
   k: Kaart; slot: DerivedSlot | undefined; ws: Date
   /** Machine op de kaart (Status); in de KanBan staat hij al boven de baan. */
   toonMachine: boolean

@@ -2383,6 +2383,256 @@ geheel terugdraaien.
   hand bijgezet, recept gewijzigd), dan nog het gelijke deel.
 - Hetzelfde voor de bewerkingen van een verstuurde offerte in de Prognose.
 
+## 2026-10-16 — Voorraad: één regel per exoot
+
+- **Waarom**: binnen boeken maakt één regel per stuk (elk stuk een eigen
+  materiaalnummer, `260001-1`, `260001-2`, …). Twintig platen voor één opdracht
+  stonden zo als twintig gelijke regels in de voorraad, en ook de verbruikte
+  bleven staan. Weggooien kan niet: het recept en de leveranciersprijzen wijzen
+  naar de exoot, en een bestelregel heeft hem nodig.
+- **Uitzondering op 2026-10-07 (elke staaf een eigen regel)**, alleen voor
+  exoten: de stukken van één exoot (zelfde klant, artikel, kwaliteit, profiel,
+  afwerking, maten en lengte, `exootSleutel` in
+  `components/voorraad/exoot-groepen.ts`) staan op één regel met de telling
+  erbij ("6 stuks: 3 in het rek, 1 nog niet binnen, 2 verbruikt"). Uitklappen
+  toont de stukken; muteren, bewerken en verwijderen blijft per stuk. Een
+  gewone staaf houdt zijn eigen regel (eigen restlengte), een exoot met één
+  stuk ook.
+- **De stand van een exootstuk wordt afgeleid, nooit opgeslagen**:
+  `exootStand` (`packages/shared/calc/exoot.ts`) = binnen (voorraad > 0),
+  verbruikt (op 0 en ooit een voorraadmutatie met een nieuwe stand boven 0),
+  anders nog niet binnen. De API levert hem mee
+  (`services/exoot-stand.ts`). Daarvóór heetten "nooit binnen geweest" en
+  "allang gezaagd" allebei "Te bestellen".
+- **Standaard weg wat niet in het rek ligt**: het filter "Op" verbergt nu ook
+  een exoot op 0. "Exoot → Alleen exoten" toont ze allemaal; de status "Nog
+  niet binnen" is een eigen filter. De telling op de groepsregel telt wél alle
+  stukken, ook de verborgen.
+- **Exoot aanmaken stelt een bestaande voor** (`bestaandeExoot`): zelfde
+  klant, kwaliteit, profiel, maten en lengte, liefst voor hetzelfde artikel.
+  "Bestaande gebruiken" koppelt het recept aan die exoot en maakt niets nieuws;
+  "Toch nieuw aanmaken" blijft kunnen.
+- **Gevonden en hersteld**: het volgende voorraadnummer werd in de browser
+  geraden uit de hoogste code, ook uit een materiaalnummer als `260001-1`. Dat
+  gaf `#260002`, wat de server weigert (`#` + 5 cijfers). Toevoegen, Nieuw
+  materiaal en Exoot aanmaken faalden daardoor zodra er iets met een
+  materiaalnummer binnen geboekt was. Nu één functie,
+  `volgendeVoorraadCode` (`apps/web/src/api/raw-materials.ts`), die alleen
+  naar `#00000`-codes kijkt, net als `volgendeCode` in `services/ontvangst.ts`.
+
+## 2026-10-19 — Mutatie met de hand en zaagbonnen; maat op de zaagbon
+
+- **Een mutatie met de hand die een staaf onder wat er vastligt brengt, gaat
+  niet door** (Addy koos "Weigeren"). Eerder raakte een mutatie alleen de
+  fysieke voorraad: na "Afboeken" naar 0 stond er 0 mm fysiek en toch nog
+  300 mm gereserveerd, en de Zaagflow bood de staaf nog aan tot de order gereed
+  was. Nu zegt het mutatievenster al tijdens het intypen welke zaagbon in de weg
+  zit, met de zin uit `waaromNietMutatie` (`packages/shared/calc/mutatie.ts`):
+  eerst afboeken in de Zaagflow of de reservering annuleren bij Reserveringen.
+  De server vraagt het nog eens (`eisRuimteVoorMutatie` in
+  `services/voorraad.ts`, `409 VOORWAARDE`). Alleen als de mutatie de staaf
+  lager zet dan wat er vastligt; toevoegen en kleinere mutaties gaan zoals ze
+  gingen.
+- **Afgewezen: kiezen in het venster** (afboeken of vrijgeven vanuit de
+  mutatie) en **vanzelf vrijgeven** (de order verliest stil zijn materiaal).
+- **De maat op een zaagbon komt van de staaf** (`afmeting`, afgeleid bij het
+  lezen in `routes/reservations.ts` met `zaagbonAfmeting`). De bon bewaart
+  alleen een diameter, en die is 0 bij alles wat niet rond is: een platte exoot
+  stond als "Ø0 mm" op Reserveringen, Zaagflow, Zaagplanner, de terminal en de
+  zaagbon-pdf. Opslaan zou bestaande bonnen niet repareren. De keuring in de
+  Zaagflow vraagt bij een plaat naar de maat in plaats van de diameter.
+- **Dezelfde oorzaak in de nacalculatie**: `materiaalWerkelijk` rekende elke
+  afgeboekte bon als rond, dus een platte exoot kostte € 0. Nu met vorm en maat
+  van de staaf; is de staaf weg, dan de diameter van de bon zoals voorheen.
+- **De teller "Voorraad" in het zijmenu telt wat er ligt** (voorraad > 0,
+  `aantalInVoorraad`), net als de tegel "met restlengte". Hij telde elke regel,
+  ook verbruikte staven en exoten die nog moesten komen.
+
+## 2026-10-23 — Artikelreceptpagina: opslaan via de server, slot, kleine punten in één ronde
+
+Addy liep op de receptpagina tegen te veel kleine dingen aan. Werkwijze: één
+lijst per pagina met Doen / Niet / Later, in één ronde gebouwd en getest. De
+punten en hun oorzaak:
+
+- **Lezen en opslaan via de server.** De pagina las uit de kopie in de browser
+  (`sm_articles`) en `articlesApi.update` slikte fouten in. Gevolg: een direct
+  geopend artikel kon een oude stand tonen, en die ging bij de volgende wijziging
+  terug naar de server; een mislukte opslag zag niemand. Nu `articlesApi.haal` /
+  `opslaan` (`hooks/useArtikelBewerken.ts`): lezen van de server, vanzelf
+  opslaan 0,4 s na de laatste wijziging, één verzoek tegelijk, groen pas na
+  antwoord. De knop "Opslaan" (sloeg alleen de kop op) is weg; de stand staat
+  naast de titel, niet rechtsboven, want daar komen de meldingen en een
+  foutmelding lag precies over "Opnieuw opslaan".
+- **Een mislukte opslag blijft op het scherm staan**, rood gemarkeerd, met
+  "Opnieuw opslaan" en één melding per reeks. Dit wijkt bewust af van "een
+  optimistische wijziging die mislukt gaat van het scherm af" (CLAUDE.md): hier
+  zou dat getypt werk weggooien, terwijl het scherm duidelijk zegt dat het niet
+  op de server staat. Weggaan binnen de 0,4 s slaat meteen op; de pagina
+  sluiten met iets onopgeslagens vraagt de browser eerst.
+- **Slot op het artikel** (`ItemType` + `article`, migratie
+  `20261023090000_artikel_slot`; `hooks/useEditLock.ts`, nu ook onder
+  `useProjectLock`). Wie eerst komt bewerkt, de rest kijkt mee en ziet
+  wijzigingen binnen 5 s; klikken op een dicht veld zegt waarom. Net als bij
+  projecten handhaaft de server het slot niet bij opslaan. Het slot is per
+  gebruiker: dezelfde persoon in twee tabbladen deelt het, en sluiten van het ene
+  geeft het even vrij tot het andere het binnen 5 s terugpakt.
+- **Recept volgt de calculatie** (`receptUitCalculatie`): de eerste
+  materiaalregel die geen exoot is, is het recept; de laatste weg = recept leeg.
+  Het recept bleef eerder staan op wat er bij het aanmaken stond.
+- **Eén materiaalkiezer.** Dubbelklik op een materiaalregel opende nog het oude
+  venster met keuzelijsten, zonder stangenlader. Nu opent dezelfde kiezer als
+  "Materiaal kiezen", met de regel al aangeklikt. Een vaste prijs blijft alleen
+  bij hetzelfde materiaal; een naam die het oude materiaal beschreef gaat mee,
+  een zelf gegeven naam blijft.
+- **Dezelfde machine twee keer in het recept = twee stappen.** Dit draait het
+  besluit van 2026-10-09 ("één stap met beide tijden") terug. Een machineknoop
+  is een opspanning; twee knopen op de draaibank (voordraaien, nadraaien) zijn
+  twee keer werk, en de prijs telde ze al allebei. `bewerkingenVan` ontdubbelt
+  niet meer. Orders van vóór vandaag hebben per machine één stap; die krijgt bij
+  het plannen nog steeds de tijd van alle knopen samen (`receptMachineVoorStap`).
+  De nacalculatie telt per machine en verandert dus niet.
+- **Getallen met komma** in de calculator (`AcalcNum` is een tekstveld,
+  `leesGetal`/`toonGetal`): `type="number"` volgt de taal van de browser.
+- **Verwijderen met "Ongedaan maken"** (8 s), terug op dezelfde plek: één klik
+  op de prullenbak kon een machine met al zijn stappen kosten.
+- **"Uit" alleen bij een minimumvoorraad**: een artikel op bestelling staat op 0
+  en dat is dan "Geen voorraad", geen alarm.
+- **Staffel**: klein onder de getallen, de prijs per stuk bij 10, 25 en 50 stuks
+  (insteltijd en uitbesteding verdeeld). Bewust niet prominent; zonder
+  insteltijd verdwijnt de regel.
+- **Exoot**: het aantal staat in de lengtekolom, de laderkolom zegt "geen lader".
+- **Stangenlader-balk** krimpt mee met zijn kolom (`LaderStangBalk vullend`) en
+  steekt niet meer over de keuze van de lader.
+- **Nieuwe bewerking** begint leeg met een placeholder, in plaats van een naam
+  die je eerst moest weghalen.
+- **Tabs** in de vorm van de rest van de app (mapjes zoals `.pdv2-tab`).
+- **Calculator opgesplitst** in een bestand per sectie (`CalcMaterialen`,
+  `CalcBewerkingen`, `CalcUitbestedingen`, `CalcNodeModal`, `calc-kit`).
+- Nog niet omgezet: `articlesApi.update`/`create` (artikelformulier, mail-import)
+  vallen nog stil terug op de browserkopie.
+
+## 2026-10-23 — Elke materiaalregel uit voorraad (B1)
+
+Tot vandaag deed alleen de **eerste** materiaalregel van een artikel mee in
+materiaal kiezen, reserveren, afboeken en tekort bestellen. Een tweede regel
+(een as én een bus) werd wel in de kostprijs gerekend, maar nooit gekozen:
+geen reservering, niets afgeboekt, niet besteld. Addy koos voor de grote
+versie: elke regel uit voorraad.
+
+- **Welke regels**: alle materiaalregels met een kwaliteit, behalve een exoot
+  (`voorraadRegels` in `packages/shared/calc/materiaal-regels.ts`). Een exoot
+  volgt zijn eigen weg (bestelregel bij de opdracht, gereserveerd bij
+  ontvangst). Een artikel met alleen exoten krijgt geen todo "materiaal
+  selecteren" meer: er valt niets uit voorraad te kiezen.
+- **Per regel een eigen plan en een eigen vastlegging.** Elke regel heeft een
+  eigen maat, lengte en lader, dus elk zijn eigen `materiaalBehoefte` en
+  voorstellen. Reservering en tekort-bestelregel onthouden de regel
+  (`materiaalRegelId`, het id van de knoop in de calculatie; migratie
+  `20261023120000_materiaal_per_regel`). Leeg = van vóór vandaag en telt voor de
+  eerste regel, want toen was er alleen die (`regelVan`).
+- **Bewuste beperking**: regels van hetzelfde materiaal worden na elkaar
+  gekozen, niet samen op één staaf genest. De tweede ziet wat de eerste
+  vastlegde, maar een zuiniger gezamenlijke indeling zoekt hij niet. Komt zelden
+  voor; samen nesten zou het venster en de reservering ingewikkelder maken dan
+  het oplevert.
+- **Wat er per regel geregeld is, zegt de server** (`dekkingPerRegel`,
+  `services/materiaal-selectie.ts` → `GET /reservations/materiaal-dekking`).
+  In **stuks**, niet in lengtes: de lengtes per stang hangen af van het aantal
+  (gelijk verdeeld), dus bij een hoger aantal na het kiezen passen de oude
+  stangen niet op de nieuwe verdeling, maar de stuks die vastliggen blijven
+  gedekt en het venster rekent alleen de rest. Een regel is **klaar** als alle
+  stuks vastliggen (open, bezig of al afgeboekt) of als er voor die regel een
+  tekort-bestelregel openstaat.
+- **De todo gaat pas dicht als elke regel klaar is.** Het venster legt per
+  regel vast en springt dan naar de volgende; "Later kiezen" laat de rest
+  staan. De Opdracht-tab toont tussendoor "Deels gekozen · 1 van 2 materialen"
+  en "Verder kiezen"; alles op de bestellijst zonder voorraad heet "Besteld".
+- **Niets op voorraad** is geen doodlopende weg meer: "Op bestellijst zetten"
+  legt het hele tekort vast zonder staaf. Vroeger bleef de todo dan staan met
+  alleen de melding dat je zelf moest gaan bestellen.
+- **Tekort per materiaal**: `tekortRegel` neemt het materiaal van die regel,
+  niet meer het recept (dat is altijd de eerste regel). Eén open regel per
+  materiaalregel; de bestel-todo ook per materiaal.
+- **Een staaf moet ook in maat gelijk zijn** bij het vastleggen. Alleen
+  kwaliteit en vorm werden gecontroleerd; een Ø60 kon voor een Ø50-regel
+  worden vastgelegd als het verzoek dat vroeg.
+- **Nacalculatie rekende de hele staaf.** `materiaalWerkelijk` gebruikte
+  `fysiekeLengte` (de staaf bij het reserveren) en altijd rond materiaal: 300 mm
+  van een staaf van 3 m kostte 3 m, een vierkant woog als een ronde staaf met
+  diameter 0. Nu `sawLength` (wat er volgens de bon af ging, met een
+  meegenomen rest) en de vorm, maat en kwaliteit van de staaf zelf. Een
+  gemeten rest uit de Zaagflow telt nog niet apart mee.
+- **Een besteld tekort gaat bij ontvangst meteen vast** voor zijn order en
+  materiaalregel, alleen wat die nog nodig heeft; de rest van de staaf blijft
+  vrij (`reserveerTekortBijOntvangst`, `services/ontvangst.ts`). Zoals een
+  exoot. Dit gat bestond al: de todo ging dicht bij "tekort bestellen", en de
+  staaf die binnenkwam hing nergens aan, kon door een ander project gepakt
+  worden en werd bij gereedmelden niet afgeboekt. Het wijkt af van "nooit
+  automatisch vastleggen", maar het besluit is al genomen toen iemand voor
+  deze order het tekort bestelde, en Binnen boeken zegt voor welk project hij
+  vastgaat. Past de staaf niet (te kort, of de maat is bij het bestellen
+  veranderd), dan wordt vastgelegd wat past en gaat de todo weer open.
+- **Documenten en lijsten** tonen alle materialen: kwaliteiten op offerte,
+  opdracht en factuur (`materiaalVan`), één regel per materiaal op de werkbon,
+  per regel in de tooltip van de marge, "+1" in de artikelenlijst
+  (`utils/artikel-materialen.ts`).
+
+---
+
+## 2026-10-23 — Dode code opgeruimd; knip in de CI houdt het zo
+
+**Aanleiding:** Addy schrok van de omvang (60.500 regels, 47 tabellen) en vroeg
+of alles nodig is. Gemeten met [knip](https://knip.dev) en `tsc --noUnusedLocals`:
+ongeveer 1.400 regels (2 à 3 %) was dood, de rest is in gebruik. De app is groot
+omdat hij het hele orderproces doet, niet omdat er rommel in zit.
+
+**Weg:**
+- `services/productie-pdf.ts` (vervangen door `services/document/`) en
+  `components/nacalculatie/ProjectNacalculatieTab.tsx` (vervangen door
+  `features/projects/detail/tabs/NacalculatieTab.tsx`): nergens geïmporteerd.
+- `routes/desktop/ZaagPlannerPage.tsx` met route, registratie en het
+  uitgeschakelde menu-item ("Hiervoor gaan we een andere applicatie gebruiken").
+  Daarmee ook `@hello-pangea/dnd`, de laatste gebruiker.
+- API-routes `GET /api/low-stock` en `GET /api/search`: geen enkel scherm riep
+  ze aan. Lage voorraad komt uit `utils/todoAlerts.ts` in de browser, zoeken
+  gebeurt in de schermen zelf. `features/36-search.md` en `37-low-stock.md`
+  hebben een statusregel gekregen.
+- De `MOCK_*`-nepgegevens in `api/{grades,profiles,machines,locations,
+  surface-finishes,relaties}.ts`. De `localStorage`-kopie blijft als terugval
+  bij lezen; zonder kopie begint hij nu leeg in plaats van met verzonnen rijen.
+- Het tabblad "Op mutaties" in de drawer "Meest verbruikt" op Voorraad: dat
+  toonde een vaste tabel (`m1`…`m7`, ids die niet bestaan) plus een formule
+  uit de lengte, dus verzonnen aantallen. Echte aantallen vragen de
+  mutatiehistorie per staaf; tot die er is, alleen "Op lengte".
+- `qrcode` (ongebruikt pakket), 166 exports die nergens geïmporteerd werden
+  (het `export`-woord eraf) en 49 symbolen die daarna nergens meer gebruikt
+  werden (verwijderd), waaronder `Topbar` in `AppLayout`, `sendViaMicrosoft365`,
+  `useZaagplanOpslaan`, `machineAvailableHours` en `regelNaam`.
+
+**Ook weg, na een besluit van Addy dezelfde dag:** `Label` met `routes/labels.ts`
+en `services/label.ts` (labelprinter geparkeerd, nooit een scherm voor gemaakt)
+en `FinishedGood` met `routes/finished-goods.ts` (de oude cataloguslijst van
+vóór `Article`; voedde alleen nog de ToDo-melding "lage voorraad", die nu alleen
+materiaal telt). Migratie `20261023120000_label_finished_good_weg` dropt de
+tabellen `labels` en `finished_goods` **met inhoud** en de enum `LabelStatus`.
+De waarde `finished` blijft in de Postgres-enum `ItemType` staan voor oude
+regels in `stock_movements`; de Zod-schema's `ItemTypeSchema` en
+`LockItemTypeSchema` kennen hem niet meer, dus de API neemt hem niet meer aan.
+Bijvangst: de hand geschreven migratie van 2026-09-14 maakte een index
+`users_machine_id_idx` die niet in `schema.prisma` stond; `prisma migrate dev`
+wilde hem daarom droppen. De index staat nu ook in het schema (`@@index([machineId])`),
+zodat `migrate diff` tussen migraties en schema weer leeg is.
+
+**Niet aangeraakt:** het terugvallen op `localStorage` bij *schrijven* in de
+`api/*.ts`-bestanden, waar een mislukte opslag stil in de browser landt; dat is
+een aparte wijziging.
+
+**Vanaf nu:** `npm run knip` draait in de CI (`.github/workflows/ci.yml`,
+config in `knip.json`). Een export die nergens gebruikt wordt, een bestand dat
+niemand importeert of een pakket dat niemand laadt maakt de build rood. Dat is
+geen stijlregel maar een signaal: elk van de weggehaalde stukken was ooit
+"straks nodig" en bleef daarna maanden staan.
+
 ## 2026-10-24 — Knop "Dit klopt niet": verbeterpunten met pagina, schermafbeelding en zin
 
 **Aanleiding:** punt D2 van de lijst kleine punten. Wie iets ziet wat niet

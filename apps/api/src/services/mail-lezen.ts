@@ -31,7 +31,7 @@ import type { AiExtractOutcome } from './ai-extract'
  * voorkomt wordt overgeslagen: twee bijlagen met dezelfde naam zouden elkaar op
  * schijf en in de inhoudsmap overschrijven.
  */
-export function metZipInhoud(bijlagen: ExtractedAttachment[]): ExtractedAttachment[] {
+function metZipInhoud(bijlagen: ExtractedAttachment[]): ExtractedAttachment[] {
   if (!bijlagen.some((a) => !a.isEmbeddedMessage && isZip(a.filename))) return bijlagen
 
   const uit: ExtractedAttachment[] = []
@@ -48,7 +48,7 @@ export function metZipInhoud(bijlagen: ExtractedAttachment[]): ExtractedAttachme
   return uit
 }
 
-export interface Voorbereid {
+interface Voorbereid {
   mail: NormalizedMail
   embedded: NormalizedMail[]
   buffers: AttachmentBuffers
@@ -92,7 +92,7 @@ export async function bereidVoor(
   }
 }
 
-export interface Gelezen {
+interface Gelezen {
   mail: NormalizedMail
   uitkomst: AiExtractOutcome
   lines: CandidateLine[]

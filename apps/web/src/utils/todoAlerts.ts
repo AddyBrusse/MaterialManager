@@ -1,6 +1,5 @@
 import type { Project } from '@stockmanager/shared'
 import type { RawMaterialRow } from '../api/raw-materials'
-import type { FinishedGoodRow } from '../api/finished-goods'
 import type { Article } from '../api/articles'
 import { formatDate } from '../api/projects'
 import { formatDimensions } from '../api/raw-materials'
@@ -42,7 +41,7 @@ const DUE_RISK_STATUSES: Project['status'][] = ['bevestigd', 'productie']
 const DUE_RISK_WORKDAYS_THRESHOLD = 2
 const PRODUCTION_OVERRUN_FACTOR = 1.5
 
-export function getLowStockAlerts(rawMaterials: RawMaterialRow[], finishedGoods: FinishedGoodRow[]): TodoAlert[] {
+export function getLowStockAlerts(rawMaterials: RawMaterialRow[]): TodoAlert[] {
   const alerts: TodoAlert[] = []
 
   for (const r of rawMaterials) {
@@ -56,19 +55,6 @@ export function getLowStockAlerts(rawMaterials: RawMaterialRow[], finishedGoods:
       title: `Lage voorraad: ${label} (${current}/${min})`,
       severity: current <= 0 ? 'high' : 'normal',
       linkTo: '/voorraad',
-    })
-  }
-
-  for (const fg of finishedGoods) {
-    const min = fg.minStock != null ? Number(fg.minStock) : null
-    const current = Number(fg.currentStock)
-    if (min == null || current >= min) continue
-    alerts.push({
-      key: `stock:finished:${fg.id}`,
-      kind: 'low-stock',
-      title: `Lage voorraad: ${fg.name} (${fg.artNo}) — ${current}/${min}`,
-      severity: current <= 0 ? 'high' : 'normal',
-      linkTo: '/artikelen',
     })
   }
 

@@ -11,7 +11,7 @@ export const lokaleDag = (iso: string) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-export const STAND_KLEUR: Record<InkoopStand, 'dgr' | 'warn' | 'ok' | 'info' | ''> = {
+const STAND_KLEUR: Record<InkoopStand, 'dgr' | 'warn' | 'ok' | 'info' | ''> = {
   te_laat_besteld: 'dgr',
   nu_bestellen: 'warn',
   wacht: '',

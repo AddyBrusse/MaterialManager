@@ -7,7 +7,7 @@
 
 import { afwijkingRichting } from '@stockmanager/shared'
 
-export type AfwijkingKleur = 'neutraal' | 'dgr' | 'ok'
+type AfwijkingKleur = 'neutraal' | 'dgr' | 'ok'
 
 /**
  * Goedkoper gemaakt dan berekend is groen, anders rood (2026-10-01). Het

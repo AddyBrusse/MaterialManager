@@ -357,3 +357,12 @@
 .acalc-mat-lader label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; color: var(--text-2); }
 .acalc-mat-lader select { font-size: 12px; padding: 2px 4px; border: 1px solid var(--border-input); border-radius: var(--radius-sm); background: var(--bg-input); color: var(--text); max-width: 112px; }
 .acalc-mat-lengte .mt-balk { margin-top: 4px; }
+
+/* Machinevenster: wat de machine zelf rekent, boven de velden (2026-10-23) */
+.acalc-modal-info {
+  display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--text-2);
+  background: var(--bg-sidebar); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+}
+/* Melding na verwijderen: naam links, "Ongedaan maken" rechts */
+.acalc-weg-melding { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.acalc-weg-melding .acalc-linkbtn { font-size: 12px; font-weight: 600; flex: none; }

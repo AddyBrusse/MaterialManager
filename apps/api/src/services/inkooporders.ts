@@ -19,7 +19,7 @@ import { leesOverzicht } from './inkoop-overzicht'
 
 type Db = typeof prisma | Prisma.TransactionClient
 
-export const ORDER_INCLUDE = {
+const ORDER_INCLUDE = {
   leverancier: { select: { naam: true, email: true, contacten: true } },
   regels: {
     orderBy: { positie: 'asc' },
@@ -46,7 +46,7 @@ async function naarOrders(db: Db, rijen: Rij[]): Promise<Inkooporder[]> {
       return {
         id: r.id, referentie: `${o.id}.${r.positie}`, materiaalNummer: r.materiaalNummer, bestelRegelId: b.id,
         materiaal: `${b.grade.name} ${b.profile.name} ${maatTekst(b.profile.volumeFormula, dims)}`,
-        exoot: !!b.rawMaterial?.exoot, stuks: r.stuks, lengteMm,
+        exoot: !!b.rawMaterial?.exoot, tekort: b.bron === 'tekort', stuks: r.stuks, lengteMm,
         kg: kgVanRegel({ dimensions: dims, lengteMm, stuks: r.stuks, volumeFormula: b.profile.volumeFormula, densityKgM3: Number(b.grade.densityKgM3) }),
         totaal: Number(r.totaal), uitleg: r.uitleg, levertijdDagen: r.levertijdDagen, ontvangenStuks: r.ontvangenStuks,
         verwachtDatum: r.verwachtDatum,

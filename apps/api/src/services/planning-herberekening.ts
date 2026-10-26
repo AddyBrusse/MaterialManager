@@ -29,7 +29,7 @@ function leesWijzigingen(json: Prisma.JsonValue): HerberekeningWijziging[] {
   })
 }
 
-export function serializeHerberekening(r: Rij): Herberekening {
+function serializeHerberekening(r: Rij): Herberekening {
   return {
     id: r.id, aanleiding: r.aanleiding, door: r.door, op: r.op.toISOString(),
     wijzigingen: leesWijzigingen(r.wijzigingen),
@@ -96,7 +96,7 @@ async function eisNieuwste(db: Db, r: Rij) {
   }
 }
 
-export async function blokkades(db: Db, r: Rij): Promise<Blokkade[]> {
+async function blokkades(db: Db, r: Rij): Promise<Blokkade[]> {
   const w = leesWijzigingen(r.wijzigingen)
   const ids = w.map((x) => x.stapId)
   const stappen = await db.productieStap.findMany({ where: { id: { in: ids } } })

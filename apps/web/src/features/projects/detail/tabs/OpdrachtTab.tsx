@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { waarschuwingBijWijziging, type OfferteRegel, type OpdrachtWijziging, type Project, type ProjectVoortgang, type Todo } from '@stockmanager/shared'
 import { ArtikelPickerModal } from '../../../../components/projecten/ArtikelPickerModal'
 import { BevestigModal } from '../components/BevestigModal'
 import type { ZaagReservation } from '../../../../api/reservations'
+import { materiaalPlanApi } from '../../../../api/materiaal-plan'
 import { MateriaalSelectieModal } from '../../../../components/materiaal/MateriaalSelectieModal'
 import { ObKaart } from './opdracht/ObKaart'
 import { ObRegels } from './opdracht/ObRegels'
@@ -36,6 +38,14 @@ export function OpdrachtTab(props: Props) {
   const [bevestig, setBevestig] = useState<{ w: OpdrachtWijziging; tekst: string } | null>(null)
   const doc = props.doc
   const ob = p.opdrachtbevestiging
+  // Wat er per materiaalregel geregeld is (2026-10-23). Ververst als de
+  // reserveringen veranderen; mislukt het, dan toont de cel alleen de
+  // reserveringen, zoals vóór 2026-10-23.
+  const { data: dekking } = useQuery({
+    queryKey: ['materiaal-dekking', p.id, props.reserveringen.length],
+    queryFn: () => materiaalPlanApi.dekking(p.id),
+    enabled: !!ob,
+  })
 
   if (!ob) return <GeenOpdracht project={p} geblokkeerd={geblokkeerd} {...props.geenOpdracht} />
 
@@ -68,6 +78,7 @@ export function OpdrachtTab(props: Props) {
         project={p}
         voortgang={props.voortgang}
         reserveringen={props.reserveringen}
+        dekking={dekking}
         geblokkeerd={geblokkeerd}
         onKiesMateriaal={setKies}
         onNaarReserveringen={props.onNaarReserveringen}

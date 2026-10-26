@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
-import { AppShell, Group, ActionIcon, Text, SegmentedControl } from '@mantine/core'
-import { IconPackage, IconBox, IconArrowsExchange } from '@tabler/icons-react'
+import { AppShell, Group, Text, SegmentedControl } from '@mantine/core'
+import { IconPackage, IconArrowsExchange } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
 
 function MobileBottomNav() {
@@ -16,7 +16,6 @@ function MobileBottomNav() {
         onChange={(v) => navigate(`/${v}`)}
         data={[
           { value: 'raw', label: <Group gap={4}><IconPackage size={14} /><Text size="xs">Grondstof</Text></Group> },
-          { value: 'finished', label: <Group gap={4}><IconBox size={14} /><Text size="xs">Artikel</Text></Group> },
           { value: 'movements', label: <Group gap={4}><IconArrowsExchange size={14} /><Text size="xs">Mutaties</Text></Group> },
         ]}
       />
@@ -39,7 +38,6 @@ export function MobileLayout() {
         <Routes>
           <Route index element={<Navigate to="/raw" replace />} />
           <Route path="/raw" element={<div>Grondstoffen — nog te bouwen</div>} />
-          <Route path="/finished" element={<div>Eindproducten — nog te bouwen</div>} />
           <Route path="/movements" element={<div>Mutaties — nog te bouwen</div>} />
           <Route path="*" element={<Navigate to="/raw" replace />} />
         </Routes>

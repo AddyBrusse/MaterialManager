@@ -175,7 +175,6 @@ export function OverheadTab() {
 
   const nameOf = (m: Machine) => localNames[m.id] ?? m.name
   const mc = machines.length
-  const tblW = LBL_W + mc * COL_W
 
   // Pre-compute all results
   const res: Record<string, MachineOverheadResult> = {}

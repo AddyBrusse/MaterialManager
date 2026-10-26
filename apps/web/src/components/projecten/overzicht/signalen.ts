@@ -122,10 +122,10 @@ export function heeftSignaal(s: Signalen, id: SignaalId): boolean {
 
 export type StapToestand = 'klaar' | 'deels' | 'open' | 'uit' | 'overgeslagen'
 
-export const STAP_NAMEN = ['Concept', 'Offerte', 'Geaccepteerd', 'Opdracht', 'In productie', 'Paklijst', 'Factuur'] as const
-export type StapNaam = typeof STAP_NAMEN[number]
+const STAP_NAMEN = ['Concept', 'Offerte', 'Geaccepteerd', 'Opdracht', 'In productie', 'Paklijst', 'Factuur'] as const
+type StapNaam = typeof STAP_NAMEN[number]
 
-export interface Stap {
+interface Stap {
   naam: StapNaam
   toestand: StapToestand
   uitleg: string

@@ -19,7 +19,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const parsed = LockItemTypeSchema.safeParse(req.query.itemType)
     if (!parsed.success) {
-      throw new AppError(400, 'VALIDATION', 'itemType query param vereist (raw|finished|project)')
+      throw new AppError(400, 'VALIDATION', 'itemType query param vereist (raw|project|article)')
     }
     const itemType = parsed.data
     const lock = await prisma.lock.findUnique({

@@ -65,7 +65,7 @@ export function MateriaalRegel(p: Props) {
           <div className="acalc-mat-opbouw">{opbouw}</div>
         )}
         {bruto.lader && bruto.nettoMm > 0 && (
-          <LaderStangBalk werkstukMm={bruto.nettoMm} lader={bruto.lader} breedte={300} legenda={false} />
+          <LaderStangBalk werkstukMm={bruto.nettoMm} lader={bruto.lader} breedte={300} legenda={false} vullend />
         )}
       </div>
       <div className="acalc-mat-lader" onDoubleClick={(e) => e.stopPropagation()}>

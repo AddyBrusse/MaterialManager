@@ -19,7 +19,7 @@ import type { CandidateLine, MailImport, Project } from '@stockmanager/shared'
  * er iets de deur uit gaat.
  */
 
-export interface OvernameResultaat {
+interface OvernameResultaat {
   offerteId: string
   aantalRegels: number
   /** Regels zonder gekoppeld artikel: wel overgenomen, maar zonder prijs. */
@@ -108,7 +108,7 @@ async function maakArtikelVoor(
   return artikel
 }
 
-export interface OvernameInput {
+interface OvernameInput {
   project: Project
   mailImport: MailImport
   klantNaam: string | null

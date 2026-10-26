@@ -2,39 +2,6 @@ import type { Profile } from '@stockmanager/shared'
 import type { LaadFout } from '../utils/fout-melding'
 import { apiFetch } from './client'
 
-export const MOCK_PROFILES: Profile[] = [
-  {
-    id: 'p1', name: 'Rond', volumeFormula: 'round', createdAt: '',
-    dimensionSchema: [{ key: 'diameter', label: 'Diameter', unit: 'mm' }],
-  },
-  {
-    id: 'p2', name: 'Vierkant', volumeFormula: 'square', createdAt: '',
-    dimensionSchema: [{ key: 'side', label: 'Zijde', unit: 'mm' }],
-  },
-  {
-    id: 'p3', name: 'Plat', volumeFormula: 'flat', createdAt: '',
-    dimensionSchema: [
-      { key: 'width', label: 'Breedte', unit: 'mm' },
-      { key: 'height', label: 'Hoogte', unit: 'mm' },
-    ],
-  },
-  {
-    id: 'p4', name: 'Buis', volumeFormula: 'tube', createdAt: '',
-    dimensionSchema: [
-      { key: 'outerDiameter', label: 'Buitendiameter', unit: 'mm' },
-      { key: 'innerDiameter', label: 'Binnendiameter', unit: 'mm' },
-    ],
-  },
-  {
-    id: 'p5', name: 'Hoekstaal', volumeFormula: 'flat', createdAt: '',
-    dimensionSchema: [
-      { key: 'width', label: 'Breedte', unit: 'mm' },
-      { key: 'height', label: 'Hoogte', unit: 'mm' },
-      { key: 'thickness', label: 'Dikte', unit: 'mm' },
-    ],
-  },
-]
-
 export type DimField = { key: string; label: string; unit: string }
 
 const LS_KEY = 'sm_profiles'
@@ -44,7 +11,7 @@ function loadStore(): Profile[] {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) return JSON.parse(raw) as Profile[]
   } catch {}
-  return [...MOCK_PROFILES]
+  return []
 }
 
 function saveStore(data: Profile[]): void {

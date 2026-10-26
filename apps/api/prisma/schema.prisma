@@ -24,6 +24,7 @@ enum ItemType {
   raw
   finished
   project
+  article
 }
 
 enum MovementKind {
@@ -37,12 +38,6 @@ enum MovementReason {
   scrapped
   correction
   other
-}
-
-enum LabelStatus {
-  printed_unused
-  consumed
-  voided
 }
 
 enum TodoPriority {
@@ -106,13 +101,13 @@ model User {
   movements        StockMovement[]
   locks            Lock[]
   lockRequests     LockRequest[]
-  labels           Label[]
   createdTodos     Todo[]            @relation("TodoCreatedBy")
   claimedTodos     Todo[]            @relation("TodoClaimedBy")
   preferences      UserPreference[]
   tijdregistraties TijdRegistratie[]
   machine          Machine?          @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
+  @@index([machineId])
   @@map("users")
 }
 
@@ -149,9 +144,8 @@ model LocationSlot {
   level2     String?
   createdAt  DateTime @default(now()) @map("created_at")
 
-  location      Location       @relation(fields: [locationId], references: [id])
-  rawMaterials  RawMaterial[]
-  finishedGoods FinishedGood[]
+  location     Location      @relation(fields: [locationId], references: [id])
+  rawMaterials RawMaterial[]
 
   @@map("location_slots")
 }
@@ -222,27 +216,8 @@ model RawMaterial {
   profile        Profile        @relation(fields: [profileId], references: [id])
   surfaceFinish  SurfaceFinish? @relation(fields: [surfaceFinishId], references: [id])
   locationSlot   LocationSlot?  @relation(fields: [locationSlotId], references: [id])
-  consumingLabel Label?         @relation("LabelConsumedMaterial")
 
   @@map("raw_materials")
-}
-
-model FinishedGood {
-  id             String   @id @default(uuid())
-  artNo          String   @unique @map("art_no")
-  name           String
-  customer       String?
-  photoPath      String?  @map("photo_path")
-  drawingPath    String?  @map("drawing_path")
-  locationSlotId String?  @map("location_slot_id")
-  minStock       Decimal? @map("min_stock")
-  currentStock   Decimal  @default(0) @map("current_stock")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  locationSlot LocationSlot? @relation(fields: [locationSlotId], references: [id])
-
-  @@map("finished_goods")
 }
 
 model StockMovement {
@@ -263,22 +238,6 @@ model StockMovement {
   @@index([itemId, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@map("stock_movements")
-}
-
-model Label {
-  number                String      @id
-  batchId               String      @map("batch_id")
-  status                LabelStatus
-  printedAt             DateTime    @map("printed_at")
-  printedById           String      @map("printed_by")
-  consumedAt            DateTime?   @map("consumed_at")
-  consumedRawMaterialId String?     @unique @map("consumed_raw_material_id")
-
-  printedBy           User         @relation(fields: [printedById], references: [id])
-  consumedRawMaterial RawMaterial? @relation("LabelConsumedMaterial", fields: [consumedRawMaterialId], references: [id])
-
-  @@index([status])
-  @@map("labels")
 }
 
 model Lock {
@@ -540,6 +499,8 @@ model BestelRegel {
   projectId      String?  @map("project_id")
   artikelId      String?  @map("artikel_id")
   offerteRegelId String?  @map("offerte_regel_id")
+  /// Bij een tekort: voor welke materiaalregel van het artikel (2026-10-23).
+  materiaalRegelId String? @map("materiaal_regel_id")
   notitie        String?
   /// Bij wie we een prijs vragen (tab Te bestellen, 2026-10-07).
   leverancierIds String[] @default([]) @map("leverancier_ids")
@@ -1052,6 +1013,9 @@ model ZaagReservering {
   /// Voor welke orderregel. Zonder dit is materiaal alleen per artikel te
   /// vinden, en tonen twee regels met hetzelfde artikel dezelfde staaf.
   offerteRegelId String?   @map("offerte_regel_id")
+  /// Voor welke materiaalregel van het artikel (id van de knoop in de
+  /// calculatie, 2026-10-23). Leeg = van daarvóór: telt voor de eerste.
+  materiaalRegelId String? @map("materiaal_regel_id")
   barId          String    @map("bar_id")
   barCode        String    @map("bar_code")
   barLocation    String    @map("bar_location")

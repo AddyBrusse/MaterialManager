@@ -3,19 +3,13 @@ import type { LaadFout } from '../utils/fout-melding'
 import { apiFetch } from './client'
 
 export type { Machine }
-export type MachineInput = CreateMachine
 
 /** Stangenlader en opspanning — de waarden die de API ook als default zet. */
-export const LOADER_DEFAULTS = {
+const LOADER_DEFAULTS = {
   barloaderMinMm: 500, barloaderMaxMm: 1100, opspanlengteMm: 30, afsteekMm: 3,
   heeftStangenlader: false,
   soort: null,
 } as const
-
-export const MOCK_MACHINES: Machine[] = [
-  { id: 'mach_dmg',    name: 'DMG',    machineRatePerHour: 75, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, ...LOADER_DEFAULTS, heeftStangenlader: true, createdAt: '' },
-  { id: 'mach_doosan', name: 'Doosan', machineRatePerHour: 65, operatorRatePerHour: 55, defaultSetupMin: 20, worksWeekends: false, ...LOADER_DEFAULTS, heeftStangenlader: true, createdAt: '' },
-]
 
 const LS_KEY = 'sm_machines'
 
@@ -24,7 +18,7 @@ function loadLocal(): Machine[] {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) return JSON.parse(raw) as Machine[]
   } catch {}
-  return [...MOCK_MACHINES]
+  return []
 }
 
 function saveLocal(data: Machine[]): void {

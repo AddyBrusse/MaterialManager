@@ -49,44 +49,6 @@ export async function acquireToken(scopes: string[], loginHint?: string | null):
   }
 }
 
-export interface MailOptions {
-  to: string
-  subject: string
-  bodyHtml: string
-  attachments: Array<{ name: string; contentBytes: string }>
-  loginHint?: string | null
-}
-
-export async function sendViaMicrosoft365(opts: MailOptions): Promise<void> {
-  const token = await acquireToken(['Mail.Send'], opts.loginHint)
-
-  const message = {
-    subject: opts.subject,
-    body: { contentType: 'HTML', content: opts.bodyHtml },
-    toRecipients: [{ emailAddress: { address: opts.to } }],
-    attachments: opts.attachments.map(a => ({
-      '@odata.type': '#microsoft.graph.fileAttachment',
-      name: a.name,
-      contentBytes: a.contentBytes,
-      contentType: 'application/pdf',
-    })),
-  }
-
-  const res = await fetch('https://graph.microsoft.com/v1.0/me/sendMail', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ message, saveToSentItems: true }),
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err?.error?.message ?? `Microsoft Graph fout: ${res.status}`)
-  }
-}
-
 export function pdfToBase64(doc: jsPDF): string {
   return doc.output('datauristring').split(',')[1]
 }

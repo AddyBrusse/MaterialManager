@@ -5,8 +5,6 @@ import type { BestelBron, BestelRegel } from '@stockmanager/shared'
 export const eur = (n: number) => `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 export const mm = (n: number) => `${n.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} mm`
 export const kg = (n: number) => `${n.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} kg`
-export const datum = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'
 
 const BRON: Record<BestelBron, string> = {
   opdracht_exoot: 'exoot uit de opdracht',

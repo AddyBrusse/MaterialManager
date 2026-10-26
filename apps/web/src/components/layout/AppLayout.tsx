@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { NavLink, useLocation, Routes, Route, Navigate } from 'react-router-dom'
 import { Menu, Tooltip } from '@mantine/core'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList, IconTruckDelivery,
-  IconChevronDown, IconBox, IconCut, IconBookmark, IconListCheck, IconUsers,
-  IconClipboardList, IconChartBar, IconArrowsSort, IconCheck, IconLogout, IconFileText,
+  IconChevronDown, IconCut, IconBookmark, IconListCheck, IconUsers,
+  IconClipboardList, IconChartBar, IconCheck, IconLogout, IconFileText,
   IconChecklist, IconListNumbers, IconTimeline, IconTable, IconExternalLink, IconClock,
 } from '@tabler/icons-react'
 import { useUserStore } from '../../stores/user'
@@ -14,6 +14,7 @@ import { useInitAppData } from '../../hooks/useInitAppData'
 import { usePopoutRoutes } from '../../hooks/usePopout'
 import { openPopout, focusPopout, requestClosePopout, POPOUT_ROUTES } from '../../utils/popout'
 import { rawMaterialsApi } from '../../api/raw-materials'
+import { aantalInVoorraad } from '../voorraad/voorraad-filters'
 import { houdtVast, type ZaagReservation } from '../../api/reservations'
 import { useReserveringen } from '../../hooks/useReserveringen'
 import { usersApi } from '../../api/users'
@@ -27,7 +28,6 @@ import { BestellingenPage } from '../../routes/desktop/BestellingenPage'
 import { InstellingenPage } from '../../routes/desktop/InstellingenPage'
 import { ZaagCalculatorPage } from '../../routes/desktop/ZaagCalculatorPage'
 import { ReserveringenPage } from '../../routes/desktop/ReserveringenPage'
-import { ZaagPlannerPage } from '../../routes/desktop/ZaagPlannerPage'
 import { ZaagflowPage } from '../../routes/desktop/ZaagflowPage'
 import { RelatiesPage } from '../../routes/desktop/RelatiesPage'
 import { RelatieDetailPage } from '../../routes/desktop/RelatieDetailPage'
@@ -57,7 +57,7 @@ function getInitials(name: string) {
 //   geannuleerd tellen niet mee — daar ligt niets meer vast, en een badge die
 //   maar blijft oplopen leest niemand meer)
 // - zaagflowCount: zaagbonnen (calculatienummers) waar nog werk in zit
-export function reservationCounts(
+function reservationCounts(
   list: { calculatieNr: string; status: ZaagReservation['status'] }[],
 ): { reservationCount: number; zaagflowCount: number } {
   const open = list.filter(houdtVast)
@@ -67,7 +67,6 @@ export function reservationCounts(
 
 function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   const { user, setUser, clearUser } = useUserStore()
-  const location = useLocation()
 
   const { data: usersData } = useQuery({ queryKey: ['users'], queryFn: () => usersApi.list() })
   const users: User[] = usersData?.data ?? []
@@ -84,7 +83,8 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
 
   // Live counts
   const { data: rawData } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list })
-  const voorraadCount = rawData?.data?.length ?? 0
+  // Wat er ligt, niet hoeveel regels er bestaan (zie `aantalInVoorraad`).
+  const voorraadCount = aantalInVoorraad(rawData?.data ?? [])
 
   // Reserverings- en zaagflowtellers. Komen uit dezelfde query als de rest van
   // het programma, dus een reservering die ergens gemaakt of afgeboekt wordt
@@ -123,7 +123,6 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
         { to: '/projecten',       label: 'Projecten',      Icon: IconClipboardList, count: null },
         { to: '/documenten',      label: 'Documenten',     Icon: IconFileText,      count: null },
         { to: '/zaagcalculator',  label: 'Zaagcalculator', Icon: IconCut,           count: null },
-        { to: '/zaagplanner',     label: 'Zaagplanner',    Icon: IconArrowsSort,    count: zaagflowCount || null, disabled: true, disabledReason: 'Hiervoor gaan we een andere applicatie gebruiken' },
         { to: '/zaagflow',        label: 'ZaagFlow',       Icon: IconListCheck,     count: zaagflowCount || null },
       ],
     },
@@ -246,26 +245,6 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   )
 }
 
-const ROUTE_LABELS: Record<string, [string, string]> = {
-  '/planning-queue':  ['Planning',       'Opdrachten'],
-  '/planning-tijdlijn': ['Planning',     'Tijdlijn'],
-  '/planning-tabel':  ['Planning',       'Tabel'],
-  '/prognose':        ['Planning',       'Prognose'],
-  '/todos':           ['Planning',       'ToDo'],
-  '/tijdregistratie': ['Planning',       'Tijdregistratie'],
-  '/projecten':       ['Productie',      'Projecten'],
-  '/zaagcalculator':  ['Productie',      'Zaagcalculator'],
-  '/zaagplanner':     ['Productie',      'Zaagplanner'],
-  '/zaagflow':        ['Productie',      'ZaagFlow'],
-  '/voorraad':        ['Materiaalbeheer', 'Voorraad'],
-  '/bestellingen':    ['Materiaalbeheer', 'Bestellingen'],
-  '/reserveringen':   ['Materiaalbeheer', 'Reserveringen'],
-  '/binnenboeken':    ['Materiaalbeheer', 'Binnen boeken'],
-  '/artikelen':       ['Stamgegevens',   'Artikelen'],
-  '/relaties':        ['Stamgegevens',   'Relaties'],
-  '/instellingen':    ['Stamgegevens',   'Instellingen'],
-}
-
 // Shown in the main window's content area instead of the real page, for
 // whichever Planning route is currently detached into its own window — same
 // idea as Outlook keeping a "this message is open in a separate window"
@@ -281,32 +260,6 @@ function PopoutAware({ path, label, openRoutes, children }: { path: string; labe
         <button className="btn" onClick={() => focusPopout(path)}>Venster tonen</button>
         <button className="btn primary" onClick={() => requestClosePopout(path)}>Sluit venster, toon hier</button>
       </div>
-    </div>
-  )
-}
-
-function Topbar() {
-  const location = useLocation()
-  const detail = location.pathname.startsWith('/artikelen/')
-    ? (['Stamgegevens', 'Artikel'] as [string, string])
-    : location.pathname.startsWith('/projecten/')
-    ? (['Productie', 'Project detail'] as [string, string])
-    : location.pathname.startsWith('/relaties/')
-    ? (['Stamgegevens', 'Relatie detail'] as [string, string])
-    : undefined
-  const [section, page] = detail ?? ROUTE_LABELS[location.pathname] ?? ['', '']
-
-  return (
-    <div className="st-topbar">
-      <div className="crumbs">
-        {section && <span>{section}</span>}
-        {section && page && <span style={{ color: 'var(--text-4)' }}>›</span>}
-        {page && <strong>{page}</strong>}
-      </div>
-      <div className="spacer" />
-      <button className="st-icon-btn" title="Help">
-        <IconBox size={16} />
-      </button>
     </div>
   )
 }
@@ -351,7 +304,6 @@ export function AppLayout() {
             <Route path="/instellingen"    element={<InstellingenPage />} />
             <Route path="/zaagcalculator"  element={<ZaagCalculatorPage />} />
             <Route path="/reserveringen"   element={<ReserveringenPage />} />
-            <Route path="/zaagplanner"     element={<ZaagPlannerPage />} />
             <Route path="/zaagflow"        element={<ZaagflowPage />} />
             <Route path="/relaties"        element={<RelatiesPage />} />
             <Route path="/relaties/:id"    element={<RelatieDetailPage />} />

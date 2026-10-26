@@ -7,9 +7,8 @@ import type { Grade, Machine, Profile } from '@stockmanager/shared'
  * plus `materiaalVan` — dat is een label voor het scherm, geen rekenwerk.
  */
 export {
-  kostprijsVoor, prijsVoor, bewerkingenVan, kostprijsOpbouw,
+  kostprijsVoor, prijsVoor, bewerkingenVan,
 } from '@stockmanager/shared'
-export type { ArtikelPrijs } from '@stockmanager/shared'
 
 export interface PrijsBronnen {
   grades: Grade[]

@@ -33,7 +33,7 @@ const DAY_COL_W = 50
 // to preserve that alignment; long machine names in the heatmap ellipsize
 // (full name on hover) rather than forcing the column wider.
 const MIN_COL_W = 44
-export const LABEL_W = 128
+const LABEL_W = 128
 
 // Vertical sizing — the heatmap always shows every machine row at full
 // height (never scrolls internally); the bar chart is what shrinks to make

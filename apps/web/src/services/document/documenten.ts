@@ -62,7 +62,7 @@ const sectie = (kop: string, tekst: string | null | undefined) => (tekst?.trim()
 
 // ── Offerte ────────────────────────────────────────────────────────────────
 
-export interface OfferteDoc {
+interface OfferteDoc {
   nummer: string
   datum: string | null
   geldigTot: string | null
@@ -95,7 +95,7 @@ export function offerteDocument(d: OfferteDoc, co: Company, assets: DocumentAsse
 
 // ── Opdrachtbevestiging ────────────────────────────────────────────────────
 
-export interface OpdrachtDoc {
+interface OpdrachtDoc {
   nummer: string
   datum: string | null
   offerte: string | null
@@ -133,7 +133,7 @@ export function opdrachtDocument(d: OpdrachtDoc, co: Company, assets: DocumentAs
 
 // ── Factuur en creditfactuur ───────────────────────────────────────────────
 
-export interface FactuurDoc {
+interface FactuurDoc {
   soort: 'factuur' | 'credit'
   nummer: string
   datum: string | null
@@ -329,7 +329,7 @@ export function zaagbonDocument(d: ZaagbonDoc, co: Company, assets: DocumentAsse
 
 // ── Prijsaanvraag ──────────────────────────────────────────────────────────
 
-export interface PrijsaanvraagDoc {
+interface PrijsaanvraagDoc {
   nummer: string
   datum: string
   leverancier: DocPartij
@@ -370,7 +370,7 @@ export function prijsaanvraagDocument(d: PrijsaanvraagDoc, co: Company, assets: 
 
 // ── Inkooporder ────────────────────────────────────────────────────────────
 
-export interface InkoopDoc {
+interface InkoopDoc {
   nummer: string
   /** Per regel ons materiaalnummer (260042), in de volgorde van `regels`; leeg bij een oudere order. */
   materiaalNummers?: (string | null)[]
