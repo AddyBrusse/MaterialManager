@@ -121,7 +121,7 @@ export function ZaagPlannerPage() {
                           </div>
                           <div className="zplan-row-sub">
                             <span>{job.machine}</span>
-                            <span>{job.materiaal} Ø{job.diameter} mm</span>
+                            <span>{job.materiaal} {job.afmeting}</span>
                             <span>
                               {job.reservations.length} {job.reservations.length === 1 ? 'as' : 'assen'} · {job.totalPcs} stuks
                             </span>

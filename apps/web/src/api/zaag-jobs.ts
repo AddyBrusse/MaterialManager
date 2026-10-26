@@ -6,7 +6,8 @@ export interface ZaagJob {
   reservations: ZaagReservation[]
   machine: string
   materiaal: string
-  diameter: number
+  /** De maat van de eerste staaf (Ø50 mm, 250×30 mm). */
+  afmeting: string
   totalPcs: number
   priority: number | null
   rush: boolean
@@ -33,8 +34,8 @@ export function buildJobs(reservations: ZaagReservation[]): ZaagJob[] {
       : items.some(r => r.status === 'in_progress') ? 'in_progress' : 'open'
     return {
       calcNr, reservations: items, machine: first.machine, materiaal: first.materiaal,
+      afmeting: first.afmeting,
       // Stuks van geannuleerde regels tellen niet mee: die worden niet gezaagd.
-      diameter: first.diameter,
       totalPcs: items.filter(r => r.status !== 'geannuleerd').reduce((s, r) => s + r.pieces, 0),
       priority: items[0].priority, rush: items.some(r => r.rush),
       status: jobStatus as ZaagJob['status'], createdAt: items[0].createdAt,
@@ -50,4 +51,12 @@ export function buildJobs(reservations: ZaagReservation[]): ZaagJob[] {
     }
     return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   })
+}
+
+/**
+ * Hoe de zager de maat controleert: een diameter bij rond (en buis), anders
+ * "maat". De keuring vroeg altijd "Is de diameter correct?", ook bij een plaat.
+ */
+export function maatWoord(afmeting: string): 'diameter' | 'maat' {
+  return afmeting.startsWith('Ø') ? 'diameter' : 'maat'
 }
