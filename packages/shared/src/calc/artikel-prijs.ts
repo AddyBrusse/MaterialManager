@@ -81,6 +81,12 @@ export function prijsVoor(artikel: CalcArtikel, bronnen: PrijsBronnen, qty = 1):
  * Valt de `machineId` niet te herleiden (geen machine gekozen, of een machine
  * die verwijderd is), dan blijft de naam van de knoop staan: een bewerking
  * zonder naam is erger dan een bewerking met de verkeerde.
+ *
+ * Elke machineknoop is een eigen bewerking, ook als dezelfde machine al eerder
+ * in het recept staat (2026-10-23). Een knoop is een opspanning; twee knopen op
+ * dezelfde machine (draaien, frezen, nadraaien) zijn twee keer werk aan die
+ * machine. Tot nu werden ze samengenomen tot één stap, terwijl de prijs ze
+ * allebei telde. Wie één stap wil, zet de bewerkingen onder één knoop.
  */
 export function bewerkingenVan(
   artikel: CalcArtikel,
@@ -88,10 +94,8 @@ export function bewerkingenVan(
 ): string[] {
   if (!artikel.estimate) return []
   const naamVan = new Map(machines.map((m) => [m.id, m.name]))
-  const seen = new Set<string>()
   return artikel.estimate.nodes
     .filter((n) => n.type === 'machine')
     .map((n) => (n.machineId ? naamVan.get(n.machineId) : null) ?? n.name)
     .filter((name): name is string => !!name)
-    .filter((name) => (seen.has(name) ? false : (seen.add(name), true)))
 }

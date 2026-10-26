@@ -12,7 +12,7 @@ import { usePlanningData } from './usePlanningData'
 import { werkbordActies } from './PlanningActies'
 import './opdracht-planning.css'
 
-export const WERKBORD_PAD = '/planning-werkbord'
+const WERKBORD_PAD = '/planning-werkbord'
 const ZOOM = [['1', 'Dag'], ['7', 'Week'], ['14', '14 dagen'], ['31', 'Maand']] as const
 
 /**

@@ -19,7 +19,7 @@ const MAX_BESTANDEN = 100
 const MAX_PER_BESTAND = 25 * 1024 * 1024
 const MAX_TOTAAL = 100 * 1024 * 1024
 
-export interface UitgepaktBestand {
+interface UitgepaktBestand {
   filename: string
   content: Buffer
 }

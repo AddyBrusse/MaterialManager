@@ -185,7 +185,7 @@ export interface AttachmentBuffers {
  * als document-blok meegaat. Een inkooporder mét tekstlaag gaat wél native mee
  * en is wél terugzoekbaar.
  */
-export interface ModelBijlage {
+interface ModelBijlage {
   bijlage: MailAttachment
   /** Geen tekstlaag: er valt niets in terug te zoeken, dus de gronding weet het niet. */
   zonderTekst: boolean
@@ -484,11 +484,11 @@ export async function aiExtract(
 // ── Van modelregels naar kandidaten ───────────────────────────────────────────
 
 /** Twee aanduidingen van hetzelfde onderdeel op één noemer brengen. */
-export function dedupeKeyOf(tekening: string | null, ruweTekst: string): string {
+function dedupeKeyOf(tekening: string | null, ruweTekst: string): string {
   return (tekening ?? ruweTekst).toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
-export interface BuildResult {
+interface BuildResult {
   lines: CandidateLine[]
   /** Zelfgerapporteerde zekerheid per regel-id, voor certainty.ts. */
   modelZekerheid: Map<string, number>

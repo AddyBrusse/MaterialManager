@@ -7,7 +7,7 @@ import occtimportjs from 'occt-import-js'
 // file, and shouldn't pay the WASM init cost twice. Shared between the
 // interactive StepViewer and the one-shot row-thumbnail renderer.
 let occtModulePromise: ReturnType<typeof occtimportjs> | null = null
-export function getOcctModule() {
+function getOcctModule() {
   if (!occtModulePromise) {
     occtModulePromise = occtimportjs({ locateFile: () => '/occt/occt-import-js.wasm' })
   }
@@ -15,7 +15,7 @@ export function getOcctModule() {
 }
 
 export interface BrepFaceRange { first: number; last: number }
-export interface ParsedGeometry {
+interface ParsedGeometry {
   positions: Float32Array
   normals: Float32Array | null
   index: Uint32Array

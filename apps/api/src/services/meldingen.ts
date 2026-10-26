@@ -14,7 +14,7 @@ type Db = Prisma.TransactionClient
 
 const ERNST_INKOOP: Partial<Record<InkoopStand, Melding['ernst']>> = { te_laat_besteld: 'rood', komt_te_laat: 'rood', nu_bestellen: 'oranje' }
 
-export interface Meldingen {
+interface Meldingen {
   aantal: number
   rood: number
   meldingen: Melding[]

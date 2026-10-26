@@ -36,7 +36,7 @@ export function soortVanStap(job: QueueJob, machines: Machine[]): MachineSoort |
 }
 
 /** De machine uit het recept, als die bestaat. */
-export function receptMachine(job: QueueJob, machines: Machine[]): Machine | null {
+function receptMachine(job: QueueJob, machines: Machine[]): Machine | null {
   return machines.find((m) => m.name === job.item.stap.machine) ?? null
 }
 

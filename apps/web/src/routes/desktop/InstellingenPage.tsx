@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { IconPlus, IconDots, IconCheck, IconX, IconPencil, IconTrash } from '@tabler/icons-react'
+import { IconPlus, IconCheck, IconX, IconPencil, IconTrash } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { MateriaalbeheerPage } from '../../components/settings/MateriaalbeheerPage'

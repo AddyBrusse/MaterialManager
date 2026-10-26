@@ -1,13 +1,12 @@
 import { Router } from 'express'
-import { tekortRegel } from '../services/bestellingen'
 import { z } from 'zod'
 import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { beschikbaarheidVan, gereserveerdPerStaaf, mm, OPEN_STATUSSEN } from '../services/voorraad'
-import { maakPlan, bestelTodo, materiaalVanArtikel } from '../services/materiaal-selectie'
+import { dekkingVanProject, legVast, maakPlan } from '../services/materiaal-selectie'
 import { boekZaagbonAf } from '../services/zaagbon'
-import { ZAAG_STANDAARD } from '@stockmanager/shared'
+import { zaagbonAfmeting } from '@stockmanager/shared'
 
 const router = Router()
 
@@ -42,19 +41,24 @@ export function toNum(v: unknown): number {
   return Number(v)
 }
 
+/** Wat de zaagbon van zijn staaf nodig heeft om de maat te tonen. */
+type StaafMaat = { volumeFormula: string; dimensions: Record<string, number> }
+
 function serialize(r: {
-  id: string; calculatieNr: string; projectId: string | null; artikelId: string | null; offerteRegelId: string | null; barId: string; barCode: string; barLocation: string; barVorm: string
+  id: string; calculatieNr: string; projectId: string | null; artikelId: string | null; offerteRegelId: string | null
+  materiaalRegelId?: string | null; barId: string; barCode: string; barLocation: string; barVorm: string
   pieces: number; productLen: unknown; sawLength: unknown; fysiekeLengte: unknown; materiaal: string
   diameter: unknown; werkstukLengte: unknown; steekbreedte: unknown; vlakToeslag: unknown; machine: string
   priority: number | null; rush: boolean; status: string; restLengteMm: unknown; completedAt: Date | null; createdAt: Date
   stangen?: unknown; restAfboeken?: boolean
-}) {
+}, staaf: StaafMaat | null) {
   return {
     id: r.id,
     calculatieNr: r.calculatieNr,
     projectId: r.projectId,
     artikelId: r.artikelId,
     offerteRegelId: r.offerteRegelId,
+    materiaalRegelId: r.materiaalRegelId ?? null,
     barId: r.barId,
     barCode: r.barCode,
     barLocation: r.barLocation,
@@ -65,6 +69,9 @@ function serialize(r: {
     fysiekeLengte: toNum(r.fysiekeLengte),
     materiaal: r.materiaal,
     diameter: toNum(r.diameter),
+    /** De maat van de staaf (Ø50 mm, 250×30 mm), afgeleid bij het lezen. De
+     *  bon bewaart alleen een diameter, en die is 0 bij alles wat niet rond is. */
+    afmeting: zaagbonAfmeting({ barVorm: r.barVorm, diameter: toNum(r.diameter) }, staaf),
     werkstukLengte: toNum(r.werkstukLengte),
     steekbreedte: toNum(r.steekbreedte),
     vlakToeslag: toNum(r.vlakToeslag),
@@ -80,6 +87,23 @@ function serialize(r: {
   }
 }
 
+/** Elke bon met de maat van zijn staaf; één query voor de hele lijst. */
+async function serializeAlle(rows: Parameters<typeof serialize>[0][]) {
+  const ids = [...new Set(rows.map((r) => r.barId))]
+  const staven = ids.length === 0 ? [] : await prisma.rawMaterial.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, dimensions: true, profile: { select: { volumeFormula: true } } },
+  })
+  const perId = new Map(staven.map((s) => [s.id, {
+    volumeFormula: s.profile.volumeFormula, dimensions: (s.dimensions ?? {}) as Record<string, number>,
+  }]))
+  return rows.map((r) => serialize(r, perId.get(r.barId) ?? null))
+}
+
+async function serializeEen(row: Parameters<typeof serialize>[0]) {
+  return (await serializeAlle([row]))[0]
+}
+
 router.get(
   '/',
   asyncHandler(async (req, res) => {
@@ -90,7 +114,7 @@ router.get(
       where: projectId ? { projectId } : undefined,
       orderBy: { createdAt: 'desc' },
     })
-    res.json({ data: rows.map(serialize) })
+    res.json({ data: await serializeAlle(rows) })
   }),
 )
 
@@ -148,7 +172,7 @@ router.post(
       }
       return rijen
     })
-    res.status(201).json({ data: created.map(serialize) })
+    res.status(201).json({ data: await serializeAlle(created) })
   }),
 )
 
@@ -172,7 +196,7 @@ router.patch(
       where: { id: req.params.id },
       data: { priority },
     })
-    res.json({ data: serialize(row) })
+    res.json({ data: await serializeEen(row) })
   }),
 )
 
@@ -195,7 +219,7 @@ router.post(
       ),
     )
     const rows = await prisma.zaagReservering.findMany({ orderBy: { createdAt: 'desc' } })
-    res.json({ data: rows.map(serialize) })
+    res.json({ data: await serializeAlle(rows) })
   }),
 )
 
@@ -224,7 +248,7 @@ router.patch(
       where: { id: req.params.id },
       data: { status },
     })
-    res.json({ data: serialize(row) })
+    res.json({ data: await serializeEen(row) })
   }),
 )
 
@@ -261,7 +285,7 @@ router.post(
 
     res.json({
       data: {
-        reservering: serialize(uitkomst.row),
+        reservering: await serializeEen(uitkomst.row),
         mutatieId: uitkomst.mutatie.id,
         schroot: uitkomst.schroot,
         vorigeVoorraadMm: uitkomst.vorigeVoorraad,
@@ -291,7 +315,7 @@ router.post(
       where: { id: req.params.id },
       data: { status: 'geannuleerd' },
     })
-    res.json({ data: serialize(row) })
+    res.json({ data: await serializeEen(row) })
   }),
 )
 
@@ -311,10 +335,14 @@ router.get(
 const PlanSchemaIn = z.object({
   artikelId: z.string(),
   aantal: z.number().int().positive(),
+  /** Met project en orderregel telt wat er al vastligt mee (2026-10-23). */
+  projectId: z.string().optional(),
+  offerteRegelId: z.string().optional(),
 })
 
 /**
- * Wat zou het programma kiezen? Rekent alleen, legt niets vast.
+ * Wat zou het programma kiezen? Rekent alleen, legt niets vast — per
+ * materiaalregel van het artikel (2026-10-23).
  *
  * Het scherm toont de voorstellen vóórdat er iets gereserveerd wordt:
  * materiaal stilzwijgend vastleggen is precies hoe je een staaf kwijtraakt die
@@ -328,13 +356,25 @@ router.post(
   }),
 )
 
+/** Per orderregel van het project: wat er per materiaalregel geregeld is (2026-10-23). */
+router.get(
+  '/materiaal-dekking',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : ''
+    if (!projectId) throw new AppError(400, 'VALIDATIE', 'Geef een project op (?projectId=)')
+    res.json({ data: await dekkingVanProject(prisma, projectId) })
+  }),
+)
+
 const BevestigSchema = PlanSchemaIn.extend({
   projectId: z.string(),
   calculatieNr: z.string(),
+  /** Welke materiaalregel van het artikel; leeg = de eerste. */
+  materiaalRegelId: z.string().nullable().optional(),
   /** Het voorstel dat de gebruiker gezien en gekozen heeft. Bewust niet
    *  opnieuw uitgerekend: tussen tonen en bevestigen kan de voorraad veranderd
    *  zijn, en dan hoort de reservering te botsen in plaats van stilletjes iets
-   *  anders vast te leggen. */
+   *  anders vast te leggen. Leeg als er niets ligt en alles besteld wordt. */
   regels: z.array(z.object({
     barId: z.string(),
     stangen: z.array(z.object({ lengteMm: z.number().positive(), stuks: z.number().int().positive() })).min(1),
@@ -343,125 +383,30 @@ const BevestigSchema = PlanSchemaIn.extend({
     /** De rest meteen afboeken (2026-10-09): de hele vrije lengte gaat vast. */
     restAfboeken: z.boolean().default(false),
   })),
-  /** De todo die hiermee afgerond wordt. */
+  /** De todo die hiermee afgerond wordt — pas als elke materiaalregel geregeld is. */
   todoId: z.string().optional(),
   /** De orderregel waar dit materiaal voor is. */
   offerteRegelId: z.string().optional(),
-  /** Tekort waarvoor een bestel-todo moet komen. */
+  /** Tekort waarvoor een bestelregel en bestel-todo moeten komen. */
   tekort: z.object({ stuks: z.number().int().positive(), mm: z.number().positive() }).optional(),
 })
 
 /**
- * Het voorstel vastleggen: reserveringen aanmaken, de todo afvinken, en bij een
- * tekort een bestel-todo klaarzetten. Alles in één transactie.
+ * Het voorstel van één materiaalregel vastleggen (`legVast`): reserveringen
+ * aanmaken, bij een tekort de bestelregel klaarzetten en de todo afvinken
+ * zodra elke regel geregeld is. Alles in één transactie.
  */
 router.post(
   '/materiaal-plan/bevestig',
   asyncHandler(async (req, res) => {
     const body = BevestigSchema.parse(req.body)
-    // Niets op voorraad mag (2026-10-09): dan gaat alles op de bestellijst.
-    // Maar er moet altijd iets vastgelegd worden — anders is er niets gekozen.
-    if (body.regels.length === 0 && !body.tekort) {
-      throw new AppError(400, 'VALIDATION', 'Kies staven uit de voorraad, of zet het tekort op de bestellijst')
-    }
-
-    const uit = await prisma.$transaction(async (tx) => {
-      const mat = await materiaalVanArtikel(tx, body.artikelId)
-
-      const barIds = body.regels.map((r) => r.barId)
-      if (new Set(barIds).size !== barIds.length) {
-        throw new AppError(400, 'VALIDATIE', 'Een staaf staat twee keer in het voorstel')
-      }
-      const staven = await tx.rawMaterial.findMany({
-        where: { id: { in: barIds } },
-        include: { grade: true, profile: true },
-      })
-      const perId = new Map(staven.map((s) => [s.id, s]))
-      const alVast = await gereserveerdPerStaaf(tx, barIds)
-
-      const gemaakt = []
-      for (const [i, r] of body.regels.entries()) {
-        const staaf = perId.get(r.barId)
-        if (!staaf) throw new AppError(404, 'NOT_FOUND', `Staaf ${r.barId} bestaat niet`)
-        // Nooit een andere kwaliteit of maat dan het recept (2026-10-09).
-        if (staaf.gradeId !== mat.gradeId || staaf.profileId !== mat.profileId) {
-          throw new AppError(409, 'VOORWAARDE', `Staaf ${staaf.code} is niet het materiaal uit het recept (${mat.omschrijving})`)
-        }
-        // Dezelfde controle als bij handmatig reserveren: tussen het tonen van
-        // het voorstel en het bevestigen kan iemand anders er materiaal af
-        // gehaald hebben.
-        const vrij = Number(staaf.currentStock) - (alVast.get(staaf.id) ?? 0)
-        if (r.verbruikMm > vrij) {
-          throw new AppError(409, 'ONVOLDOENDE_VRIJ',
-            `Staaf ${staaf.code} heeft nog ${mm(vrij)} vrij, gevraagd ${mm(r.verbruikMm)} — het voorstel is ingehaald door een andere reservering`,
-            { barId: staaf.id, code: staaf.code, vrijMm: vrij, gevraagdMm: r.verbruikMm })
-        }
-        gemaakt.push(await tx.zaagReservering.create({
-          data: {
-            id: `res_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}`,
-            calculatieNr: body.calculatieNr,
-            projectId: body.projectId,
-            artikelId: body.artikelId,
-            offerteRegelId: body.offerteRegelId ?? null,
-            barId: staaf.id,
-            barCode: staaf.code,
-            barLocation: '',
-            barVorm: staaf.profile.name,
-            pieces: r.stuks,
-            productLen: mat.werkstukLengteMm + ZAAG_STANDAARD.vlakToeslag + (mat.lader?.afsteekMm ?? 0),
-            // Rest afboeken: de hele vrije lengte, zodat niemand anders er nog op rekent.
-            sawLength: r.restAfboeken ? vrij : r.verbruikMm,
-            fysiekeLengte: Number(staaf.currentStock),
-            materiaal: staaf.grade.name,
-            diameter: Number((staaf.dimensions as Record<string, number>)?.diameter ?? 0),
-            werkstukLengte: mat.werkstukLengteMm,
-            steekbreedte: ZAAG_STANDAARD.steekbreedte,
-            vlakToeslag: ZAAG_STANDAARD.vlakToeslag,
-            machine: mat.lader?.machineNaam ?? '',
-            stangen: r.stangen,
-            restAfboeken: r.restAfboeken,
-          },
-        }))
-      }
-
-      // De todo "materiaal selecteren" van deze regel is hiermee gedaan, ook
-      // als er via "In productie geven" gekozen is in plaats van via de todo.
-      await tx.todo.updateMany({
-        where: {
-          done: false,
-          OR: [
-            ...(body.todoId ? [{ id: body.todoId }] : []),
-            ...(body.offerteRegelId ? [{ soort: 'materiaal_selecteren', projectId: body.projectId, offerteRegelId: body.offerteRegelId }] : []),
-          ],
-        },
-        data: { done: true, completedAt: new Date() },
-      })
-
-      let bestelTodoId: string | null = null
-      if (body.tekort) {
-        bestelTodoId = await bestelTodo(tx, {
-          projectId: body.projectId,
-          artikelId: body.artikelId,
-          artikelNaam: mat.artikelNaam,
-          materiaal: mat.omschrijving,
-          tekortStuks: body.tekort.stuks,
-          tekortMm: body.tekort.mm,
-          door: req.user.id,
-        })
-        // En op de bestellijst, zodat het tekort ook echt besteld kan worden (2026-10-06).
-        await tekortRegel(tx, {
-          projectId: body.projectId, artikelId: body.artikelId, offerteRegelId: body.offerteRegelId ?? null,
-          tekortMm: body.tekort.mm, door: req.user.name,
-        })
-      }
-
-      return { reserveringen: gemaakt, bestelTodoId }
-    })
-
+    const uit = await prisma.$transaction((tx) => legVast(tx, body, req.user))
     res.status(201).json({
       data: {
-        reserveringen: uit.reserveringen.map(serialize),
+        reserveringen: await serializeAlle(uit.reserveringen),
         bestelTodoId: uit.bestelTodoId,
+        todoKlaar: uit.todoKlaar,
+        dekking: uit.dekking,
       },
     })
   }),

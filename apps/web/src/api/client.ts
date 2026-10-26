@@ -75,34 +75,8 @@ export async function apiFetch<T>(
   /** `timeoutMs` alleen voor verzoeken die echt lang duren; standaard 3 s. */
   { timeoutMs = 3000, ...options }: RequestInit & { timeoutMs?: number } = {}
 ): Promise<{ data: T }> {
-  const user = useUserStore.getState().user
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-    ...(user ? { 'x-user-id': user.id } : {}),
-    ...(options.headers ?? {}),
-  }
-
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  const verzoek = `${(options.method ?? 'GET').toUpperCase()} ${path}`
-
-  let res: Response
-  try {
-    res = await fetch(`/api${path}`, { ...options, headers, signal: controller.signal })
-  } catch (e) {
-    // Het verzoek bereikte de server niet, of kwam niet op tijd terug. Twee
-    // verschillende situaties met een verschillende oplossing, dus ook twee
-    // verschillende meldingen.
-    if (controller.signal.aborted) {
-      throw new ApiFout(`De server antwoordde niet binnen ${Math.round(timeoutMs / 1000)} seconden`, 'TIMEOUT', 0, verzoek)
-    }
-    throw new ApiFout(
-      'De server is niet bereikbaar — draait de API, en is het netwerk in orde?',
-      'GEEN_VERBINDING', 0, verzoek, e instanceof Error ? e.message : undefined,
-    )
-  } finally {
-    clearTimeout(timer)
-  }
+  const res = await verstuur(path, timeoutMs, options)
+  const verzoek = verzoekVan(path, options)
 
   // A 204 (or any empty body) has nothing to parse — calling res.json() on it
   // throws "Unexpected end of JSON input", which used to turn every successful
@@ -118,20 +92,78 @@ export async function apiFetch<T>(
     throw new ApiFout('De server gaf een onleesbaar antwoord', 'ONLEESBAAR', res.status, verzoek)
   }
 
-  if (!res.ok) {
-    // De server stuurt bij een 500 in ontwikkeling de echte reden mee; die
-    // hoort in de melding, anders staat er alleen "Interne serverfout" en
-    // begint het zoeken opnieuw.
-    throw new ApiFout(
-      json?.error?.message ?? `HTTP ${res.status}`,
-      json?.error?.code ?? `HTTP_${res.status}`,
-      res.status,
-      verzoek,
-      // Een validatiefout zegt in de melding zelf al welk veld (de server
-      // vertaalt dat, zie lib/zod-nl.ts); hier alleen de technische reden.
-      json?.error?.details?.reden,
-    )
-  }
+  if (!res.ok) throw foutUitAntwoord(res, json, verzoek)
 
   return (json ?? { data: undefined }) as { data: T }
+}
+
+function verzoekVan(path: string, options: RequestInit): string {
+  return `${(options.method ?? 'GET').toUpperCase()} ${path}`
+}
+
+/** Het verzoek zelf, met gebruiker en time-out; gooit een ApiFout als het de server niet bereikt. */
+async function verstuur(path: string, timeoutMs: number, options: RequestInit): Promise<Response> {
+  const user = useUserStore.getState().user
+  const headers: HeadersInit = {
+    // Een FormData-body krijgt geen Content-Type: de browser zet zelf de
+    // multipart-grens, en een eigen kop maakt het verzoek onleesbaar.
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(user ? { 'x-user-id': user.id } : {}),
+    ...(options.headers ?? {}),
+  }
+
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const verzoek = verzoekVan(path, options)
+
+  try {
+    return await fetch(`/api${path}`, { ...options, headers, signal: controller.signal })
+  } catch (e) {
+    // Het verzoek bereikte de server niet, of kwam niet op tijd terug. Twee
+    // verschillende situaties met een verschillende oplossing, dus ook twee
+    // verschillende meldingen.
+    if (controller.signal.aborted) {
+      throw new ApiFout(`De server antwoordde niet binnen ${Math.round(timeoutMs / 1000)} seconden`, 'TIMEOUT', 0, verzoek)
+    }
+    throw new ApiFout(
+      'De server is niet bereikbaar — draait de API, en is het netwerk in orde?',
+      'GEEN_VERBINDING', 0, verzoek, e instanceof Error ? e.message : undefined,
+    )
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function foutUitAntwoord(res: Response, json: any, verzoek: string): ApiFout {
+  // De server stuurt bij een 500 in ontwikkeling de echte reden mee; die
+  // hoort in de melding, anders staat er alleen "Interne serverfout" en
+  // begint het zoeken opnieuw.
+  return new ApiFout(
+    json?.error?.message ?? `HTTP ${res.status}`,
+    json?.error?.code ?? `HTTP_${res.status}`,
+    res.status,
+    verzoek,
+    // Een validatiefout zegt in de melding zelf al welk veld (de server
+    // vertaalt dat, zie lib/zod-nl.ts); hier alleen de technische reden.
+    json?.error?.details?.reden,
+  )
+}
+
+/**
+ * Een bestand ophalen (een zip, een export) met dezelfde foutmeldingen als
+ * `apiFetch`. Een gewone link kan dat niet: de gebruiker gaat mee als kop.
+ */
+export async function apiBestand(
+  path: string,
+  { timeoutMs = 30_000, ...options }: RequestInit & { timeoutMs?: number } = {},
+): Promise<{ blob: Blob; bestandsnaam: string | null }> {
+  const res = await verstuur(path, timeoutMs, options)
+  if (!res.ok) {
+    const raw = await res.text()
+    let json: any = null
+    try { json = raw ? JSON.parse(raw) : null } catch { /* geen JSON: de status zegt genoeg */ }
+    throw foutUitAntwoord(res, json, verzoekVan(path, options))
+  }
+  const naam = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? null
+  return { blob: await res.blob(), bestandsnaam: naam }
 }

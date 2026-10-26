@@ -12,7 +12,7 @@ import { factuurAdres } from '../../../features/projects/detail/lib/document-geg
 
 const mm = (n: number) => `${n.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} mm`
 
-export function prijsaanvraagPdf(a: Prijsaanvraag, l: PrijsaanvraagLeverancier, regels: BestelRegel[]): jsPDF {
+function prijsaanvraagPdf(a: Prijsaanvraag, l: PrijsaanvraagLeverancier, regels: BestelRegel[]): jsPDF {
   const relatie = relatiesApi.listSync().find((r) => r.id === l.leverancierId) ?? null
   const eigen = regels.filter((r) => a.regelIds.includes(r.id))
   const nodig = eigen.map((r) => r.nodigVoor).filter((d): d is string => !!d).sort()[0] ?? null

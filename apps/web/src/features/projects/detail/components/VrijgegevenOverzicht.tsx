@@ -11,7 +11,7 @@ const OPEN = ['te_bestellen', 'aangevraagd', 'buffer']
 type Stand = { tekst: string; klasse: 'ok' | 'warn' | 'dgr' | ''; detail: string }
 
 /** Wat er met het materiaal van één order aan de hand is, in woorden. */
-export function materiaalVan(o: ProductieOrder, m: OrderMateriaal | undefined): Stand {
+function materiaalVan(o: ProductieOrder, m: OrderMateriaal | undefined): Stand {
   if (!m || !m.nodig) return { tekst: 'geen materiaal nodig', klasse: '', detail: '—' }
   const res = m.gereserveerd.length ? `${m.gereserveerd.length} ${m.gereserveerd.length === 1 ? 'staaf' : 'staven'} gereserveerd` : ''
   const open = m.bestelRegels.filter((r) => OPEN.includes(r.status))

@@ -9,9 +9,9 @@ const LS_KEY = 'sm_articles'
 // de API rekent met dezelfde types voor de prijssnapshot. Hier alleen
 // doorgegeven zodat de schermen ze van hun eigen api-module blijven halen.
 import type {
-  ArticleRecipe, EstimateStep, EstimateNodeType, EstimateNode, ArticleEstimate,
+  ArticleRecipe, EstimateStep, EstimateNode, ArticleEstimate,
 } from '@stockmanager/shared'
-export type { ArticleRecipe, EstimateStep, EstimateNodeType, EstimateNode, ArticleEstimate }
+export type { ArticleRecipe, EstimateStep, EstimateNode, ArticleEstimate }
 
 export interface ArticleOperation {
   id: string
@@ -160,6 +160,12 @@ function saveLocal(data: Article[]): void {
 
 let cache: Article[] = loadLocal()
 
+/** Een serverrij in de cache en de browserkopie zetten (vervangt of voegt toe). */
+function zetInCache(a: Article): void {
+  cache = cache.some(x => x.id === a.id) ? cache.map(x => x.id === a.id ? a : x) : [...cache, a]
+  saveLocal(cache)
+}
+
 export async function initArticles(): Promise<LaadFout | null> {
   try {
     const { data } = await apiFetch<Article[]>('/articles')
@@ -208,6 +214,31 @@ export const articlesApi = {
       .then(r => { cache = cache.map(a => a.id === id ? r.data : a); saveLocal(cache) })
       .catch(() => {})
     return updated
+  },
+
+  /**
+   * Eén artikel zoals het nú op de server staat (2026-10-23). De receptpagina
+   * leest hiermee, niet uit `list()`: die begint met de kopie uit
+   * localStorage, en een pagina die daarmee opende bleef die kopie tonen ook
+   * nadat de server een nieuwere had gegeven. Pas je dan iets aan, dan ging
+   * die oude calculatie terug naar de server.
+   */
+  haal: async (id: string): Promise<Article> => {
+    const { data } = await apiFetch<Article>(`/articles/${id}`)
+    zetInCache(data)
+    return data
+  },
+
+  /**
+   * Opslaan en wachten op de server; gooit een `ApiFout` als het niet lukt.
+   * De browserkopie krijgt pas de nieuwe stand als de server hem bevestigd
+   * heeft, zodat hij nooit iets bevat wat niet is opgeslagen. Anders dan
+   * `update`, die nog stil terugvalt (ArticleForm en de mailimport).
+   */
+  opslaan: async (id: string, patch: Partial<ArticleInput>): Promise<Article> => {
+    const { data } = await apiFetch<Article>(`/articles/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+    zetInCache(data)
+    return data
   },
 
   remove: async (id: string): Promise<void> => {

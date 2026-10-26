@@ -93,7 +93,7 @@ async function voerUit(naam: string, input: Record<string, unknown>, acties: Ass
 
 export class AssistentWeigering extends Error {}
 
-export interface AssistentAntwoord {
+interface AssistentAntwoord {
   tekst: string
   acties: AssistentActie[]
   model: string

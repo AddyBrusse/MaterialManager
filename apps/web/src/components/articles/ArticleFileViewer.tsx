@@ -4,7 +4,7 @@ import type { Article, ArticleAttachment } from '../../api/articles'
 import { StepViewer } from '../planning-queue/StepViewer'
 import { Ic, Icon } from './calc-icons'
 
-export interface ArticleFileViewerProps {
+interface ArticleFileViewerProps {
   article: Article
 }
 

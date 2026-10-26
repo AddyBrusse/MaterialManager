@@ -11,7 +11,7 @@ Querysleutels die daadwerkelijk in gebruik zijn:
 
 ```
 ['raw-materials']            ['projects']                ['todos']
-['finished-goods']           ['projects', id]            ['documenten']
+                             ['projects', id]            ['documenten']
 ['grades']                   ['projects', 'terminal']    ['company']
 ['profiles']                 ['reservations']            ['users']
 ['locations']                ['reservations', 'terminal']

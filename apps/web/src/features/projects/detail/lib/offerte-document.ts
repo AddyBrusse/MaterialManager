@@ -41,7 +41,7 @@ export function offerteBestandsnaam(o: Offerte): string {
 }
 
 /** Waar de offerte heen gaat: het offerte-adres van de klant, anders de contactpersoon, anders algemeen. */
-export function offerteMailadres(p: Project): string | null {
+function offerteMailadres(p: Project): string | null {
   const { relatie, contact } = klantVan(p)
   return relatie?.emailOfferte || contact?.email || relatie?.email || null
 }

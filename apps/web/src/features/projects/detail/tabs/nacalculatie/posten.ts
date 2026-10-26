@@ -4,7 +4,7 @@ import type { ProjectNacalculatie } from '../../../../../api/nacalculatie'
 /** Zo zegt de kern dat er voor een post (nog) niets gemeten of afgeboekt is. */
 const NIET_GEMETEN = new Set(['nog niet gemeten', 'nog niet afgeboekt', 'geen afwijking geregistreerd'])
 
-export type Post = NacalculatieRegel & { gemeten: boolean }
+type Post = NacalculatieRegel & { gemeten: boolean }
 
 /** Waarom er bij een post (nog) geen werkelijk bedrag staat. */
 export const NOG_NIET: Record<string, string> = {

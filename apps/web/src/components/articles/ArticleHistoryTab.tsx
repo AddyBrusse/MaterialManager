@@ -1,6 +1,6 @@
 import { ATTACHMENT_KIND_LABELS, type Article } from '../../api/articles'
 
-export interface HistoryEvent {
+interface HistoryEvent {
   when: string
   title: string
   desc?: string

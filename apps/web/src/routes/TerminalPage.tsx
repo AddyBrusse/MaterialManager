@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import {
@@ -16,6 +16,8 @@ import { useUserStore } from '../stores/user'
 import { bepaalMachineId, bepaalToewijzing, hoortBijMachine } from '../utils/terminal-wachtrij'
 import { TE_LANG_SECONDEN } from '../components/tijd/ActieveRegistratie'
 import { DeelsGereed } from '../components/tijd/DeelsGereed'
+import { VerbeterpuntHost } from '../components/verbeterpunt/VerbeterpuntHost'
+import { VerbeterpuntKnop } from '../components/verbeterpunt/VerbeterpuntKnop'
 
 /**
  * Een melding op formaat werkvloer.
@@ -116,6 +118,11 @@ export function TerminalPage() {
   const machineId = bepaalMachineId(usersResp?.data, machineAccount)
   const eigenMachine = (machinesResp?.data ?? []).find((m) => m.id === machineId) ?? null
   const eigenMachineNaam = eigenMachine?.name ?? null
+  // "Dit klopt niet" (2026-10-24): het account is de machine, dus wie er staat gaat apart mee.
+  const verbeterpuntBron = useCallback(() => ({
+    paginaNaam: `Terminal · ${eigenMachineNaam ?? machineAccount?.name ?? 'onbekend'}`,
+    operator: operator?.name,
+  }), [eigenMachineNaam, machineAccount?.name, operator?.name])
 
   const { data: projecten } = useQuery({
     queryKey: ['projects', 'terminal'],
@@ -282,6 +289,7 @@ export function TerminalPage() {
   if (!operator) {
     return (
       <div className="tr-term">
+        <VerbeterpuntHost bron={verbeterpuntBron} />
         <div className="tr-term-top">
           <div className="tr-term-merk">B</div>
           <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.01em' }}>
@@ -307,6 +315,7 @@ export function TerminalPage() {
 
   return (
     <div className="tr-term">
+      <VerbeterpuntHost bron={verbeterpuntBron} />
       <div className="tr-term-top">
         <div className="tr-term-merk">B</div>
         <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-.01em' }}>
@@ -322,6 +331,7 @@ export function TerminalPage() {
           <div className="cell-mono" style={{ fontSize: 20, color: 'var(--text-2)' }}>
             {new Date().toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
           </div>
+          <VerbeterpuntKnop groot />
           <button className="tr-tbtn" style={{ height: 44, fontSize: 14, padding: '0 16px' }}
             onClick={() => setOperatorId(null)}>
             wissel gebruiker
@@ -583,7 +593,7 @@ export function TerminalPage() {
                   <span className="st-sb-group-lbl">Materiaal</span>
                   <div className="tr-mat">
                     <div>
-                      <div className="tr-mat-groot">{zaagbon.materiaal} &Oslash;{zaagbon.diameter}</div>
+                      <div className="tr-mat-groot">{zaagbon.materiaal} {zaagbon.afmeting}</div>
                       <div className="tr-mat-sub">{zaagbon.barLocation}</div>
                     </div>
                     <div className="tr-mat-sep" />

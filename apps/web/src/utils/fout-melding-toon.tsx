@@ -1,5 +1,6 @@
 import { notifications } from '@mantine/notifications'
 import { foutTekst } from './fout-melding'
+import { onthoudFout } from './recente-fouten'
 
 /**
  * Toont een foutmelding in de vaste drie delen (zie `foutTekst`).
@@ -8,11 +9,15 @@ import { foutTekst } from './fout-melding'
  * verdwijnt is een fout die niemand heeft kunnen lezen — en juist de
  * gevolg-regel moet je gelezen hebben voor je verder werkt.
  */
-export function meldFout(p: { actie: string; fout: unknown; gevolg: string }): void {
+export function meldFout(p: { actie: string; fout: unknown; gevolg: string; id?: string }): void {
   const t = foutTekst(p)
   // De volledige fout ook in de console, voor wie hem doorgeeft of zoekt.
   console.error(`[${t.titel}]`, p.fout)
+  // Gaat mee als iemand daarna op "Dit klopt niet" drukt.
+  onthoudFout({ titel: t.titel, tekst: [t.wat, t.waar, t.gevolg].join(' · ') })
   notifications.show({
+    // Met een id kan de aanroeper de melding weghalen zodra het alsnog lukt.
+    id: p.id,
     color: t.weigering ? 'orange' : 'red',
     title: t.titel,
     autoClose: false,

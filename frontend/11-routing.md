@@ -28,7 +28,6 @@ berekend bij mount en bij resize; er is geen store voor.
 | `/instellingen` | `InstellingenPage` | Beheer — Materiaalbeheer + Bedrijfskosten/Machines |
 | `/zaagcalculator` | `ZaagCalculatorPage` | Zaagsnedes plannen uit voorraad |
 | `/reserveringen` | `ReserveringenPage` | Gereserveerde zaagplannen |
-| `/zaagplanner` | `ZaagPlannerPage` | **Uitgezet in de nav** (`disabled: true`) — hiervoor komt een andere applicatie. De route bestaat nog |
 | `/zaagflow` | `ZaagflowPage` | Reserveringen uitvoeren, per staaf met kwaliteitscontroles |
 | `/relaties` | `RelatiesPage` | Klanten/leveranciers |
 | `/relaties/:id` | `RelatieDetailPage` | Tabs Gegevens/Contacten/Artikelen |
@@ -37,7 +36,7 @@ berekend bij mount en bij resize; er is geen store voor.
 | `/documenten` | `DocumentenPage` | Alle documenten over projecten heen |
 | `/planning-queue` | `PlanningQueuePage` | Wachtrij — het enige planbord (zie besluit 2026-07-21) |
 | `/prognose` | `PrognosePage` | Werklastprognose |
-| `/todos` | `TodosPage` | Openstaande todo's |
+| `/todos` | `TodosPage` | Tabs Taken en Verbeterpunten (`?tab=verbeterpunten`) |
 | `/tijdregistratie` | `TijdregistratiePage` | Uren per order/stap |
 | `*` | — | Redirect naar `/voorraad` |
 

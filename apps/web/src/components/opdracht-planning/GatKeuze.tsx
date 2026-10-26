@@ -5,7 +5,7 @@ import { toDateStr } from '../../utils/planningUtils'
 import { dagKort, urenKort } from '../planning-tabel/tabel-logica'
 
 /** Een gesleepte stap die moet wachten, en wat er in die tijd op zijn machine gaat. */
-export interface GatInfo {
+interface GatInfo {
   stap: QueueJob
   machine: string
   start: number
@@ -37,7 +37,7 @@ export function gevuldGat(jobs: QueueJob[], uit: AutoUitkomst, id: string, ids?:
 }
 
 /** Een fractionele dag als "di 13-10 12:30" (werkdag 7:00–16:00, zoals de planning rekent). */
-export function moment(x: number, ws: Date, eind = false): string {
+function moment(x: number, ws: Date, eind = false): string {
   let dag = Math.floor(x + EPS)
   let f = x - dag
   if (eind && f < EPS) { dag -= 1; f = 1 }

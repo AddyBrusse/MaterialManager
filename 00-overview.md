@@ -12,7 +12,6 @@ Used by ~4 users on office pc's, plus a touchscreen pc at each machine.
 **In scope**
 - Raw material tracking (unique per piece, length in mm, computed weight)
 - Receiving raw material ("binnen boeken") against a delivery note
-- Finished goods tracking (article number, photo, drawing)
 - Articles as **make-to-stock manufactured products**: recipe (raw blank +
   grade + dimensions), routing/operations, setup sheet, and a cost
   **calculator/estimate** (materials, machine time, outsourcing) — see
@@ -20,7 +19,7 @@ Used by ~4 users on office pc's, plus a touchscreen pc at each machine.
 - Relaties: customers and suppliers (with contacts), linked to articles
 - Stock movements with audit history
 - Per-item edit locking (one user at a time)
-- Label printing (Altec ATP300, integration parked)
+- Label printing (Altec ATP300) — parked, nothing built; see `03-parked.md`
 - Admin settings: users, locations, grades (incl. price/kg), profiles, machines,
   overhead/bedrijfskosten, min stock
 - Saw-cutting production pipeline: zaag calculator → reserveringen → zaagflow
@@ -76,7 +75,7 @@ Used by ~4 users on office pc's, plus a touchscreen pc at each machine.
 | Location | Where an item physically lives (Rack/Row or Cabinet/Shelf/Box) |
 | Lock | Soft edit-lock held by one user on one item |
 | Heartbeat | Frontend ping that keeps a lock alive |
-| Label | Printed sticker with a reserved `#NNNNN` number |
+| Label | Printed sticker with a reserved `#NNNNN` number (design only, `features/35-labels.md`) |
 | Binnen boeken | Receiving workflow: book in raw material against a delivery note |
 | Zaag calculator / Reservering / Zaagflow | Saw-cutting pipeline: plan cuts, reserve stock, then execute with in-flow quality checks |
 | Project | One customer job: carries the offertes, the opdrachtbevestiging, the productieorders, the paklijst and the factuur |

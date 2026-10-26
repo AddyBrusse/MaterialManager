@@ -13,7 +13,7 @@ import { geldendeOfferte } from './status'
 
 const VOLGORDE: Record<Ernst, number> = { rood: 0, amber: 1, blauw: 2 }
 
-export interface AandachtBron {
+interface AandachtBron {
   project: Project
   todos: Todo[]
   /** Grootste afwijking per post, uit de nacalculatie. */

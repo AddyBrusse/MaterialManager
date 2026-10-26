@@ -13,13 +13,12 @@ import type {
 } from '@stockmanager/shared'
 import { config } from '../config'
 import { sanitizeFilename } from '../lib/filenames'
-import { parseMsg, readAttachments, type ExtractedAttachment } from './msg-parse'
 import { isZip, pakZipUit } from './zip-uitpakken'
 import { dedupeKey, resolveSender, type OwnIdentity } from './mail-sender'
-import { bereidVoor, leesMail, metZipInhoud } from './mail-lezen'
+import { bereidVoor, leesMail } from './mail-lezen'
 import { MAX_TEXT_CHARS, pdfText } from './pdf-text'
 import { matchLines, type AliasCandidate, type ArticleCandidate } from './match-articles'
-import { aiEnabled, aiExtract, aiFoutTekst, apiReden, buildLines, type AttachmentBuffers } from './ai-extract'
+import { aiEnabled, aiFoutTekst, apiReden, type AttachmentBuffers } from './ai-extract'
 import { leidendDocument } from './attachment-kind'
 import { buildRapport, scoreLines } from './certainty'
 
@@ -46,7 +45,7 @@ function domainOf(email: string | null | undefined): string | null {
  * bedrijfsmailadres en de M365-adressen van de gebruikers — zo werkt de
  * doorgestuurd-check ook vóórdat iemand dit ooit heeft ingevuld.
  */
-export async function loadOwnIdentity(prisma: PrismaClient): Promise<OwnIdentity> {
+async function loadOwnIdentity(prisma: PrismaClient): Promise<OwnIdentity> {
   const [company, users] = await Promise.all([
     prisma.company.findUnique({ where: { id: 'default' } }),
     prisma.user.findMany({ where: { email: { not: null } }, select: { email: true } }),
@@ -76,7 +75,7 @@ export interface RelatieMatchCandidate {
   contacten?: unknown
 }
 
-export interface RelatieSuggestion {
+interface RelatieSuggestion {
   relatieId: string
   reden: string
 }
@@ -224,7 +223,7 @@ function veiligeJson(v: string): unknown {
   try { return JSON.parse(v) } catch { return null }
 }
 
-export interface CandidateResult {
+interface CandidateResult {
   kandidaten: CandidateLine[]
   rapport: ExtractieRapport
   /** Ordernummer van de klant en gevraagde leverdatum uit het document. */
@@ -453,7 +452,7 @@ export function mailImportDir(id: string): string {
 }
 
 /** Uniek maken binnen één map, zodat twee gelijke bijlagenamen elkaar niet overschrijven. */
-export function uniqueName(dir: string, filename: string): string {
+function uniqueName(dir: string, filename: string): string {
   const safe = sanitizeFilename(filename)
   if (!fs.existsSync(path.join(dir, safe))) return safe
   const ext = path.extname(safe)
@@ -472,7 +471,7 @@ function loadKlantRelaties(prisma: PrismaClient) {
   })
 }
 
-export interface IngestResult {
+interface IngestResult {
   mailImport: MailImport
   /** True als deze mail al eerder binnengehaald was; er is dan niets nieuws gemaakt. */
   duplicate: boolean

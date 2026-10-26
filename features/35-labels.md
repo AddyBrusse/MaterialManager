@@ -1,5 +1,13 @@
 # 35 — Labels
 
+> **Status (2026-10-23): niet gebouwd en weggehaald.** De tabel `labels`, het
+> Prisma-model `Label`, `routes/labels.ts` en het schema in `@stockmanager/shared`
+> zijn verwijderd (migratie `20261023120000_label_finished_good_weg`); geen
+> enkel scherm gebruikte ze. De printer staat geparkeerd in `03-parked.md`. Wat
+> hieronder staat is het oorspronkelijke ontwerp, bewaard voor als de printer
+> er komt; bouw het dan opnieuw op vanaf het schema (zie het beslissingenlog
+> van 2026-10-23).
+
 ## Flow
 
 1. Admin (or user with appropriate access — TBD) clicks **Print 10 labels** in Settings

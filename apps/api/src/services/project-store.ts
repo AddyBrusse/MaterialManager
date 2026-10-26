@@ -37,7 +37,7 @@ export const PROJECT_INCLUDE = {
   },
 } satisfies Prisma.ProjectInclude
 
-export type ProjectRow = Prisma.ProjectGetPayload<{ include: typeof PROJECT_INCLUDE }>
+type ProjectRow = Prisma.ProjectGetPayload<{ include: typeof PROJECT_INCLUDE }>
 
 /** Verwachte binnenkomst van het materiaal van een order, voor de planning. */
 function materiaalVoorPlanning(o: { projectId: string; offerteRegelId: string }, row: ProjectRow) {

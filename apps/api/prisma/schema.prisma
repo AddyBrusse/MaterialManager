@@ -24,6 +24,7 @@ enum ItemType {
   raw
   finished
   project
+  article
 }
 
 enum MovementKind {
@@ -39,12 +40,6 @@ enum MovementReason {
   other
 }
 
-enum LabelStatus {
-  printed_unused
-  consumed
-  voided
-}
-
 enum TodoPriority {
   low
   normal
@@ -52,39 +47,39 @@ enum TodoPriority {
 }
 
 model Company {
-  id                String   @id @default("default")
-  naam              String   @default("")
-  adres             String?
-  postcode          String?
-  stad              String?
-  land              String   @default("Nederland")
-  telefoon          String?
-  email             String?
-  website           String?
-  kvk               String?
-  btw               String?
-  iban              String?
-  graphClientId     String?  @map("graph_client_id")
-  graphTenantId     String?  @map("graph_tenant_id")
+  id               String   @id @default("default")
+  naam             String   @default("")
+  adres            String?
+  postcode         String?
+  stad             String?
+  land             String   @default("Nederland")
+  telefoon         String?
+  email            String?
+  website          String?
+  kvk              String?
+  btw              String?
+  iban             String?
+  graphClientId    String?  @map("graph_client_id")
+  graphTenantId    String?  @map("graph_tenant_id")
   // Eigen maildomeinen — nodig om te zien of een binnengehaalde mail is
   // doorgestuurd door een collega in plaats van rechtstreeks van de klant te
   // komen (features/60-mail-import.md §3.2). Een lijst, want bedrijven krijgen
   // er domeinen bij. Leeg = afleiden uit het bedrijfsadres en de gebruikers.
-  eigenDomeinen     Json     @default("[]") @map("eigen_domeinen")
+  eigenDomeinen    Json     @default("[]") @map("eigen_domeinen")
   /// Een zaagrestant korter dan dit is geen bruikbaar stuk staal meer en wordt
   /// als schroot afgeboekt; daarboven gaat het terug het rek in. Werkplaatsbreed
   /// omdat het over de voorraad gaat, niet over één machine.
-  schrootDrempelMm  Int      @default(200) @map("schroot_drempel_mm")
+  schrootDrempelMm Int      @default(200) @map("schroot_drempel_mm")
   /// Na zoveel dagen zonder reactie telt een verstuurde offerte als "nabellen"
   /// op het projectenoverzicht.
-  offerteNabelDagen Int      @default(21) @map("offerte_nabel_dagen")
+  offerteNabelDagen Int     @default(21) @map("offerte_nabel_dagen")
   /// Inkoop: zoveel werkdagen eerder binnen dan de productie het nodig heeft
   /// (2026-10-07). "Uiterlijk bestellen" = nodig − levertijd − deze marge.
-  inkoopMargeDagen  Int      @default(2) @map("inkoop_marge_dagen")
+  inkoopMargeDagen Int      @default(2) @map("inkoop_marge_dagen")
   /// AI-assistent (2026-10-09): op deze tijden een bericht met wat er open staat.
   assistentTijden   String[] @default(["08:00", "15:00"]) @map("assistent_tijden")
   assistentAan      Boolean  @default(true) @map("assistent_aan")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("company")
 }
@@ -109,13 +104,13 @@ model User {
   movements        StockMovement[]
   locks            Lock[]
   lockRequests     LockRequest[]
-  labels           Label[]
   createdTodos     Todo[]            @relation("TodoCreatedBy")
   claimedTodos     Todo[]            @relation("TodoClaimedBy")
   preferences      UserPreference[]
   tijdregistraties TijdRegistratie[]
   machine          Machine?          @relation(fields: [machineId], references: [id], onDelete: SetNull)
 
+  @@index([machineId])
   @@map("users")
 }
 
@@ -152,9 +147,8 @@ model LocationSlot {
   level2     String?
   createdAt  DateTime @default(now()) @map("created_at")
 
-  location      Location       @relation(fields: [locationId], references: [id])
-  rawMaterials  RawMaterial[]
-  finishedGoods FinishedGood[]
+  location     Location      @relation(fields: [locationId], references: [id])
+  rawMaterials RawMaterial[]
 
   @@map("location_slots")
 }
@@ -166,9 +160,9 @@ model Grade {
   pricePerKg  Decimal? @map("price_per_kg")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  rawMaterials        RawMaterial[]
+  rawMaterials RawMaterial[]
   leveranciersprijzen LeverancierPrijs[]
-  bestelRegels        BestelRegel[]
+  bestelRegels BestelRegel[]
 
   @@map("grades")
 }
@@ -217,35 +211,16 @@ model RawMaterial {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  grade               Grade              @relation(fields: [gradeId], references: [id])
-  klant               Relatie?           @relation("ExootKlant", fields: [klantId], references: [id], onDelete: SetNull)
-  artikel             Article?           @relation("ExootArtikel", fields: [artikelId], references: [id], onDelete: SetNull)
+  grade          Grade          @relation(fields: [gradeId], references: [id])
+  klant          Relatie?       @relation("ExootKlant", fields: [klantId], references: [id], onDelete: SetNull)
+  artikel        Article?       @relation("ExootArtikel", fields: [artikelId], references: [id], onDelete: SetNull)
   leveranciersprijzen LeverancierPrijs[]
-  bestelRegels        BestelRegel[]
-  profile             Profile            @relation(fields: [profileId], references: [id])
-  surfaceFinish       SurfaceFinish?     @relation(fields: [surfaceFinishId], references: [id])
-  locationSlot        LocationSlot?      @relation(fields: [locationSlotId], references: [id])
-  consumingLabel      Label?             @relation("LabelConsumedMaterial")
+  bestelRegels   BestelRegel[]
+  profile        Profile        @relation(fields: [profileId], references: [id])
+  surfaceFinish  SurfaceFinish? @relation(fields: [surfaceFinishId], references: [id])
+  locationSlot   LocationSlot?  @relation(fields: [locationSlotId], references: [id])
 
   @@map("raw_materials")
-}
-
-model FinishedGood {
-  id             String   @id @default(uuid())
-  artNo          String   @unique @map("art_no")
-  name           String
-  customer       String?
-  photoPath      String?  @map("photo_path")
-  drawingPath    String?  @map("drawing_path")
-  locationSlotId String?  @map("location_slot_id")
-  minStock       Decimal? @map("min_stock")
-  currentStock   Decimal  @default(0) @map("current_stock")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  locationSlot LocationSlot? @relation(fields: [locationSlotId], references: [id])
-
-  @@map("finished_goods")
 }
 
 model StockMovement {
@@ -266,22 +241,6 @@ model StockMovement {
   @@index([itemId, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@map("stock_movements")
-}
-
-model Label {
-  number                String      @id
-  batchId               String      @map("batch_id")
-  status                LabelStatus
-  printedAt             DateTime    @map("printed_at")
-  printedById           String      @map("printed_by")
-  consumedAt            DateTime?   @map("consumed_at")
-  consumedRawMaterialId String?     @unique @map("consumed_raw_material_id")
-
-  printedBy           User         @relation(fields: [printedById], references: [id])
-  consumedRawMaterial RawMaterial? @relation("LabelConsumedMaterial", fields: [consumedRawMaterialId], references: [id])
-
-  @@index([status])
-  @@map("labels")
 }
 
 model Lock {
@@ -324,12 +283,12 @@ model Machine {
   // Stangenlader en opspanning. Deze horen bij de draaibank en niet bij de
   // zaagbon: de DMG en de Doosan kunnen een andere stanglengte aan. Per zaagbon
   // mag ervan afgeweken worden, zoals dat nu al met kerf en vlaktoeslag gaat.
-  barloaderMinMm    Int     @default(500) @map("barloader_min_mm")
-  barloaderMaxMm    Int     @default(1100) @map("barloader_max_mm")
+  barloaderMinMm Int @default(500) @map("barloader_min_mm")
+  barloaderMaxMm Int @default(1100) @map("barloader_max_mm")
   /// Staartje dat de lader niet meer kan pakken — per laderstang één keer weg.
-  opspanlengteMm    Int     @default(30) @map("opspanlengte_mm")
+  opspanlengteMm Int @default(30) @map("opspanlengte_mm")
   /// Wat de afsteekbeitel per stuk wegneemt.
-  afsteekMm         Int     @default(3) @map("afsteek_mm")
+  afsteekMm      Int @default(3) @map("afsteek_mm")
   /// Draaibank met stangenlader (2026-10-06). Alleen dan rekent de calculatie
   /// afsteek en opspanstukje mee in de bruto lengte (`bruto-lengte.ts`).
   heeftStangenlader Boolean @default(false) @map("heeft_stangenlader")
@@ -380,13 +339,13 @@ model Relatie {
   francoBedrag       Decimal? @map("franco_bedrag")
   createdAt          DateTime @default(now()) @map("created_at")
 
-  exoten       RawMaterial[]              @relation("ExootKlant")
-  prijzen      LeverancierPrijs[]
-  bestelKeuzes BestelRegel[]              @relation("BestelKeuze")
-  aanvragen    PrijsaanvraagLeverancier[] @relation("AanvraagLeverancier")
-  antwoorden   PrijsaanvraagAntwoord[]    @relation("AanvraagAntwoord")
+  exoten             RawMaterial[]      @relation("ExootKlant")
+  prijzen            LeverancierPrijs[]
+  bestelKeuzes       BestelRegel[]      @relation("BestelKeuze")
+  aanvragen          PrijsaanvraagLeverancier[] @relation("AanvraagLeverancier")
+  antwoorden         PrijsaanvraagAntwoord[]    @relation("AanvraagAntwoord")
   bijlagen     InkoopBijlage[]            @relation("BijlageLeverancier")
-  inkooporders Inkooporder[]              @relation("InkoopLeverancier")
+  inkooporders       Inkooporder[]              @relation("InkoopLeverancier")
 
   @@map("relaties")
 }
@@ -415,7 +374,7 @@ model Article {
 
   reserveringen  ZaagReservering[]
   prijsSnapshots ArtikelPrijsSnapshot[]
-  exoten         RawMaterial[]          @relation("ExootArtikel")
+  exoten         RawMaterial[] @relation("ExootArtikel")
 
   @@map("articles")
 }
@@ -482,11 +441,11 @@ model DocSequence {
 /// zodat een gat in de factuurnummers later te verklaren is.
 model DocReeksWijziging {
   id        String   @id @default(uuid())
-  sleutel   String // bv. FACT-2026
-  van       Int // het volgende nummer vóór de wijziging
-  naar      Int // het volgende nummer erna
+  sleutel   String   // bv. FACT-2026
+  van       Int      // het volgende nummer vóór de wijziging
+  naar      Int      // het volgende nummer erna
   reden     String
-  door      String // naam van de gebruiker op het moment van wijzigen
+  door      String   // naam van de gebruiker op het moment van wijzigen
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([createdAt])
@@ -529,24 +488,26 @@ model LeverancierPrijs {
 // projectId/artikelId/offerteRegelId zijn losse verwijzingen, net als bij
 // todo's: een bestelling blijft staan als het project weg is.
 model BestelRegel {
-  id                  String    @id @default(uuid())
+  id             String   @id @default(uuid())
   /// 'te_bestellen' | 'aangevraagd' | 'buffer' | 'besteld' | 'ontvangen'.
   /// Gaat vooruit; alleen uit de buffer mag hij terug (vóór er besteld is).
-  status              String    @default("te_bestellen")
+  status         String   @default("te_bestellen")
   /// 'opdracht_exoot' | 'tekort' | 'handmatig' | 'lage_voorraad'
-  bron                String
-  gradeId             String    @map("grade_id")
-  profileId           String    @map("profile_id")
-  dimensions          Json
-  lengteMm            Decimal   @map("lengte_mm")
-  stuks               Int
-  rawMaterialId       String?   @map("raw_material_id")
-  projectId           String?   @map("project_id")
-  artikelId           String?   @map("artikel_id")
-  offerteRegelId      String?   @map("offerte_regel_id")
-  notitie             String?
+  bron           String
+  gradeId        String   @map("grade_id")
+  profileId      String   @map("profile_id")
+  dimensions     Json
+  lengteMm       Decimal  @map("lengte_mm")
+  stuks          Int
+  rawMaterialId  String?  @map("raw_material_id")
+  projectId      String?  @map("project_id")
+  artikelId      String?  @map("artikel_id")
+  offerteRegelId String?  @map("offerte_regel_id")
+  /// Bij een tekort: voor welke materiaalregel van het artikel (2026-10-23).
+  materiaalRegelId String? @map("materiaal_regel_id")
+  notitie        String?
   /// Bij wie we een prijs vragen (tab Te bestellen, 2026-10-07).
-  leverancierIds      String[]  @default([]) @map("leverancier_ids")
+  leverancierIds String[] @default([]) @map("leverancier_ids")
   // De keuze, met de prijs zoals die was bij het kiezen: een inkooporder mag
   // niet meeschuiven als iemand later de prijslijst bijwerkt.
   keuzeLeverancierId  String?   @map("keuze_leverancier_id")
@@ -558,18 +519,18 @@ model BestelRegel {
   keuzeLevertijdDagen Int?      @map("keuze_levertijd_dagen")
   keuzeOp             DateTime? @map("keuze_op")
   keuzeDoor           String?   @map("keuze_door")
-  toegevoegdDoor      String    @map("toegevoegd_door")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  toegevoegdDoor String   @map("toegevoegd_door")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  grade            Grade                   @relation(fields: [gradeId], references: [id])
-  profile          Profile                 @relation(fields: [profileId], references: [id])
-  rawMaterial      RawMaterial?            @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
-  project          Project?                @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  keuzeLeverancier Relatie?                @relation("BestelKeuze", fields: [keuzeLeverancierId], references: [id], onDelete: SetNull)
+  grade            Grade        @relation(fields: [gradeId], references: [id])
+  profile          Profile      @relation(fields: [profileId], references: [id])
+  rawMaterial      RawMaterial? @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
+  project          Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  keuzeLeverancier Relatie?     @relation("BestelKeuze", fields: [keuzeLeverancierId], references: [id], onDelete: SetNull)
   aanvragen        PrijsaanvraagRegel[]
   antwoorden       PrijsaanvraagAntwoord[]
-  bijlagen         InkoopBijlage[]
+  bijlagen            InkoopBijlage[]
   inkoopRegels     InkooporderRegel[]
 
   @@index([status])
@@ -668,23 +629,23 @@ model Inkooporder {
 
 /// De prijs zoals hij bij "Kies" werd vastgelegd, overgenomen op de order.
 model InkooporderRegel {
-  id                    String    @id @default(uuid())
-  inkooporderId         String    @map("inkooporder_id")
-  bestelRegelId         String    @map("bestel_regel_id")
-  positie               Int
-  stuks                 Int
-  lengteMm              Decimal   @map("lengte_mm")
-  totaal                Decimal
-  uitleg                String
-  levertijdDagen        Int?      @map("levertijd_dagen")
-  ontvangenStuks        Int       @default(0) @map("ontvangen_stuks")
+  id             String   @id @default(uuid())
+  inkooporderId  String   @map("inkooporder_id")
+  bestelRegelId  String   @map("bestel_regel_id")
+  positie        Int
+  stuks          Int
+  lengteMm       Decimal  @map("lengte_mm")
+  totaal         Decimal
+  uitleg         String
+  levertijdDagen Int?     @map("levertijd_dagen")
+  ontvangenStuks Int      @default(0) @map("ontvangen_stuks")
   /// 260042 (2026-10-07, jaar + volgnummer): ons nummer, dat de leverancier op het materiaal
   /// plakt. Bij binnen boeken typ je het in; het stuk in de voorraad krijgt
   /// hetzelfde nummer (met -1, -2 bij meer stuks).
-  materiaalNummer       String?   @unique @map("materiaal_nummer")
+  materiaalNummer String? @unique @map("materiaal_nummer")
   /// Leverdatum zoals de leverancier hem doorgaf ('YYYY-MM-DD'). Leeg =
   /// verstuurd + levertijd in werkdagen, afgeleid bij het lezen.
-  verwachtDatum         String?   @map("verwacht_datum")
+  verwachtDatum      String?   @map("verwacht_datum")
   verwachtAangepastOp   DateTime? @map("verwacht_aangepast_op")
   verwachtAangepastDoor String?   @map("verwacht_aangepast_door")
 
@@ -1059,6 +1020,9 @@ model ZaagReservering {
   /// Voor welke orderregel. Zonder dit is materiaal alleen per artikel te
   /// vinden, en tonen twee regels met hetzelfde artikel dezelfde staaf.
   offerteRegelId String?   @map("offerte_regel_id")
+  /// Voor welke materiaalregel van het artikel (id van de knoop in de
+  /// calculatie, 2026-10-23). Leeg = van daarvóór: telt voor de eerste.
+  materiaalRegelId String? @map("materiaal_regel_id")
   barId          String    @map("bar_id")
   barCode        String    @map("bar_code")
   barLocation    String    @map("bar_location")
@@ -1110,10 +1074,17 @@ model Todo {
   // Waar deze todo over gaat. Een losse todo heeft dit niet; een todo die het
   // programma zelf aanmaakt wel, zodat de lijst er een knop naast kan zetten
   // die de bijbehorende handeling opent in plaats van alleen een zin te tonen.
-  soort          String? // 'materiaal_selecteren' | 'bestellen'
+  soort          String? // 'materiaal_selecteren' | 'bestellen' | 'verbeterpunt'
   projectId      String?      @map("project_id")
   artikelId      String?      @map("artikel_id")
   offerteRegelId String?      @map("offerte_regel_id")
+  // Verbeterpunt (knop "Dit klopt niet", 2026-10-24): waar het gezien is en hoe
+  // het eruitzag. De schermafbeelding staat als bestand onder /uploads, zoals
+  // tekeningen; hier alleen het pad.
+  paginaUrl        String? @map("pagina_url")
+  paginaNaam       String? @map("pagina_naam")
+  schermafbeelding String?
+  context          Json?
 
   createdByUserId String    @map("created_by_user_id")
   claimedByUserId String?   @map("claimed_by_user_id")

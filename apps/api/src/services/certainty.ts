@@ -35,7 +35,7 @@ const ONBEVESTIGD_FACTOR = 0.45
 /** Bij twijfel telt de treffer maar deels mee — er is immers een concurrent. */
 const TWIJFEL_FACTOR = 0.6
 
-export interface CertaintyInput {
+interface CertaintyInput {
   /** Wat het model zelf zei over deze regel, 0-1. */
   modelZekerheid?: number | null
 }

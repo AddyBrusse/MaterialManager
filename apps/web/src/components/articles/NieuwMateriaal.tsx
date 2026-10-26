@@ -3,19 +3,11 @@ import { Select, Button, Text, Group, Stack, NumberInput, Divider } from '@manti
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { notifications } from '@mantine/notifications'
 import type { CreateRawMaterial } from '@stockmanager/shared'
-import { rawMaterialsApi, type RawMaterialRow } from '../../api/raw-materials'
+import { rawMaterialsApi, volgendeVoorraadCode, type RawMaterialRow } from '../../api/raw-materials'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { surfaceFinishesApi } from '../../api/surface-finishes'
 import { meldFout } from '../../utils/fout-melding-toon'
-
-/** Next unique #NNNNN code: max numeric part of existing rows + 1, zero-padded.
- *  Mirrors nextCode() in RawMaterialForm so codes never collide. */
-function nextCode(rows: RawMaterialRow[]): string {
-  const nums = rows.map(r => parseInt(r.code.replace('#', ''), 10)).filter(n => !isNaN(n))
-  const next = nums.length ? Math.max(...nums) + 1 : 1
-  return `#${String(next).padStart(5, '0')}`
-}
 
 type QuickAddValues = {
   gradeId: string
@@ -70,7 +62,7 @@ export function NieuwMateriaal({ stockRows, grades, profiles, onCreated, onAnnul
         Object.entries(v.dimensions).map(([k, val]) => [k, Number(val)]),
       )
       const body: CreateRawMaterial = {
-        code: nextCode(stockRows),
+        code: volgendeVoorraadCode(stockRows),
         gradeId: v.gradeId,
         profileId: v.profileId,
         surfaceFinishId: v.surfaceFinishId || undefined,
@@ -93,7 +85,7 @@ export function NieuwMateriaal({ stockRows, grades, profiles, onCreated, onAnnul
     <form onSubmit={form.onSubmit(v => createMut.mutate(v))}>
       <Stack gap="sm" mt="sm">
         <Text size="xs" c="dimmed">
-          Wordt toegevoegd als <b>{nextCode(stockRows)}</b> zonder opslaglocatie.
+          Wordt toegevoegd als <b>{volgendeVoorraadCode(stockRows)}</b> zonder opslaglocatie.
         </Text>
 
         <Group grow align="flex-start">

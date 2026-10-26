@@ -1,4 +1,4 @@
-import type { MovementKind, MovementReason } from '@stockmanager/shared'
+import type { ItemType, MovementKind, MovementReason } from '@stockmanager/shared'
 import { apiFetch } from './client'
 
 /**
@@ -10,7 +10,7 @@ import { apiFetch } from './client'
  */
 export interface StockMovementRow {
   id: string
-  itemType: 'raw' | 'finished'
+  itemType: ItemType
   itemId: string
   userId: string
   kind: MovementKind

@@ -21,11 +21,9 @@ gebruiker.
 - `GET /api/users` — lijst (voor de dropdown)
 - `POST` / `PATCH /:id` / `DELETE /:id` — beheerder
 
-### Grondstoffen, eindproducten, mutaties
+### Grondstoffen en mutaties
 - `GET|POST /api/raw-materials`, `GET|PATCH|DELETE /api/raw-materials/:id`
-- `GET|POST /api/finished-goods`, `GET|PATCH|DELETE /api/finished-goods/:id`
 - `GET /api/movements` (met `?itemId=`), `POST /api/movements`
-- `GET /api/low-stock`, `GET /api/search?q=…`
 
 ### Stamgegevens
 - `/api/locations`, `/api/grades`, `/api/profiles`, `/api/surface-finishes`,
@@ -73,7 +71,7 @@ De grootste router. Naast `GET /`, `GET /:id`, `POST /`, `PATCH /:id`,
 - `/api/mail-imports` — het mail-importpad, zie `features/60-mail-import.md`
 - `/api/preferences` — schermvoorkeuren per gebruiker (`GET`/`PUT`/`DELETE`)
 - `/api/sequences` — een documentnummer uitgeven
-- `/api/labels`, `/api/locks`, `/api/uploads`, `/api/pdf`
+- `/api/locks`, `/api/uploads`, `/api/pdf`
 
 Voor de sloten: zie `backend/24-locking.md`. Voor uploads:
 `backend/25-file-storage.md`.

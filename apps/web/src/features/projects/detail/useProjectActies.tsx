@@ -49,7 +49,7 @@ type Vraag = {
   klaar: (waarde: string) => void
 }
 
-export interface ProjectActies {
+interface ProjectActies {
   /** Het dialoogje dat openstaat, of niets. Rendert de pagina onderaan. */
   dialoog: ReactNode
   /** De queries opnieuw laten lezen, voor onderdelen die zelf schrijven. */

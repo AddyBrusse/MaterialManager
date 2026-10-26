@@ -6,13 +6,15 @@ import { AppError } from '../middleware/error'
 import { asyncHandler } from '../lib/async-handler'
 import { calcWeightKg } from '../services/weight'
 import { beschikbaarheidVan, gereserveerdPerStaaf } from '../services/voorraad'
+import { exootStandPerStuk } from '../services/exoot-stand'
 
 const router = Router()
 
 const include = {
   grade: true, profile: true, surfaceFinish: true, locationSlot: { include: { location: true } },
-  // Exoot (2026-10-06): voor wie hij is.
+  // Exoot (2026-10-06): voor wie hij is, en voor welk artikel (2026-10-16).
   klant: { select: { id: true, naam: true } },
+  artikel: { select: { id: true, naam: true } },
 }
 
 function withWeight<T extends {
@@ -59,7 +61,8 @@ router.get(
       orderBy: { code: 'asc' },
     })
     const vast = await gereserveerdPerStaaf(prisma, items.map((i) => i.id))
-    res.json({ data: items.map((i) => metVrij(withWeight(i), vast)) })
+    const standen = await exootStandPerStuk(prisma, items)
+    res.json({ data: items.map((i) => ({ ...metVrij(withWeight(i), vast), exootStand: standen.get(i.id) ?? null })) })
   })
 )
 
@@ -69,11 +72,13 @@ router.get(
     const item = await prisma.rawMaterial.findUnique({ where: { id: req.params.id }, include })
     if (!item) throw new AppError(404, 'NOT_FOUND', 'Materiaal niet gevonden')
     const b = await beschikbaarheidVan(prisma, item.id)
+    const standen = await exootStandPerStuk(prisma, [item])
     res.json({
       data: {
         ...withWeight(item),
         gereserveerdMm: b?.gereserveerdMm ?? 0,
         vrijMm: b?.vrijMm ?? Number(item.currentStock),
+        exootStand: standen.get(item.id) ?? null,
       },
     })
   })

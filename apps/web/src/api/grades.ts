@@ -2,15 +2,6 @@ import type { Grade } from '@stockmanager/shared'
 import type { LaadFout } from '../utils/fout-melding'
 import { apiFetch } from './client'
 
-export const MOCK_GRADES: Grade[] = [
-  { id: 'g1', name: 'S235',    densityKgM3: 7850, pricePerKg: 1.10, createdAt: '' },
-  { id: 'g2', name: 'S275',    densityKgM3: 7850, pricePerKg: 1.15, createdAt: '' },
-  { id: 'g3', name: 'S355',    densityKgM3: 7850, pricePerKg: 1.25, createdAt: '' },
-  { id: 'g4', name: 'S420',    densityKgM3: 7850, pricePerKg: 1.45, createdAt: '' },
-  { id: 'g5', name: '304 RVS', densityKgM3: 7930, pricePerKg: 4.50, createdAt: '' },
-  { id: 'g6', name: '316L RVS',densityKgM3: 7980, pricePerKg: 6.20, createdAt: '' },
-]
-
 const LS_KEY = 'sm_grades'
 
 function loadStore(): Grade[] {
@@ -18,7 +9,7 @@ function loadStore(): Grade[] {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) return JSON.parse(raw) as Grade[]
   } catch {}
-  return [...MOCK_GRADES]
+  return []
 }
 
 function saveStore(data: Grade[]): void {

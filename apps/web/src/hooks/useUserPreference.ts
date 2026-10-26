@@ -6,7 +6,7 @@ import { useUserStore } from '../stores/user'
 
 const SAVE_DEBOUNCE_MS = 500
 
-export interface UserPreferenceHandle<T> {
+interface UserPreferenceHandle<T> {
   value: T
   /**
    * Accepts an updater so several changes in the same tick compose instead of

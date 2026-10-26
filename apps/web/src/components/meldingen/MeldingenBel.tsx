@@ -14,7 +14,7 @@ const GROEP: Record<Melding['groep'], string> = {
   ontvangst: 'Ontvangst',
 }
 
-export function useMeldingen() {
+function useMeldingen() {
   return useQuery({ queryKey: ['meldingen'], queryFn: meldingenApi.lijst, refetchInterval: 30000 })
 }
 
