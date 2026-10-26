@@ -4,8 +4,9 @@ import { z } from 'zod'
 // item-type enum instead of reusing the movement ItemTypeSchema ('raw' |
 // 'finished'). 'project' was added so a project detail page can be locked to
 // a single editing user. itemId is a plain string (project ids look like
-// "PRJ-2026-001", not UUIDs).
-export const LockItemTypeSchema = z.enum(['raw', 'finished', 'project'])
+// "PRJ-2026-001", not UUIDs). 'article' (2026-10-23): de receptpagina, zodat
+// twee mensen niet tegelijk de calculatie van hetzelfde artikel overschrijven.
+export const LockItemTypeSchema = z.enum(['raw', 'finished', 'project', 'article'])
 export type LockItemType = z.infer<typeof LockItemTypeSchema>
 
 export const LockSchema = z.object({

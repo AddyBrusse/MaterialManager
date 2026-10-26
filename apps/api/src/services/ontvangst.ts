@@ -3,13 +3,16 @@ import { maatTekst, statusNaOntvangst, waaromNietOntvangen, stukNummers, type On
 import { prisma } from '../db/client'
 import { AppError } from '../middleware/error'
 import { leesOrder } from './inkooporders'
+import { heropenTodoAlsNodig, reserveerTekortBijOntvangst } from './materiaal-selectie'
 
 /**
  * Ontvangen (2026-10-06, deel 3b), ook in delen. Elk stuk wordt een regel in de
  * materiaallijst, met een voorraadmutatie "ontvangen". Een exoot gaat op zijn
  * eigen lengte en wordt meteen gereserveerd voor zijn project — via een gewone
  * reservering, zodat `services/voorraad.ts` hem als vastgelegd telt en het
- * gereedmelden van de order hem afboekt.
+ * gereedmelden van de order hem afboekt. Een tekort uit de materiaalselectie
+ * ook (2026-10-23), maar alleen voor wat zijn order en materiaalregel nog
+ * nodig hebben (`reserveerTekortBijOntvangst`).
  */
 
 type Tx = Prisma.TransactionClient
@@ -49,6 +52,7 @@ export async function ontvang(invoer: OntvangstInvoer, gebruiker: { id: string; 
     const labelCodes = rij.materiaalNummer ? stukNummers(rij.materiaalNummer, rij.stuks, rij.ontvangenStuks, invoer.stuks) : null
     const codeVoor = (i: number) => labelCodes?.[i] ?? code(volgende++)
     // De exoot zelf staat al in de lijst (op 0): het eerste stuk vult die regel.
+    let tekortGereserveerd = 0
     let exootVrij = !!exoot && Number(exoot.currentStock) === 0
       && (await tx.zaagReservering.count({ where: { barId: exoot.id } })) === 0
 
@@ -91,18 +95,22 @@ export async function ontvang(invoer: OntvangstInvoer, gebruiker: { id: string; 
           },
         })
       }
+      if (!exoot && project) tekortGereserveerd += await reserveerTekortBijOntvangst(tx, b, staaf)
     }
 
     await tx.inkooporderRegel.update({ where: { id: rij.id }, data: { ontvangenStuks: { increment: invoer.stuks } } })
     const binnen = await tx.inkooporderRegel.aggregate({
       where: { bestelRegelId: b.id, inkooporder: { status: { not: 'vervallen' } } }, _sum: { ontvangenStuks: true },
     })
-    await tx.bestelRegel.update({ where: { id: b.id }, data: { status: statusNaOntvangst(b.stuks, binnen._sum.ontvangenStuks ?? 0) } })
+    const status = statusNaOntvangst(b.stuks, binnen._sum.ontvangenStuks ?? 0)
+    await tx.bestelRegel.update({ where: { id: b.id }, data: { status } })
+    // Alles binnen en toch niet gedekt: de todo weer open, zodat iemand de rest kiest.
+    if (b.bron === 'tekort' && status === 'ontvangen') await heropenTodoAlsNodig(tx, b)
 
     const o = await tx.ontvangst.create({
       data: {
         inkooporderRegelId: rij.id, stuks: invoer.stuks, rawMaterialIds: ids, codes,
-        gereserveerdVoor: exoot && project ? project.id : null, notitie: invoer.notitie ?? null, door: gebruiker.name,
+        gereserveerdVoor: project && (exoot || tekortGereserveerd > 0) ? project.id : null, notitie: invoer.notitie ?? null, door: gebruiker.name,
       },
     })
     return {

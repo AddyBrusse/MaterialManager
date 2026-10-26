@@ -43,22 +43,25 @@ export function ExootRegel(p: Props) {
         {p.naam}
         {p.notitie}
       </div>
+      {/* Alles over de maat in de lengtekolom (2026-10-23): het aantal stond
+          onder "Stangenlader", en een exoot heeft geen lader. */}
       <div className="acalc-mat-lengte">
         <div className="acalc-mat-lengte-rij">
           <ExootLabel klant={p.klant} compact />
-          <span className="acalc-unit">op maat geleverd ·</span>
+          <span className="acalc-unit">op maat geleverd{node.lengthMm ? `, ${node.lengthMm.toLocaleString('nl-NL')} mm lang` : ''}</span>
+        </div>
+        <div className="acalc-mat-lengte-rij">
           <AcalcNum value={n} width="w56" onChange={(v) => p.onWijzig({ stuksUitEen: Math.max(1, Math.floor(v || 1)) })} />
-          <span className="acalc-unit">stuks uit 1 exoot</span>
+          <span className="acalc-unit">stuks uit 1 exoot ·</span>
+          <AcalcNum value={aantal} width="w56" onChange={(v) => p.onWijzig({ qty: v })} />
+          <span className="acalc-unit">per werkstuk = {deelTekst(aantal, n)} exoot</span>
         </div>
         <div className="acalc-mat-opbouw">
-          {node.lengthMm ? `${node.lengthMm.toLocaleString('nl-NL')} mm lang · geen zaagsnede of lader` : 'geen lengte'}
+          {node.lengthMm ? 'geen zaagsnede of lader' : 'geen lengte'}
           {p.klant ? ` · voor ${p.klant.naam}` : ''}
         </div>
       </div>
-      <div>
-        <AcalcNum value={aantal} unit="st" width="w56" onChange={(v) => p.onWijzig({ qty: v })} />
-        <div className="acalc-mat-opbouw">{deelTekst(aantal, n)} exoot</div>
-      </div>
+      <div className="acalc-mat-opbouw">geen lader</div>
       <div className="acalc-mat-voorraad exoot">bestellen bij opdracht</div>
       <div className="acalc-mat-prijs">
         <AcalcNum value={Number(prijs.toFixed(2))} unit="€" unitBefore width="w72" step={0.01} onChange={(v) => p.onWijzig({ costOverride: v })} />

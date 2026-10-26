@@ -36,8 +36,8 @@ describe('materiaalWerkelijk', () => {
   }
 
   it('een platte exoot rekent met zijn eigen maat, niet als rond met diameter 0', async () => {
-    const bon = { barId: 'p', materiaal: '6082', diameter: 0, fysiekeLengte: 300 }
-    const plaat = { id: 'p', dimensions: { width: 250, height: 30 }, profile: { volumeFormula: 'flat' } }
+    const bon = { barId: 'p', materiaal: '6082', diameter: 0, sawLength: 300, fysiekeLengte: 300 }
+    const plaat = { id: 'p', dimensions: { width: 250, height: 30 }, profile: { volumeFormula: 'flat' }, grade }
     const euro = await materiaalWerkelijk(nepDb([bon], [plaat]), {})
     const verwacht = computeWeightKg('flat', { width: 250, height: 30 }, 300, 2700) * 5
     expect(euro).toBeCloseTo(verwacht, 6)
@@ -45,8 +45,8 @@ describe('materiaalWerkelijk', () => {
   })
 
   it('rond blijft wat het was; staaf weg = de diameter van de bon', async () => {
-    const bon = { barId: 'r', materiaal: '6082', diameter: 50, fysiekeLengte: 1000 }
-    const rond = { id: 'r', dimensions: { diameter: 50 }, profile: { volumeFormula: 'round' } }
+    const bon = { barId: 'r', materiaal: '6082', diameter: 50, sawLength: 1000, fysiekeLengte: 1000 }
+    const rond = { id: 'r', dimensions: { diameter: 50 }, profile: { volumeFormula: 'round' }, grade }
     const verwacht = computeWeightKg('round', { diameter: 50 }, 1000, 2700) * 5
     expect(await materiaalWerkelijk(nepDb([bon], [rond]), {})).toBeCloseTo(verwacht, 6)
     expect(await materiaalWerkelijk(nepDb([bon], []), {})).toBeCloseTo(verwacht, 6)

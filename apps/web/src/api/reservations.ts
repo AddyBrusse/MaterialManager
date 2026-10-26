@@ -31,6 +31,8 @@ export interface ZaagReservation {
   artikelId: string | null
   /** Voor welke orderregel; leeg bij oude of handmatige reserveringen. */
   offerteRegelId?: string | null
+  /** Voor welke materiaalregel van het artikel (2026-10-23); leeg = de eerste. */
+  materiaalRegelId?: string | null
   barId: string
   barCode: string
   barLocation: string
@@ -64,7 +66,7 @@ export interface ZaagReservation {
 
 export type CreateReservationInput = Omit<
   ZaagReservation,
-  'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt' | 'stangen' | 'restAfboeken' | 'afmeting'
+  'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt' | 'stangen' | 'restAfboeken' | 'materiaalRegelId' | 'afmeting'
 >
 
 export interface Beschikbaarheid {
