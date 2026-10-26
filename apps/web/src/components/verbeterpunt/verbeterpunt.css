@@ -1,0 +1,40 @@
+/* Knop "Dit klopt niet" (2026-10-24) */
+.vp-venster { display: flex; flex-direction: column; gap: 10px; }
+.vp-schets { display: flex; justify-content: center; background: var(--bg-chip); border: 1px solid var(--border); border-radius: 6px; padding: 6px; }
+.vp-schets-vlak { position: relative; line-height: 0; }
+.vp-schets-vlak img { display: block; max-width: 100%; max-height: 55vh; user-select: none; }
+.vp-schets-laag { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.vp-schets-leeg {
+  height: 220px; display: flex; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 0 24px;
+  background: var(--bg-chip); border: 1px dashed var(--border-strong); border-radius: 6px; color: var(--text-3); font-size: 12.5px;
+}
+.vp-knoppen { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.vp-uitleg { flex: 1; min-width: 260px; font-size: 11.5px; color: var(--text-3); }
+.vp-uitleg kbd, .vp-mee kbd {
+  font-family: var(--font-mono); font-size: 10.5px; padding: 0 4px; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--bg);
+}
+.vp-mee { font-size: 11.5px; color: var(--text-3); }
+.vp-voet { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Tab Verbeterpunten op de ToDo-pagina */
+.vp-tab-kop { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 12.5px; color: var(--text-3); }
+.vp-tab-kop > span { flex: 1; }
+.vp-tab-kop kbd { font-family: var(--font-mono); font-size: 10.5px; padding: 0 4px; border: 1px solid var(--border-strong); border-radius: 3px; }
+.vp-rij { display: flex; align-items: center; gap: 12px; padding: 8px 12px; }
+.vp-mini {
+  width: 120px; height: 68px; flex-shrink: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+  background: var(--bg-chip); cursor: zoom-in; display: grid; place-items: center; font-size: 10.5px; color: var(--text-4);
+}
+.vp-mini img { width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+.vp-rij-tekst { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.vp-zin {
+  appearance: none; background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+  font: inherit; font-weight: 500; color: var(--text); white-space: pre-wrap; word-break: break-word;
+}
+.vp-zin:hover { color: var(--accent); }
+.vp-rij-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-3); }
+.vp-groot-zin { font-size: 14px; font-weight: 500; white-space: pre-wrap; }
+.vp-gegevens { display: grid; grid-template-columns: max-content 1fr; column-gap: 14px; row-gap: 4px; font-size: 12px; }
+.vp-gegevens > span:nth-child(odd) { color: var(--text-3); }
+.vp-gegevens code { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); }
+.vp-gegevens ul { margin: 0; padding-left: 16px; }

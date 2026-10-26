@@ -38,7 +38,9 @@ import { PlanningQueuePage, PlanningTijdlijnPage, PlanningTabelPage } from '../.
 import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
-import { todosApi } from '../../api/todos'
+import { todosApi, isVerbeterpunt } from '../../api/todos'
+import { VerbeterpuntKnop } from '../verbeterpunt/VerbeterpuntKnop'
+import { VerbeterpuntHost } from '../verbeterpunt/VerbeterpuntHost'
 import { InkoopBel, useInkoopMeldingen } from '../inkoop/overzicht/InkoopBel'
 import { GlobalTabs } from './GlobalTabs'
 import { pageTabs } from '../../utils/pageTabs'
@@ -91,7 +93,8 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
   const { reservationCount, zaagflowCount } = reservationCounts(reserveringen ?? [])
 
   const { data: todosData } = useQuery({ queryKey: ['todos'], queryFn: todosApi.list, refetchInterval: 20000 })
-  const openTodoCount = todosData?.data?.filter(t => !t.done).length ?? 0
+  // Verbeterpunten tellen niet mee: dat is werk aan het programma, niet in de werkplaats.
+  const openTodoCount = todosData?.data?.filter(t => !t.done && !isVerbeterpunt(t)).length ?? 0
 
   // Inkoop telt alleen wat vandaag moet: nu bestellen, te laat besteld, komt
   // te laat. Wat wacht op bundelen telt niet — dan is het getal nooit nul.
@@ -235,6 +238,7 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
           <div className="st-sb-user">{user?.name ?? '—'}</div>
           <div className="st-sb-user-sub">{role}</div>
         </div>
+        <VerbeterpuntKnop />
         <InkoopBel />
       </div>
     </aside>
@@ -263,6 +267,12 @@ function PopoutAware({ path, label, openRoutes, children }: { path: string; labe
 // Every navigation registers (or focuses) a tab for the current page — the
 // "sidebar is a launcher" model. ensure() keeps a persisted tab's real label
 // (e.g. a project name) instead of overwriting it with the generic placeholder.
+/** De naam van de pagina zoals op zijn tabblad: bij een project of artikel de echte naam. */
+function huidigePagina() {
+  const pad = window.location.pathname
+  return { paginaNaam: pageTabs.getSnapshot().find(t => t.id === pad)?.label ?? (resolvePage(pad) ? tabLabelFor(pad) : null) }
+}
+
 function useTrackOpenTabs() {
   const { pathname } = useLocation()
   useEffect(() => {
@@ -277,6 +287,7 @@ export function AppLayout() {
 
   return (
     <div className="st-app">
+      <VerbeterpuntHost bron={huidigePagina} />
       <Sidebar openRoutes={openRoutes} />
       <div className="st-main">
         {/* Global breadcrumb hidden for now — redundant on single-page views.

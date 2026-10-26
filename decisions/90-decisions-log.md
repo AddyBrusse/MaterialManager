@@ -2632,3 +2632,61 @@ config in `knip.json`). Een export die nergens gebruikt wordt, een bestand dat
 niemand importeert of een pakket dat niemand laadt maakt de build rood. Dat is
 geen stijlregel maar een signaal: elk van de weggehaalde stukken was ooit
 "straks nodig" en bleef daarna maanden staan.
+
+## 2026-10-24 — Knop "Dit klopt niet": verbeterpunten met pagina, schermafbeelding en zin
+
+**Aanleiding:** punt D2 van de lijst kleine punten. Wie iets ziet wat niet
+klopt, moest het onthouden of op papier zetten; wie het oppakt, wist dan niet
+op welke pagina, met welke gegevens en na welke foutmelding.
+
+**Wat er gebouwd is:**
+
+- Een knop links onder naast de gebruiker, **F8** op elke pagina, een knop in
+  de bovenbalk van een los venster (`/pop/*`) en op de terminal naast "wissel
+  gebruiker". Het venster toont direct een schermafbeelding van de pagina zoals
+  hij stond; daarop kun je rode kaders trekken. Eén zin is verplicht.
+- Vanzelf mee: pagina (adres zonder `/pop`, plus de naam uit het tabblad), wie
+  en wanneer, schermmaat en schaal, browser, op de terminal de operator, en de
+  foutmeldingen van het laatste kwartier (max. 10). Die laatste komen uit
+  `utils/recente-fouten.ts`: `meldFout` vult dat vanzelf, en onverwachte fouten
+  in het programma (`error`/`unhandledrejection`) ook.
+- **Opslag als todo** met `soort = 'verbeterpunt'`, geen eigen tabel: aanmaken,
+  afvinken, verwijderen en "wie maakte het" bestonden al. Erbij: `pagina_url`,
+  `pagina_naam`, `schermafbeelding` (pad) en `context` (JSON). De afbeelding
+  staat als `uploads/verbeterpunten/<id>.png` (zie `backend/25-file-storage.md`).
+- In ToDo een eigen tab **Verbeterpunten**; het getal bij ToDo in het menu telt
+  ze niet mee, want dat getal is werk voor vandaag.
+- **Exporteer voor Claude**: een zip met `verbeterpunten.md` en de
+  afbeeldingen van alle open punten, genummerd zoals in de tekst. Sleep hem in
+  een chat en alles staat erin wat het scherm niet meer laat zien. Zonder open
+  punten weigert hij met een zin (`waaromNietVerbeterpuntenExporteren`).
+- De terminal mag alleen aanmaken (`POST /todos/verbeterpunt` op de
+  toelaatlijst), niet de lijst lezen of iets verwijderen.
+
+**Naam:** "verbeterpunt", niet "melding". "Meldingen" is al het belletje, en
+`meldFout` is de foutmelding; een derde betekenis van hetzelfde woord maakt
+gesprekken over de app onduidelijk.
+
+**De schermafbeelding is nagetekend, geen echte schermafdruk.** Een echte
+(`getDisplayMedia`) staat de browser alleen toe op https of localhost, en de
+app draait via http op het netwerk. Dus tekent `modern-screenshot` de pagina
+na. Gemeten op 2026-10-23/24 ging dat standaard op zes punten mis, alle zes
+rechtgezet in `services/verbeterpunt/schermafbeelding.ts`: gescrolde lijsten
+kwamen bovenaan in beeld, vaste tabelkoppen (sticky) verdwenen, lettertypes van
+Google waren niet in te sluiten, hulptekst in lege velden werd zwart, zwevende
+schuifbalken werden vaste (zijbalk 15 px korter), en keuzelijsten, vinkjes en
+getypte tekst in tekstvakken kwamen niet mee. Daarna wijkt de afbeelding op
+vier geteste pagina's 0,02–0,15 % van de pixels af van het echte scherm,
+allemaal randen van letters. Wat er dan nog mis kan (een 3D-model, een pdf in
+een frame) dek je af met een eigen afdruk: Win+Shift+S en Ctrl+V in het
+venster. Die wint altijd, ook van een natekening die later klaar is. In de
+export staat bij elke afbeelding of hij nagetekend of geplakt is.
+
+**Lettertypes nu uit de app zelf** (`@fontsource`, IBM Plex Sans en Mono)
+in plaats van Google Fonts, nodig voor de natekening. Bijkomend gevolg: de
+app heeft het goede lettertype ook als de pc geen internet heeft.
+
+**Lagen:** het venster staat op `zIndex` 1100, meldingen op 1200. Gevonden in
+de test: F8 terwijl er al een ander venster openstond (Mantine 200) zette het
+verbeterpunt áchter de grijze laag van dat venster. Meldingen erboven, zodat
+een fout bij opslaan leesbaar is terwijl het venster nog openstaat.

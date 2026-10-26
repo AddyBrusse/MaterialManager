@@ -48,6 +48,9 @@ const LABELS: Record<string, string> = {
   verwachtDatum: 'Verwacht binnen',
   soort: 'Soort',
   queuePosition: 'Plek in de wachtrij',
+  zin: 'Wat klopt er niet',
+  paginaUrl: 'Pagina',
+  paginaNaam: 'Paginanaam',
 }
 
 function label(pad: (string | number)[]): string {
