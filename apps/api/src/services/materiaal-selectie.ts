@@ -67,7 +67,7 @@ function maatTekst(formule: string | undefined, d: Record<string, number>): stri
  * Een artikel zonder materiaalregels maar met een oud recept krijgt één regel
  * zonder id.
  */
-async function materialenVanArtikel(db: Db, artikelId: string): Promise<ArtikelMaterialen> {
+export async function materialenVanArtikel(db: Db, artikelId: string): Promise<ArtikelMaterialen> {
   const artikel = await db.article.findUnique({
     where: { id: artikelId },
     select: { id: true, naam: true, recipe: true, estimate: true },
@@ -152,7 +152,7 @@ interface OrderRegelSleutel {
  * order met dit artikel in het project staat — hetzelfde filter als het
  * afboeken (`bonnenVanOrderWaar`).
  */
-async function dekkingVanOrderRegel(
+export async function dekkingVanOrderRegel(
   db: Db, sleutel: OrderRegelSleutel, regelIds: (string | null)[], aantal: number,
 ): Promise<RegelDekking[]> {
   const orders = await db.productieOrder.findMany({

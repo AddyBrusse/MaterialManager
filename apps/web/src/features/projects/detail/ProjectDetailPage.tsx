@@ -258,9 +258,6 @@ export function ProjectDetailPage() {
   const actie = tabActie(project, voortgang, tab, {
     openVersie,
     gekozenOrders: gekozen,
-    regelsZonderMateriaal: projectTodos
-      .filter((t) => !t.done && t.soort === 'materiaal_selecteren' && t.offerteRegelId)
-      .map((t) => t.offerteRegelId as string),
   })
   // Stilgelegd dicht alles, behalve de stap die het project weer op gang brengt.
   const actieKan = Boolean(actie?.kan) && (!geblokkeerd || actie?.stap?.soort === 'hervatten')

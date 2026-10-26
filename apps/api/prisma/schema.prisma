@@ -76,6 +76,9 @@ model Company {
   /// Inkoop: zoveel werkdagen eerder binnen dan de productie het nodig heeft
   /// (2026-10-07). "Uiterlijk bestellen" = nodig − levertijd − deze marge.
   inkoopMargeDagen Int      @default(2) @map("inkoop_marge_dagen")
+  /// AI-assistent (2026-10-09): op deze tijden een bericht met wat er open staat.
+  assistentTijden   String[] @default(["08:00", "15:00"]) @map("assistent_tijden")
+  assistentAan      Boolean  @default(true) @map("assistent_aan")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("company")
@@ -341,6 +344,7 @@ model Relatie {
   bestelKeuzes       BestelRegel[]      @relation("BestelKeuze")
   aanvragen          PrijsaanvraagLeverancier[] @relation("AanvraagLeverancier")
   antwoorden         PrijsaanvraagAntwoord[]    @relation("AanvraagAntwoord")
+  bijlagen     InkoopBijlage[]            @relation("BijlageLeverancier")
   inkooporders       Inkooporder[]              @relation("InkoopLeverancier")
 
   @@map("relaties")
@@ -526,6 +530,7 @@ model BestelRegel {
   keuzeLeverancier Relatie?     @relation("BestelKeuze", fields: [keuzeLeverancierId], references: [id], onDelete: SetNull)
   aanvragen        PrijsaanvraagRegel[]
   antwoorden       PrijsaanvraagAntwoord[]
+  bijlagen            InkoopBijlage[]
   inkoopRegels     InkooporderRegel[]
 
   @@index([status])
@@ -543,6 +548,7 @@ model Prijsaanvraag {
   regels       PrijsaanvraagRegel[]
   leveranciers PrijsaanvraagLeverancier[]
   antwoorden   PrijsaanvraagAntwoord[]
+  bijlagen     InkoopBijlage[]
 
   @@map("prijsaanvragen")
 }
@@ -615,6 +621,7 @@ model Inkooporder {
 
   leverancier Relatie            @relation("InkoopLeverancier", fields: [leverancierId], references: [id])
   regels      InkooporderRegel[]
+  bijlagen    InkoopBijlage[]
 
   @@index([status])
   @@map("inkooporders")
@@ -1210,4 +1217,47 @@ model PlanningHerberekening {
 
   @@index([op(sort: Desc)])
   @@map("planning_herberekeningen")
+}
+
+/// Een document van de leverancier bij de inkoop (2026-10-09): zijn offerte
+/// bij een prijsaanvraag (prijsaanvraagId + leverancierId — één pdf voor alle
+/// regels van die aanvraag), of los bij een bestelregel of inkooporder (een
+/// prijs die telefonisch kwam, een orderbevestiging). Het bestand staat in
+/// UPLOADS_DIR/inkoop/; hier alleen het pad.
+model InkoopBijlage {
+  id              String   @id @default(uuid())
+  naam            String
+  pad             String
+  grootte         Int
+  mime            String
+  prijsaanvraagId String?  @map("prijsaanvraag_id")
+  leverancierId   String?  @map("leverancier_id")
+  bestelRegelId   String?  @map("bestel_regel_id")
+  inkooporderId   String?  @map("inkooporder_id")
+  geuploadDoor    String?  @map("geupload_door")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  prijsaanvraag Prijsaanvraag? @relation(fields: [prijsaanvraagId], references: [id], onDelete: Cascade)
+  leverancier   Relatie?       @relation("BijlageLeverancier", fields: [leverancierId], references: [id], onDelete: Cascade)
+  bestelRegel   BestelRegel?   @relation(fields: [bestelRegelId], references: [id], onDelete: Cascade)
+  inkooporder   Inkooporder?   @relation(fields: [inkooporderId], references: [id], onDelete: Cascade)
+
+  @@index([prijsaanvraagId, leverancierId])
+  @@index([bestelRegelId])
+  @@index([inkooporderId])
+  @@map("inkoop_bijlagen")
+}
+
+/// Het bericht van de AI-assistent per tijdstip (2026-10-09): één keer gemaakt,
+/// door iedereen gelezen — anders kost elke pagina-lading een aanroep.
+model AssistentBericht {
+  id        String   @id @default(uuid())
+  /// Het geplande tijdstip waarvoor dit bericht is (bijv. vandaag 08:00).
+  moment    DateTime @unique
+  tekst     String
+  acties    Json     @default("[]")
+  model     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("assistent_berichten")
 }

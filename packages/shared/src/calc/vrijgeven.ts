@@ -20,12 +20,24 @@ export function isVrijgegeven(o: ProductieOrder): boolean {
   return o.status !== 'voorbereiding' && o.status !== 'gestopt'
 }
 
-export function waaromNietVrijgeven(p: Project, orderIds: string[]): string | null {
+/**
+ * @param zonderMateriaal orders waarvoor het materiaal nog niet vastligt
+ *   (2026-10-09): niets gereserveerd en niets op de bestellijst. Die gaan niet
+ *   de hal in — een tekort moet altijd zichtbaar en geregeld zijn. De server
+ *   zoekt ze op (`services/materiaal-stand.ts`); het scherm laat eerst kiezen.
+ */
+export function waaromNietVrijgeven(p: Project, orderIds: string[], zonderMateriaal: string[] = []): string | null {
   if (orderIds.length === 0) return 'Vink eerst aan welke orders in productie mogen.'
   for (const id of orderIds) {
     const o = p.productieOrders.find(x => x.id === id)
     if (!o) return `Order ${id} bestaat niet (meer). Ververs de pagina.`
     if (o.status !== 'voorbereiding') return `Order ${id} is al vrijgegeven.`
+  }
+  const zonder = p.productieOrders.filter(o => zonderMateriaal.includes(o.id) && orderIds.includes(o.id))
+  if (zonder.length > 0) {
+    const namen = zonder.map(o => `${o.id} (${o.artikelNaam})`).join(', ')
+    return `Het materiaal ligt nog niet vast voor ${namen}. Kies het eerst: reserveren uit de voorraad, ` +
+      'of wat er niet ligt op de bestellijst. Dat venster opent vanzelf bij "In productie geven".'
   }
   return null
 }
@@ -33,19 +45,12 @@ export function waaromNietVrijgeven(p: Project, orderIds: string[]): string | nu
 /**
  * Wat de gebruiker vóór het vrijgeven moet weten. Blokkeert niets (principe van
  * 2026-09-28): het zijn zinnen voor een bevestiging, daarna mag het toch.
- *
- * @param zonderMateriaal de namen van regels waarvoor nog een todo "materiaal
- *   kiezen" openstaat — todo's zitten niet in het project, dus die geeft de
- *   aanroeper mee.
+ * Materiaal staat hier niet meer bij: dat moet vastliggen (`waaromNietVrijgeven`).
  */
-export function waarschuwingenBijVrijgeven(p: Project, zonderMateriaal: string[]): string[] {
+export function waarschuwingenBijVrijgeven(p: Project): string[] {
   const uit: string[] = []
   if (!p.opdrachtbevestiging?.verzondenOp) {
     uit.push('De opdrachtbevestiging is nog niet naar de klant verstuurd.')
-  }
-  if (zonderMateriaal.length === 1) uit.push(`Voor "${zonderMateriaal[0]}" is nog geen materiaal gekozen.`)
-  if (zonderMateriaal.length > 1) {
-    uit.push(`Voor ${zonderMateriaal.map(n => `"${n}"`).join(', ')} is nog geen materiaal gekozen.`)
   }
   return uit
 }

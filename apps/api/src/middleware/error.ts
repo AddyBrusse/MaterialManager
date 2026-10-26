@@ -22,6 +22,20 @@ export function errorMiddleware(
     return
   }
 
+  // Uploads (multer): te groot of een verkeerd veld is een fout in het verzoek,
+  // geen storing van de server.
+  if (err instanceof Error && err.name === 'MulterError') {
+    const code = (err as Error & { code?: string }).code
+    res.status(400).json({
+      error: {
+        code: 'UPLOAD',
+        message: code === 'LIMIT_FILE_SIZE' ? 'Het bestand is te groot.' : 'Het bestand kon niet worden aangenomen.',
+        details: { reden: err.message },
+      },
+    })
+    return
+  }
+
   if (err instanceof AppError) {
     res.status(err.status).json({
       error: {

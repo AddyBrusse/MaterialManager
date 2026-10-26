@@ -70,7 +70,7 @@ export function AanvragenTab({ ov, bestelRegels, onOpen }: { ov: InkoopOverzicht
       <div className="ib-kaart">
         <table className="st-tbl ib-aanv">
           <thead>
-            <tr><th>Leverancier</th><th>Aanvraag</th><th>Prijs als</th><th>Prijs</th><th>Zagen / snede</th><th>Levertijd</th><th className="ta-r">Totaal</th><th style={{ textAlign: 'center' }}>Kies</th></tr>
+            <tr><th>Leverancier</th><th>Aanvraag</th><th>Offerte leverancier</th><th>Prijs als</th><th>Prijs</th><th>Zagen / snede</th><th>Levertijd</th><th className="ta-r">Totaal</th><th style={{ textAlign: 'center' }}>Kies</th></tr>
           </thead>
           {regels.map((r) => {
             const rijen = perLeverancier(r.gevraagd)
@@ -80,7 +80,7 @@ export function AanvragenTab({ ov, bestelRegels, onOpen }: { ov: InkoopOverzicht
             return (
               <tbody key={r.id}>
                 <tr className="kop">
-                  <td colSpan={5}>
+                  <td colSpan={6}>
                     <button type="button" className="ib-lev-knop" style={{ color: 'var(--text)', fontWeight: 600 }} onClick={() => onOpen(r)}>{r.materiaal}</button>
                     {r.exoot && <span className="ib-exoot">EXOOT</span>}
                     <span className="cell-mono" style={{ color: 'var(--text-2)' }}> · {aantalTekst(r)} · {kg(r.kg)}</span>
@@ -104,7 +104,7 @@ export function AanvragenTab({ ov, bestelRegels, onOpen }: { ov: InkoopOverzicht
           })}
         </table>
       </div>
-      <div className="ib-uitleg">Ingevuld wordt bewaard zodra je het veld verlaat. De goedkoopste is gemarkeerd; kiezen doe je zelf, of met "Overal de goedkoopste kiezen".</div>
+      <div className="ib-uitleg">Een pdf van de leverancier hoort bij zijn hele aanvraag: één keer toevoegen, dan staat hij bij alle regels ervan. Ingevuld wordt bewaard zodra je het veld verlaat. De goedkoopste is gemarkeerd; kiezen doe je zelf, of met "Overal de goedkoopste kiezen".</div>
       {versturen.dialoog}
     </>
   )

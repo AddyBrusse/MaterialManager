@@ -41,7 +41,9 @@ import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
 import { todosApi, isVerbeterpunt } from '../../api/todos'
 import { VerbeterpuntKnop } from '../verbeterpunt/VerbeterpuntKnop'
 import { VerbeterpuntHost } from '../verbeterpunt/VerbeterpuntHost'
-import { InkoopBel, useInkoopMeldingen } from '../inkoop/overzicht/InkoopBel'
+import { useInkoopMeldingen } from '../inkoop/overzicht/InkoopBel'
+import { MeldingenBel } from '../meldingen/MeldingenBel'
+import { AssistentKnop } from '../assistent/AssistentKnop'
 import { GlobalTabs } from './GlobalTabs'
 import { pageTabs } from '../../utils/pageTabs'
 import { resolvePage, tabLabelFor } from './pageRegistry'
@@ -239,7 +241,8 @@ function Sidebar({ openRoutes }: { openRoutes: Set<string> }) {
           <div className="st-sb-user-sub">{role}</div>
         </div>
         <VerbeterpuntKnop />
-        <InkoopBel />
+        <AssistentKnop />
+        <MeldingenBel />
       </div>
     </aside>
   )

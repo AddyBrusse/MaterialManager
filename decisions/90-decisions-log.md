@@ -2383,6 +2383,32 @@ geheel terugdraaien.
   hand bijgezet, recept gewijzigd), dan nog het gelijke deel.
 - Hetzelfde voor de bewerkingen van een verstuurde offerte in de Prognose.
 
+
+## 2026-10-12 — Bestellingen: bijlagen, dichtgetimmerd vrijgeven, meldingen, AI-assistent
+
+- **Offerte van de leverancier bijvoegen** per leverancier per prijsaanvraag
+  (zichtbaar bij alle regels van die aanvraag), en los bij een bestelregel of
+  een inkooporder (orderbevestiging). Eén tabel `inkoop_bijlagen` met precies
+  één doel; het bestand staat in `uploads/inkoop`. Prijzen overtypen; uitlezen
+  met AI later.
+- **In productie geven zonder vastgelegd materiaal kan niet meer.** Eerder was
+  dat een waarschuwing en kon een tekort onopgemerkt de hal in gaan. Nu: per
+  order gereserveerd of op de bestellijst, anders weigert de server (409). Een
+  artikel zonder voorraadmateriaal (alleen exoot of geen materiaalregel) telt
+  als "niets nodig". Oude bestelregels zonder `offerteRegelId` tellen alleen
+  mee als het project maar één order met dat artikel heeft.
+- **Meldingen afgeleid, niet opgeslagen**: wegklikken bestaat niet, een melding
+  verdwijnt als de oorzaak weg is. Iedereen ziet dezelfde lijst. Een
+  prijsaanvraag zonder antwoord meldt zich na 4 werkdagen.
+- **AI-assistent leest en stelt voor, wijzigt nooit.** Afgesproken met de
+  gebruiker. Het model krijgt alleen leestools; een "actie" is een knop naar een
+  scherm, waar een mens het met de gewone voorwaarden doet. Zo kan een verkeerd
+  begrepen vraag niets in de database veranderen. Het bericht op vaste tijden
+  wordt één keer per moment gemaakt en bewaard, anders kost elke pagina-lading
+  een aanroep; mislukt de aanroep, dan tien minuten niet opnieuw en intussen
+  een bericht uit de gegevens zelf. Gegevens gaan naar Anthropic — akkoord van
+  de gebruiker. De chat verlaat de app niet (geen mail, geen Teams).
+
 ## 2026-10-16 — Voorraad: één regel per exoot
 
 - **Waarom**: binnen boeken maakt één regel per stuk (elk stuk een eigen
@@ -2690,3 +2716,29 @@ app heeft het goede lettertype ook als de pc geen internet heeft.
 de test: F8 terwijl er al een ander venster openstond (Mantine 200) zette het
 verbeterpunt áchter de grijze laag van dat venster. Meldingen erboven, zodat
 een fout bij opslaan leesbaar is terwijl het venster nog openstaat.
+
+## 2026-10-26 — Vrijgeven streng, per materiaalregel; vijf PR's samen op master
+
+- **Besluit van Addy (keuzekaart, 2026-10-26): streng.** In productie geven kan
+  alleen als het materiaal van de order vastligt. Dat besluit van 2026-10-12
+  (PR #67) ging nog over één materiaalregel; sinds 2026-10-23 (B1, PR #69) heeft
+  een artikel er meer. De controle geldt nu per regel: elke materiaalregel
+  (behalve een exoot) helemaal gereserveerd of het tekort besteld, met
+  `dekkingVanOrderRegel` → `dekkingPerRegel`, dezelfde som als het
+  selectievenster en de todo. Anders zouden het venster ("klaar") en de server
+  ("mag niet") het oneens kunnen zijn.
+- **Een regel die niet compleet is** (geen maat of werkstuklengte) ligt nooit
+  vast. Zo'n order gaat pas de hal in als de calculatie aangevuld is; het
+  venster zegt dat al ("Eerst de calculatie aanvullen").
+- **Het venster roept `onVastgelegd` pas als alle regels klaar zijn.** Sluiten
+  halverwege ("Annuleren — niet in productie") laat wat al gekozen is staan,
+  maar geeft niets vrij.
+- **Migraties van #67 houden hun naam** (`20261009150000_inkoop_bijlagen`,
+  `20261009170000_assistent`), ook al zijn ze ouder dan die van #69–#71.
+  `prisma migrate deploy` past een oudere openstaande migratie gewoon toe
+  (getest op een database met alles van master). Hernoemen zou breken bij wie
+  ze al lokaal had toegepast vanaf de branch.
+- **Volgorde van de merge:** #68, #69, #70, #71, #67, elk eerst bijgewerkt op
+  master met de conflicten opgelost. Wat er per PR botste staat in de
+  merge-commits op die branches.
+

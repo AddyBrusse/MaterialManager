@@ -214,6 +214,22 @@ export interface InkoopOptie {
   goedkoopst: boolean
 }
 
+/** Een document van de leverancier (offerte, orderbevestiging), 2026-10-09. */
+export interface InkoopBijlage {
+  id: string
+  naam: string
+  /** Te openen in de browser: `/uploads/inkoop/…`. */
+  url: string
+  grootte: number
+  createdAt: string
+  door: string | null
+  /** Waar hij aan hangt. */
+  prijsaanvraagId: string | null
+  leverancierId: string | null
+  bestelRegelId: string | null
+  inkooporderId: string | null
+}
+
 export interface InkoopOverzichtRegel {
   id: string
   status: 'te_bestellen' | 'aangevraagd' | 'buffer' | 'besteld' | 'ontvangen'
@@ -246,7 +262,12 @@ export interface InkoopOverzichtRegel {
   gevraagd: {
     aanvraagId: string; leverancierId: string; naam: string; verzondenOp: string | null
     antwoord: { id: string; prijsSoort: 'per_kg' | 'per_stuk' | 'totaal'; prijs: number; zaagkostenPerSnede: number | null; levertijdDagen: number | null } | null
+    /** De offerte van deze leverancier op deze aanvraag (geldt voor alle regels ervan). */
+    bijlagen: InkoopBijlage[]
   }[]
+  /** Alles wat bij deze regel hoort: de offerte van de gekozen leverancier, wat
+   *  los aan de regel hangt en wat aan zijn inkooporder hangt. */
+  bijlagen: InkoopBijlage[]
   /** Laatste keer iets binnen, voor "Binnen, afgelopen 14 dagen". */
   binnenOp: string | null
   gereserveerd: boolean

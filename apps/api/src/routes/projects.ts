@@ -23,6 +23,7 @@ import { AppError } from '../middleware/error'
 import { PROJECT_INCLUDE, serialize, persist } from '../services/project-store'
 import { snapshotBijOrder } from '../services/prijs-snapshot'
 import { todosBijOpdracht } from '../services/materiaal-selectie'
+import { materiaalStand, zonderMateriaal } from '../services/materiaal-stand'
 import { exootRegelsBijOpdracht } from '../services/bestellingen'
 import { rondAfVoorStap } from '../services/tijdregistratie'
 import { boekAfBijGereed } from '../services/zaagbon'
@@ -1335,12 +1336,22 @@ router.post(
   '/:id/orders/vrijgeven',
   asyncHandler(async (req, res) => {
     const { orderIds } = OrderIdsSchema.parse(req.body ?? {})
-    const updated = await withProject(req.params.id, (p) => {
-      const reden = waaromNietVrijgeven(p, orderIds)
+    const updated = await withProject(req.params.id, async (p, tx) => {
+      // Materiaal moet vastliggen (2026-10-09): gereserveerd of op de bestellijst.
+      const reden = waaromNietVrijgeven(p, orderIds, await zonderMateriaal(tx, p, orderIds))
       if (reden) throw new AppError(409, 'VOORWAARDE', reden)
       return vrijgeven(p, orderIds, now())
     })
     res.json({ data: updated })
+  }),
+)
+
+/** Per order: ligt het materiaal vast, wat is gereserveerd, wat staat op de bestellijst. */
+router.get(
+  '/:id/materiaal-stand',
+  asyncHandler(async (req, res) => {
+    const p = await getProject(req.params.id)
+    res.json({ data: await materiaalStand(prisma, p) })
   }),
 )
 

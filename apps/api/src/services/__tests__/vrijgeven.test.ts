@@ -40,13 +40,17 @@ describe('vrijgeven', () => {
     expect(waaromNietVrijgeven(p, ['P9'])).toContain('bestaat niet')
   })
 
-  // Besloten 2026-09-30: waarschuwen, niet blokkeren.
-  it('waarschuwt voor een niet verstuurde opdracht en ontbrekend materiaal', () => {
-    const w = waarschuwingenBijVrijgeven(project([order('P1')]), ['Bus 1', 'Flens'])
-    expect(w).toEqual([
+  // Besloten 2026-09-30: waarschuwen, niet blokkeren — behalve materiaal (2026-10-09).
+  it('waarschuwt voor een niet verstuurde opdracht', () => {
+    expect(waarschuwingenBijVrijgeven(project([order('P1')]))).toEqual([
       'De opdrachtbevestiging is nog niet naar de klant verstuurd.',
-      'Voor "Bus 1", "Flens" is nog geen materiaal gekozen.',
     ])
+  })
+
+  it('weigert zolang het materiaal niet vastligt, en noemt de order', () => {
+    const p = project([order('P1'), order('P2')])
+    expect(waaromNietVrijgeven(p, ['P1', 'P2'], ['P2'])).toContain('nog niet vast voor P2')
+    expect(waaromNietVrijgeven(p, ['P1'], ['P2'])).toBeNull()
   })
 })
 

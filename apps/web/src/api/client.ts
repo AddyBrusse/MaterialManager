@@ -14,10 +14,12 @@ export const MODEL_TIMEOUT_MS = 120_000
  * boundary), and apiFetch's 3s abort timeout is sized for JSON calls, not
  * multi-MB CAD/NC files over a LAN connection.
  */
-export async function apiUpload<T>(path: string, file: File): Promise<{ data: T }> {
+export async function apiUpload<T>(path: string, file: File, velden: Record<string, string> = {}): Promise<{ data: T }> {
   const user = useUserStore.getState().user
   const headers: HeadersInit = user ? { 'x-user-id': user.id } : {}
   const form = new FormData()
+  // Velden vóór het bestand: multer leest ze dan al bij het opslaan.
+  for (const [k, v] of Object.entries(velden)) form.append(k, v)
   form.append('file', file)
 
   const controller = new AbortController()

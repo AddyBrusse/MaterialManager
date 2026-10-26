@@ -1,0 +1,6 @@
+.mb-groep { padding: 6px 12px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-2); background: var(--bg-sidebar); border-bottom: 1px solid var(--border); }
+.ib-melding-item.mb-item { display: flex; gap: 9px; align-items: flex-start; }
+.mb-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; background: var(--warning); }
+.mb-dot.rood { background: var(--danger); }
+.mb-dot.groen { background: var(--success); }
+.ib-bel-tel:not([data-rood]) { background: var(--warning); }

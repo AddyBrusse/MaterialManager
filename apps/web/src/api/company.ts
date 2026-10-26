@@ -8,6 +8,8 @@ const DEFAULTS: Company = {
   schrootDrempelMm: 200,
   offerteNabelDagen: 21,
   inkoopMargeDagen: 2,
+  assistentTijden: ['08:00', '15:00'],
+  assistentAan:  true,
   naam:          'Boer Metaalbewerking',
   adres:         'Industrieweg 1',
   postcode:      '1234 AB',
