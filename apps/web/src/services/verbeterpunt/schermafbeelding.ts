@@ -1,4 +1,4 @@
-import { domToBlob } from 'modern-screenshot'
+import { createContext, destroyContext, domToBlob } from 'modern-screenshot'
 import { lijnDikte, type Kader } from '../../utils/verbeterpunt'
 
 /**
@@ -23,6 +23,15 @@ import { lijnDikte, type Kader } from '../../utils/verbeterpunt'
  *
  * Wat er dan nog af kan wijken (een 3D-model, een pdf in een frame) dekt de
  * gebruiker af door er een eigen schermafdruk overheen te plakken.
+ *
+ * Snelheid (gemeten 2026-10-26): het werk groeit met het aantal elementen. Een
+ * lijst van 60 relaties kostte 12 s, waarvan 5 s aan één stuk: typen in het
+ * venster bleef dan hangen. Twee derde van de afbeelding bestond uit
+ * CSS-variabelen (`--mantine-…`): die erft elk element, en de bibliotheek
+ * schreef ze bij elk element uit. De kopie heeft ze niet nodig, want de waarden
+ * zijn dan al ingevuld; ze gaan er nu uit. Verder slaat hij tabelregels onder
+ * het scherm over (onzichtbaar, maar veel werk) en geeft hij de browser
+ * tussendoor de beurt.
  */
 
 /** Elementen met dit attribuut komen niet op de afbeelding: het venster van het verbeterpunt zelf. */
@@ -37,6 +46,8 @@ interface Voorbereiding {
   css: string[]
   /** Per gemarkeerd element wat er op de kopie nog moet gebeuren. */
   acties: Map<string, ((kopie: HTMLElement) => void)[]>
+  /** Tabelregels helemaal onder het scherm: die komen niet in de kopie. */
+  onderScherm: Set<Element>
   opruimen: () => void
 }
 
@@ -110,7 +121,52 @@ function bereidVoor(): Voorbereiding {
     })
   }
 
-  return { css, acties, opruimen: () => gemerkt.forEach((el) => el.removeAttribute(MERK)) }
+  // Een regel eronder weglaten schuift niets wat in beeld staat, en de kolommen
+  // houden hun breedte: die neemt de kopie per cel over van de echte pagina.
+  // De hoogte van de tabel niet: die rekt de overgebleven regels anders op.
+  const onderScherm = new Set<Element>()
+  for (const tbody of document.querySelectorAll('tbody')) {
+    const rijen = [...tbody.children]
+    const vanaf = rijen.findIndex((r) => r.getBoundingClientRect().top >= window.innerHeight)
+    if (vanaf < 0) continue
+    rijen.slice(vanaf).forEach((r) => onderScherm.add(r))
+    for (const el of [tbody, tbody.closest('table')]) {
+      if (el instanceof HTMLElement) opKopie(el, (k) => k.style.setProperty('height', 'auto', 'important'))
+    }
+  }
+
+  return { css, acties, onderScherm, opruimen: () => gemerkt.forEach((el) => el.removeAttribute(MERK)) }
+}
+
+/**
+ * Het hulpframe waarin de bibliotheek de standaardstijl per soort element
+ * opvraagt. De bibliotheek maakt het zelf pas tijdens het natekenen, en het
+ * laadt los: zodra de browser tussendoor de beurt krijgt (`gunBeurt`), vervangt
+ * hij het halverwege door een leeg document en faalt alles erna. Dus nu vooraf,
+ * en pas verder als het geladen is.
+ */
+async function zandbak(): Promise<HTMLIFrameElement> {
+  const frame = document.createElement('iframe')
+  frame.width = '0'
+  frame.height = '0'
+  frame.style.visibility = 'hidden'
+  frame.style.position = 'fixed'
+  frame.setAttribute(NIET_OP_SCHERMAFBEELDING, '')
+  const geladen = new Promise((ok) => frame.addEventListener('load', ok, { once: true }))
+  frame.srcdoc = '<!DOCTYPE html><meta charset="UTF-8"><title></title><body>'
+  document.body.appendChild(frame)
+  await geladen
+  return frame
+}
+
+/** Om de ~12 ms even de browser laten: dan reageert het venster op typen. */
+function gunBeurt(): () => Promise<void> {
+  let sinds = performance.now()
+  return async () => {
+    if (performance.now() - sinds < 12) return
+    await new Promise((ok) => setTimeout(ok, 0))
+    sinds = performance.now()
+  }
 }
 
 function pasToe(kloon: Element, v: Voorbereiding): void {
@@ -125,9 +181,11 @@ function pasToe(kloon: Element, v: Voorbereiding): void {
 }
 
 export async function maakSchermafbeelding(): Promise<Blob> {
+  const sandbox = await zandbak()
   const v = bereidVoor()
+  let context: Awaited<ReturnType<typeof createContext>> | undefined
   try {
-    return await domToBlob(document.documentElement, {
+    context = await createContext(document.documentElement, {
       width: window.innerWidth,
       height: window.innerHeight,
       // Scherp op een scherm met 125 of 150 %, maar niet groter dan nodig.
@@ -136,11 +194,18 @@ export async function maakSchermafbeelding(): Promise<Blob> {
       backgroundColor: getComputedStyle(document.body).backgroundColor,
       timeout: 10_000,
       features: { restoreScrollPosition: true },
-      filter: (n) => !(n instanceof Element && n.hasAttribute(NIET_OP_SCHERMAFBEELDING)),
+      // Alle gewone eigenschappen, zonder de CSS-variabelen
+      includeStyleProperties: [...getComputedStyle(document.documentElement)].filter((n) => !n.startsWith('--')),
+      filter: (n) => !(n instanceof Element && (n.hasAttribute(NIET_OP_SCHERMAFBEELDING) || v.onderScherm.has(n))),
+      onCloneEachNode: gunBeurt(),
       onCloneNode: (kloon) => { if (kloon instanceof Element) pasToe(kloon, v) },
     })
+    context.sandbox = sandbox
+    return await domToBlob(context)
   } finally {
     v.opruimen()
+    if (context) destroyContext(context)
+    sandbox.remove()
   }
 }
 

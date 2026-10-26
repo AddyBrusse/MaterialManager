@@ -2742,3 +2742,29 @@ een fout bij opslaan leesbaar is terwijl het venster nog openstaat.
   master met de conflicten opgelost. Wat er per PR botste staat in de
   merge-commits op die branches.
 
+## 2026-10-26 — "Dit klopt niet": schermafbeelding van een lange lijst 6× sneller
+
+Bij het hertesten van #71 na de merge met master liep de browsertest vast op
+F8 boven het venster "Relatie verwijderen". De oorzaak: de natekening van een
+lijst met 60 relaties kostte 12 s, waarvan 5 s aan één stuk; zo lang reageerde
+het venster ook niet op typen. #71 was toen al gemerged, dus de fix staat in
+een eigen PR. Gemeten met de profiler van de browser:
+
+- **Twee derde van de afbeelding waren CSS-variabelen.** Mantine zet er
+  honderden op `:root`, elk element erft ze, en de bibliotheek schreef ze bij
+  elk element uit (100.000 regels op ToDo). De kopie heeft ze niet nodig, want
+  daar zijn alle waarden al ingevuld. Nu gaan alleen de gewone eigenschappen
+  mee (`includeStyleProperties`).
+- **Tabelregels onder het scherm** zijn onzichtbaar, maar wel het meeste werk.
+  Ze gaan niet in de kopie. De kolommen houden hun breedte, want die neemt de
+  kopie per cel over. De hoogte van de tabel gaat op `auto`, anders rekt die de
+  overgebleven regels op (gezien in de test: regels 2× zo hoog).
+- **De browser krijgt elke ~12 ms de beurt.** Daarvoor maakt de code het
+  hulpframe van de bibliotheek nu zelf en wacht tot het geladen is. Het frame
+  laadt los, en anders vervangt de browser het halverwege door een leeg
+  document.
+
+Resultaat in de testcontainer: Relaties van 12 s naar 2 s, en de langste
+hapering van 5,2 s naar 0,4–0,7 s. ToDo van 3,3 s naar 1,5 s. Het verschil
+met het echte scherm bleef gelijk (0,005–0,03 %). De browsertest controleert
+dit nu ook: binnen 6 s klaar, nooit langer dan 1,5 s vast.
