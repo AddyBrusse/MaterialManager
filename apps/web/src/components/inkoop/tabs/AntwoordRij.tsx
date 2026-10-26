@@ -6,6 +6,7 @@ import { meldFout } from '../../../utils/fout-melding-toon'
 import { Weigering } from '../../../utils/fout-melding'
 import { eur } from '../bestellingen/bestel-tekst'
 import { ddmm, lokaleDag } from '../overzicht/tekst'
+import { Bijlagen } from '../bijlagen/Bijlagen'
 
 type Gevraagd = InkoopOverzichtRegel['gevraagd'][number]
 const getal = (v: string) => { const n = Number(v.replace(',', '.')); return v.trim() === '' || !Number.isFinite(n) ? null : n }
@@ -61,6 +62,7 @@ export function AntwoordRij({ r, g, goedkoopst, gekozen }: { r: InkoopOverzichtR
         {goedkoopst && <span className="ib-goedkoopst">GOEDKOOPST</span>}
       </td>
       <td className="cell-mono" style={{ fontSize: 12, color: 'var(--text-3)' }}>{g.aanvraagId}{g.verzondenOp ? ` · ${ddmm(lokaleDag(g.verzondenOp))}` : ' · niet gemaild'}</td>
+      <td><Bijlagen bijlagen={g.bijlagen} doel={{ prijsaanvraagId: g.aanvraagId, leverancierId: g.leverancierId }} wat={`offerte van ${g.naam} bij ${g.aanvraagId}`} /></td>
       <td>
         <select className="ib-cel-sel" aria-label={`Prijs als, ${naam}`} value={soort} onChange={(e) => { const s = e.currentTarget.value as AntwoordSoort; setSoort(s); opslaan(s) }}>
           <option value="per_kg">per kg</option><option value="per_stuk">per stuk</option><option value="totaal">totaal</option>

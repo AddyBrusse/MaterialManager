@@ -74,7 +74,23 @@ export interface OrderRegelDekking {
   exoten: string[]
 }
 
+/** Per order: ligt het materiaal vast, voor elke materiaalregel (`services/materiaal-stand.ts`). */
+export interface OrderMateriaal {
+  orderId: string
+  offerteRegelId: string
+  artikelNaam: string
+  nodig: boolean
+  gereserveerd: { barCode: string; stuks: number; status: string }[]
+  bestelRegels: { id: string; status: string; materiaal: string; stuks: number; lengteMm: number }[]
+  /** Per materiaalregel (2026-10-26): geregeld of niet. */
+  regels: { naam: string; materiaal: string; klaar: boolean; fout: string | null }[]
+  vastgelegd: boolean
+}
+
 export const materiaalPlanApi = {
+  stand: (projectId: string) =>
+    apiFetch<OrderMateriaal[]>(`/projects/${projectId}/materiaal-stand`).then((r) => r.data),
+
   plan: (body: { artikelId: string; aantal: number; projectId?: string; offerteRegelId?: string }) =>
     apiFetch<PlanUitkomst>('/reservations/materiaal-plan', {
       method: 'POST', body: JSON.stringify(body),

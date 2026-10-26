@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { normaliseerMateriaalNummer, isMateriaalNummer, type InkoopOverzicht, type InkoopOverzichtRegel } from '@stockmanager/shared'
 import { aantalTekst } from '../bestellingen/bestel-tekst'
 import { NodigCel, VoorCel, StandChip, ddmm, ddmmjjjj, lokaleDag } from '../overzicht/tekst'
+import { Bijlagen } from '../bijlagen/Bijlagen'
 
 /** De regel bij een getypt labelnummer, of waarom er geen is. */
 function zoekOpNummer(ov: InkoopOverzicht, invoer: string): { regel: InkoopOverzichtRegel | null; melding: string | null } {
@@ -44,7 +45,7 @@ export function BesteldTab({ ov, onOpen, onBinnen }: { ov: InkoopOverzicht; onOp
         <div className="ib-kaart">
           <table className="st-tbl ib-t" style={{ minWidth: 1120 }}>
             <thead>
-              <tr><th>Besteld</th><th>Nummer · inkooporder</th><th>Materiaal</th><th>Voor</th><th>Verwacht binnen</th><th>Nodig voor productie</th><th>Prognose</th><th>Binnen</th><th /></tr>
+              <tr><th>Besteld</th><th>Nummer · inkooporder</th><th>Materiaal</th><th>Voor</th><th>Verwacht binnen</th><th>Nodig voor productie</th><th>Prognose</th><th>Documenten</th><th>Binnen</th><th /></tr>
             </thead>
             <tbody>
               {regels.map((r) => {
@@ -63,6 +64,9 @@ export function BesteldTab({ ov, onOpen, onBinnen }: { ov: InkoopOverzicht; onOp
                     <td>{r.plan.stand === 'onderweg_op_tijd' && r.plan.verwacht && r.nodig.datum
                       ? <span className="ib-chip ok">op tijd · verwacht {ddmm(r.plan.verwacht)}</span>
                       : <StandChip r={r} />}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <Bijlagen bijlagen={r.bijlagen} doel={{ inkooporderId: o.id }} wat={`document bij ${o.id}`} leeg="+ bevestiging" />
+                    </td>
                     <td className="cell-mono">{o.ontvangenStuks} / {r.stuks}</td>
                     <td className="bs-acties" onClick={(e) => e.stopPropagation()}>
                       <button type="button" className="st-btn sm" style={{ background: 'var(--success)', color: '#fff', borderColor: 'transparent' }} aria-label={`Binnen boeken: ${o.materiaalNummer ?? o.referentie}`} onClick={() => onBinnen(r)}>Binnen</button>

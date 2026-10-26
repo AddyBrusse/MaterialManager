@@ -44,4 +44,13 @@ export const config = {
     /** Hoe grondig het model mag nadenken: low, medium, high, xhigh of max. */
     effort: (process.env.MAIL_AI_EFFORT ?? 'high') as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
   },
+  /**
+   * De AI-assistent (2026-10-09): bericht op vaste tijden en het chatpaneel.
+   * Zelfde sleutel als hierboven; zonder sleutel maakt hij het bericht uit de
+   * gegevens zelf, zonder taalmodel, en is de chat uit.
+   */
+  assistent: {
+    model: process.env.ASSISTENT_MODEL ?? 'claude-opus-5-5',
+    effort: (process.env.ASSISTENT_EFFORT ?? 'medium') as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
+  },
 }

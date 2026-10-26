@@ -20,6 +20,12 @@ interface MateriaalSelectieProps {
   /** De orderregel waar het materiaal voor is — komt op de reservering. */
   offerteRegelId?: string
   calculatieNr: string
+  /** Elke materiaalregel geregeld, vóór `onClose` (in productie geven gaat dan verder). */
+  onVastgelegd?: () => void
+  /** Tekst van de knop om te sluiten zonder te kiezen. */
+  sluitTekst?: string
+  /** Wat er gebeurt als je sluit zonder te kiezen — voor de onderregel. */
+  sluitUitleg?: string
   onClose: () => void
 }
 
@@ -71,7 +77,8 @@ export function MateriaalSelectieModal(props: MateriaalSelectieProps) {
       })
     },
     onSuccess: async (uit, { regel, v }) => {
-      for (const k of ['reservations', 'raw-materials', 'todos', 'materiaal-dekking', 'bestellingen']) {
+      for (const k of ['reservations', 'raw-materials', 'todos', 'materiaal-dekking', 'bestellingen',
+        'materiaal-stand', 'projects', 'inkoop', 'bestel-regels', 'meldingen']) {
         void qc.invalidateQueries({ queryKey: [k] })
       }
       const n = uit.reserveringen.length
@@ -84,7 +91,7 @@ export function MateriaalSelectieModal(props: MateriaalSelectieProps) {
           nog > 0 ? `nog ${nog} ${nog === 1 ? 'materiaalregel' : 'materiaalregels'} te kiezen` : null,
         ].filter(Boolean).join(' — '),
       })
-      if (nog === 0) { props.onClose(); return }
+      if (nog === 0) { props.onVastgelegd?.(); props.onClose(); return }
       await qc.refetchQueries({ queryKey: sleutel })
       kiesRegel(null)
     },
@@ -106,7 +113,13 @@ export function MateriaalSelectieModal(props: MateriaalSelectieProps) {
       notifications.show({ color: 'orange', title: 'Deze materiaalregel is niet compleet', message: `${regel.fout}. Er is niets vastgelegd.` })
       return
     }
-    if (!regel.behoefte) { if (volgende >= 0) kiesRegel(volgende); else props.onClose(); return }
+    if (!regel.behoefte) {
+      if (volgende >= 0) { kiesRegel(volgende); return }
+      // Niets meer te kiezen: alles geregeld (een regel die niet compleet is, telt als open).
+      if (!regels.some(nogOpen) && !regels.some((r) => r.fout)) props.onVastgelegd?.()
+      props.onClose()
+      return
+    }
     if (!voorstel) return
     bevestig.mutate({ regel, v: voorstel })
   }
@@ -147,8 +160,8 @@ export function MateriaalSelectieModal(props: MateriaalSelectieProps) {
             onWeg={(id, aan) => setWeg((s) => { const n = new Set(s); if (aan) n.add(id); else n.delete(id); return n })} />
         )}
         <div className="mk-voet">
-          <div className="som">Niets wordt vanzelf vastgelegd. Sluit je zonder kiezen, dan blijft de todo staan en kom je hier later terug.</div>
-          <button type="button" className="st-btn" onClick={props.onClose}>Later kiezen</button>
+          <div className="som">{props.sluitUitleg ?? 'Niets wordt vanzelf vastgelegd. Sluit je zonder kiezen, dan blijft de todo staan en kom je hier later terug.'}</div>
+          <button type="button" className="st-btn" onClick={props.onClose}>{props.sluitTekst ?? 'Later kiezen'}</button>
           {knop && (
             <button type="button" className="st-btn primary" onClick={doeKnop} disabled={bevestig.isPending}>
               <IconCheck size={14} />{bevestig.isPending ? 'Vastleggen…' : knop}

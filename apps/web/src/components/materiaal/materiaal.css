@@ -90,6 +90,12 @@
 .hk-behoefte b { color: var(--text); font-family: var(--font-mono); font-weight: 500; }
 .hk-tekort { display: flex; gap: 8px; color: var(--warning); background: var(--warning-soft); border-radius: var(--radius); padding: 6px 9px; font-size: 12px; }
 
+/* Na in productie geven (2026-10-09) */
+.vo-stand { font-size: 11px; border-radius: 3px; padding: 1px 7px; background: var(--bg-chip); color: var(--text-2); white-space: nowrap; }
+.vo-stand.ok { background: var(--success-soft); color: var(--success); }
+.vo-stand.warn { background: var(--warning-soft); color: var(--warning); }
+.vo-stand.dgr { background: var(--danger-soft); color: var(--danger); font-weight: 600; }
+
 /* Materiaalregels in het selectievenster (2026-10-23): één knop per regel, met zijn stand. */
 .hk-strook { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--bg); }
 .hk-strook-regel { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-2); font: inherit; font-size: 12px; color: var(--text-2); cursor: pointer; text-align: left; }

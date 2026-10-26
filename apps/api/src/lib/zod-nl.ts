@@ -44,6 +44,7 @@ const LABELS: Record<string, string> = {
   telefoon: 'Telefoonnummer',
   offerteNabelDagen: 'Offerte nabellen na (dagen)',
   inkoopMargeDagen: 'Marge inkoop (werkdagen)',
+  assistentTijden: 'Tijden van de assistent',
   francoBedrag: 'Franco vanaf',
   verwachtDatum: 'Verwacht binnen',
   soort: 'Soort',

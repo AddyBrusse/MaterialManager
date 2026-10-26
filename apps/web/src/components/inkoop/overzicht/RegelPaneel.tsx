@@ -10,6 +10,7 @@ import { meldFout } from '../../../utils/fout-melding-toon'
 import { eis } from '../../../utils/fout-melding'
 import { aantalTekst, eur } from '../bestellingen/bestel-tekst'
 import { useInkoopActies } from '../bestellingen/useInkoopActies'
+import { Bijlagen } from '../bijlagen/Bijlagen'
 import { StandChip, ddmm, ddmmjjjj, lokaleDag } from './tekst'
 import { toonDocument } from '../../../features/projects/detail/lib/toon-document'
 import { inkooporderBestandsnaam, inkooporderPdf } from '../lib/inkooporder-document'
@@ -73,6 +74,11 @@ export function RegelPaneel({ r, onSluit, onBinnen }: { r: InkoopOverzichtRegel;
           {r.order && <><dt>Inkooporder</dt><dd className="cell-mono">{r.order.referentie}{r.order.status === 'concept' ? ' (klaargezet)' : ''}</dd></>}
         </dl>
 
+        <section aria-label="Documenten">
+          <h3 className="ib-kop-klein">Documenten van de leverancier</h3>
+          {/* Los bij de regel (2026-10-09): een prijs die telefonisch kwam, met de offerte achteraf. */}
+          <Bijlagen bijlagen={r.bijlagen} doel={{ bestelRegelId: r.id }} wat={`document bij ${r.materiaal}`} leeg="+ document" />
+        </section>
         <section aria-label="Geschiedenis">
           <h3 className="ib-kop-klein">Geschiedenis</h3>
           <ol className="ib-tijdlijn">
