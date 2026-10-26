@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { rawMaterialsApi } from '../../api/raw-materials'
-import { finishedGoodsApi } from '../../api/finished-goods'
 import { articlesApi } from '../../api/articles'
 import { projectsApi } from '../../api/projects'
 import { gradesApi } from '../../api/grades'
@@ -12,7 +11,6 @@ import { getLowStockAlerts, getDueRiskAlerts, getProductionOverrunAlerts, type T
 /** Live-computed operational alerts (low stock / due-date risk / production overrun) — never stored. */
 export function useTodoAlerts(): TodoAlert[] {
   const { data: rawData } = useQuery({ queryKey: ['raw-materials'], queryFn: rawMaterialsApi.list, refetchInterval: 20000 })
-  const { data: finishedData } = useQuery({ queryKey: ['finished-goods'], queryFn: finishedGoodsApi.list, refetchInterval: 20000 })
   const articles = articlesApi.list()
   const projects = projectsApi.list()
 
@@ -21,9 +19,9 @@ export function useTodoAlerts(): TodoAlert[] {
     const profiles = profilesApi.listSync()
     const machines = machinesApi.listSync()
     return [
-      ...getLowStockAlerts(rawData?.data ?? [], finishedData?.data ?? []),
+      ...getLowStockAlerts(rawData?.data ?? []),
       ...getDueRiskAlerts(projects),
       ...getProductionOverrunAlerts(projects, articles, { grades, profiles, machines }),
     ]
-  }, [rawData, finishedData, projects, articles])
+  }, [rawData, projects, articles])
 }

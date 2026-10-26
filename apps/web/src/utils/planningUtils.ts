@@ -3,11 +3,10 @@ import type { Article } from '../api/articles'
 
 // ── Capacity constants ────────────────────────────────────────────────────────
 
-export const UREN_PER_DAG    = 7
-export const EFFICIENTIE     = 0.70
+const UREN_PER_DAG    = 7
+const EFFICIENTIE     = 0.70
 export const EFFECTIEVE_MIN  = Math.round(UREN_PER_DAG * EFFICIENTIE * 60)  // 294 min = 4.9h
-export const MAX_MIN         = UREN_PER_DAG * 60                              // 420 min = 7h
-export const PLACEHOLDER_MIN = 3 * 60                                         // 180 min
+const PLACEHOLDER_MIN = 3 * 60                                         // 180 min
 
 // ── Duration calculation ──────────────────────────────────────────────────────
 
@@ -28,7 +27,7 @@ export function berekenOrderMin(
 }
 
 /** De tijd van één machine in het recept: setup één keer, cyclus per stuk. */
-export interface ReceptMachine {
+interface ReceptMachine {
   naam: string
   setupMin: number
   cycleMin: number

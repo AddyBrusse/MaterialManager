@@ -11,7 +11,7 @@ type Db = typeof prisma | Prisma.TransactionClient
 export type { DocPrefix }
 
 /** In de volgorde en met de namen van het overzicht in Instellingen → Nummering. */
-export const DOC_SOORTEN: { prefix: DocPrefix; naam: string }[] = [
+const DOC_SOORTEN: { prefix: DocPrefix; naam: string }[] = [
   { prefix: 'PRJ', naam: 'Project' },
   { prefix: 'OFF', naam: 'Offerte' },
   { prefix: 'OB', naam: 'Opdrachtbevestiging' },
@@ -30,7 +30,7 @@ export const DOC_SOORTEN: { prefix: DocPrefix; naam: string }[] = [
  * 2027 `OFF-2027-042`. Met het jaar in de sleutel begint elke reeks op
  * 1 januari vanzelf bij 001 — er hoeft niemand iets te resetten.
  */
-export const reeksSleutel = (prefix: DocPrefix, jaar: number) => `${prefix}-${jaar}`
+const reeksSleutel = (prefix: DocPrefix, jaar: number) => `${prefix}-${jaar}`
 
 /**
  * Het materiaalnummer (2026-10-07) is kort en alleen cijfers, omdat iemand het
@@ -40,7 +40,7 @@ export const reeksSleutel = (prefix: DocPrefix, jaar: number) => `${prefix}-${ja
 const voorvoegsel = (prefix: DocPrefix, jaar: number) =>
   prefix === 'M' ? String(jaar).slice(2) : `${prefix}-${jaar}-`
 
-export const docNummer = (prefix: DocPrefix, jaar: number, n: number) =>
+const docNummer = (prefix: DocPrefix, jaar: number, n: number) =>
   `${voorvoegsel(prefix, jaar)}${String(n).padStart(prefix === 'M' ? 4 : 3, '0')}`
 
 // Bestaat dit nummer al? Sinds de documenten eigen tabellen hebben is het id een

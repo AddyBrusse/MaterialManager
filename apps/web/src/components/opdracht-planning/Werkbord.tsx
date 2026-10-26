@@ -6,7 +6,7 @@ import type { StapRegel } from './InfoHover'
 import { KanbanBord } from './KanbanBord'
 import { StatusBord } from './StatusBord'
 
-export interface WerkbordProps {
+interface WerkbordProps {
   banen: Baan[]
   kolommen: Record<Kolom, Kaart[]>
   machines: Machine[]

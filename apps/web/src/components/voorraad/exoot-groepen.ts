@@ -32,7 +32,7 @@ export interface ExootGroep<T extends GroepRij> {
   verbruikt: number
 }
 
-export type Weergaveregel<T extends GroepRij> =
+type Weergaveregel<T extends GroepRij> =
   | { soort: 'stuk'; rij: T }
   | { soort: 'exoot'; groep: ExootGroep<T> }
 

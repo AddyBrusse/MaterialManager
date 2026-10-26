@@ -1,6 +1,6 @@
 import { useEditLock, type EditLockState } from './useEditLock'
 
-export type ProjectLockState = EditLockState
+type ProjectLockState = EditLockState
 
 /** Het bewerkingsslot van een project; zie `useEditLock`. */
 export function useProjectLock(id: string, enabled = true): ProjectLockState {

@@ -55,7 +55,7 @@ export interface OverheadConfig {
 }
 
 // ── Defaults ──────────────────────────────────────────────────────────────────
-export const DEFAULT_SHOP: ShopConfig = {
+const DEFAULT_SHOP: ShopConfig = {
   totalFloorM2: 500,
   annualRentEur: 48000,
   annualInsuranceEur: 0,
@@ -83,13 +83,6 @@ export const DEFAULT_MACHINE_ROW: Omit<MachineOverheadRow, 'machineId'> = {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 export function shopAnnualHours(shop: ShopConfig): number {
   return shop.weeksPerYear * shop.daysPerWeek * shop.hoursPerDay
-}
-
-export function machineAvailableHours(row: MachineOverheadRow, shop: ShopConfig): number {
-  const hpd = row.hoursPerDayOverride != null && row.hoursPerDayOverride > 0
-    ? row.hoursPerDayOverride
-    : shop.hoursPerDay
-  return shop.weeksPerYear * shop.daysPerWeek * hpd
 }
 
 // ── Core calculation ──────────────────────────────────────────────────────────

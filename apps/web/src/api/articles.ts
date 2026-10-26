@@ -9,9 +9,9 @@ const LS_KEY = 'sm_articles'
 // de API rekent met dezelfde types voor de prijssnapshot. Hier alleen
 // doorgegeven zodat de schermen ze van hun eigen api-module blijven halen.
 import type {
-  ArticleRecipe, EstimateStep, EstimateNodeType, EstimateNode, ArticleEstimate,
+  ArticleRecipe, EstimateStep, EstimateNode, ArticleEstimate,
 } from '@stockmanager/shared'
-export type { ArticleRecipe, EstimateStep, EstimateNodeType, EstimateNode, ArticleEstimate }
+export type { ArticleRecipe, EstimateStep, EstimateNode, ArticleEstimate }
 
 export interface ArticleOperation {
   id: string

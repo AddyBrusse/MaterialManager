@@ -25,9 +25,9 @@ End-to-end scenarios. See per-flow docs for detail.
 - Camera or manual entry
 - Item detail → optional adjust
 
-## 6. Admin: create a finished good
+## 6. Admin: create an article
 - Desktop → Artikelen → Nieuw
-- Fill art_no, name, customer, photo, drawing, location
+- Fill name, customer (relatie), drawing, recipe — see `features/31-items-finished.md`
 - Save → article visible in lists
 
 ## 7. Admin: low-stock review

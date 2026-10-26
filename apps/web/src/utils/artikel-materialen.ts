@@ -11,7 +11,7 @@ import { formatDimensions } from '../api/raw-materials'
  * offerte hoort alles wat erin gaat, niet alleen de eerste regel. Zonder
  * calculatie het oude recept-veld.
  */
-export interface MateriaalRegelTekst {
+interface MateriaalRegelTekst {
   kwaliteit: string
   vorm: string
   /** "Ø50" of "40×20". */

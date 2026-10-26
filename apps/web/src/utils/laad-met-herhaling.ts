@@ -7,7 +7,7 @@ import type { LaadFout } from './fout-melding'
  * (2026-09-30: machines en artikelen, na F5 alles goed). Zonder herhaling stond
  * er dan "je werkt op een kopie" terwijl de server gewoon nog opstartte.
  */
-export const HERHAAL_NA_MS = [2000, 4000]
+const HERHAAL_NA_MS = [2000, 4000]
 
 function isLaadFout(u: unknown): u is LaadFout {
   return !!u && typeof u === 'object' && 'wat' in u

@@ -35,7 +35,7 @@ import { Ic, Icon, TypeGlyph, type GlyphKind } from '../../components/articles/c
  * Rood "Uit" alleen als er een minimumvoorraad is (2026-10-23): een artikel dat
  * op bestelling gemaakt wordt staat bijna altijd op 0, en dat is dan geen alarm.
  */
-export function statusFor(currentStock: number | string, minStock: number | string | null, maxStock: number | string | null) {
+function statusFor(currentStock: number | string, minStock: number | string | null, maxStock: number | string | null) {
   const cur = Number(currentStock) || 0
   const min = minStock === '' || minStock == null ? null : Number(minStock)
   const max = maxStock === '' || maxStock == null ? null : Number(maxStock)

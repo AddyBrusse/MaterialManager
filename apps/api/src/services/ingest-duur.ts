@@ -18,7 +18,7 @@ export interface Meting {
   duurMs: number
 }
 
-export interface Schatting {
+interface Schatting {
   /** Verwachte duur in seconden. Null als er nog niets te voorspellen valt. */
   verwachtSeconden: number | null
   /** Snelle en trage kant (p10-p90), zodat de melding geen exacte belofte doet. */

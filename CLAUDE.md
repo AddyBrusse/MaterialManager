@@ -76,6 +76,7 @@ Docs live at the repo root (this file, `00`-`03`, `frontend/`, `backend/`,
 - Forms: Mantine `useForm` with a `validate` map (Dutch messages) — see `frontend/16-forms-validation.md`
 - File naming: kebab-case files, PascalCase React components
 - Log any non-obvious architectural choice in `decisions/90-decisions-log.md`
+- **Geen dode code**: `npm run knip` draait in de CI en wordt rood bij een export, bestand of pakket dat nergens gebruikt wordt (`knip.json`). Iets dat "straks nodig" is, komt in de PR waarin het nodig wordt (besluit 2026-10-23)
 
 ## Foutmeldingen: wat, waar, gevolg
 
@@ -261,7 +262,7 @@ shouldn't need revisiting.
 |---|---|
 | Backend | `backend/20-backend-overview.md` · `21-api-design.md` · `22-database-schema.md` · `23-users-roles.md` · `24-locking.md` · `25-file-storage.md` · `26-deployment.md` |
 | Frontend | `frontend/10-frontend-overview.md` · `11-routing.md` · `12-state-management.md` · `13-components.md` · `14-mobile-view.md` · `15-desktop-view.md` · `16-forms-validation.md` · `17-styling-theme.md` · **`18-design-patterns.md`** ← code patterns · **`19-visual-design.md`** ← visual spec (read before touching UI) |
-| Features | `features/30-items-raw.md` · `31-items-finished.md` · `32-stock-movements.md` · `33-locations.md` · `34-grades-profiles.md` · `35-labels.md` · `36-search.md` · `37-low-stock.md` · **`38-article-calculator.md`** ← calculator modal/UI patterns · `39-graph-mail.md` · `50-operator-terminal.md` ← ontwerp achter de machineterminal (gebouwd) · `60-mail-import.md` · **`61-orderproces-backlog.md`** ← werklijst orderproces · **`62-mail-import-ai-ontwerp.md`** ← ontwerp AI-leespad (nog niet gebouwd) |
+| Features | `features/30-items-raw.md` · `31-items-finished.md` · `32-stock-movements.md` · `33-locations.md` · `34-grades-profiles.md` · `35-labels.md` (ontwerp, niet gebouwd) · `36-search.md` · `37-low-stock.md` · **`38-article-calculator.md`** ← calculator modal/UI patterns · `39-graph-mail.md` · `50-operator-terminal.md` ← ontwerp achter de machineterminal (gebouwd) · `60-mail-import.md` · **`61-orderproces-backlog.md`** ← werklijst orderproces · **`62-mail-import-ai-ontwerp.md`** ← ontwerp AI-leespad (nog niet gebouwd) |
 | Workflows | `workflows/40-user-flows.md` · `41-receive-material.md` · `42-adjust-stock.md` · `43-edit-locking-flow.md` · `44-mobile-scan-flow.md` |
 | Decisions | `decisions/90-decisions-log.md` |
 | Parked | `03-parked.md` — things not decided yet, do not implement |

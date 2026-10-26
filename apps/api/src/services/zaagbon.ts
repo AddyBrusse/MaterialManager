@@ -14,9 +14,9 @@ type Db = Prisma.TransactionClient
 
 /** Een rest hieronder is geen bruikbaar stuk staal meer. Ook in de zaagflow
  *  gebruikt om de zager naar een keuze te duwen. */
-export const MIN_REST_MM = 100
+const MIN_REST_MM = 100
 
-export interface AfboekInvoer {
+interface AfboekInvoer {
   /** De rest ná het zagen, in mm. Leeg = niets over. */
   restLengteMm: number | null
   /** Als onbruikbaar bestempeld: de staaf gaat naar 0. */
@@ -92,7 +92,7 @@ export async function boekZaagbonAf(
  * dat artikel in het project staat. Bij twee is niet te zeggen van welke order
  * de staaf was, en dan liever niet afboeken dan de verkeerde.
  */
-export async function openBonnenVanOrder(
+async function openBonnenVanOrder(
   db: Db, p: Project, order: Project['productieOrders'][number],
 ): Promise<ZaagReservering[]> {
   const enigeMetArtikel =

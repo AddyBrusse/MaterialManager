@@ -99,7 +99,7 @@ export interface FilterRij {
  * "Verbruikt" of "Nog niet binnen" toont het juist, en "Alleen exoten" toont
  * alle exoten, met hun stand.
  */
-export function isOp(r: FilterRij): boolean {
+function isOp(r: FilterRij): boolean {
   return Number(r.currentStock) === 0
 }
 

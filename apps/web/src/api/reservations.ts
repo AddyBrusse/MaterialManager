@@ -16,7 +16,7 @@ export type ReservationStatus = 'open' | 'in_progress' | 'done' | 'geannuleerd'
 
 /** Deze twee houden materiaal vast; done en geannuleerd niet. Moet gelijk
  *  blijven aan `OPEN_STATUSSEN` in `apps/api/src/services/voorraad.ts`. */
-export const OPEN_STATUSSEN: ReservationStatus[] = ['open', 'in_progress']
+const OPEN_STATUSSEN: ReservationStatus[] = ['open', 'in_progress']
 
 export function houdtVast(r: { status: ReservationStatus }): boolean {
   return OPEN_STATUSSEN.includes(r.status)
@@ -69,13 +69,13 @@ export type CreateReservationInput = Omit<
   'id' | 'createdAt' | 'priority' | 'rush' | 'status' | 'restLengteMm' | 'completedAt' | 'stangen' | 'restAfboeken' | 'materiaalRegelId' | 'afmeting'
 >
 
-export interface Beschikbaarheid {
+interface Beschikbaarheid {
   fysiekMm: number
   gereserveerdMm: number
   vrijMm: number
 }
 
-export interface AfboekResultaat {
+interface AfboekResultaat {
   reservering: ZaagReservation
   mutatieId: string
   schroot: boolean

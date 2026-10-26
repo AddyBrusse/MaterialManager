@@ -1,4 +1,3 @@
-import { IconCheck, IconAlertTriangle } from '@tabler/icons-react'
 import type { Nacalculatie, NacalculatieRegel } from '@stockmanager/shared'
 
 export function euro(v: number): string {
@@ -103,67 +102,6 @@ export function PostenTabel({ n, titel }: { n: Nacalculatie; titel?: string }) {
           </tbody>
         </table>
       </div>
-    </div>
-  )
-}
-
-/** De vier tegels bovenaan: verkoop, gecalculeerd, werkelijk, marge. */
-export function NacalculatieTegels({ n }: { n: Nacalculatie }) {
-  const onder = n.werkelijkTotaal < n.gecalculeerdTotaal
-  const gelijk = Math.abs(n.verschilTotaal) < 0.005
-  return (
-    <div className="st-stats">
-      <div className="st-stat">
-        <span className="st-stat-lbl">Verkocht voor</span>
-        <span className="st-stat-val">{n.verkoopTotaal == null ? '—' : euro(n.verkoopTotaal)}</span>
-        <span className="st-stat-foot">vastgelegd bij accepteren offerte</span>
-      </div>
-      <div className="st-stat">
-        <span className="st-stat-lbl">Kostprijs gecalculeerd</span>
-        <span className="st-stat-val cell-muted">{euro(n.gecalculeerdTotaal)}</span>
-        <span className="st-stat-foot">uit de calculatie</span>
-      </div>
-      <div
-        className="st-stat"
-        style={gelijk ? undefined : {
-          borderColor: onder ? 'var(--success)' : 'var(--warning)',
-          background: onder ? 'var(--success-soft)' : 'var(--warning-soft)',
-        }}
-      >
-        <span className="st-stat-lbl" style={gelijk ? undefined : { color: onder ? 'var(--success)' : 'var(--warning)' }}>
-          Kostprijs werkelijk
-        </span>
-        <span className="st-stat-val">{euro(n.werkelijkTotaal)}</span>
-        <span className="st-stat-foot" style={gelijk ? undefined : { color: onder ? 'var(--success)' : 'var(--warning)' }}>
-          {gelijk ? 'gelijk aan de calculatie' : (
-            <>
-              {onder ? <IconCheck size={12} stroke={2.2} /> : <IconAlertTriangle size={12} stroke={2} />}
-              {' '}{Math.abs(n.verschilPct ?? 0).toFixed(0)}% {onder ? 'onder' : 'boven'} de calculatie
-            </>
-          )}
-        </span>
-      </div>
-      <div className="st-stat">
-        <span className="st-stat-lbl">Marge werkelijk</span>
-        <span className="st-stat-val">
-          {n.margeWerkelijkPct == null ? '—' : `${n.margeWerkelijkPct.toFixed(0)}%`}
-        </span>
-        <span className="st-stat-foot">
-          {n.margeWerkelijkEuro != null && <>{euro(n.margeWerkelijkEuro)} · </>}
-          {n.margeGecalculeerdPct != null && <>gecalculeerd was {n.margeGecalculeerdPct.toFixed(0)}%</>}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-/** Staat er nog niets gemeten, dan is dit geen nacalculatie maar een voorspelling. */
-export function NietGemeten() {
-  return (
-    <div className="st-empty">
-      Er is nog geen tijd geregistreerd op dit werk. Tot die tijd toont de nacalculatie
-      de calculatie zelf — dat is eerlijker dan een besparing die alleen bestaat
-      omdat er niets geklokt is.
     </div>
   )
 }

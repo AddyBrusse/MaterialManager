@@ -53,7 +53,7 @@ export function materialName(
 }
 
 /** De materiaalregel die het recept is: de eerste die uit voorraad komt (geen exoot). */
-export function hoofdmateriaal(est: ArticleEstimate): EstimateNode | undefined {
+function hoofdmateriaal(est: ArticleEstimate): EstimateNode | undefined {
   return est.nodes.find(n =>
     n.type === 'material' && !n.exoot && !!n.gradeId && !!n.profileId &&
     !!n.dimensions && Object.keys(n.dimensions).length > 0,
@@ -84,7 +84,7 @@ export function receptUitCalculatie(est: ArticleEstimate, vorige: ArticleEstimat
 }
 
 /** De aantallen naast "per stuk" in de prijskaart (2026-10-23). */
-export const STAFFEL = [10, 25, 50]
+const STAFFEL = [10, 25, 50]
 
 /** Verkoopprijs per stuk bij een aantal: insteltijd en uitbesteding verdeeld over de serie. */
 export function staffelPrijzen(est: ArticleEstimate, ctx: EstimateCtx, aantallen = STAFFEL): { aantal: number; perStuk: number }[] {

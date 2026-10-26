@@ -12,7 +12,7 @@ import { staffelPrijzen } from './calc-helpers'
 const euro = (n: number): string =>
   `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
-export interface ArticleFinancialCardProps {
+interface ArticleFinancialCardProps {
   est: ArticleEstimate
   ctx: EstimateCtx
   totals: EstimateTotals

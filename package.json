@@ -16,10 +16,12 @@
     "db:status": "npm run db:status -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
     "db:leeg": "npm run db:leeg -w apps/api --",
-    "test": "npm run test -w apps/api && npm run test -w apps/web"
+    "test": "npm run test -w apps/api && npm run test -w apps/web",
+    "knip": "knip"
   },
   "devDependencies": {
     "concurrently": "^10.0.3",
+    "knip": "^5.88.1",
     "typescript": "^5.3.3"
   }
 }

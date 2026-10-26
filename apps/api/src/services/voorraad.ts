@@ -25,7 +25,7 @@ type Db = Prisma.TransactionClient
  *  geannuleerd houdt niets meer vast. */
 export const OPEN_STATUSSEN = ['open', 'in_progress'] as const
 
-export interface Beschikbaarheid {
+interface Beschikbaarheid {
   fysiekMm: number
   gereserveerdMm: number
   vrijMm: number

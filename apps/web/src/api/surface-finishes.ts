@@ -1,13 +1,6 @@
 import type { SurfaceFinish } from '@stockmanager/shared'
 import { apiFetch } from './client'
 
-export const MOCK_SURFACE_FINISHES: SurfaceFinish[] = [
-  { id: 'sf1', name: 'Blank', createdAt: '' },
-  { id: 'sf2', name: 'Ruw',   createdAt: '' },
-  { id: 'sf3', name: 'WGW',   createdAt: '' },
-  { id: 'sf4', name: 'KGW',   createdAt: '' },
-]
-
 const LS_KEY = 'sm_surface_finishes'
 
 function loadStore(): SurfaceFinish[] {
@@ -15,7 +8,7 @@ function loadStore(): SurfaceFinish[] {
     const raw = localStorage.getItem(LS_KEY)
     if (raw) return JSON.parse(raw) as SurfaceFinish[]
   } catch {}
-  return [...MOCK_SURFACE_FINISHES]
+  return []
 }
 
 function saveStore(data: SurfaceFinish[]): void {

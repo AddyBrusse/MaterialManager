@@ -31,3 +31,10 @@ jobs:
         # Unit tests only — no database needed. Runs after the build so the
         # shared package is compiled before the workspaces import it.
         run: npm test
+
+      - name: Dode code
+        # knip meldt bestanden, exports en npm-pakketten die nergens gebruikt
+        # worden (config in knip.json). Rood = eerst opruimen, niet negeren:
+        # op 2026-10-23 bleek 2 à 3 % van de code dood, zie het
+        # beslissingenlogboek van die dag.
+        run: npm run knip

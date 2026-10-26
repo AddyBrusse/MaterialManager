@@ -8,7 +8,7 @@ import type { ArticleEstimate, EstimateNode } from '../../api/articles'
 import type { EstimateCtx, EstimateTotals } from '../../api/estimate'
 import { materialCostPerPiece, machineRatePerHour } from '../../api/estimate'
 
-export const sankeyColors = {
+const sankeyColors = {
   mat: '#2d6df6',
   setup: '#8b5cf6',
   bew: '#0e9c8e',
@@ -18,7 +18,7 @@ export const sankeyColors = {
   sell: '#1f2937',
 } as const
 
-export interface SankeyFlow {
+interface SankeyFlow {
   color: string
   d: string
   label: string
@@ -27,18 +27,18 @@ export interface SankeyFlow {
 
 const euro = (n: number): string =>
   `€ ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-export interface SankeyRect {
+interface SankeyRect {
   x: number
   y: number
   w: number
   h: number
   color: string
 }
-export interface SankeyTitle {
+interface SankeyTitle {
   label: string
   cy: number
 }
-export interface SankeyResult {
+interface SankeyResult {
   viewBox: string
   flows: SankeyFlow[]
   rects: SankeyRect[]
@@ -236,7 +236,7 @@ export function buildSankey(est: ArticleEstimate, ctx: EstimateCtx, sell: number
   return { viewBox: `0 0 ${W} ${H}`, flows, rects, titles, gutterX: leftX, shiftX }
 }
 
-export interface LegendItem {
+interface LegendItem {
   color: string
   label: string
   value: number
@@ -264,7 +264,7 @@ function truncateLabel(label: string, max = 22): string {
   return label.length > max ? label.slice(0, max - 1) + '…' : label
 }
 
-export interface ArticleSankeyProps {
+interface ArticleSankeyProps {
   est: ArticleEstimate
   ctx: EstimateCtx
   sell: number

@@ -13,7 +13,7 @@ import { effectieveSeconden, type TijdSoort } from '@stockmanager/shared'
 
 type Db = Prisma.TransactionClient
 
-export interface TijdRegistratieRow {
+interface TijdRegistratieRow {
   id: string
   stapId: string
   orderId: string
@@ -87,7 +87,7 @@ function lopendeDeelmeting(lopendSinds: Date | null, nu: Date): number {
   return Math.max(0, Math.floor((nu.getTime() - lopendSinds.getTime()) / 1000))
 }
 
-export interface StartInput {
+interface StartInput {
   stapId: string
   soort: TijdSoort
   bemand: boolean
@@ -300,15 +300,6 @@ async function moetBestaan(db: Db, id: string): Promise<TijdRegistratieRow> {
   if (!r) throw new AppError(404, 'NOT_FOUND', 'Tijdregistratie niet gevonden')
   return r
 }
-
-/**
- * Registraties die te lang lopen.
- *
- * De grootste vervuiler van de dataset is de klok die iemand 's avonds vergeet.
- * Automatisch afsluiten zou tijd verzinnen, dus we markeren alleen — een mens
- * beslist wat de juiste waarde was.
- */
-export const TE_LANG_SECONDEN = 6 * 3600
 
 export async function lopend(db: Db) {
   const rijen = await db.tijdRegistratie.findMany({

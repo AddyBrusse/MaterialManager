@@ -10,7 +10,7 @@ import './materiaal.css'
 const nl = (n: number, d = 0) => n.toLocaleString('nl-NL', { maximumFractionDigits: d })
 const letter = (i: number) => String.fromCharCode(65 + i)
 
-export interface MateriaalSelectieProps {
+interface MateriaalSelectieProps {
   projectId: string
   artikelId: string
   artikelNaam: string

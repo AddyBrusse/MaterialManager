@@ -28,7 +28,7 @@ import { bonnenVanOrderWaar } from './zaagbon'
 type Db = Prisma.TransactionClient
 
 /** Eén materiaalregel van een artikel zoals de calculatie hem zegt. */
-export interface ArtikelMateriaal {
+interface ArtikelMateriaal {
   /** Id van de materiaalregel in de calculatie; null = alleen het oude recept-veld. */
   regelId: string | null
   /** Naam van de regel in de calculatie. */
@@ -45,7 +45,7 @@ export interface ArtikelMateriaal {
   fout: string | null
 }
 
-export interface ArtikelMaterialen {
+interface ArtikelMaterialen {
   artikelNaam: string
   /** Uit voorraad, in de volgorde van het recept. */
   regels: ArtikelMateriaal[]
@@ -67,7 +67,7 @@ function maatTekst(formule: string | undefined, d: Record<string, number>): stri
  * Een artikel zonder materiaalregels maar met een oud recept krijgt één regel
  * zonder id.
  */
-export async function materialenVanArtikel(db: Db, artikelId: string): Promise<ArtikelMaterialen> {
+async function materialenVanArtikel(db: Db, artikelId: string): Promise<ArtikelMaterialen> {
   const artikel = await db.article.findUnique({
     where: { id: artikelId },
     select: { id: true, naam: true, recipe: true, estimate: true },
@@ -138,7 +138,7 @@ export async function materialenVanArtikel(db: Db, artikelId: string): Promise<A
   }
 }
 
-export interface OrderRegelSleutel {
+interface OrderRegelSleutel {
   projectId: string
   offerteRegelId: string
   artikelId: string
@@ -152,7 +152,7 @@ export interface OrderRegelSleutel {
  * order met dit artikel in het project staat — hetzelfde filter als het
  * afboeken (`bonnenVanOrderWaar`).
  */
-export async function dekkingVanOrderRegel(
+async function dekkingVanOrderRegel(
   db: Db, sleutel: OrderRegelSleutel, regelIds: (string | null)[], aantal: number,
 ): Promise<RegelDekking[]> {
   const orders = await db.productieOrder.findMany({
@@ -178,14 +178,14 @@ export async function dekkingVanOrderRegel(
   return dekkingPerRegel(regelIds, aantal, reserveringen, tekorten)
 }
 
-export interface RegelDekkingMetNaam extends RegelDekking {
+interface RegelDekkingMetNaam extends RegelDekking {
   naam: string
   materiaal: string
   fout: string | null
 }
 
 /** Per orderregel van de opdracht: wat er per materiaalregel geregeld is. */
-export interface OrderRegelDekking {
+interface OrderRegelDekking {
   offerteRegelId: string
   regels: RegelDekkingMetNaam[]
   /** Exoten van het artikel: komen via de bestelling, niet uit voorraad. */
@@ -223,7 +223,7 @@ export async function dekkingVanProject(db: Db, projectId: string): Promise<Orde
   return uit
 }
 
-export interface PlanGebruikt {
+interface PlanGebruikt {
   materiaal: string
   werkstukLengteMm: number
   lader: LaderGegevens | null
@@ -233,7 +233,7 @@ export interface PlanGebruikt {
 }
 
 /** Het plan van één materiaalregel. */
-export interface PlanRegel {
+interface PlanRegel {
   regelId: string | null
   naam: string
   materiaal: string
@@ -248,7 +248,7 @@ export interface PlanRegel {
   kandidaten: PlanStaaf[]
 }
 
-export interface PlanUitkomst {
+interface PlanUitkomst {
   regels: PlanRegel[]
   exoten: string[]
 }
@@ -322,7 +322,7 @@ export async function maakPlan(
 }
 
 /** Afmetingen van staaf en recept moeten op de millimeter overeenkomen. */
-export function dimensiesGelijk(staaf: unknown, recept: Record<string, number> | undefined): boolean {
+function dimensiesGelijk(staaf: unknown, recept: Record<string, number> | undefined): boolean {
   if (!recept) return false
   const d = (staaf ?? {}) as Record<string, unknown>
   const sleutels = Object.keys(recept)
@@ -330,7 +330,7 @@ export function dimensiesGelijk(staaf: unknown, recept: Record<string, number> |
   return sleutels.every((k) => Number(d[k]) === Number(recept[k]))
 }
 
-export interface VastleggenVraag {
+interface VastleggenVraag {
   artikelId: string
   aantal: number
   projectId: string
@@ -345,7 +345,7 @@ export interface VastleggenVraag {
   tekort?: { stuks: number; mm: number }
 }
 
-export interface VastleggenUitkomst {
+interface VastleggenUitkomst {
   reserveringen: Prisma.ZaagReserveringGetPayload<object>[]
   bestelTodoId: string | null
   /** Alle materiaalregels van deze orderregel geregeld: de todo is dicht. */
@@ -619,7 +619,7 @@ export async function todosBijOpdracht(
  * laat zien — dan is het tekort vastgesteld en niet langer een vermoeden. Eén
  * per materiaal: twee materiaalregels met een tekort zijn twee bestellingen.
  */
-export async function bestelTodo(
+async function bestelTodo(
   db: Db,
   ctx: {
     projectId: string

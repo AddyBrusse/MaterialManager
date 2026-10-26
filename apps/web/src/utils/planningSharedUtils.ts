@@ -18,7 +18,6 @@ import {
   type PlanningStapItem,
 } from './planningUtils'
 
-export type { PlanningStapItem } from './planningUtils'
 
 // ── Per-machine capacity (Prognose-only) ────────────────────────────────────
 // Reads each machine's own Bezetting%/uren-per-dag from Instellingen →
@@ -68,7 +67,7 @@ export function prognoseTotalDays(windowStart: Date, today: Date = new Date()): 
   return Math.max(TOTAL_DAYS, Math.ceil(daysNeeded / 7) * 7)
 }
 
-export function dayIndexForDate(dateStr: string, windowStart: Date): number {
+function dayIndexForDate(dateStr: string, windowStart: Date): number {
   const d = new Date(dateStr + 'T00:00:00')
   return Math.round((d.getTime() - windowStart.getTime()) / 86400000)
 }
@@ -188,7 +187,7 @@ const GHOST_MARGIN_DAYS = 2
 // committed work — so they're kept in separate maps. Prognose stacks them
 // as "offerte" vs "confirmed"; callers that only care about total forecast
 // pressure sum the two.
-export interface GhostBelasting {
+interface GhostBelasting {
   /** Open (verzonden) offerte regels — quoting stage, not yet won. */
   offerte: Map<string, Map<number, number>>
   /** Accepted orders' stappen without a geplandDatum — confirmed, just not on the board yet. */

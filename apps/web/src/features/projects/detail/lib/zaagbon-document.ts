@@ -47,11 +47,11 @@ export function zaagbonGegevens(p: Project, reserveringen: ZaagReservation[], nu
   }
 }
 
-export function zaagbonPdf(p: Project, reserveringen: ZaagReservation[]): jsPDF {
+function zaagbonPdf(p: Project, reserveringen: ZaagReservation[]): jsPDF {
   return zaagbonDocument(zaagbonGegevens(p, reserveringen), companyApi.getSync(), documentAssets())
 }
 
-export const zaagbonBestandsnaam = (p: Project) => `Zaagbon-${p.id}.pdf`
+const zaagbonBestandsnaam = (p: Project) => `Zaagbon-${p.id}.pdf`
 
 /** Openen in het documentvenster; zonder vastgelegd materiaal zegt hij waarom niet. */
 export function toonZaagbon(p: Project, reserveringen: ZaagReservation[]): void {

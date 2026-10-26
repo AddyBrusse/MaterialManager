@@ -6,7 +6,8 @@
 > matching order line opens for receipt, with location; the stock piece gets
 > the same number. Same list as Bestellingen → Besteld. See the decisions log
 > entry of 2026-10-07. The label-consumption flow described below (creating a
-> raw material from a printed `#NNNNN` label) is still not built.
+> raw material from a printed `#NNNNN` label) was never built; the `labels`
+> table and `/api/labels` were removed on 2026-10-23 (`features/35-labels.md`).
 
 ## Preconditions
 

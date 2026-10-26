@@ -98,22 +98,3 @@ export function useZetReserveringStatus() {
     onError: meldFout('Status bijwerken mislukt'),
   })
 }
-
-export function useZetPrioriteit() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (v: { id: string; priority: number | null }) =>
-      reservationsApi.setPriority(v.id, v.priority),
-    onSuccess: () => ververs(qc),
-    onError: meldFout('Prioriteit bijwerken mislukt'),
-  })
-}
-
-export function useZaagplanOpslaan() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (jobs: { ids: string[]; rush: boolean }[]) => reservationsApi.applyPlan(jobs),
-    onSuccess: () => ververs(qc),
-    onError: meldFout('Planning opslaan mislukt'),
-  })
-}

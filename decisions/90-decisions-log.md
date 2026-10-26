@@ -2576,3 +2576,59 @@ versie: elke regel uit voorraad.
   opdracht en factuur (`materiaalVan`), één regel per materiaal op de werkbon,
   per regel in de tooltip van de marge, "+1" in de artikelenlijst
   (`utils/artikel-materialen.ts`).
+
+---
+
+## 2026-10-23 — Dode code opgeruimd; knip in de CI houdt het zo
+
+**Aanleiding:** Addy schrok van de omvang (60.500 regels, 47 tabellen) en vroeg
+of alles nodig is. Gemeten met [knip](https://knip.dev) en `tsc --noUnusedLocals`:
+ongeveer 1.400 regels (2 à 3 %) was dood, de rest is in gebruik. De app is groot
+omdat hij het hele orderproces doet, niet omdat er rommel in zit.
+
+**Weg:**
+- `services/productie-pdf.ts` (vervangen door `services/document/`) en
+  `components/nacalculatie/ProjectNacalculatieTab.tsx` (vervangen door
+  `features/projects/detail/tabs/NacalculatieTab.tsx`): nergens geïmporteerd.
+- `routes/desktop/ZaagPlannerPage.tsx` met route, registratie en het
+  uitgeschakelde menu-item ("Hiervoor gaan we een andere applicatie gebruiken").
+  Daarmee ook `@hello-pangea/dnd`, de laatste gebruiker.
+- API-routes `GET /api/low-stock` en `GET /api/search`: geen enkel scherm riep
+  ze aan. Lage voorraad komt uit `utils/todoAlerts.ts` in de browser, zoeken
+  gebeurt in de schermen zelf. `features/36-search.md` en `37-low-stock.md`
+  hebben een statusregel gekregen.
+- De `MOCK_*`-nepgegevens in `api/{grades,profiles,machines,locations,
+  surface-finishes,relaties}.ts`. De `localStorage`-kopie blijft als terugval
+  bij lezen; zonder kopie begint hij nu leeg in plaats van met verzonnen rijen.
+- Het tabblad "Op mutaties" in de drawer "Meest verbruikt" op Voorraad: dat
+  toonde een vaste tabel (`m1`…`m7`, ids die niet bestaan) plus een formule
+  uit de lengte, dus verzonnen aantallen. Echte aantallen vragen de
+  mutatiehistorie per staaf; tot die er is, alleen "Op lengte".
+- `qrcode` (ongebruikt pakket), 166 exports die nergens geïmporteerd werden
+  (het `export`-woord eraf) en 49 symbolen die daarna nergens meer gebruikt
+  werden (verwijderd), waaronder `Topbar` in `AppLayout`, `sendViaMicrosoft365`,
+  `useZaagplanOpslaan`, `machineAvailableHours` en `regelNaam`.
+
+**Ook weg, na een besluit van Addy dezelfde dag:** `Label` met `routes/labels.ts`
+en `services/label.ts` (labelprinter geparkeerd, nooit een scherm voor gemaakt)
+en `FinishedGood` met `routes/finished-goods.ts` (de oude cataloguslijst van
+vóór `Article`; voedde alleen nog de ToDo-melding "lage voorraad", die nu alleen
+materiaal telt). Migratie `20261023120000_label_finished_good_weg` dropt de
+tabellen `labels` en `finished_goods` **met inhoud** en de enum `LabelStatus`.
+De waarde `finished` blijft in de Postgres-enum `ItemType` staan voor oude
+regels in `stock_movements`; de Zod-schema's `ItemTypeSchema` en
+`LockItemTypeSchema` kennen hem niet meer, dus de API neemt hem niet meer aan.
+Bijvangst: de hand geschreven migratie van 2026-09-14 maakte een index
+`users_machine_id_idx` die niet in `schema.prisma` stond; `prisma migrate dev`
+wilde hem daarom droppen. De index staat nu ook in het schema (`@@index([machineId])`),
+zodat `migrate diff` tussen migraties en schema weer leeg is.
+
+**Niet aangeraakt:** het terugvallen op `localStorage` bij *schrijven* in de
+`api/*.ts`-bestanden, waar een mislukte opslag stil in de browser landt; dat is
+een aparte wijziging.
+
+**Vanaf nu:** `npm run knip` draait in de CI (`.github/workflows/ci.yml`,
+config in `knip.json`). Een export die nergens gebruikt wordt, een bestand dat
+niemand importeert of een pakket dat niemand laadt maakt de build rood. Dat is
+geen stijlregel maar een signaal: elk van de weggehaalde stukken was ooit
+"straks nodig" en bleef daarna maanden staan.

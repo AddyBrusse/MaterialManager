@@ -28,7 +28,7 @@ import {
 import { toDateStr } from './planningUtils'
 import { werkdagenTeLaat } from '../components/planning-tabel/tabel-logica'
 
-export interface AutoInvoer {
+interface AutoInvoer {
   /** Alle open stappen (niet gereed) van vrijgegeven orders. */
   jobs: QueueJob[]
   machines: Machine[]
@@ -268,7 +268,7 @@ export function planAutomatisch(inv: AutoInvoer): AutoUitkomst {
 
 // ── Wat er verandert: voor de server en voor de melding ──────────────────────
 
-export interface StapWijziging {
+interface StapWijziging {
   stapId: string
   projectId: string
   orderId: string

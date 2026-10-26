@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { LaderGegevens, MateriaalBehoefte, PlanStaaf, RegelDekking, TeZagen, Voorstel, VoorstelRegel } from '@stockmanager/shared'
+import type { LaderGegevens, MateriaalBehoefte, PlanStaaf, RegelDekking, TeZagen, Voorstel } from '@stockmanager/shared'
 import type { ZaagReservation } from './reservations'
 
 /**
@@ -14,7 +14,7 @@ import type { ZaagReservation } from './reservations'
  * plan, en wordt apart vastgelegd.
  */
 
-export type { Voorstel, VoorstelRegel, TeZagen, RegelDekking }
+export type { Voorstel, RegelDekking }
 
 export interface PlanGebruikt {
   materiaal: string
@@ -47,7 +47,7 @@ export interface PlanUitkomst {
   exoten: string[]
 }
 
-export interface BevestigVraag {
+interface BevestigVraag {
   artikelId: string
   aantal: number
   projectId: string
@@ -59,7 +59,7 @@ export interface BevestigVraag {
   tekort?: { stuks: number; mm: number }
 }
 
-export interface BevestigUitkomst {
+interface BevestigUitkomst {
   reserveringen: ZaagReservation[]
   bestelTodoId: string | null
   /** Elke materiaalregel geregeld: de todo is afgevinkt. */
