@@ -60,7 +60,12 @@ export function offerteReferentieUitMail(m: MailKop & Pick<MailImport, 'klantRef
 
 /** Het onderwerp als projectnaam, zonder "RE:" en "FW:" ervoor. */
 export function projectNaamUitOnderwerp(onderwerp: string): string | null {
-  const kaal = onderwerp.replace(/^(\s*(re|fw|fwd|aw|wg|antw|tr)\s*:\s*)+/i, '').trim()
+  // Een los streepje aan het eind ("Inkoopofferte RFQ2600233 -") is het restant
+  // van een onderwerp dat de klant niet afmaakte; als projectnaam staat het slordig.
+  const kaal = onderwerp
+    .replace(/^(\s*(re|fw|fwd|aw|wg|antw|tr)\s*:\s*)+/i, '')
+    .replace(/[\s\-–—:|·,;]+$/, '')
+    .trim()
   return kaal ? kaal.slice(0, 80) : null
 }
 

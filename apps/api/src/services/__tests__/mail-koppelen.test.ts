@@ -59,6 +59,12 @@ describe('projectNaamUitOnderwerp', () => {
     expect(projectNaamUitOnderwerp('Fwd:Bestelling')).toBe('Bestelling')
   })
 
+  it('zonder los streepje of dubbele punt aan het eind', () => {
+    expect(projectNaamUitOnderwerp('Inkoopofferte RFQ2600233 -')).toBe('Inkoopofferte RFQ2600233')
+    expect(projectNaamUitOnderwerp('Aanvraag: ')).toBe('Aanvraag')
+    expect(projectNaamUitOnderwerp('As Ø20-30')).toBe('As Ø20-30')
+  })
+
   it('leeg onderwerp geeft geen naam', () => {
     expect(projectNaamUitOnderwerp('RE: ')).toBeNull()
   })
