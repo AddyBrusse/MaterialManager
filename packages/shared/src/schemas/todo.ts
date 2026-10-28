@@ -7,8 +7,12 @@ export type TodoPriority = z.infer<typeof TodoPrioritySchema>
  *  heeft geen soort — die draagt alleen een zin.
  *
  *  `verbeterpunt` (2026-10-24) komt van de knop "Dit klopt niet": iemand zag iets
- *  in het programma zelf. Staat op een eigen tab, niet tussen het werk. */
-export const TodoSoortSchema = z.enum(['materiaal_selecteren', 'bestellen', 'verbeterpunt'])
+ *  in het programma zelf. Staat op een eigen tab, niet tussen het werk.
+ *
+ *  `recept_maken` (2026-10-28) komt van de mailimport: een artikel dat daar nieuw
+ *  ontstond heeft nog geen recept. Gaat vanzelf dicht zodra de calculatie een
+ *  prijs geeft (`apps/api/src/services/recept-taken.ts`). */
+export const TodoSoortSchema = z.enum(['materiaal_selecteren', 'bestellen', 'verbeterpunt', 'recept_maken'])
 export type TodoSoort = z.infer<typeof TodoSoortSchema>
 
 /**

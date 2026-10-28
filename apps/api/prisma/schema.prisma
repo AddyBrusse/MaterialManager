@@ -1074,7 +1074,7 @@ model Todo {
   // Waar deze todo over gaat. Een losse todo heeft dit niet; een todo die het
   // programma zelf aanmaakt wel, zodat de lijst er een knop naast kan zetten
   // die de bijbehorende handeling opent in plaats van alleen een zin te tonen.
-  soort          String? // 'materiaal_selecteren' | 'bestellen' | 'verbeterpunt'
+  soort          String? // 'materiaal_selecteren' | 'bestellen' | 'verbeterpunt' | 'recept_maken'
   projectId      String?      @map("project_id")
   artikelId      String?      @map("artikel_id")
   offerteRegelId String?      @map("offerte_regel_id")

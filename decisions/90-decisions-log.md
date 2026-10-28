@@ -2768,3 +2768,53 @@ Resultaat in de testcontainer: Relaties van 12 s naar 2 s, en de langste
 hapering van 5,2 s naar 0,4–0,7 s. ToDo van 3,3 s naar 1,5 s. Het verschil
 met het echte scherm bleef gelijk (0,005–0,03 %). De browsertest controleert
 dit nu ook: binnen 6 s klaar, nooit langer dan 1,5 s vast.
+
+## 2026-10-28 — Mail koppelen: referentie, projectgegevens en "Recept maken"
+
+**Aanleiding (Addy):** na een mailimport in een nieuw project stond er nergens
+een referentie, ook niet op de concept-offerte. En nieuwe artikelen uit de mail
+hadden geen recept, zonder dat iets dat onthield.
+
+**Gemeten oorzaak:** sinds de nieuwe projectpagina (#31, 2026-09-23) riep
+niemand meer de code aan die bij het koppelen klant, contact, naam, klantRef en
+levertijd op het project zette. De offerte kreeg nooit een referentie. Verder
+deed de browser het koppelen in losse stappen zonder op de server te wachten:
+een artikel dat niet aangemaakt kon worden verdween stil, en halverwege
+mislukken liet een half gevulde offerte achter.
+
+**Besluiten:**
+
+- **Koppelen is één serververzoek in één transactie** (`POST
+  /mail-imports/:id/koppel`, `services/mail-koppelen.ts`). Het staat er
+  helemaal, of er is niets veranderd; een fout zegt dat ook ("Er is niets
+  gekoppeld"). `withProject` staat daarvoor nu in
+  `services/project-schrijven.ts`, met een ruimere time-out voor het kopiëren
+  van tekeningen.
+- **Referentie op de offerte** (keuze Addy): het RFQ-/ordernummer van de klant
+  als het model dat vond, anders `Mail <afzender> <dd-mm-jjjj hh:mm>`, altijd in
+  Nederlandse tijd (de NAS draait in Docker op UTC). Alleen als het veld leeg
+  is. **Uw referentie** op het project krijgt de mailregel níet: die staat ook
+  op pakbon en factuur, en daar hoort een nummer van de klant.
+- **Projectgegevens alleen waar leeg**, en een project met een klant krijgt
+  nooit een andere klant. "Nieuw project" telt als leeg en wordt het onderwerp
+  zonder RE:/FW:.
+- **"Recept maken" is een ToDo-taak per nieuw artikel** (keuze Addy), geen
+  vlag op het artikel. Hij gaat vanzelf dicht als de calculatie een prijs
+  boven € 0 geeft, niet als iemand het recept alleen opent. Een eigen
+  tabel was niet nodig: `soort` is een tekstkolom, dus geen migratie.
+- **Waarschuwing bij Versturen met een regel op € 0** (keuze Addy), met
+  "Toch versturen". Waarschuwen, niet blokkeren: een gratis regel kan bewust
+  zijn.
+- **Artikelnummers voor artikelen uit een mail geeft de server**
+  (`nieuwArtikelId`, reeks `ART`). De browser verzon ze tot nu uit zijn eigen
+  kopie (`nextArtNo`) en stuurde ze mee, waardoor de teller op de server
+  achterloopt; daarom begint de server nooit lager dan het hoogste bestaande
+  nummer. Het artikelformulier maakt nog zelf een nummer — buiten deze
+  wijziging gelaten.
+- **"Nieuwe klant aanmaken" in het controlescherm** gebruikt
+  `relatiesApi.aanmaken` (zonder stille terugval op een browserkopie) en toont
+  de nieuwe klant meteen in het veld; dat bleef leeg tot je de pagina ververste
+  (gevonden in de browsertest).
+
+**Getest:** 20 unittests, 50 API-controles en 57 browserstappen op een
+testdatabase met twee echte aanvraagmails (met en zonder RFQ-nummer).

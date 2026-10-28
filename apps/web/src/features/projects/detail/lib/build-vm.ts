@@ -340,8 +340,10 @@ export function bouwTodos(todos: Todo[]): TodoVM[] {
       id: t.id,
       titel: t.title,
       materiaal: t.soort === 'materiaal_selecteren',
+      link: t.soort === 'recept_maken' && t.artikelId ? `/artikelen/${t.artikelId}` : null,
       herkomst: [
-        t.soort === 'materiaal_selecteren' ? 'Materiaal kiezen' : null,
+        t.soort === 'materiaal_selecteren' ? 'Materiaal kiezen'
+          : t.soort === 'recept_maken' ? 'Recept maken, gaat vanzelf dicht bij een prijs' : null,
         `aangemaakt ${datumKort(t.createdAt)}`,
       ]
         .filter(Boolean)

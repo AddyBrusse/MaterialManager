@@ -313,6 +313,15 @@ export const projectsApi = {
     return r.data
   },
 
+  /**
+   * Een project zoals de server het net teruggaf na een handeling die niet via
+   * deze module liep (een mail koppelen, 2026-10-28). Vervangt de kopie.
+   */
+  vanServer(p: Project): void {
+    cache = cache.some(x => x.id === p.id) ? cache.map(x => x.id === p.id ? p : x) : [...cache, p]
+    saveLocal(cache)
+  },
+
   update(id: string, patch: UpdateProject): Project {
     const updated = updateCache(id, p => ({ ...p, ...patch, updatedAt: now() }))
     syncProject(id, apiFetch<Project>(`/projects/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }), `Project ${id} bijwerken`)

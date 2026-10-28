@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import type { AandachtVM, TodoVM } from '../../types'
 import { Card } from '../../components/Card'
 
@@ -36,7 +37,7 @@ export function WatMoetErGebeuren({ aandacht, todos }: { aandacht: AandachtVM[];
           {/* Leeg en niet aanklikbaar: afvinken gebeurt op de todopagina, waar de herkomst erbij staat. */}
           <i className="pdv2-vinkje" aria-hidden />
           <div>
-            <div className="pdv2-aandacht-t">{t.titel}</div>
+            <div className="pdv2-aandacht-t">{t.link ? <Link to={t.link}>{t.titel}</Link> : t.titel}</div>
             <div className="pdv2-aandacht-s">todo · {t.herkomst}</div>
           </div>
         </div>

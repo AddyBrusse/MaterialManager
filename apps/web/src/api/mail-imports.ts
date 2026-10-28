@@ -1,4 +1,4 @@
-import type { MailImport, MailImportStatus, MailIntent } from '@stockmanager/shared'
+import type { MailImport, MailImportStatus, MailIntent, MailKoppeling } from '@stockmanager/shared'
 import { apiFetch, apiUpload, MODEL_TIMEOUT_MS } from './client'
 
 interface IngestResult {
@@ -22,16 +22,6 @@ interface UpdateMailImport {
   intent?: MailIntent
   status?: MailImportStatus
   projectId?: string | null
-}
-
-/**
- * Wat er gekopieerd is, en wat niet. `overgeslagen` is meestal leeg; is hij dat
- * niet, dan mist het artikel een tekening en moet dat gezegd worden in plaats
- * van stilzwijgend een leeg artikel op te leveren.
- */
-interface CopyFilesResultaat {
-  bestanden: { name: string; path: string; sizeBytes: number; kind: string }[]
-  overgeslagen: { naam: string; reden: string }[]
 }
 
 export const mailImportsApi = {
@@ -76,15 +66,16 @@ export const mailImportsApi = {
       .then((r) => r.data),
 
   /**
-   * Tekeningen uit de mail naar de bijlagenmap van een artikel kopiëren.
-   * Gebeurt op de server: een STEP-assembly heen en weer sturen via de browser
-   * is zonde van de tijd. Geeft de bijlage-metadata terug voor het artikel.
+   * De mail aan het project koppelen en, als de offerte nog leeg is, de regels
+   * overnemen — op de server, in één keer (2026-10-28): klant, referentie en
+   * levertijd op het project, regels en referentie op de offerte, nieuwe
+   * artikelen met hun tekeningen en per nieuw artikel de taak "Recept maken".
+   * Lukt het niet, dan is er niets veranderd. Gooit een `ApiFout`.
    */
-  copyFilesToArticle: (id: string, artikelId: string, bestanden: string[]) =>
-    apiFetch<CopyFilesResultaat>(
-      `/mail-imports/${id}/bestanden-naar-artikel`,
-      { method: 'POST', body: JSON.stringify({ artikelId, bestanden }) }
-    ).then((r) => r.data),
+  koppel: (id: string, body: { projectId: string; relatieId: string; contactId: string | null; intent: MailIntent }) =>
+    // Ruim: het kopiëren van een STEP-bestand van tientallen MB kost tijd.
+    apiFetch<MailKoppeling>(`/mail-imports/${id}/koppel`, { method: 'POST', body: JSON.stringify(body), timeoutMs: 60_000 })
+      .then((r) => r.data),
 
   /**
    * De tekeningen uit deze mail alsnog aan de al bestaande artikelen hangen.

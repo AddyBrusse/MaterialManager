@@ -11,9 +11,11 @@ import { relatiesApi } from '../../api/relaties'
 import { gradesApi } from '../../api/grades'
 import { profilesApi } from '../../api/profiles'
 import { machinesApi } from '../../api/machines'
-import { neemRegelsOver } from './mail-naar-offerte'
-import type { Project, Relatie } from '@stockmanager/shared'
-import { MAIL_INTENTS, type MailImport, type MailIntent } from '@stockmanager/shared'
+import { koppelMelding } from './mail-koppel-melding'
+import type { MailKoppeling, Project, Relatie } from '@stockmanager/shared'
+import {
+  MAIL_INTENTS, mailAfzender, offerteReferentieUitMail, type MailImport, type MailIntent,
+} from '@stockmanager/shared'
 
 /**
  * Controlescherm — features/60-mail-import.md §3.7.
@@ -30,17 +32,17 @@ interface Props {
   /** Volledige relaties: nodig voor de contactpersonen bij de gekozen klant. */
   relaties: Relatie[]
   articleOptions: { value: string; label: string }[]
-  /** Nodig om de regels op de offerte te kunnen zetten. */
+  /** Om te zien of de offerte nog leeg is: alleen dan worden de regels overgenomen. */
   project: Project
   onClose: () => void
-  onLinked: (mailImport: MailImport, relatieId: string | null) => void
+  /** Gekoppeld: de server gaf het bijgewerkte project en de mail terug. */
+  onLinked: (koppeling: MailKoppeling) => void
   /**
-   * De koppeling met het project is verbroken. Apart van `onLinked`, want die
-   * schrijft ook de relatie en de ordergegevens naar het project — bij
+   * De koppeling met het project is verbroken. Apart van `onLinked`, want bij
+   * koppelen krijgt het project klant, referentie en levertijd — bij
    * loskoppelen hoort er juist niets aan het project te veranderen.
    */
   onUnlinked: (mailImport: MailImport) => void
-  onOfferteChanged: () => void
 }
 
 const INTENT_LABELS: Record<MailIntent, string> = {
@@ -51,18 +53,23 @@ const INTENT_LABELS: Record<MailIntent, string> = {
 
 export function MailImportReview({
   opened, mailImport, projectId, relaties, articleOptions, project, onClose, onLinked, onUnlinked,
-  onOfferteChanged,
 }: Props) {
-  const [relatieId, setRelatieId] = useState<string | null>(mailImport.relatieId)
+  const [relatieId, setRelatieId] = useState<string | null>(mailImport.relatieId ?? project.relatieId)
   const [contactId, setContactId] = useState<string | null>(mailImport.contactId)
   const [intent, setIntent] = useState<MailIntent>(mailImport.intent)
   const [current, setCurrent] = useState<MailImport>(mailImport)
   const [busy, setBusy] = useState(false)
+  // Een klant die hier net is aangemaakt: de lijst van het project kent hem pas
+  // na verversen, en een Select toont geen waarde die niet in zijn lijst staat.
+  const [nieuweKlant, setNieuweKlant] = useState<Relatie | null>(null)
+  const alleRelaties = nieuweKlant && !relaties.some((r) => r.id === nieuweKlant.id)
+    ? [...relaties, nieuweKlant]
+    : relaties
 
-  const relatieOptions = relaties
+  const relatieOptions = alleRelaties
     .filter((r) => r.type !== 'leverancier')
     .map((r) => ({ value: r.id, label: r.naam }))
-  const gekozenRelatie = relaties.find((r) => r.id === relatieId) ?? null
+  const gekozenRelatie = alleRelaties.find((r) => r.id === relatieId) ?? null
   const contactOptions = (gekozenRelatie?.contacten ?? []).map((c) => ({
     value: c.id,
     label: [c.naam, c.functie].filter(Boolean).join(' · '),
@@ -79,55 +86,27 @@ export function MailImportReview({
   const offerteIsLeeg = !laatsteOfferte || laatsteOfferte.regels.length === 0
   const overTeNemen = current.kandidaten.length
 
+  /**
+   * Koppelen, en bij een lege offerte de regels overnemen. Eén verzoek: de
+   * server doet het in één transactie, dus het staat er helemaal of niet.
+   */
   async function link() {
+    if (!relatieId) return
     setBusy(true)
     try {
-      const saved = await mailImportsApi.update(current.id, {
-        relatieId,
-        contactId,
-        intent,
-        projectId,
-        status: 'verwerkt',
-      })
-
-      if (overTeNemen > 0 && offerteIsLeeg) {
-        const klantNaam = gekozenRelatie?.naam ?? null
-        const r = await neemRegelsOver({ project, mailImport: saved, klantNaam })
-        onOfferteChanged()
-
-        const nieuw = r.nieuweArtikelen.length
-        // Alleen zéggen dat de tekeningen mee zijn als dat ook zo is. De melding
-        // beweerde dat onvoorwaardelijk, ook bij nul bestanden — dan denk je dat
-        // het goed ging terwijl het artikel leeg is.
-        const zonderTekening = nieuw > 0 && r.gekoppeldeBestanden === 0
-        notifications.show({
-          color: r.misluktebestanden.length > 0 || zonderTekening
-            ? 'red'
-            : r.zonderPrijs > 0 ? 'orange' : 'green',
-          title: `${r.aantalRegels} regel${r.aantalRegels === 1 ? '' : 's'} op offerte ${r.offerteId}`,
-          message: [
-            nieuw > 0
-              ? `${nieuw} nieuw artikel${nieuw === 1 ? '' : 'en'} aangemaakt (${r.nieuweArtikelen.join(', ')})` +
-                (r.gekoppeldeBestanden > 0
-                  ? `, met ${r.gekoppeldeBestanden} meegestuurde tekening${r.gekoppeldeBestanden === 1 ? '' : 'en'}.`
-                  : ' — zónder tekening: er hing geen bestand aan deze regels.')
-              : null,
-            r.misluktebestanden.length > 0
-              ? `Niet gekopieerd: ${r.misluktebestanden.join(', ')}.`
-              : null,
-            r.zonderPrijs > 0
-              ? `${r.zonderPrijs} regel(s) staan op € 0 — daar moet nog een calculatie onder.`
-              : 'Prijzen komen uit de calculatie van het artikel.',
-          ]
-            .filter(Boolean)
-            .join(' '),
-        })
-      }
-
-      onLinked(saved, relatieId)
+      const koppeling = await mailImportsApi.koppel(current.id, { projectId, relatieId, contactId, intent })
+      notifications.show(koppelMelding(koppeling))
+      onLinked(koppeling)
       onClose()
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Opslaan mislukt', message: (err as Error).message })
+    } catch (fout) {
+      meldFout({
+        actie: overTeNemen > 0 && offerteIsLeeg ? 'Mail koppelen en regels overnemen' : 'Mail koppelen aan project',
+        fout,
+        gevolg:
+          fout instanceof ApiFout && fout.code === 'TIMEOUT'
+            ? 'Onbekend of het gelukt is: de server antwoordde niet op tijd. Sluit dit venster en ververs de pagina om te zien of de regels op de offerte staan.'
+            : 'Er is niets gekoppeld: het project, de offerte en de artikelen zijn niet veranderd.',
+      })
     } finally {
       setBusy(false)
     }
@@ -201,8 +180,12 @@ export function MailImportReview({
             : null,
         ].filter(Boolean).join(' '),
       })
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Koppelen mislukt', message: (err as Error).message })
+    } catch (fout) {
+      meldFout({
+        actie: 'Tekeningen alsnog koppelen',
+        fout,
+        gevolg: 'Mogelijk hangt een deel van de tekeningen al aan de artikelen. Nog eens proberen voegt niets dubbel toe.',
+      })
     } finally {
       setBusy(false)
     }
@@ -243,8 +226,8 @@ export function MailImportReview({
         title: 'Losgekoppeld',
         message: 'De mail hoort niet meer bij dit project. Het project zelf is niet veranderd.',
       })
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Loskoppelen mislukt', message: (err as Error).message })
+    } catch (fout) {
+      meldFout({ actie: 'Mail loskoppelen van project', fout, gevolg: 'De mail hoort nog bij dit project; er is niets veranderd.' })
     } finally {
       setBusy(false)
     }
@@ -256,8 +239,8 @@ export function MailImportReview({
       await mailImportsApi.update(mailImport.id, { status: 'genegeerd' })
       notifications.show({ color: 'gray', message: 'Mail genegeerd.' })
       onClose()
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Opslaan mislukt', message: (err as Error).message })
+    } catch (fout) {
+      meldFout({ actie: 'Mail negeren', fout, gevolg: 'De mail staat nog zoals hij stond.' })
     } finally {
       setBusy(false)
     }
@@ -281,21 +264,32 @@ export function MailImportReview({
     )
     if (!naam?.trim()) return
     setBusy(true)
+    let aangemaakt: string | null = null
     try {
-      const { data } = await relatiesApi.create({
+      // `aanmaken`, niet `create`: die valt bij een fout stil terug op een kopie
+      // in deze browser, en dan wijst de mail naar een klant die de server niet kent.
+      const data = await relatiesApi.aanmaken({
         naam: naam.trim(),
         type: 'klant',
         email: current.afzenderEmail,
         contacten: current.afzenderNaam
-          ? [{ id: `c${Date.now()}`, naam: current.afzenderNaam, email: current.afzenderEmail }]
+          ? [{ id: `c${Date.now()}`, naam: mailAfzender(current) ?? current.afzenderNaam, email: current.afzenderEmail }]
           : [],
-      } as Parameters<typeof relatiesApi.create>[0])
+      } as Parameters<typeof relatiesApi.aanmaken>[0])
+      aangemaakt = data.naam
+      setNieuweKlant(data)
       setRelatieId(data.id)
       setContactId(data.contacten[0]?.id ?? null)
       setCurrent(await mailImportsApi.update(current.id, { relatieId: data.id }))
       notifications.show({ color: 'green', message: `${data.naam} aangemaakt en gekoppeld.` })
-    } catch (err) {
-      notifications.show({ color: 'red', title: 'Aanmaken mislukt', message: (err as Error).message })
+    } catch (fout) {
+      meldFout({
+        actie: `Nieuwe klant "${naam.trim()}" aanmaken`,
+        fout,
+        gevolg: aangemaakt
+          ? `${aangemaakt} is wél aangemaakt en gekozen, maar de regels zijn nog niet langs de artikelen van deze klant gelegd. Koppelen slaat de klant alsnog op.`
+          : 'Er is geen klant aangemaakt.',
+      })
     } finally {
       setBusy(false)
     }
@@ -329,7 +323,13 @@ export function MailImportReview({
                   // Andere klant = andere geleerde koppelingen, dus de server
                   // legt de regels opnieuw langs de artikelen.
                   setCurrent(await mailImportsApi.update(current.id, { relatieId: v }))
-                } catch { /* de keuze blijft staan; koppelen slaat hem opnieuw op */ }
+                } catch (fout) {
+                  meldFout({
+                    actie: 'Klant van de mail wijzigen',
+                    fout,
+                    gevolg: 'De keuze staat op het scherm, maar de regels zijn niet opnieuw langs de artikelen van deze klant gelegd. Koppelen slaat de klant alsnog op.',
+                  })
+                }
               }}
               searchable
               clearable
@@ -351,9 +351,16 @@ export function MailImportReview({
             searchable
             clearable
           />
-          <div className="mi-kerngetal">
-            <div className="k">Referentie klant</div>
-            <div className="v mono">{current.klantRef ?? '—'}</div>
+          {/* Wat er bij het koppelen in de kolom Referentie van de offerte komt
+              (2026-10-28): het nummer van de klant, anders de mail zelf. */}
+          <div
+            className="mi-kerngetal"
+            title={current.klantRef
+              ? 'Het aanvraag- of ordernummer van de klant. Komt op de offerte en bij "Uw referentie" op het project.'
+              : 'Geen nummer van de klant gevonden: de mail zelf wordt de referentie op de offerte.'}
+          >
+            <div className="k">Referentie op offerte</div>
+            <div className="v mono">{offerteReferentieUitMail(current)}</div>
           </div>
           <div className="mi-kerngetal">
             <div className="k">Gevraagde levering</div>
