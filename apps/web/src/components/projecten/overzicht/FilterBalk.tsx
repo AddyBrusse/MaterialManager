@@ -1,5 +1,5 @@
 import { IconX } from '@tabler/icons-react'
-import type { SignaalId } from './signalen'
+import type { SignaalId } from '@stockmanager/shared'
 import { filterLabel, voegToe, type Filter } from './filters'
 import { FilterToevoegen } from './FilterToevoegen'
 import { WeergavenMenu } from './WeergavenMenu'

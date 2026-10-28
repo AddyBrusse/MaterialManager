@@ -15,9 +15,8 @@ import {
   resolveColumns, reorderColumns,
   type ProjectColumnCtx,
 } from '../../components/projecten/projectColumns'
-import { PROJECT_TABLE_PREFS_KEY, type ProjectTablePrefs, type Project } from '@stockmanager/shared'
+import { PROJECT_TABLE_PREFS_KEY, heeftSignaal, signalenVan, type ProjectTablePrefs, type Project, type Signalen, type SignaalId } from '@stockmanager/shared'
 import { companyApi } from '../../api/company'
-import { heeftSignaal, signalenVan, type Signalen, type SignaalId } from '../../components/projecten/overzicht/signalen'
 import { pastAlle, voegToe, wisselSignaal, type Filter, type FilterCtx } from '../../components/projecten/overzicht/filters'
 import { snelleFilters } from '../../components/projecten/overzicht/snelle-filters'
 import { RijMenu, type MenuPlek } from '../../components/projecten/overzicht/RijMenu'

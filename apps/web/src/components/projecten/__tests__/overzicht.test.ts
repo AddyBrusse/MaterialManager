@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Factuur, Offerte, Paklijst, Project, ProductieOrder } from '@stockmanager/shared'
-import { signalenVan, stappenVan, statusWoord, heeftSignaal } from '../overzicht/signalen'
+import { signalenVan, heeftSignaal, type Factuur, type Offerte, type Paklijst, type Project, type ProductieOrder } from '@stockmanager/shared'
+import { stappenVan, statusWoord } from '../overzicht/signalen'
 import { snelleFilters } from '../overzicht/snelle-filters'
 import { filterLabel, past, voegToe, wisselSignaal, type FilterCtx } from '../overzicht/filters'
 

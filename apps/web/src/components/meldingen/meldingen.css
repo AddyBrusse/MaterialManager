@@ -4,3 +4,5 @@
 .mb-dot.rood { background: var(--danger); }
 .mb-dot.groen { background: var(--success); }
 .ib-bel-tel:not([data-rood]) { background: var(--warning); }
+.mb-meer { display: block; width: 100%; padding: 6px 12px 8px 29px; border: 0; border-bottom: 1px solid var(--border); background: none; text-align: left; font: inherit; font-size: 11.5px; color: var(--accent); cursor: pointer; }
+.mb-meer:hover { text-decoration: underline; }

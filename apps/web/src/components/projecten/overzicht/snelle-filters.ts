@@ -1,5 +1,4 @@
-import type { Project } from '@stockmanager/shared'
-import { dagVan, heeftSignaal, SIGNAAL_LABEL, type SignaalId, type Signalen } from './signalen'
+import { heeftSignaal, SIGNAAL_LABEL, vandaagIso, type Project, type SignaalId, type Signalen } from '@stockmanager/shared'
 import { zelfde, type Filter } from './filters'
 
 /**
@@ -40,7 +39,7 @@ const SIGNAAL_VOLGORDE: SignaalId[] = [
 function plusDagen(d: Date, n: number): string {
   const x = new Date(d)
   x.setDate(x.getDate() + n)
-  return dagVan(x)
+  return vandaagIso(x)
 }
 
 export function snelleFilters(p: Project, opties: {
@@ -65,7 +64,7 @@ export function snelleFilters(p: Project, opties: {
 
   const lt = p.levertijdDatum?.slice(0, 10)
   if (lt) {
-    const vandaag = dagVan(nu)
+    const vandaag = vandaagIso(nu)
     const periode = lt < vandaag ? 'voorbij' : lt <= plusDagen(nu, 7) ? 'week' : lt <= plusDagen(nu, 30) ? 'maand' : null
     const tekst = { voorbij: 'voorbij', week: 'binnen 7 dagen', maand: 'binnen 30 dagen' }
     if (periode) {

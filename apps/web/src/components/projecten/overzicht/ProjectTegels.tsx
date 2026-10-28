@@ -1,6 +1,6 @@
 import { IconAlertTriangle, IconClockExclamation, IconPackage, IconFileInvoice, IconCash } from '@tabler/icons-react'
 import type { ReactNode } from 'react'
-import type { SignaalId } from './signalen'
+import type { SignaalId } from '@stockmanager/shared'
 
 export interface TegelTellingen {
   geenReactie: number

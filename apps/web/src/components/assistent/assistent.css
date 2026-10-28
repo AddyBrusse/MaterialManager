@@ -17,3 +17,6 @@
 .as-uitleg { color: var(--text-3); font-size: 11px; padding: 0 14px 8px; }
 .as-knop[data-nieuw]::after { content: ''; position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .as-knop { position: relative; }
+.as-bron { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border); color: var(--text-3); font-size: 11px; line-height: 1.4; white-space: normal; display: flex; gap: 6px; }
+.as-bron > span { font-weight: 600; flex-shrink: 0; }
+.as-bron ul { margin: 0; padding: 0; list-style: none; }

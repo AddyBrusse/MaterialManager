@@ -23,6 +23,21 @@ export interface ChatBericht {
   rol: 'gebruiker' | 'assistent'
   tekst: string
   acties?: AssistentActie[]
+  /** Waar de assistent keek (tabellen en filters), door de server vastgelegd en niet door het model. */
+  bronnen?: string[]
+}
+
+/** Verbruik van de assistent over de laatste dagen (Instellingen → Assistent). */
+export interface AssistentGebruik {
+  dagen: number
+  chat: number
+  bericht: number
+  invoer: number
+  cacheLezen: number
+  cacheSchrijven: number
+  uitvoer: number
+  /** Geschat in dollars volgens de prijslijst; null bij een model zonder bekende prijs. */
+  kostenUsd: number | null
 }
 
 const UU_MM = /^([01]\d|2[0-3]):[0-5]\d$/

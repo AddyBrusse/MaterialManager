@@ -10,6 +10,7 @@ import { machinesApi }         from '../../api/machines'
 import type { Company, User, CreateUser } from '@stockmanager/shared'
 import { meldFout as meldFoutMetGevolg } from '../../utils/fout-melding-toon'
 import { NummeringTab } from '../../components/settings/NummeringTab'
+import { AssistentGebruik } from '../../components/assistent/AssistentGebruik'
 
 // ── shared primitives ─────────────────────────────────────────────────────────
 
@@ -205,6 +206,9 @@ function BedrijfTab() {
             tijden={form.assistentTijden ?? ['08:00', '15:00']}
             onChange={(t) => { setForm((f) => ({ ...f, assistentTijden: t })); setDirty(true) }}
           />
+        </SettingRow>
+        <SettingRow title="Gebruik afgelopen 30 dagen" desc="Gemeten per antwoord. Het bedrag is een schatting volgens de prijslijst van oktober 2026; wat er echt afgeschreven wordt staat in de Anthropic Console.">
+          <AssistentGebruik />
         </SettingRow>
       </div>
 
