@@ -10,6 +10,7 @@ import { asyncHandler } from './lib/async-handler'
 import { userContext } from './middleware/user-context'
 import { terminalScope } from './middleware/terminal-scope'
 import { errorMiddleware } from './middleware/error'
+import { controleerBijStart } from './services/ai-sleutel'
 import healthRouter from './routes/health'
 import usersRouter from './routes/users'
 import rawMaterialsRouter from './routes/raw-materials'
@@ -20,6 +21,7 @@ import inkoopordersRouter from './routes/inkooporders'
 import inkoopBijlagenRouter from './routes/inkoop-bijlagen'
 import meldingenRouter from './routes/meldingen'
 import assistentRouter from './routes/assistent'
+import aiSleutelRouter from './routes/ai-sleutel'
 import inkoopRouter from './routes/inkoop'
 import movementsRouter from './routes/movements'
 import locationsRouter from './routes/locations'
@@ -84,6 +86,7 @@ app.use('/api/inkooporders', inkoopordersRouter)
 app.use('/api/inkoop-bijlagen', inkoopBijlagenRouter)
 app.use('/api/meldingen', meldingenRouter)
 app.use('/api/assistent', assistentRouter)
+app.use('/api/ai-sleutel', aiSleutelRouter)
 app.use('/api/inkoop', inkoopRouter)
 app.use('/api/movements', movementsRouter)
 app.use('/api/locations', locationsRouter)
@@ -125,4 +128,5 @@ assertSharedGebouwd()
 
 app.listen(config.port, () => {
   console.log(`ShopCommand API running on port ${config.port} (${config.nodeEnv})`)
+  void controleerBijStart()
 })

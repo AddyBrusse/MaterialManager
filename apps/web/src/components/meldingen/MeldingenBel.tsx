@@ -12,6 +12,7 @@ const GROEP: Record<Melding['groep'], string> = {
   inkoop: 'Inkoop — vandaag',
   prijsaanvraag: 'Prijsaanvragen zonder antwoord',
   ontvangst: 'Ontvangst',
+  systeem: 'Systeem',
 }
 
 function useMeldingen() {

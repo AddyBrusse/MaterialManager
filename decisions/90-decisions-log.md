@@ -2768,3 +2768,63 @@ Resultaat in de testcontainer: Relaties van 12 s naar 2 s, en de langste
 hapering van 5,2 s naar 0,4–0,7 s. ToDo van 3,3 s naar 1,5 s. Het verschil
 met het echte scherm bleef gelijk (0,005–0,03 %). De browsertest controleert
 dit nu ook: binnen 6 s klaar, nooit langer dan 1,5 s vast.
+
+## 2026-10-28 — AI-sleutel: nooit meer stil stuk
+
+**Aanleiding.** "Mijn API-sleutel is verlopen" (Addy), voor de tweede keer: rond
+28 september en op 28 oktober. Dat is precies 30 dagen, dus vermoedelijk (niet
+nagegaan) is bij het aanmaken 30 dagen gekozen. Sinds juli 2026 vraagt de
+Claude Console bij elke nieuwe sleutel een verloopdatum (3 uur, 1 dag, 7 dagen,
+30 dagen, eigen duur of Never). Die is achteraf niet te wijzigen, en een
+verlopen sleutel is niet opnieuw te activeren: dan geeft de API 401. Wat de app
+daarvan liet zien: het bericht van 08:00 kwam stilletjes zonder AI, en een
+gesleepte mail gaf "geen geldige API-sleutel".
+
+**Besloten** (keuze van Addy uit drie: niets bouwen, sleutelcontrole, of de
+sleutel in de database):
+- **De sleutel blijft in de omgeving** (`ANTHROPIC_API_KEY`), niet in de
+  database. Daar was al voor gekozen omdat hij niet in een backup van de
+  shopdata hoort, en zonder echte login zou iedereen op het netwerk hem kunnen
+  vervangen. Het blijvende antwoord op "verlopen" is een sleutel met
+  verloopdatum Never; de app zorgt dat je het meteen ziet als hij om een andere
+  reden stuk gaat (tegoed op, ingetrokken, gelekt, vergeten bij een verhuizing).
+- **Elke aanroep telt mee.** De SDK-client van de mail-import, het titelblok en
+  de assistent krijgt een eigen `fetch` (`meekijkFetch` in
+  `services/ai-sleutel.ts`) die bij elk antwoord van de API onthoudt wat de
+  stand is. Geen aanroeper kan het vergeten. Een fout over het verzoek zelf
+  (een te grote mail) verandert de stand niet.
+- **Een eigen controle, gratis:** de lijst met modellen plus elk model dat de
+  app gebruikt (`models.retrieve`). Bij het starten, met één regel in de
+  console (`[ai] Sleutel sk-ant-api03-...AbCd: Sleutel werkt`), en daarna hooguit
+  elk kwartier zolang iemand de meldingen of Instellingen open heeft. Geen
+  timer die de hele nacht doorloopt.
+- **Tegoed blijkt alleen uit een echt verzoek.** De knop "Nu testen" stuurt
+  daarom ook één piepklein verzoek aan het model (64 tokens, effort low: een
+  fractie van een cent). Een "werkt" van de gratis controle wist een leeg
+  tegoed niet (`vervangtStand`); bij een leeg tegoed is de controle van het
+  kwartier volledig, en die kost niets zolang er geen tegoed is.
+- **Standen en woorden** staan in `packages/shared/calc/ai-sleutel.ts`:
+  werkt, ontbreekt, ongeldig (401), geen_tegoed (402 of 400 "credit balance"),
+  geen_toegang (403), model (404), storing (429, 5xx, geen verbinding),
+  onbekend. De melding in het belletje (groep `systeem`) is rood bij ongeldig,
+  geen tegoed, geen toegang en model, oranje bij geen sleutel. Een storing
+  geeft geen melding: die gaat vanzelf over. Geen sleutel telt niet als
+  mail-AI (`MAIL_AI=uit`) én assistent uit staan: dan is dat een keuze.
+- **Instellingen → Bedrijf → AI-sleutel** toont de stand, wanneer en waarom, de
+  modellen en begin en eind van de sleutel (`sk-ant-api03-…AbCd`, zoals de
+  Console). Dat laatste is er voor de twee vallen die we tegenkwamen: de server
+  leest de sleutel alleen bij het starten, en een Windows-omgevingsvariabele
+  gaat vóór `.env.development` (dotenv overschrijft niets; getest). Staat er na
+  het vervangen nog het oude eind, dan is het een van die twee.
+- **Docker gaf de sleutel nooit door.** `docker-compose.yml` noemde alleen
+  `DATABASE_URL`, `NODE_ENV`, `PORT` en `UPLOADS_DIR`; een sleutel in
+  `docker/.env` bereikte de app dus niet (nagekeken met `docker compose
+  config`). Nu `env_file: .env` op de app.
+
+**Afgewezen.** Workload Identity Federation (de Console biedt het aan bij een
+nieuwe sleutel): werkt alleen als de server zelf een identiteit krijgt van AWS,
+Google Cloud, Azure, Kubernetes of GitHub Actions. Op de NAS of een Hetzner-server
+moet daar weer een eigen geheim tussen. Pas interessant als de app ooit naar een
+van die clouds gaat. De Admin API (verloopdatum vooraf uitlezen) vraagt een
+Admin-sleutel, een veel machtiger geheim; de Console mailt zelf 7 dagen vóór het
+verlopen bij een sleutel van 14 dagen of langer.

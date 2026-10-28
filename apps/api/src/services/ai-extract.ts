@@ -3,6 +3,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod/v4'
 import type { CandidateLine, CandidateSource, MailAttachment, NormalizedMail } from '@stockmanager/shared'
 import { config } from '../config'
+import { meekijkFetch } from './ai-sleutel'
 import { classifyAttachment, hangBestandenAan, hoortBij, leidendDocument } from './attachment-kind'
 import { looksLikePdf } from './pdf-text'
 
@@ -347,7 +348,8 @@ export function aiEnabled(): boolean {
 
 let client: Anthropic | null = null
 export function getClient(): Anthropic {
-  if (!client) client = new Anthropic({ apiKey: config.ai.apiKey ?? undefined })
+  // meekijkFetch: elke aanroep houdt bij of de sleutel nog werkt (services/ai-sleutel.ts).
+  if (!client) client = new Anthropic({ apiKey: config.ai.apiKey ?? undefined, fetch: meekijkFetch })
   return client
 }
 
@@ -366,12 +368,12 @@ export function getClient(): Anthropic {
 export function aiFoutTekst(err: unknown): string {
   const status = (err as { status?: number } | null)?.status
   const reden = apiReden(err)
-  if (status === 401) return 'geen geldige API-sleutel'
+  if (status === 401) return 'de API-sleutel werkt niet: verlopen, ingetrokken of verkeerd overgenomen'
   if (status === 403) return 'de API-sleutel heeft geen toegang (workspace of organisatie uitgeschakeld?)'
   if (status === 404) return `het model "${config.ai.model}" is niet beschikbaar met deze sleutel (zie MAIL_AI_MODEL)`
   if (status === 429) return 'de limiet van de API is bereikt'
   if (status === 413 || /too long|too large|exceeds/i.test(reden)) return 'de mail is te groot voor het model'
-  if (/credit balance/i.test(reden)) {
+  if (status === 402 || /credit balance/i.test(reden)) {
     return 'er is geen tegoed meer op het API-account (Anthropic Console → Billing)'
   }
   if (status === 400) return 'het model wees de aanvraag af'

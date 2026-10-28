@@ -18,6 +18,11 @@ services:
     restart: unless-stopped
     depends_on:
       - db
+    # De rest van docker/.env gaat mee naar de app: ANTHROPIC_API_KEY en de
+    # MAIL_AI_*/ASSISTENT_*-instellingen. Zonder deze regel bereikte de sleutel
+    # de app nooit, ook als hij in .env stond (2026-10-28). Wat hieronder bij
+    # environment staat, gaat voor.
+    env_file: .env
     environment:
       DATABASE_URL: postgresql://stockmanager:${DB_PASSWORD}@db:5432/stockmanager
       NODE_ENV: production
