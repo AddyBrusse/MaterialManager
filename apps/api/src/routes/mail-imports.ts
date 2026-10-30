@@ -1,12 +1,9 @@
 import { Router } from 'express'
 import multer from 'multer'
 import fs from 'fs'
-import path from 'path'
 import { z } from 'zod'
 import { prisma } from '../db/client'
 import type { Prisma } from '@prisma/client'
-import { config } from '../config'
-import { sanitizeFilename } from '../lib/filenames'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { MAIL_IMPORT_STATUSES, MAIL_INTENTS } from '@stockmanager/shared'
@@ -19,6 +16,8 @@ import { buildRapport, scoreLine } from '../services/certainty'
 import { hangBestandenAan, leidendDocument } from '../services/attachment-kind'
 import { schatDuur } from '../services/ingest-duur'
 import { normalizeRef } from '../services/match-articles'
+import { kopieerTekeningen } from '../services/mail-bestanden'
+import { koppelMail } from '../services/mail-koppelen'
 import type { CandidateLine, ExtractieRapport, MailAttachment } from '@stockmanager/shared'
 
 const router = Router()
@@ -299,59 +298,22 @@ router.post(
   })
 )
 
-const CopyFilesSchema = z.object({
-  artikelId: z.string().regex(/^[A-Za-z0-9_-]+$/, 'Ongeldig artikel-id'),
-  bestanden: z.array(z.string()).min(1),
+const KoppelSchema = z.object({
+  projectId: z.string().min(1),
+  relatieId: z.string({ required_error: 'Kies eerst een klant' }).min(1, 'Kies eerst een klant'),
+  contactId: z.string().nullable(),
+  intent: z.enum(MAIL_INTENTS),
 })
 
 /**
- * Tekeningen uit een mail naar de bijlagenmap van een artikel kopiëren.
- *
- * Server-side kopiëren, niet via de browser: een STEP-assembly is zo tientallen
- * megabytes, en die eerst downloaden om hem meteen weer te uploaden is zonde van
- * de tijd én van het netwerk op de werkvloer. De bestanden blijven ook in de
- * mailmap staan — die map is het bewijsstuk van wat de klant stuurde.
- *
- * Geeft de bijlage-metadata terug in de vorm die `Article.attachments` verwacht;
- * de client zet die op het artikel.
+ * De mail aan een project koppelen, en als de offerte nog leeg is de regels
+ * overnemen — alles in één transactie (2026-10-28). Zie services/mail-koppelen.ts.
  */
 router.post(
-  '/:id/bestanden-naar-artikel',
+  '/:id/koppel',
   asyncHandler(async (req, res) => {
-    const body = CopyFilesSchema.parse(req.body)
-    const existing = await prisma.mailImport.findUnique({ where: { id: req.params.id } })
-    if (!existing) throw new AppError(404, 'NOT_FOUND', 'Mail-import niet gevonden')
-
-    const bijlagen = (existing.bijlagen ?? []) as MailAttachment[]
-    const bronMap = mailImportDir(existing.id)
-    const doelMap = path.join(config.uploadsDir, 'attachments', body.artikelId)
-    fs.mkdirSync(doelMap, { recursive: true })
-
-    const gekopieerd: { name: string; path: string; sizeBytes: number; kind: string }[] = []
-    // Wat er níet mee kon, en waarom. Stilzwijgend overslaan levert een artikel
-    // op dat er compleet uitziet maar geen tekening heeft — en dat merk je pas
-    // weken later, als iemand hem nodig heeft.
-    const overgeslagen: { naam: string; reden: string }[] = []
-    for (const naam of body.bestanden) {
-      const bijlage = bijlagen.find((b) => b.filename === naam)
-      if (!bijlage) { overgeslagen.push({ naam, reden: 'zit niet bij deze mail' }); continue }
-      if (!bijlage.path) { overgeslagen.push({ naam, reden: 'niet opgeslagen' }); continue }
-      const bron = path.join(bronMap, path.basename(bijlage.path))
-      if (!fs.existsSync(bron)) { overgeslagen.push({ naam, reden: 'bestand ontbreekt op schijf' }); continue }
-
-      const doelNaam = `${Date.now()}-${sanitizeFilename(naam)}`
-      fs.copyFileSync(bron, path.join(doelMap, doelNaam))
-      gekopieerd.push({
-        name: naam,
-        path: `/uploads/attachments/${body.artikelId}/${doelNaam}`,
-        sizeBytes: fs.statSync(bron).size,
-        // Een tekening is een tekening, of hij nu als pdf of als model komt —
-        // de preview kiest zelf welke hij laat zien.
-        kind: 'drawing',
-      })
-    }
-
-    res.json({ data: { bestanden: gekopieerd, overgeslagen } })
+    const body = KoppelSchema.parse(req.body)
+    res.json({ data: await koppelMail(req.params.id, body, req.user.id) })
   })
 )
 
@@ -379,7 +341,6 @@ router.post(
     const kandidaten = (existing.kandidaten ?? []) as CandidateLine[]
     hangBestandenAan(kandidaten, bijlagen, leidendDocument(bijlagen)?.filename ?? null)
 
-    const bronMap = mailImportDir(existing.id)
     const perArtikel: { artikelId: string; toegevoegd: number }[] = []
     const overgeslagen: { naam: string; reden: string }[] = []
 
@@ -390,30 +351,11 @@ router.post(
 
       const huidig = (artikel.attachments ?? []) as { name?: string }[]
       const alAanwezig = new Set(huidig.map((a) => a.name))
-      const doelMap = path.join(config.uploadsDir, 'attachments', line.artikelId)
-      fs.mkdirSync(doelMap, { recursive: true })
-
-      const toegevoegd: unknown[] = []
-      for (const naam of line.bestanden) {
-        if (alAanwezig.has(naam)) continue
-        const bijlage = bijlagen.find((b) => b.filename === naam)
-        if (!bijlage?.path) { overgeslagen.push({ naam, reden: 'niet opgeslagen' }); continue }
-        const bron = path.join(bronMap, path.basename(bijlage.path))
-        if (!fs.existsSync(bron)) { overgeslagen.push({ naam, reden: 'bestand ontbreekt op schijf' }); continue }
-
-        const doelNaam = `${Date.now()}-${sanitizeFilename(naam)}`
-        fs.copyFileSync(bron, path.join(doelMap, doelNaam))
-        toegevoegd.push({
-          id: `att_${line.artikelId}_${toegevoegd.length}_${Date.now()}`,
-          kind: 'drawing',
-          name: naam,
-          sizeBytes: fs.statSync(bron).size,
-          machine: null,
-          note: `Uit mail van ${existing.afzenderEmail ?? 'klant'}`,
-          path: `/uploads/attachments/${line.artikelId}/${doelNaam}`,
-          uploadedAt: new Date().toISOString(),
-        })
-      }
+      const nieuw = kopieerTekeningen(
+        existing, bijlagen, line.artikelId, line.bestanden.filter((naam) => !alAanwezig.has(naam)),
+      )
+      overgeslagen.push(...nieuw.overgeslagen)
+      const toegevoegd = nieuw.bijlagen
 
       if (toegevoegd.length > 0) {
         await prisma.article.update({

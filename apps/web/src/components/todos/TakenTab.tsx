@@ -96,7 +96,10 @@ export function TakenTab({ todos }: { todos: Todo[] }) {
       onActie={!metActie ? undefined
         : t.soort === 'materiaal_selecteren' ? () => setSelectieTodo(t)
         // Het tekort staat ook op de bestellijst (2026-10-06); daar bestel je het.
-        : t.soort === 'bestellen' ? () => navigate('/bestellingen') : undefined}
+        : t.soort === 'bestellen' ? () => navigate('/bestellingen')
+        // Het recept van een artikel uit de mailimport (2026-10-28).
+        : t.soort === 'recept_maken' && t.artikelId ? () => navigate(`/artikelen/${t.artikelId}`)
+        : undefined}
     />
   )
 

@@ -54,6 +54,25 @@ export function waaromNietVersturen(o: Offerte | undefined): string | null {
   return null
 }
 
+/**
+ * Een waarschuwing, geen weigering (Addy, 2026-10-28): regels op € 0 gaan zo
+ * niet ongemerkt naar de klant. Meestal is het een artikel waarvan het recept
+ * nog ontbrak toen de regel ontstond (mailimport, nieuw artikel); een recept
+ * maken werkt de regel niet vanzelf bij. Soms is € 0 bedoeld, dus "toch
+ * versturen" blijft kunnen. `null` als alle regels een prijs hebben.
+ */
+export function waarschuwingNulRegels(o: Offerte): string | null {
+  const nul = o.regels.filter(r => Math.round(r.verkoopprijs * 100) === 0)
+  if (nul.length === 0) return null
+  if (nul.length === 1) return `Regel "${nul[0].naam}" staat op € 0.`
+  const namen = nul.slice(0, 4).map(r => `"${r.naam}"`)
+  const rest = nul.length - namen.length
+  const lijst = rest > 0
+    ? `${namen.join(', ')} en nog ${rest}`
+    : `${namen.slice(0, -1).join(', ')} en ${namen[namen.length - 1]}`
+  return `${nul.length} regels staan op € 0: ${lijst}.`
+}
+
 export function waaromNietAccepteren(o: Offerte | undefined, alle: Offerte[]): string | null {
   if (!o) return 'Kan offerte niet accepteren: deze versie bestaat niet (meer). Ververs de pagina.'
   const al = alle.find(x => x.status === 'geaccepteerd' && x.id !== o.id)

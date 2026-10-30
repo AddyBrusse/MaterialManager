@@ -65,7 +65,12 @@ Single image builds both web and api:
 ## Env
 
 - `.env.development` — local dev
-- `docker/.env` — prod values, referenced by docker-compose (git-ignored)
+- `docker/.env` — prod values, referenced by docker-compose (git-ignored).
+  Since 2026-10-28 the whole file is also passed to the app container
+  (`env_file`), so `ANTHROPIC_API_KEY` and the `MAIL_AI_*`/`ASSISTENT_*`
+  settings go here too. Before that the key never reached the app. After
+  changing it: `docker compose up -d --force-recreate app`, then check
+  Instellingen → Bedrijf → AI-sleutel
 - Template: `docker/.env.example` — documents `DB_PASSWORD`, `DOMAIN`,
   `ACME_EMAIL`, `HTTP_PORT`/`HTTPS_PORT`
 - Never commit secrets (the DB password lives only on the NAS; there is no

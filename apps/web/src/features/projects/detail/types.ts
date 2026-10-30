@@ -71,6 +71,8 @@ export interface TodoVM {
   herkomst: string
   /** Materiaal kiezen: staat al als aandachtspunt, dus niet twee keer tonen. */
   materiaal: boolean
+  /** Waar je het oplost, als de todo dat weet (recept maken → het artikel). */
+  link: string | null
 }
 
 export interface TabBadge {

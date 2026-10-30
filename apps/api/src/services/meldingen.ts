@@ -3,9 +3,11 @@
 // lezen, nooit opgeslagen: een melding verdwijnt als het opgelost is.
 import type { Prisma } from '@prisma/client'
 import {
-  plusWerkdagen, prijsaanvraagMelding, productieMeldingen, sorteerMeldingen, vandaagIso,
+  aiSleutelMelding, plusWerkdagen, prijsaanvraagMelding, productieMeldingen, sorteerMeldingen, vandaagIso,
   type InkoopStand, type Melding,
 } from '@stockmanager/shared'
+import { config } from '../config'
+import { sleutelStatus, verversAlsNodig } from './ai-sleutel'
 import { PROJECT_INCLUDE, serialize } from './project-store'
 import { materiaalStand } from './materiaal-stand'
 import { leesOverzicht } from './inkoop-overzicht'
@@ -78,6 +80,12 @@ export async function alleMeldingen(db: Db, nu = new Date()): Promise<Meldingen>
       titel: im.titel, tekst: im.tekst, link: `/bestellingen?regel=${im.regelId}`,
     })
   }
+
+  // ── De AI-sleutel: verlopen, ingetrokken of zonder tegoed. ──
+  verversAlsNodig()
+  const bedrijf = await db.company.findUnique({ where: { id: 'default' }, select: { assistentAan: true } })
+  const ai = aiSleutelMelding(sleutelStatus(), config.ai.mailEnabled || bedrijf?.assistentAan !== false)
+  if (ai) uit.push(ai)
 
   // ── Opvolging: wat door de vingers glipt (2026-10-28) ──
   uit.push(...await opvolgingMeldingen(db, nu))

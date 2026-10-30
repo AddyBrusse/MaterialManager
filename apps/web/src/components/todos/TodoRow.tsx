@@ -1,4 +1,4 @@
-import { IconTrash, IconCalendarCheck, IconCalendarPlus, IconCut, IconShoppingCart } from '@tabler/icons-react'
+import { IconTrash, IconCalendarCheck, IconCalendarPlus, IconCut, IconShoppingCart, IconCalculator } from '@tabler/icons-react'
 import type { Todo } from '@stockmanager/shared'
 import { formatDate } from '../../api/projects'
 
@@ -44,6 +44,8 @@ export function TodoRow({ todo, currentUserId, onActie, onClaim, onComplete, onD
           <button className="todo-actie" onClick={onActie}>
             {todo.soort === 'materiaal_selecteren'
               ? <><IconCut size={12} />Selecteren</>
+              : todo.soort === 'recept_maken'
+              ? <><IconCalculator size={12} />Recept maken</>
               : <><IconShoppingCart size={12} />Bestellen</>}
           </button>
         )}

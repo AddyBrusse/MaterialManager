@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { IconPlus, IconCheck, IconX, IconPencil, IconTrash } from '@tabler/icons-react'
 import { notifications } from '@mantine/notifications'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -10,6 +11,8 @@ import { machinesApi }         from '../../api/machines'
 import type { Company, User, CreateUser } from '@stockmanager/shared'
 import { meldFout as meldFoutMetGevolg } from '../../utils/fout-melding-toon'
 import { NummeringTab } from '../../components/settings/NummeringTab'
+import { SectionHeader, SettingRow } from '../../components/settings/InstellingRij'
+import { AiSleutelSectie } from '../../components/settings/AiSleutelSectie'
 import { AssistentGebruik } from '../../components/assistent/AssistentGebruik'
 
 // ── shared primitives ─────────────────────────────────────────────────────────
@@ -19,27 +22,6 @@ function ToggleSwitch({ on, onChange }: { on: boolean; onChange: (v: boolean) =>
     <button className="st-toggle" data-on={on} onClick={() => onChange(!on)}>
       <i />
     </button>
-  )
-}
-
-function SettingRow({ title, desc, children }: { title: string; desc: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 32, padding: '16px 0', borderBottom: '1px solid var(--border)' }}>
-      <div>
-        <div style={{ fontWeight: 500, fontSize: 13.5 }}>{title}</div>
-        <div style={{ color: 'var(--text-3)', fontSize: 12.5, marginTop: 3, maxWidth: 540 }}>{desc}</div>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end' }}>{children}</div>
-    </div>
-  )
-}
-
-function SectionHeader({ title, desc }: { title: string; desc?: string }) {
-  return (
-    <div style={{ marginBottom: desc ? 4 : 8, marginTop: 28 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>{title}</h3>
-      {desc && <p style={{ color: 'var(--text-3)', margin: '3px 0 0', fontSize: 12.5 }}>{desc}</p>}
-    </div>
   )
 }
 
@@ -195,6 +177,8 @@ function BedrijfTab() {
           </div>
         </SettingRow>
       </div>
+
+      <AiSleutelSectie />
 
       <SectionHeader title="Assistent" desc="Een bericht op vaste tijden: wat er opgepakt moet worden. Iedereen ziet hetzelfde bericht." />
       <div style={{ borderTop: '1px solid var(--border)' }}>
@@ -648,6 +632,9 @@ type TabId = typeof TABS[number][0]
 
 export function InstellingenPage() {
   const [tab, setTab] = useState<TabId>('bedrijf')
+  // De melding "AI-sleutel werkt niet" wijst naar /instellingen#ai-sleutel, op de Bedrijf-tab.
+  const { hash } = useLocation()
+  useEffect(() => { if (hash === '#ai-sleutel') setTab('bedrijf') }, [hash])
 
   return (
     <>

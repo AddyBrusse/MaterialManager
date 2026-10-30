@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { waaromNietVersturen, type Offerte, type Project } from '@stockmanager/shared'
+import { waarschuwingNulRegels, waaromNietVersturen, type Offerte, type Project } from '@stockmanager/shared'
 import { useUserStore } from '../../../../../stores/user'
 import { meldFout } from '../../../../../utils/fout-melding-toon'
 import { Weigering } from '../../../../../utils/fout-melding'
@@ -17,6 +17,8 @@ import { offerteBestandsnaam, offerteMail, offerteNummer, offertePdf } from '../
 export function useOfferteDocument(p: Project | undefined, onVerstuurd: (offerteId: string) => void) {
   const gebruiker = useUserStore((s) => s.user)
   const [klaar, setKlaar] = useState<{ o: Offerte; naar: string | null; mailto: string } | null>(null)
+  // Regels op € 0: eerst vragen of dat zo moet (2026-10-28), dan pas de mail.
+  const [nulVraag, setNulVraag] = useState<{ o: Offerte; tekst: string } | null>(null)
 
   /** Zoals hij de deur uit gaat: met de datum van vandaag op de pdf. */
   const alsVerstuurd = (o: Offerte): Offerte => (o.verzondenOp ? o : { ...o, verzondenOp: new Date().toISOString() })
@@ -41,12 +43,17 @@ export function useOfferteDocument(p: Project | undefined, onVerstuurd: (offerte
     }
   }
 
-  const klaarzetten = (o: Offerte) => {
+  const klaarzetten = (o: Offerte, nulGezien = false) => {
     if (!p) return
     const actie = `Offerte ${offerteNummer(o)} versturen`
     const reden = waaromNietVersturen(o)
     if (reden) {
       meldFout({ actie, fout: new Weigering(reden), gevolg: 'Er is geen mail klaargezet en niets vastgelegd.' })
+      return
+    }
+    const nul = nulGezien ? null : waarschuwingNulRegels(o)
+    if (nul) {
+      setNulVraag({ o, tekst: nul })
       return
     }
     try {
@@ -59,7 +66,28 @@ export function useOfferteDocument(p: Project | undefined, onVerstuurd: (offerte
     }
   }
 
-  const dialoog: ReactNode = klaar && (
+  const nulDialoog: ReactNode = nulVraag && (
+    <BevestigModal
+      titel="Er staan regels op € 0"
+      knop="Toch versturen"
+      annuleer="Terug"
+      onSluit={() => setNulVraag(null)}
+      onBevestig={() => {
+        const o = nulVraag.o
+        setNulVraag(null)
+        klaarzetten(o, true)
+      }}
+    >
+      <p>{nulVraag.tekst}</p>
+      <p>
+        Meestal ontbrak het recept toen de regel ontstond. Heeft het artikel er nu een, ga dan terug en gebruik
+        <strong> Prijzen bijwerken</strong>: dan komt de prijs uit de calculatie.
+      </p>
+      <p>Is € 0 de bedoeling, kies dan Toch versturen.</p>
+    </BevestigModal>
+  )
+
+  const dialoog: ReactNode = nulDialoog || klaar && (
     <BevestigModal
       titel="Heb je hem verstuurd?"
       knop="Ja, verstuurd"

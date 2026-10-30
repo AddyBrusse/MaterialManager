@@ -2769,6 +2769,116 @@ hapering van 5,2 s naar 0,4–0,7 s. ToDo van 3,3 s naar 1,5 s. Het verschil
 met het echte scherm bleef gelijk (0,005–0,03 %). De browsertest controleert
 dit nu ook: binnen 6 s klaar, nooit langer dan 1,5 s vast.
 
+## 2026-10-28 — AI-sleutel: nooit meer stil stuk
+
+**Aanleiding.** "Mijn API-sleutel is verlopen" (Addy), voor de tweede keer: rond
+28 september en op 28 oktober. Dat is precies 30 dagen, dus vermoedelijk (niet
+nagegaan) is bij het aanmaken 30 dagen gekozen. Sinds juli 2026 vraagt de
+Claude Console bij elke nieuwe sleutel een verloopdatum (3 uur, 1 dag, 7 dagen,
+30 dagen, eigen duur of Never). Die is achteraf niet te wijzigen, en een
+verlopen sleutel is niet opnieuw te activeren: dan geeft de API 401. Wat de app
+daarvan liet zien: het bericht van 08:00 kwam stilletjes zonder AI, en een
+gesleepte mail gaf "geen geldige API-sleutel".
+
+**Besloten** (keuze van Addy uit drie: niets bouwen, sleutelcontrole, of de
+sleutel in de database):
+- **De sleutel blijft in de omgeving** (`ANTHROPIC_API_KEY`), niet in de
+  database. Daar was al voor gekozen omdat hij niet in een backup van de
+  shopdata hoort, en zonder echte login zou iedereen op het netwerk hem kunnen
+  vervangen. Het blijvende antwoord op "verlopen" is een sleutel met
+  verloopdatum Never; de app zorgt dat je het meteen ziet als hij om een andere
+  reden stuk gaat (tegoed op, ingetrokken, gelekt, vergeten bij een verhuizing).
+- **Elke aanroep telt mee.** De SDK-client van de mail-import, het titelblok en
+  de assistent krijgt een eigen `fetch` (`meekijkFetch` in
+  `services/ai-sleutel.ts`) die bij elk antwoord van de API onthoudt wat de
+  stand is. Geen aanroeper kan het vergeten. Een fout over het verzoek zelf
+  (een te grote mail) verandert de stand niet.
+- **Een eigen controle, gratis:** de lijst met modellen plus elk model dat de
+  app gebruikt (`models.retrieve`). Bij het starten, met één regel in de
+  console (`[ai] Sleutel sk-ant-api03-...AbCd: Sleutel werkt`), en daarna hooguit
+  elk kwartier zolang iemand de meldingen of Instellingen open heeft. Geen
+  timer die de hele nacht doorloopt.
+- **Tegoed blijkt alleen uit een echt verzoek.** De knop "Nu testen" stuurt
+  daarom ook één piepklein verzoek aan het model (64 tokens, effort low: een
+  fractie van een cent). Een "werkt" van de gratis controle wist een leeg
+  tegoed niet (`vervangtStand`); bij een leeg tegoed is de controle van het
+  kwartier volledig, en die kost niets zolang er geen tegoed is.
+- **Standen en woorden** staan in `packages/shared/calc/ai-sleutel.ts`:
+  werkt, ontbreekt, ongeldig (401), geen_tegoed (402 of 400 "credit balance"),
+  geen_toegang (403), model (404), storing (429, 5xx, geen verbinding),
+  onbekend. De melding in het belletje (groep `systeem`) is rood bij ongeldig,
+  geen tegoed, geen toegang en model, oranje bij geen sleutel. Een storing
+  geeft geen melding: die gaat vanzelf over. Geen sleutel telt niet als
+  mail-AI (`MAIL_AI=uit`) én assistent uit staan: dan is dat een keuze.
+- **Instellingen → Bedrijf → AI-sleutel** toont de stand, wanneer en waarom, de
+  modellen en begin en eind van de sleutel (`sk-ant-api03-…AbCd`, zoals de
+  Console). Dat laatste is er voor de twee vallen die we tegenkwamen: de server
+  leest de sleutel alleen bij het starten, en een Windows-omgevingsvariabele
+  gaat vóór `.env.development` (dotenv overschrijft niets; getest). Staat er na
+  het vervangen nog het oude eind, dan is het een van die twee.
+- **Docker gaf de sleutel nooit door.** `docker-compose.yml` noemde alleen
+  `DATABASE_URL`, `NODE_ENV`, `PORT` en `UPLOADS_DIR`; een sleutel in
+  `docker/.env` bereikte de app dus niet (nagekeken met `docker compose
+  config`). Nu `env_file: .env` op de app.
+
+**Afgewezen.** Workload Identity Federation (de Console biedt het aan bij een
+nieuwe sleutel): werkt alleen als de server zelf een identiteit krijgt van AWS,
+Google Cloud, Azure, Kubernetes of GitHub Actions. Op de NAS of een Hetzner-server
+moet daar weer een eigen geheim tussen. Pas interessant als de app ooit naar een
+van die clouds gaat. De Admin API (verloopdatum vooraf uitlezen) vraagt een
+Admin-sleutel, een veel machtiger geheim; de Console mailt zelf 7 dagen vóór het
+verlopen bij een sleutel van 14 dagen of langer.
+
+## 2026-10-28 — Mail koppelen: referentie, projectgegevens en "Recept maken"
+
+**Aanleiding (Addy):** na een mailimport in een nieuw project stond er nergens
+een referentie, ook niet op de concept-offerte. En nieuwe artikelen uit de mail
+hadden geen recept, zonder dat iets dat onthield.
+
+**Gemeten oorzaak:** sinds de nieuwe projectpagina (#31, 2026-09-23) riep
+niemand meer de code aan die bij het koppelen klant, contact, naam, klantRef en
+levertijd op het project zette. De offerte kreeg nooit een referentie. Verder
+deed de browser het koppelen in losse stappen zonder op de server te wachten:
+een artikel dat niet aangemaakt kon worden verdween stil, en halverwege
+mislukken liet een half gevulde offerte achter.
+
+**Besluiten:**
+
+- **Koppelen is één serververzoek in één transactie** (`POST
+  /mail-imports/:id/koppel`, `services/mail-koppelen.ts`). Het staat er
+  helemaal, of er is niets veranderd; een fout zegt dat ook ("Er is niets
+  gekoppeld"). `withProject` staat daarvoor nu in
+  `services/project-schrijven.ts`, met een ruimere time-out voor het kopiëren
+  van tekeningen.
+- **Referentie op de offerte** (keuze Addy): het RFQ-/ordernummer van de klant
+  als het model dat vond, anders `Mail <afzender> <dd-mm-jjjj hh:mm>`, altijd in
+  Nederlandse tijd (de NAS draait in Docker op UTC). Alleen als het veld leeg
+  is. **Uw referentie** op het project krijgt de mailregel níet: die staat ook
+  op pakbon en factuur, en daar hoort een nummer van de klant.
+- **Projectgegevens alleen waar leeg**, en een project met een klant krijgt
+  nooit een andere klant. "Nieuw project" telt als leeg en wordt het onderwerp
+  zonder RE:/FW:.
+- **"Recept maken" is een ToDo-taak per nieuw artikel** (keuze Addy), geen
+  vlag op het artikel. Hij gaat vanzelf dicht als de calculatie een prijs
+  boven € 0 geeft, niet als iemand het recept alleen opent. Een eigen
+  tabel was niet nodig: `soort` is een tekstkolom, dus geen migratie.
+- **Waarschuwing bij Versturen met een regel op € 0** (keuze Addy), met
+  "Toch versturen". Waarschuwen, niet blokkeren: een gratis regel kan bewust
+  zijn.
+- **Artikelnummers voor artikelen uit een mail geeft de server**
+  (`nieuwArtikelId`, reeks `ART`). De browser verzon ze tot nu uit zijn eigen
+  kopie (`nextArtNo`) en stuurde ze mee, waardoor de teller op de server
+  achterloopt; daarom begint de server nooit lager dan het hoogste bestaande
+  nummer. Het artikelformulier maakt nog zelf een nummer — buiten deze
+  wijziging gelaten.
+- **"Nieuwe klant aanmaken" in het controlescherm** gebruikt
+  `relatiesApi.aanmaken` (zonder stille terugval op een browserkopie) en toont
+  de nieuwe klant meteen in het veld; dat bleef leeg tot je de pagina ververste
+  (gevonden in de browsertest).
+
+**Getest:** 20 unittests, 50 API-controles en 57 browserstappen op een
+testdatabase met twee echte aanvraagmails (met en zonder RFQ-nummer).
+
 ## 2026-10-28 — Assistent leest alle tabellen; opvolging vangt op wat glipt
 
 Addy vroeg de assistent "zijn er vandaag concepten gemaakt?" en kreeg "ik zie
