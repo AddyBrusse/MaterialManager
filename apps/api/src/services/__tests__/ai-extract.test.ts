@@ -331,7 +331,7 @@ describe('aiFoutTekst', () => {
   })
 
   it('onderscheidt een ongeldige sleutel van een onbekend model', () => {
-    expect(aiFoutTekst(apiFout(401, 'invalid x-api-key'))).toBe('geen geldige API-sleutel')
+    expect(aiFoutTekst(apiFout(401, 'invalid x-api-key'))).toContain('verlopen, ingetrokken')
     expect(aiFoutTekst(apiFout(404, 'model: claude-x'))).toContain(config.ai.model)
   })
 
