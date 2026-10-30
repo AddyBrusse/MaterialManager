@@ -1,6 +1,5 @@
-import type { Project, ProjectStatus } from '@stockmanager/shared'
+import { heeftSignaal, SIGNAAL_LABEL, vandaagIso, type Project, type ProjectStatus, type SignaalId, type Signalen } from '@stockmanager/shared'
 import { PROJECT_STATUS_CONFIG } from '../projectColumns'
-import { dagVan, heeftSignaal, SIGNAAL_LABEL, type SignaalId, type Signalen } from './signalen'
 
 /**
  * De filters van het projectenoverzicht als een rij chips (2026-10-05). Een
@@ -50,7 +49,7 @@ const datum = (iso?: string) => (iso ? iso.split('-').reverse().join('-') : '…
 function plusDagen(d: Date, n: number): string {
   const x = new Date(d)
   x.setDate(x.getDate() + n)
-  return dagVan(x)
+  return vandaagIso(x)
 }
 
 /** De soorten die je ook kunt omdraaien: "alles behalve deze klant". */
@@ -76,7 +75,7 @@ function pastZonderNiet(p: Project, f: Filter, ctx: FilterCtx): boolean {
     case 'levertijd': {
       const lt = p.levertijdDatum?.slice(0, 10)
       if (!lt) return false
-      const vandaag = dagVan(ctx.nu)
+      const vandaag = vandaagIso(ctx.nu)
       if (f.periode === 'voorbij') return lt < vandaag
       if (f.periode === 'week') return lt >= vandaag && lt <= plusDagen(ctx.nu, 7)
       if (f.periode === 'maand') return lt >= vandaag && lt <= plusDagen(ctx.nu, 30)

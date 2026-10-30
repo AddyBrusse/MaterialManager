@@ -13,16 +13,43 @@ const GROEP: Record<Melding['groep'], string> = {
   prijsaanvraag: 'Prijsaanvragen zonder antwoord',
   ontvangst: 'Ontvangst',
   systeem: 'Systeem',
+  opvolging: 'Opvolging — klant, levering, factuur',
 }
+
+/** Zoveel per groep, de rest achter "Toon nog …": twintig vervallen facturen duwen anders de rest uit beeld. */
+const PER_GROEP = 8
 
 function useMeldingen() {
   return useQuery({ queryKey: ['meldingen'], queryFn: meldingenApi.lijst, refetchInterval: 30000 })
 }
 
+function Groep({ titel, lijst, onKies }: { titel: string; lijst: Melding[]; onKies: (m: Melding) => void }) {
+  const [alles, setAlles] = useState(false)
+  const zichtbaar = alles ? lijst : lijst.slice(0, PER_GROEP)
+  return (
+    <div>
+      <div className="mb-groep">{titel} ({lijst.length})</div>
+      {zichtbaar.map((m) => (
+        <button key={m.id} type="button" role="listitem" className="ib-melding-item mb-item" onClick={() => onKies(m)}>
+          <span className={`mb-dot ${m.ernst}`} />
+          <span>
+            <div className={`t${m.ernst === 'rood' ? ' dgr' : ''}`}>{m.titel}</div>
+            <div className="s">{m.tekst}</div>
+          </span>
+        </button>
+      ))}
+      {lijst.length > zichtbaar.length && (
+        <button type="button" className="mb-meer" onClick={() => setAlles(true)}>Toon nog {lijst.length - zichtbaar.length}</button>
+      )}
+    </div>
+  )
+}
+
 /**
  * Het belletje (2026-10-09): één lijst voor iedereen — tekorten, materiaal dat
- * te laat komt, prijsaanvragen zonder antwoord, wat vandaag besteld moet en
- * wat net binnen is. Een melding verdwijnt pas als het opgelost is.
+ * te laat komt, prijsaanvragen zonder antwoord, wat vandaag besteld moet,
+ * wat net binnen is en (2026-10-28) wat door de vingers glipt. Een melding
+ * verdwijnt pas als het opgelost is.
  */
 export function MeldingenBel() {
   const navigate = useNavigate()
@@ -46,19 +73,7 @@ export function MeldingenBel() {
           {error && <div className="ib-melding-item" style={{ cursor: 'default' }}><div className="s">De meldingen konden niet geladen worden: {(error as Error).message}</div></div>}
           {data && data.meldingen.length === 0 && <div className="ib-melding-item" style={{ cursor: 'default' }}><div className="s">Niets open. Alles ligt op schema.</div></div>}
           {groepen.map(({ g, lijst }) => (
-            <div key={g}>
-              <div className="mb-groep">{GROEP[g]}</div>
-              {lijst.map((m) => (
-                <button key={m.id} type="button" role="listitem" className="ib-melding-item mb-item"
-                  onClick={() => { setOpen(false); navigate(m.link) }}>
-                  <span className={`mb-dot ${m.ernst}`} />
-                  <span>
-                    <div className={`t${m.ernst === 'rood' ? ' dgr' : ''}`}>{m.titel}</div>
-                    <div className="s">{m.tekst}</div>
-                  </span>
-                </button>
-              ))}
-            </div>
+            <Groep key={g} titel={GROEP[g]} lijst={lijst} onKies={(m) => { setOpen(false); navigate(m.link) }} />
           ))}
         </div>
       </Popover.Dropdown>

@@ -6,6 +6,7 @@ import { asyncHandler } from '../lib/async-handler'
 import { aiFoutTekst } from '../services/ai-extract'
 import { openActies } from '../services/assistent-data'
 import { AssistentWeigering, assistentAan, berichtZonderModel, chat, maakBericht } from '../services/assistent'
+import { gebruikOverzicht } from '../services/assistent-gebruik'
 
 /**
  * De AI-assistent (2026-10-09): het bericht op vaste tijden en het chatpaneel.
@@ -82,6 +83,11 @@ router.post('/chat', asyncHandler(async (req, res) => {
     }
     res.status(502).json({ error: { code: 'AI_FOUT', message: `De assistent kon niet antwoorden: ${aiFoutTekst(err)}.`, details: { reden: err instanceof Error ? err.message : String(err) } } })
   }
+}))
+
+/** Wat de assistent de laatste 30 dagen gebruikte, voor Instellingen → Assistent. */
+router.get('/gebruik', asyncHandler(async (_req, res) => {
+  res.json({ data: await gebruikOverzicht(30) })
 }))
 
 export default router

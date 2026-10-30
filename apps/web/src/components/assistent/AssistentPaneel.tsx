@@ -17,6 +17,17 @@ function Acties({ acties, onKies }: { acties?: AssistentActie[]; onKies: (link: 
   )
 }
 
+/** Waar de assistent keek: door de server vastgelegd per aanroep, niet wat het model erover zegt. */
+function Bronnen({ bronnen }: { bronnen?: string[] }) {
+  if (!bronnen?.length) return null
+  return (
+    <div className="as-bron">
+      <span>Bekeken</span>
+      <ul>{bronnen.map((b) => <li key={b}>{b}</li>)}</ul>
+    </div>
+  )
+}
+
 /**
  * Het paneel van de assistent (2026-10-09): bovenaan het bericht van het
  * laatste vaste tijdstip, daaronder de chat. Hij leest en stelt voor; een knop
@@ -38,7 +49,7 @@ export function AssistentPaneel({ naam, bericht, berichtFout, chat, setChat, onS
 
   const stuur = useMutation({
     mutationFn: assistentApi.chat,
-    onSuccess: (a) => setChat((c) => [...c, { rol: 'assistent', tekst: a.tekst, acties: a.acties }]),
+    onSuccess: (a) => setChat((c) => [...c, { rol: 'assistent', tekst: a.tekst, acties: a.acties, bronnen: a.bronnen }]),
     // Wat/waar/gevolg (CLAUDE.md), in het paneel zelf: daar kijk je op dat moment.
     // De vraag gaat terug in het invoerveld, zodat opnieuw sturen één klik is.
     onError: (f, verstuurd) => {
@@ -82,6 +93,7 @@ export function AssistentPaneel({ naam, bericht, berichtFout, chat, setChat, onS
           <div key={i} className={`as-bericht ${b.rol}`}>
             {b.tekst}
             <Acties acties={b.acties} onKies={kies} />
+            <Bronnen bronnen={b.bronnen} />
           </div>
         ))}
         {stuur.isPending && <div className="as-meta">De assistent kijkt het na…</div>}
@@ -89,7 +101,7 @@ export function AssistentPaneel({ naam, bericht, berichtFout, chat, setChat, onS
         <div ref={eind} />
       </div>
       <div className="as-voet">
-        <textarea className="st-input" rows={2} value={vraag} placeholder="Vraag iets, bijv. “Wat moet er vandaag besteld worden?”"
+        <textarea className="st-input" rows={2} value={vraag} placeholder="Vraag iets, bijv. “Zijn er vandaag concepten gemaakt?”"
           onChange={(e) => setVraag(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); verstuur() } }} />
         <button type="button" className="st-btn primary" disabled={stuur.isPending || !vraag.trim()} onClick={verstuur}>Vraag</button>

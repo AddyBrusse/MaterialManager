@@ -11,6 +11,7 @@ import { sleutelStatus, verversAlsNodig } from './ai-sleutel'
 import { PROJECT_INCLUDE, serialize } from './project-store'
 import { materiaalStand } from './materiaal-stand'
 import { leesOverzicht } from './inkoop-overzicht'
+import { opvolgingMeldingen } from './opvolging'
 
 type Db = Prisma.TransactionClient
 
@@ -85,6 +86,9 @@ export async function alleMeldingen(db: Db, nu = new Date()): Promise<Meldingen>
   const bedrijf = await db.company.findUnique({ where: { id: 'default' }, select: { assistentAan: true } })
   const ai = aiSleutelMelding(sleutelStatus(), config.ai.mailEnabled || bedrijf?.assistentAan !== false)
   if (ai) uit.push(ai)
+
+  // ── Opvolging: wat door de vingers glipt (2026-10-28) ──
+  uit.push(...await opvolgingMeldingen(db, nu))
 
   const meldingen = sorteerMeldingen(uit)
   return { aantal: meldingen.filter((m) => m.ernst !== 'groen').length, rood: meldingen.filter((m) => m.ernst === 'rood').length, meldingen }

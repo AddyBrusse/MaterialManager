@@ -1261,3 +1261,21 @@ model AssistentBericht {
 
   @@map("assistent_berichten")
 }
+
+/// Tokengebruik van de AI-assistent (2026-10-28): één rij per antwoord, zodat
+/// Instellingen kan laten zien wat hij werkelijk kost in plaats van een schatting.
+model AssistentGebruik {
+  id             String   @id @default(uuid())
+  op             DateTime @default(now())
+  /// 'chat' of 'bericht' (het bericht op vaste tijden).
+  soort          String
+  model          String
+  rondes         Int
+  invoer         Int
+  cacheLezen     Int      @map("cache_lezen")
+  cacheSchrijven Int      @map("cache_schrijven")
+  uitvoer        Int
+
+  @@index([op])
+  @@map("assistent_gebruik")
+}

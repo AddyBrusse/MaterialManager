@@ -92,13 +92,13 @@ export async function zoekProjecten(db: Db, zoek: string) {
       { klantRef: { contains: z, mode: 'insensitive' } },
       ...(klantIds.length ? [{ relatieId: { in: klantIds } }] : []),
     ] } : { status: { notIn: ['geannuleerd', 'gefactureerd'] } },
-    select: { id: true, naam: true, status: true, levertijdDatum: true, relatieId: true },
+    select: { id: true, naam: true, status: true, levertijdDatum: true, relatieId: true, createdAt: true },
     orderBy: { createdAt: 'desc' },
     take: 25,
   })
   const klanten = await klantNamen(db, rows.map((r) => r.relatieId))
   return rows.map((r) => ({
-    id: r.id, naam: r.naam, status: r.status, levering: r.levertijdDatum,
+    id: r.id, naam: r.naam, status: r.status, aangemaakt: r.createdAt.toISOString(), levering: r.levertijdDatum,
     klant: r.relatieId ? klanten.get(r.relatieId) ?? null : null, link: `/projecten/${r.id}`,
   }))
 }
@@ -111,8 +111,11 @@ export async function projectDetail(db: Db, id: string) {
   const klanten = await klantNamen(db, [p.relatieId])
   return {
     id: p.id, naam: p.naam, status: p.status, klant: p.relatieId ? klanten.get(p.relatieId) ?? null : null,
-    levering: p.levertijdDatum, notities: p.notities.slice(0, 500), link: `/projecten/${p.id}`,
-    offertes: p.offertes.map((o) => ({ nr: o.documentNr ?? o.id, versie: o.versie, status: o.status, verzondenOp: o.verzondenOp })),
+    aangemaakt: p.createdAt, levering: p.levertijdDatum, notities: p.notities.slice(0, 500), link: `/projecten/${p.id}`,
+    offertes: p.offertes.map((o) => ({
+      nr: o.documentNr ?? o.id, versie: o.versie, status: o.status, aangemaakt: o.createdAt, verzondenOp: o.verzondenOp,
+      geldigTot: o.geldigTot, totaalExclBtw: Math.round(o.regels.reduce((t, r) => t + r.totaal, 0) * 100) / 100,
+    })),
     orders: p.productieOrders.map((o) => ({
       id: o.id, artikel: o.artikelNaam, aantal: o.qty, gereed: o.aantalGereed, status: o.status,
       materiaalVerwacht: o.materiaalVerwacht ?? null, wachtOpMateriaal: o.wachtOpMateriaal ?? false,

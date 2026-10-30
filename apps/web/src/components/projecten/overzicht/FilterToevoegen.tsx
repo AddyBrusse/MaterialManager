@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Popover } from '@mantine/core'
 import { IconChevronLeft, IconPlus } from '@tabler/icons-react'
-import { SIGNAAL_LABEL, type SignaalId } from './signalen'
+import { SIGNAAL_LABEL, type SignaalId } from '@stockmanager/shared'
 import type { Filter } from './filters'
 import { FilterFormulier, type FilterSoort, type Keuzes } from './FilterFormulier'
 

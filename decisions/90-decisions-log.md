@@ -2878,3 +2878,53 @@ mislukken liet een half gevulde offerte achter.
 
 **Getest:** 20 unittests, 50 API-controles en 57 browserstappen op een
 testdatabase met twee echte aanvraagmails (met en zonder RFQ-nummer).
+
+## 2026-10-28 — Assistent leest alle tabellen; opvolging vangt op wat glipt
+
+Addy vroeg de assistent "zijn er vandaag concepten gemaakt?" en kreeg "ik zie
+geen aanmaakdatums". Hij hoort alles te weten en vooral te zien wat er door de
+vingers glipt. Voorstel met vijf vragen; Addy nam alle aanbevelingen over.
+
+- **Twee leestools over bijna alle tabellen, geen vrije SQL**
+  (`services/assistent-lezen.ts`, `assistent-catalogus.ts`). `lees_tabel`
+  (filters, sortering, hooguit 50 rijen, altijd het totaal) en `tel_tabel`
+  (tellen, per waarde of per dag, optellen). Alles gaat via Prisma
+  `findMany`/`count`/`groupBy`. Vrije SQL kon niet veilig: de databasegebruiker
+  in Docker mag alles, en een alleen-lezen-transactie is met een functieaanroep
+  te omzeilen.
+- **De velden komen uit het Prisma-schema zelf (DMMF).** Een nieuwe kolom is
+  dus vanzelf leesbaar. Wat niet naar Anthropic mag, staat met naam in
+  `VERBORGEN`: IBAN, KvK en btw van relaties, inhoud en bijlagen van mails,
+  schermafbeelding en context van verbeterpunten, e-mail en telefoon van
+  gebruikers. Bedrijfsinstellingen, sloten en tellers zitten er helemaal niet
+  in. **Een nieuwe gevoelige kolom moet daar dus bij.** Uren per medewerker
+  gaan wel mee (Addy: ja).
+- **De bron onder elk antwoord komt van de server**, uit de echte aanroepen
+  ("offertes · status = concept · createdAt = 28-10-2026 · 1 rij"), niet uit
+  wat het model zegt dat het deed. Zo is te zien welke "concept" hij nam.
+- **Twaalf opvolgingsregels als meldingen** (`packages/shared/calc/opvolging.ts`,
+  gegevens in `services/opvolging.ts`), groep `opvolging` in het belletje en in
+  het bericht van de assistent. Vaste regels en geen AI die zelf rondkijkt: die
+  vindt het de ene keer wel en de andere keer niet. Drempels in `OPVOLGING`
+  (werkdagen). Drie afwijkingen van het voorstel:
+  - "Mail niet afgehandeld" werd **"Project zonder offerte"**: een mailimport
+    zonder project is in het scherm niet af te handelen, dus die melding zou
+    nooit weggaan.
+  - Naast "geleverd, niet gefactureerd" ook **"Concept-factuur niet
+    verstuurd"**: de voortgang telt een conceptfactuur al als gefactureerd, maar
+    de klant heeft hem niet.
+  - Een **onbemande** klok mag 24 uur lopen (bemand 6 uur, net als de terminal):
+    een machine draait 's nachts door.
+  Een artikel zonder recept met een open todo `recept_maken` (uit de
+  mailimport) geeft geen tweede melding.
+- **Het belletje toont per groep acht meldingen**, de rest achter "Toon nog …";
+  het bericht krijgt er ook hooguit acht met dezelfde titel (`inkorten`).
+- **`signalen.ts` van het projectenoverzicht staat nu in shared**
+  (`calc/project-signalen.ts`): tegels en opvolging rekenen met dezelfde
+  functies (over levertijd, uitstaande offertes).
+- **Verbruik gemeten, niet geschat:** één rij per antwoord in
+  `assistent_gebruik` (rondes, tokens in/uit/cache). Instellingen → Assistent
+  toont de laatste 30 dagen met een bedrag volgens de prijslijst (alleen voor
+  modellen met een bekende prijs). De instructies met de tabellen staan in de
+  cache van Anthropic. Model blijft Opus 5.5; na een week naar het echte
+  verbruik kijken.

@@ -8,7 +8,7 @@
  */
 import { kortDatum, plusWerkdagen } from './inkoop-planning'
 
-export const MELDING_GROEPEN = ['productie', 'inkoop', 'prijsaanvraag', 'ontvangst', 'systeem'] as const
+export const MELDING_GROEPEN = ['productie', 'inkoop', 'prijsaanvraag', 'ontvangst', 'opvolging', 'systeem'] as const
 export type MeldingGroep = (typeof MELDING_GROEPEN)[number]
 export type MeldingErnst = 'rood' | 'oranje' | 'groen'
 
