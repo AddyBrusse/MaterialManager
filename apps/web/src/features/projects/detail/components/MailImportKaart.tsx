@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { IconMail } from '@tabler/icons-react'
-import type { MailImport, Project } from '@stockmanager/shared'
+import { mailReferentie, type MailImport, type MailKoppeling, type Project } from '@stockmanager/shared'
 import { mailImportsApi } from '../../../../api/mail-imports'
 import { relatiesApi } from '../../../../api/relaties'
 import { articlesApi } from '../../../../api/articles'
+import { projectsApi } from '../../../../api/projects'
+import { meldFout } from '../../../../utils/fout-melding-toon'
 import { MailDropzone } from '../../../../components/projecten/MailDropzone'
 import { MailImportReview } from '../../../../components/projecten/MailImportReview'
 import { Card } from './Card'
@@ -26,7 +29,8 @@ function artikelOpties() {
  * een offerte ligt, is de aanvraag al verwerkt en zou een sleepvlak alleen
  * verwarren. Hangt er al een mail aan, dan staat er wáár het vandaan komt.
  *
- * Faalt stil: een project blijft bruikbaar als de mail-route onbereikbaar is.
+ * Het lezen van de gekoppelde mail faalt stil: een project blijft bruikbaar als
+ * de mail-route onbereikbaar is.
  */
 export function MailImportKaart({
   project,
@@ -37,8 +41,28 @@ export function MailImportKaart({
   geblokkeerd: boolean
   onGewijzigd: () => void
 }) {
+  const qc = useQueryClient()
   const [gekoppeld, setGekoppeld] = useState<MailImport | null>(null)
   const [review, setReview] = useState<MailImport | null>(null)
+
+  // De server schreef project, offerte, artikelen en taken in één keer; hier
+  // komt dat in de kopieën van deze browser.
+  const naKoppelen = async ({ mailImport, project: nieuw, overname }: MailKoppeling) => {
+    setGekoppeld(mailImport)
+    projectsApi.vanServer(nieuw)
+    onGewijzigd()
+    qc.invalidateQueries({ queryKey: ['todos'] })
+    const artikelen = overname?.nieuweArtikelen ?? []
+    try {
+      await Promise.all(artikelen.map((id) => articlesApi.haal(id)))
+    } catch (fout) {
+      meldFout({
+        actie: 'Nieuwe artikelen ophalen',
+        fout,
+        gevolg: 'De artikelen staan op de server, maar nog niet in de lijst van deze browser. Ververs de pagina om ze te zien.',
+      })
+    }
+  }
 
   useEffect(() => {
     let gestopt = false
@@ -76,11 +100,15 @@ export function MailImportKaart({
         }
       >
         {gekoppeld ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5 }}>
-            <IconMail size={14} style={{ color: 'var(--text3)' }} />
-            <span>
-              Uit mail: <strong>{gekoppeld.onderwerp || '(geen onderwerp)'}</strong>
-            </span>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: 11.5 }}>
+            <IconMail size={14} style={{ color: 'var(--text3)', marginTop: 1 }} />
+            <div>
+              <div>
+                Uit mail: <strong>{gekoppeld.onderwerp || '(geen onderwerp)'}</strong>
+              </div>
+              {/* Dezelfde regel die de offerte als referentie krijgt als de klant geen nummer noemt. */}
+              <div className="mono" style={{ color: 'var(--text3)', marginTop: 2 }}>{mailReferentie(gekoppeld)}</div>
+            </div>
           </div>
         ) : (
           <MailDropzone projectId={project.id} onImported={setReview} />
@@ -96,17 +124,13 @@ export function MailImportKaart({
           articleOptions={artikelOpties()}
           project={project}
           onClose={() => setReview(null)}
-          onOfferteChanged={onGewijzigd}
           onUnlinked={() => {
             // Alleen de koppeling verdwijnt; aan het project zelf verandert
             // niets, dus relatie en ordergegevens blijven staan.
             setGekoppeld(null)
             onGewijzigd()
           }}
-          onLinked={(saved) => {
-            setGekoppeld(saved)
-            onGewijzigd()
-          }}
+          onLinked={naKoppelen}
         />
       )}
     </>

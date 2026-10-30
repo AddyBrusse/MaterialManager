@@ -23,7 +23,7 @@ function num(v: unknown): number {
   return typeof v === 'number' ? v : Number(v ?? 0)
 }
 
-async function bronnenLaden(db: Db): Promise<PrijsBronnen> {
+export async function bronnenLaden(db: Db): Promise<PrijsBronnen> {
   const [grades, profiles, machines] = await Promise.all([
     db.grade.findMany(),
     db.profile.findMany(),
@@ -49,7 +49,7 @@ async function bronnenLaden(db: Db): Promise<PrijsBronnen> {
 }
 
 /** Prisma's JSON-kolommen zijn `unknown` — hier de vorm die de rekenkern wil. */
-function calcArtikel(row: { recipe: unknown; estimate: unknown }): CalcArtikel {
+export function calcArtikel(row: { recipe: unknown; estimate: unknown }): CalcArtikel {
   return {
     recipe: (row.recipe ?? null) as CalcArtikel['recipe'],
     estimate: (row.estimate ?? null) as CalcArtikel['estimate'],

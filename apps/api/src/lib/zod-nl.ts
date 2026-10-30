@@ -52,6 +52,9 @@ const LABELS: Record<string, string> = {
   zin: 'Wat klopt er niet',
   paginaUrl: 'Pagina',
   paginaNaam: 'Paginanaam',
+  projectId: 'Project',
+  contactId: 'Contactpersoon',
+  intent: 'Soort bericht',
 }
 
 function label(pad: (string | number)[]): string {

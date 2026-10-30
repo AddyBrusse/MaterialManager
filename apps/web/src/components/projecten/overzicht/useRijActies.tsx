@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, Group, Modal, Stack, Text, Textarea } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
-import { waaromNietProjectVerwijderen, type Project } from '@stockmanager/shared'
+import { NIEUW_PROJECT_NAAM, waaromNietProjectVerwijderen, type Project } from '@stockmanager/shared'
 import { projectsApi, wachtOpOpslag } from '../../../api/projects'
 import { meldFout } from '../../../utils/fout-melding-toon'
 import { Weigering } from '../../../utils/fout-melding'
@@ -74,7 +74,7 @@ export function useRijActies(onVerwijderd: (ids: string[]) => void): RijActies {
   // Wacht op de server: die geeft het projectnummer (per jaar, 2026-10-05).
   const nieuwProject = (voor?: Project) => {
     projectsApi.create({
-      naam: 'Nieuw project', relatieId: voor?.relatieId ?? null, contactId: voor?.contactId ?? null,
+      naam: NIEUW_PROJECT_NAAM, relatieId: voor?.relatieId ?? null, contactId: voor?.contactId ?? null,
       klantRef: null, levertijdDatum: null, notities: '',
     }).then(
       (p) => {

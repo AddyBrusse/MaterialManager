@@ -4,6 +4,8 @@ import { prisma } from '../db/client'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { snapshotBijCalculatie } from '../services/prijs-snapshot'
+import { nieuwArtikelId } from '../services/artikel-nummer'
+import { sluitReceptTaken } from '../services/recept-taken'
 
 const router = Router()
 
@@ -46,16 +48,6 @@ function serializeArticle(a: {
   }
 }
 
-async function nextArtNo(): Promise<string> {
-  const result = await prisma.$queryRaw<{ last_n: number }[]>`
-    INSERT INTO doc_sequences (prefix, last_n) VALUES ('ART', 1)
-    ON CONFLICT (prefix) DO UPDATE SET last_n = doc_sequences.last_n + 1
-    RETURNING last_n
-  `
-  const n = result[0].last_n
-  return `ART-${String(n).padStart(4, '0')}`
-}
-
 router.get(
   '/',
   asyncHandler(async (_req, res) => {
@@ -77,7 +69,7 @@ router.post(
   '/',
   asyncHandler(async (req, res) => {
     const body = CreateArticleSchema.parse(req.body)
-    const id = body.id ?? await nextArtNo()
+    const id = body.id ?? await nieuwArtikelId(prisma)
     const article = await prisma.article.create({
       data: {
         id,
@@ -132,7 +124,11 @@ router.patch(
           estimate: body.estimate !== undefined ? (body.estimate as object ?? null) : undefined,
         },
       })
-      if (raaktPrijs) await snapshotBijCalculatie(tx, bijgewerkt.id, bijgewerkt, req.user.id)
+      if (raaktPrijs) {
+        await snapshotBijCalculatie(tx, bijgewerkt.id, bijgewerkt, req.user.id)
+        // Geeft het recept nu een prijs, dan is de taak "Recept maken" klaar.
+        await sluitReceptTaken(tx, bijgewerkt)
+      }
       return bijgewerkt
     })
     res.json({ data: serializeArticle(article) })
@@ -168,7 +164,12 @@ router.get(
 router.delete(
   '/:id',
   asyncHandler(async (req, res) => {
-    await prisma.article.delete({ where: { id: req.params.id } })
+    // Een open taak "Recept maken" voor een artikel dat niet meer bestaat, zou
+    // naar een lege pagina wijzen.
+    await prisma.$transaction([
+      prisma.todo.deleteMany({ where: { soort: 'recept_maken', artikelId: req.params.id, done: false } }),
+      prisma.article.delete({ where: { id: req.params.id } }),
+    ])
     res.status(204).end()
   }),
 )

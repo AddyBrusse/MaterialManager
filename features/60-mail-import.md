@@ -458,11 +458,20 @@ onderdeel voor twee klanten, en oude artikelen dragen helemaal geen relatie.
 
 ### 3.6 Wat er bij het koppelen gebeurt — **GEBOUWD**
 
-"Koppelen en N regels overnemen" doet vier dingen, in deze volgorde:
+"Koppelen en N regels overnemen" is één verzoek, `POST /mail-imports/:id/koppel`
+(`apps/api/src/services/mail-koppelen.ts`), en de server doet alles in één
+transactie: het staat er helemaal, of er is niets veranderd (2026-10-28). Tot
+dan deed de browser het in losse stappen; een artikel dat niet aangemaakt kon
+worden verdween stil, en sinds de nieuwe projectpagina (#31) kwamen de
+projectgegevens er helemaal niet meer op. Het doet vijf dingen, in deze volgorde:
 
-1. **Projectgegevens invullen** — het ordernummer van de klant (`klantRef`) en de
-   gevraagde leverdatum, allebei door het model uit het document gehaald. Alleen
-   wat nog leeg was: wie het project met de hand invulde had daar een reden voor.
+1. **Projectgegevens invullen** (`projectVeldenUitMail`) — klant en contact, de
+   naam (het onderwerp zonder RE:/FW:, alleen als het project nog "Nieuw
+   project" heet), het ordernummer van de klant (`klantRef`) en de gevraagde
+   leverdatum. Alleen wat nog leeg was: wie het project met de hand invulde had
+   daar een reden voor. Een project dat al een klant heeft krijgt nooit een
+   andere. In **Uw referentie** komt alleen een nummer van de klant, nooit de
+   mailregel hieronder: dat veld staat ook op pakbon en factuur.
 2. **Ontbrekende artikelen aanmaken.** Vroeg de klant om iets dat niet in de
    database staat, dan ontstaat daar een artikel voor — naam, tekeningnummer,
    revisie — en de meegestuurde tekening en STEP worden er als bijlage aan
@@ -474,7 +483,24 @@ onderdeel voor twee klanten, en oude artikelen dragen helemaal geen relatie.
    aantal (instelkosten gelden per batch). Ook bij een opdrachtbevestiging gaat
    het eerst naar een offerte — één route is minder verrassend dan twee, en de
    prijzen zijn sowieso te controleren voordat er iets de deur uit gaat.
-4. **De import op 'verwerkt' zetten** en aan het project koppelen.
+4. **De referentie op de offerte** (kolom Referentie, `externeRef`), als die nog
+   leeg is: het RFQ-/ordernummer van de klant, en zonder nummer de mail zelf —
+   `Mail J. Prins 28-10-2026 14:25` (afzender en ontvangstmoment in Nederlandse
+   tijd, `offerteReferentieUitMail`). Keuze van Addy, 2026-10-28. De mailkaart
+   op de Algemeen-tab toont dezelfde mailregel.
+5. **De import op 'verwerkt' zetten** en aan het project koppelen.
+
+**Een recept onthouden.** Per nieuw artikel uit stap 2 komt er een ToDo-taak
+`soort = 'recept_maken'` ("Recept maken: ART-0123 · tekening 4711 rev B
+(PRJ-…, mail J. Prins)"), met een knop naar het artikel en een link in "Wat moet
+er gebeuren". De taak gaat **vanzelf dicht** zodra de calculatie van dat artikel
+een prijs boven € 0 geeft (`sluitReceptTaken`, bij elke wijziging van het
+recept); een recept dat half af is houdt hem open. Artikel of project
+verwijderd: de open taak gaat mee.
+
+**Vangnet bij Versturen.** Staat er een regel op € 0 (`waarschuwingNulRegels`),
+dan vraagt Versturen eerst "Er staan regels op € 0" met **Terug** en **Toch
+versturen**. Geen blokkade: een gratis regel kan bewust zijn.
 
 Bij een regel die aan een *bestaand* artikel hangt gaan de meegestuurde
 bestanden **niet** naar dat artikel: die houdt zijn eigen, gecontroleerde

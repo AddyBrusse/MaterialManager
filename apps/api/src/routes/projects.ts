@@ -21,6 +21,7 @@ import {
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
 import { PROJECT_INCLUDE, serialize, persist } from '../services/project-store'
+import { withProject } from '../services/project-schrijven'
 import { snapshotBijOrder } from '../services/prijs-snapshot'
 import { todosBijOpdracht } from '../services/materiaal-selectie'
 import { materiaalStand, zonderMateriaal } from '../services/materiaal-stand'
@@ -71,33 +72,6 @@ function orderVoorRegel(p: Project, regel: OfferteRegel, qty: number, id: string
     createdAt: now(),
     updatedAt: now(),
   }
-}
-
-// Every mutation below goes through this helper: it locks the project row
-// (SELECT ... FOR UPDATE) inside a transaction, hands the current state to
-// `mutate`, and persists whatever it returns — all on the same connection.
-// Without this, concurrent requests against the same project (e.g. staging
-// several articles in the ArtikelPickerModal fires one POST per article in
-// quick succession) each do their own read-modify-write against the JSONB
-// columns; the slower one always wins and silently discards the other's
-// change. Locking the row serializes those writes per-project so nothing
-// is lost, while unrelated projects are unaffected.
-async function withProject(
-  id: string,
-  mutate: (p: Project, tx: Prisma.TransactionClient) => Project | Promise<Project>,
-): Promise<Project> {
-  return prisma.$transaction(async (tx) => {
-    const locked = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM projects WHERE id = ${id} FOR UPDATE
-    `
-    if (locked.length === 0) throw new AppError(404, 'NOT_FOUND', 'Dit project bestaat niet (meer). Ververs de pagina of ga terug naar de lijst.')
-    const row = await tx.project.findUniqueOrThrow({ where: { id }, include: PROJECT_INCLUDE })
-    const current = serialize(row)
-    const next = await mutate(current, tx)
-    await persist(tx, next)
-    const saved = await tx.project.findUniqueOrThrow({ where: { id }, include: PROJECT_INCLUDE })
-    return serialize(saved)
-  })
 }
 
 async function getProject(id: string): Promise<Project> {
@@ -171,6 +145,9 @@ router.delete(
     await prisma.project.delete({ where: { id: req.params.id } }).catch(() => {
       throw new AppError(404, 'NOT_FOUND', 'Dit project bestaat niet (meer). Ververs de pagina of ga terug naar de lijst.')
     })
+    // Zonder project is er geen offerte meer die op het recept wacht. Het
+    // artikel zelf blijft staan; wie het later gebruikt ziet de € 0 vanzelf.
+    await prisma.todo.deleteMany({ where: { soort: 'recept_maken', projectId: req.params.id, done: false } })
     res.status(204).end()
   }),
 )
