@@ -2928,3 +2928,25 @@ vingers glipt. Voorstel met vijf vragen; Addy nam alle aanbevelingen over.
   modellen met een bekende prijs). De instructies met de tabellen staan in de
   cache van Anthropic. Model blijft Opus 5.5; na een week naar het echte
   verbruik kijken.
+
+## 2026-11-02 — Vite op vaste poort 5174
+
+**Aanleiding:** op de werk-pc van Addy draait een ander programma op 5173, de
+standaardpoort van Vite.
+
+**Besluit:** `npm run dev` serveert de frontend op **5174**, met
+`strictPort: true` (`apps/web/vite.config.ts`). De API blijft op 3000.
+
+- **Waarom vast en niet "volgende vrije":** zonder `strictPort` wijkt Vite bij
+  een bezette poort stil uit naar de volgende. Dan staat de app ineens op een
+  ander adres, en dat breekt alles wat op het adres rekent: de werkvloer-pc
+  met zijn bladwijzer en de Redirect URI van Microsoft 365
+  (`http://localhost:5174/auth-popup.html` moet in de Azure-app-registratie
+  staan, anders weigert de inlogpopup). Liever een duidelijke fout bij het
+  starten dan een app die op een onverwachte plek draait.
+- `PORT` in de omgeving gaat nog steeds voor; `.claude/launch.json` (met
+  `autoPort`) gebruikt dat.
+- Oude, vastgelegde toestemmingen in `.claude/settings.local.json` noemen nog
+  5173. Die zijn niet aangepast: dat bestand verandert lokaal bij elke
+  goedgekeurde opdracht, en een wijziging van hier uit geeft dan een conflict
+  bij `git pull`. Een oude regel daar kan niets stukmaken.

@@ -238,7 +238,7 @@ op het LAN komt erbij via `http://<ip-van-de-pc>:<poort>`:
 
 | | Poort | Wat het is |
 |---|---|---|
-| `npm run dev` | 5173 | Vite, met `/api` doorgestuurd naar de API op 3000 |
+| `npm run dev` | 5174 | Vite, met `/api` doorgestuurd naar de API op 3000 (vaste poort, zie hieronder) |
 | `npm run build` + `npm start` | 3000 | Eén Express-proces, zoals op de NAS |
 
 Vite luistert alleen op alle kaarten dankzij `host: true` in
@@ -247,6 +247,14 @@ Vite luistert alleen op alle kaarten dankzij `host: true` in
 gemeten 2026-09-14: localhost gaf 200, het LAN-adres helemaal niets. De
 werkvloer-pc draait de terminal in een browser en moet er dus bij kunnen, ook
 tijdens ontwikkelen.
+
+Vite draait op **5174**, niet op de standaard 5173: op de werk-pc gebruikt een
+ander programma 5173 (2026-11-02). De poort ligt vast (`strictPort: true`): is
+5174 bezet, dan stopt Vite met `Port 5174 is already in use` in plaats van stil
+naar 5175 uit te wijken — de werkvloer-pc, bladwijzers en de Redirect URI van
+Microsoft 365 (`http://localhost:5174/auth-popup.html`, zie
+`features/39-graph-mail.md`) rekenen op één vaste poort. `PORT` in de omgeving
+gaat voor (`.claude/launch.json` gebruikt dat met `autoPort`).
 
 De proxy in die config wijst naar `http://localhost:3000`, en dat klopt ook van
 buitenaf: de proxy draait op de ontwikkelmachine zelf, dus `localhost` is daar
