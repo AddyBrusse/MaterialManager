@@ -9,7 +9,9 @@ Emails land in the user's **Verzonden** folder automatically (Graph sendMail doe
    - Name: `ShopCommand`
    - Supported account type: **Accounts in this organizational directory only**
    - Redirect URI: **Single-page application (SPA)**
-     - `http://localhost:5173/auth-popup.html` (dev)
+     - `http://localhost:5174/auth-popup.html` (dev — Vite draait sinds
+       2026-11-02 op 5174; een oude `http://localhost:5173/auth-popup.html`
+       mag weg)
      - `https://shop.<companydomain>.nl/auth-popup.html` (prod — the app is
        served over HTTPS since 2026-07; Azure AD only allows plain `http` for
        localhost anyway)
