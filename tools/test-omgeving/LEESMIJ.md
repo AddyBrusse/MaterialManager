@@ -49,7 +49,10 @@ npm run test-omgeving:db -- start
 ```
 
 `start` maakt de testcontainer en schrijft `.env.test` met een eigen, willekeurig
-wachtwoord. Zet daarna in `C:\ShopCommand-test\.env.test` de AI-sleutel:
+wachtwoord. Stond er al een `.env.test` (bijvoorbeeld uit Kladblok), dan vult
+`start` die aan: je eigen waarden blijven, `OMGEVING=test` staat er altijd in.
+Draait Docker Desktop niet, dan zegt het script dat en verandert het niets.
+Zet daarna in `C:\ShopCommand-test\.env.test` de AI-sleutel:
 `ANTHROPIC_API_KEY=sk-ant-…` (dezelfde als in de echte app mag; elke vraag in de
 test kost ook geld).
 

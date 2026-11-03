@@ -18,6 +18,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -59,6 +60,17 @@ function docker(args, { invoer, env } = {}) {
   return { ok: r.status === 0, uit: (r.stdout ?? '').trim(), fout: (r.stderr ?? '').trim() }
 }
 
+/** Draait Docker? Anders lijkt elke container "weg" en klopt geen enkele melding. */
+function eisDocker() {
+  const r = docker(['version', '--format', '{{.Server.Version}}'])
+  if (!r.ok) {
+    stop(
+      'Docker Desktop draait niet (of start nog op). Start Docker Desktop, wacht tot hij "Engine running" ' +
+      `zegt, en probeer opnieuw. Er is niets gewijzigd.\n(${r.fout.split('\n').pop()})`,
+    )
+  }
+}
+
 function container(naam) {
   const r = docker(['inspect', naam])
   if (!r.ok) return null
@@ -93,12 +105,37 @@ function urlVan(c) {
 
 // ── .env.test ───────────────────────────────────────────────────────────────
 
+/** De regels `SLEUTEL=waarde` van een env-bestand (een BOM van Kladblok eraf). */
+function leesEnv(tekst) {
+  const uit = new Map()
+  for (const r of tekst.replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=(.*)$/.exec(r)
+    if (m) uit.set(m[1], m[2].trim())
+  }
+  return uit
+}
+
+/**
+ * Schrijft .env.test opnieuw vanuit het voorbeeld, met het adres van de
+ * testdatabase. Wat er al in stond (bv. de AI-sleutel) blijft, maar
+ * OMGEVING=test staat er altijd in. Zo is een bestand dat Kladblok leeg
+ * aanmaakte vóór `start` (alleen de sleutel erin) meteen compleet.
+ */
 function zetDatabaseUrl(url) {
   const nieuw = !fs.existsSync(ENV_TEST)
-  const tekst = fs.readFileSync(nieuw ? ENV_VOORBEELD : ENV_TEST, 'utf8')
-  const regel = `DATABASE_URL=${url}`
-  const bijgewerkt = /^DATABASE_URL=.*$/m.test(tekst) ? tekst.replace(/^DATABASE_URL=.*$/m, regel) : `${regel}\n${tekst}`
-  fs.writeFileSync(ENV_TEST, bijgewerkt)
+  const eigen = nieuw ? new Map() : leesEnv(fs.readFileSync(ENV_TEST, 'utf8'))
+  eigen.delete('OMGEVING')
+  eigen.set('DATABASE_URL', url)
+  const regels = fs.readFileSync(ENV_VOORBEELD, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/).map((r) => {
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)=/.exec(r)
+    if (!m || !eigen.has(m[1])) return r
+    const waarde = eigen.get(m[1])
+    eigen.delete(m[1])
+    return `${m[1]}=${waarde}`
+  })
+  // Wat het voorbeeld niet kent, komt onderaan mee.
+  for (const [k, v] of eigen) regels.push(`${k}=${v}`)
+  fs.writeFileSync(ENV_TEST, regels.join(os.EOL))
   return nieuw
 }
 
@@ -159,7 +196,7 @@ async function start() {
   const nieuw = zetDatabaseUrl(urlVan(c))
   console.log(nieuw
     ? `.env.test gemaakt met het adres van de testdatabase. Zet daar zelf nog ANTHROPIC_API_KEY in.`
-    : `.env.test: DATABASE_URL wijst naar de testdatabase.`)
+    : `.env.test bijgewerkt: adres van de testdatabase en OMGEVING=test; wat je er zelf in zette (zoals de AI-sleutel) is gebleven.`)
   console.log('Volgende stap: npm run test-omgeving:db -- kopie')
 }
 
@@ -277,6 +314,7 @@ if (i >= 0) opties.bron = args[i + 1]
 const losse = args.filter((a, j) => !a.startsWith('--') && args[j - 1] !== '--bron')
 
 try {
+  if (['start', 'kopie', 'status', 'weggooien'].includes(losse[0])) eisDocker()
   switch (losse[0]) {
     case 'start': await start(); break
     case 'kopie': await kopie(opties); break
