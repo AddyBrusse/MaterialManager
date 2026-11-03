@@ -6,6 +6,7 @@ import { Weigering } from '../../../../../utils/fout-melding'
 import { downloadEml, mailtoZonderBijlage } from '../../../../../services/eml'
 import { BevestigModal } from '../../components/BevestigModal'
 import { pakbonBestandsnaam, pakbonMail, waaromGeenPakbonMail } from '../../lib/pakbon-document'
+import { AanInOutlook, TestMailMelding } from '../../../../../components/common/TestMail'
 
 /**
  * Een pakbon versturen (2026-10-05), net als de factuur: de app maakt een
@@ -49,9 +50,10 @@ export function usePakbonDocument(p: Project | undefined, onVerstuurd: (paklijst
     >
       <p>
         De mail staat in je downloads als <strong>{pakbonBestandsnaam(klaar.pl).replace(/\.pdf$/, '.eml')}</strong>.
-        Open hem: Outlook toont hem als nieuwe mail aan <strong>{klaar.naar}</strong>, met de pdf erin. Druk daar op
+        Open hem: Outlook toont hem als nieuwe mail<AanInOutlook naar={klaar.naar} />, met de pdf erin. Druk daar op
         Verzenden.
       </p>
+      <TestMailMelding />
       <p>Pas als je hier op <strong>Ja, verstuurd</strong> drukt, staat de pakbon als verstuurd en gaat de projectstatus mee.</p>
       <p style={{ fontSize: 11 }}>
         Opent het bestand niet als nieuwe mail? <a href={klaar.mailto}>Open een lege mail</a> en voeg de pdf (knop

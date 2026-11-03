@@ -10,6 +10,7 @@
  * Nog te bevestigen op de werk-pc (2026-09-28): hier is geen Outlook om het
  * mee te testen. Werkt het niet, dan is `mailtoZonderBijlage` de terugval.
  */
+import { isTestOmgeving } from '../utils/omgeving'
 
 export interface EmlMail {
   naar: string | null
@@ -39,7 +40,18 @@ function kop(tekst: string): string {
   return /^[\x00-\x7F]*$/.test(tekst) ? tekst : `=?UTF-8?B?${utf8Base64(tekst)}?=`
 }
 
-export function maakEml(m: EmlMail): string {
+/**
+ * In de testomgeving (2026-11-03) gaat een mail naar niemand en zegt het
+ * onderwerp dat het een test is. De test werkt met een kopie van de echte
+ * klanten: zonder dit stond het echte adres van de klant al klaar in Outlook,
+ * met een testofferte als bijlage.
+ */
+function testVeilig<T extends { naar: string | null; onderwerp: string }>(m: T, test: boolean): T {
+  return test ? { ...m, naar: null, onderwerp: `[TEST] ${m.onderwerp}` } : m
+}
+
+export function maakEml(mail: EmlMail, test = isTestOmgeving()): string {
+  const m = testVeilig(mail, test)
   const grens = `----=_ShopCommand_${Math.random().toString(36).slice(2)}`
   const koppen = [
     ...(m.naar ? [`To: ${m.naar}`] : []),
@@ -83,6 +95,7 @@ export function downloadEml(mail: EmlMail, bestandsnaam: string): void {
 }
 
 /** Terugval: een lege mail in Outlook, zonder bijlage — die sleep je er zelf in. */
-export function mailtoZonderBijlage(naar: string | null, onderwerp: string, tekst: string): string {
+export function mailtoZonderBijlage(naar: string | null, onderwerp: string, tekst: string, test = isTestOmgeving()): string {
+  ;({ naar, onderwerp } = testVeilig({ naar, onderwerp }, test))
   return `mailto:${encodeURIComponent(naar ?? '')}?subject=${encodeURIComponent(onderwerp)}&body=${encodeURIComponent(tekst)}`
 }

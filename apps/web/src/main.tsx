@@ -4,6 +4,7 @@ import { MantineProvider } from '@mantine/core'
 import { Notifications } from '@mantine/notifications'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App'
+import { TestBalk } from './components/layout/TestBalk'
 import { theme } from './theme'
 import { vangOnverwachteFouten } from './utils/recente-fouten'
 // De lettertypes uit de app zelf, niet van Google (2026-10-24): de schermafbeelding
@@ -43,6 +44,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           foutmelding bij opslaan moet leesbaar zijn terwijl dat open staat. */}
       <Notifications position="top-right" notificationMaxHeight={520} zIndex={1200} />
       <QueryClientProvider client={queryClient}>
+        <TestBalk />
         <App />
       </QueryClientProvider>
     </MantineProvider>

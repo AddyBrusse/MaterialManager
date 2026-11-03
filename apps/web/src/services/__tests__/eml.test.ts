@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { maakEml } from '../eml'
+import { maakEml, mailtoZonderBijlage } from '../eml'
 
 const mail = {
   naar: 'j.prins@vl-machinebouw.nl',
@@ -42,5 +42,36 @@ describe('maakEml', () => {
 
   it('gebruikt overal CRLF-regeleinden', () => {
     expect(eml.replace(/\r\n/g, '')).not.toContain('\n')
+  })
+})
+
+// Testomgeving (2026-11-03): een kopie van de echte klanten, dus nooit een adres.
+describe('maakEml in de testomgeving', () => {
+  const eml = maakEml(mail, true)
+
+  it('zet geen ontvanger klaar', () => {
+    expect(eml).not.toContain('To:')
+    expect(eml).not.toContain('j.prins@vl-machinebouw.nl')
+  })
+
+  it('begint het onderwerp met [TEST]', () => {
+    const onderwerp = eml.match(/Subject: =\?UTF-8\?B\?([^?]+)\?=/)![1]
+    expect(decodeUtf8(onderwerp)).toBe(`[TEST] ${mail.onderwerp}`)
+  })
+
+  it('laat de echte omgeving ongemoeid', () => {
+    expect(maakEml(mail, false).startsWith('To: j.prins@vl-machinebouw.nl\r\n')).toBe(true)
+  })
+})
+
+describe('mailtoZonderBijlage', () => {
+  it('heeft in de test geen adres en [TEST] in het onderwerp', () => {
+    const url = mailtoZonderBijlage('a@b.nl', 'Factuur F-2026-001', 'tekst', true)
+    expect(url.startsWith('mailto:?subject=')).toBe(true)
+    expect(decodeURIComponent(url)).toContain('[TEST] Factuur F-2026-001')
+  })
+
+  it('houdt in de echte omgeving het adres', () => {
+    expect(mailtoZonderBijlage('a@b.nl', 'Factuur', 'tekst', false).startsWith('mailto:a%40b.nl?subject=Factuur')).toBe(true)
   })
 })

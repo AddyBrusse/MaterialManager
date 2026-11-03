@@ -11,6 +11,8 @@ import { userContext } from './middleware/user-context'
 import { terminalScope } from './middleware/terminal-scope'
 import { errorMiddleware } from './middleware/error'
 import { controleerBijStart } from './services/ai-sleutel'
+import { bepaalOmgeving, omgevingVoorScherm, OmgevingFout } from './services/omgeving'
+import { vraagtTest } from '@stockmanager/shared'
 import healthRouter from './routes/health'
 import usersRouter from './routes/users'
 import rawMaterialsRouter from './routes/raw-materials'
@@ -67,6 +69,12 @@ app.use('/api/health', healthRouter)
 app.get('/api/users', asyncHandler(async (_req, res) => {
   const users = await prisma.user.findMany({ orderBy: { name: 'asc' } })
   res.json({ data: users })
+}))
+
+// Test of echt (2026-11-03): ook vóór het inloggen, zodat het keuzescherm de
+// oranje balk van de testomgeving al toont.
+app.get('/api/omgeving', asyncHandler(async (_req, res) => {
+  res.json({ data: await omgevingVoorScherm() })
 }))
 
 // PDF routes — no DB needed, data comes from the POST body
@@ -126,7 +134,40 @@ app.use(errorMiddleware)
 // schema's? Zo niet, meteen stoppen met een bruikbare melding.
 assertSharedGebouwd()
 
-app.listen(config.port, () => {
-  console.log(`ShopCommand API running on port ${config.port} (${config.nodeEnv})`)
-  void controleerBijStart()
-})
+function luister() {
+  app.listen(config.port, () => {
+    console.log(`ShopCommand API running on port ${config.port} (${config.nodeEnv})`)
+    void controleerBijStart()
+  })
+}
+
+// De test-app (OMGEVING=test) luistert pas als vaststaat dat hij op een
+// testdatabase staat, en stopt anders (calc/omgeving.ts). De echte app start
+// zoals altijd; zijn omgeving wordt erbij bepaald voor de balk.
+if (vraagtTest(process.env.OMGEVING)) {
+  bepaalOmgeving()
+    .then((o) => {
+      const kopie = o.kopieVan ? `, kopie van ${o.kopieVan}` : ''
+      console.log(`[omgeving] TESTOMGEVING — database eindigt op _test${kopie}`)
+      luister()
+    })
+    .catch((e: unknown) => {
+      if (e instanceof OmgevingFout) console.error(`[omgeving] ${e.message}`)
+      else {
+        const reden = (e instanceof Error ? e.message : String(e)).trim().split('\n').pop()
+        console.error(
+          '[omgeving] De testdatabase is niet te bereiken, dus de test-app start niet. ' +
+          'Draait Docker Desktop, staat de testdatabase aan (npm run test-omgeving:db -- status) ' +
+          'en klopt DATABASE_URL in .env.test? ' +
+          `Reden: ${reden}`,
+        )
+      }
+      process.exit(1)
+    })
+} else {
+  luister()
+  bepaalOmgeving().then(
+    (o) => { if (o.omgeving === 'test') console.log('[omgeving] Deze app staat op een TESTdatabase (naam eindigt op _test)') },
+    () => { /* database nog niet bereikbaar: de balk vraagt het later opnieuw */ },
+  )
+}

@@ -8,6 +8,7 @@ import { toonPdfInVenster } from '../../../../../services/document-venster'
 import { downloadEml, mailtoZonderBijlage } from '../../../../../services/eml'
 import { BevestigModal } from '../../components/BevestigModal'
 import { factuurBestandsnaam, factuurMail, factuurPdf } from '../../lib/factuur-document'
+import { AanInOutlook, TestMailMelding } from '../../../../../components/common/TestMail'
 
 /**
  * Openen en versturen van een factuur of credit — zoals de opdrachtbevestiging:
@@ -76,9 +77,10 @@ export function useFactuurDocument(p: Project | undefined, onVerstuurd: (factuur
     >
       <p>
         De mail staat in je downloads als <strong>{factuurBestandsnaam(klaar.f).replace(/\.pdf$/, '.eml')}</strong>.
-        Open hem: Outlook toont hem als nieuwe mail aan <strong>{klaar.naar}</strong>, met de pdf erin. Druk daar op
+        Open hem: Outlook toont hem als nieuwe mail<AanInOutlook naar={klaar.naar} />, met de pdf erin. Druk daar op
         Verzenden.
       </p>
+      <TestMailMelding />
       <p>Pas als je hier op <strong>Ja, verstuurd</strong> drukt, staat hij als verstuurd en loopt de betaaltermijn.</p>
       <p style={{ fontSize: 11 }}>
         Opent het bestand niet als nieuwe mail? <a href={klaar.mailto}>Open een lege mail</a> en voeg de pdf (knop

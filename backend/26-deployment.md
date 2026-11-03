@@ -65,6 +65,8 @@ Single image builds both web and api:
 ## Env
 
 - `.env.development` — local dev
+- `.env.test` — the managers' test environment (2026-11-03, see below);
+  template `.env.test.example`
 - `docker/.env` — prod values, referenced by docker-compose (git-ignored).
   Since 2026-10-28 the whole file is also passed to the app container
   (`env_file`), so `ANTHROPIC_API_KEY` and the `MAIL_AI_*`/`ASSISTENT_*`
@@ -75,6 +77,24 @@ Single image builds both web and api:
   `ACME_EMAIL`, `HTTP_PORT`/`HTTPS_PORT`
 - Never commit secrets (the DB password lives only on the NAS; there is no
   DNS/ACME credential at all with the manual renewal flow)
+
+## Test environment for the managers (2026-11-03)
+
+A second instance on Addy's work PC, from its own clone (`C:\ShopCommand-test`),
+with a copy of the real data in its own container (`shopcommand-testdb`,
+`127.0.0.1:5433`, database `shopcommand_test`). It runs as a build on port
+3100 (`npm run test-omgeving:start`, `NODE_ENV=production`). Everything is in
+[`tools/test-omgeving/LEESMIJ.md`](../tools/test-omgeving/LEESMIJ.md).
+
+- `OMGEVING=test` makes the API refuse to start unless `current_database()`
+  ends in `_test` (`packages/shared/src/calc/omgeving.ts`,
+  `apps/api/src/services/omgeving.ts`). `GET /api/omgeving` (public) tells the
+  browser, which shows the orange bar, `[TEST]` in the title, the pdf watermark
+  and strips the recipient from every `.eml`/mailto.
+- `npm run db:seed` refuses when relaties, artikelen or voorraad exist.
+- `tools/test-omgeving/test-db.mjs` makes, copies (read-only `pg_dump` from
+  `docker-db-1`), reports and removes the test container. It only removes a
+  container carrying its own label.
 
 ## Updating in prod
 

@@ -9,6 +9,7 @@ import { useUserStore } from '../../../stores/user'
 import { downloadEml } from '../../../services/eml'
 import { meldFout } from '../../../utils/fout-melding-toon'
 import { prijsaanvraagBestandsnaam, prijsaanvraagMail } from '../lib/prijsaanvraag-document'
+import { TestMailMelding } from '../../common/TestMail'
 
 const versie = (n: number) => (n === 1 ? 'verstuurd' : n === 2 ? 'allebei verstuurd' : 'allemaal verstuurd')
 
@@ -59,6 +60,7 @@ export function useAanvragenVersturen(regels: BestelRegel[]) {
           {klaar.length === 1 ? 'De mail staat' : `${klaar.length} mails staan`} in je downloads
           ({klaar.map((a) => `${a.id} aan ${a.leveranciers[0]?.naam}`).join(', ')}), elk met de prijsaanvraag-pdf erin. Open ze en druk in Outlook op Verzenden.
         </Text>
+        <TestMailMelding />
         <Text size="sm">Bij <b>Ja, {versie(klaar.length)}</b> gaan de regels naar <b>Open prijsaanvragen</b>. Bij <b>Nog niet</b> wordt er niets vastgelegd en blijven ze hier staan.</Text>
         <Group justify="flex-end" gap="xs">
           <Button size="xs" variant="default" loading={nogNiet.isPending} onClick={() => nogNiet.mutate(klaar.map((a) => a.id))}>Nog niet</Button>

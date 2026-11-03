@@ -153,7 +153,7 @@
 
 /* Lichte stijl, dezelfde tokenset als de rest. Knoppen groot genoeg voor
    vingers met handschoenen aan. */
-.tr-term { height: 100vh; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+.tr-term { height: calc(100vh - var(--test-balk-h, 0px)); display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
 .tr-term-top {
   height: 72px; flex-shrink: 0;
   border-bottom: 1px solid var(--border); background: var(--bg-sidebar);

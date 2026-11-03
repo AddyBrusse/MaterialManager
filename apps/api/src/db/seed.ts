@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { PrismaClient } from '@prisma/client'
-import { ProjectSchema, type Project, type ProductieOrder, type ProductieStap } from '@stockmanager/shared'
+import { ProjectSchema, waaromNietSeeden, type Project, type ProductieOrder, type ProductieStap } from '@stockmanager/shared'
 import { persist } from '../services/project-store'
 
 const prisma = new PrismaClient()
@@ -260,6 +260,18 @@ async function seedProjects() {
 }
 
 async function main() {
+  // Nooit over echte gegevens heen (2026-11-03): de seed maakt geen relaties,
+  // artikelen of voorraad, dus staan die er wel, dan is dit een echte database.
+  const reden = waaromNietSeeden({
+    relaties: await prisma.relatie.count(),
+    artikelen: await prisma.article.count(),
+    voorraad: await prisma.rawMaterial.count(),
+  })
+  if (reden) {
+    console.error(reden)
+    process.exitCode = 1
+    return
+  }
   await seedUsers()
   await seedMachines()
   await seedProjects()

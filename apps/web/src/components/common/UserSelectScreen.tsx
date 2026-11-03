@@ -26,7 +26,7 @@ export function UserSelectScreen() {
   }
 
   return (
-    <Center h="100vh" bg="gray.0">
+    <Center h="calc(100vh - var(--test-balk-h, 0px))" bg="gray.0">
       <Paper p="xl" shadow="sm" w={320}>
         <Stack gap="md">
           <Title order={3}>ShopCommand</Title>
