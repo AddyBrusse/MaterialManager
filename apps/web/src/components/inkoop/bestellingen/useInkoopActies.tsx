@@ -9,6 +9,7 @@ import { downloadEml, mailtoZonderBijlage } from '../../../services/eml'
 import { meldFout } from '../../../utils/fout-melding-toon'
 import { Weigering, eis } from '../../../utils/fout-melding'
 import { inkooporderBestandsnaam, inkooporderMail } from '../lib/inkooporder-document'
+import { AanInOutlook, TestMailMelding } from '../../common/TestMail'
 
 /**
  * Wat je met een inkooporder doet (2026-10-06, deel 3b): versturen via een
@@ -63,7 +64,8 @@ export function useInkoopActies() {
       {klaar && (
         <Modal opened onClose={() => setKlaar(null)} title="Heb je hem verstuurd?" size="md">
           <Stack gap="xs">
-            <Text size="sm">De mail staat in je downloads als <strong>{klaar.bestand}</strong>. Open hem: Outlook toont hem als nieuwe mail aan <strong>{klaar.o.email}</strong>, met de pdf erin. Druk daar op Verzenden.</Text>
+            <Text size="sm">De mail staat in je downloads als <strong>{klaar.bestand}</strong>. Open hem: Outlook toont hem als nieuwe mail<AanInOutlook naar={klaar.o.email} />, met de pdf erin. Druk daar op Verzenden.</Text>
+            <TestMailMelding />
             <Text size="sm">Bij <strong>Ja, verstuurd</strong> ligt {klaar.o.id} vast en gaan de regels naar "Besteld". Daarna verander je er niets meer aan: intrekken en een nieuwe maken.</Text>
             <Text size="xs" c="dimmed">Opent het bestand niet als nieuwe mail? <a href={klaar.mailto}>Open een lege mail</a> en voeg de pdf (knop Pdf) zelf toe.</Text>
             <Group justify="flex-end" gap="xs">

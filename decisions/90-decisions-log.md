@@ -2928,3 +2928,50 @@ vingers glipt. Voorstel met vijf vragen; Addy nam alle aanbevelingen over.
   modellen met een bekende prijs). De instructies met de tabellen staan in de
   cache van Anthropic. Model blijft Opus 5.5; na een week naar het echte
   verbruik kijken.
+
+## 2026-11-03 — Testomgeving voor de managers: eigen database, drie sloten
+
+**Aanleiding.** Addy wil de managers een testversie geven: lokaal, met een
+database die echt tijdelijk is. Gemeten op de werk-pc: de echte database draait
+niet op de NAS maar in Docker Desktop op de werk-pc zelf (`docker-db-1`,
+postgres:16, `127.0.0.1:5432`); SSH op de NAS staat uit.
+
+**Besloten** (keuzes van Addy: test op de werk-pc, die altijd aan staat; een
+kopie van de echte gegevens is prima; de AI-sleutel erin; de testdatabase in
+Docker op de werk-pc in plaats van op de NAS):
+- **Eigen clone, eigen container, eigen poort.** `C:\ShopCommand-test` met
+  `.env.test`; container `shopcommand-testdb` (label
+  `nl.shopcommand.rol=testdatabase`, opslag `shopcommand-testdb-data`,
+  `127.0.0.1:5433`, database `shopcommand_test`, willekeurig wachtwoord); de app
+  als build op 3100. Een andere poort is ook ander browsergeheugen, dus geen
+  gemengde gebruikerskeuze of slot.
+- **Slot 1: de database bepaalt wat test is**, niet een vlag in de browser.
+  `OMGEVING=test` start alleen tegen een database op `_test`
+  (`waaromNietStarten`); dat vangt ook een Windows-variabele `DATABASE_URL` op
+  die vóór het bestand gaat. Zo doet Rails het ook (`ar_internal_metadata`
+  weet in welke omgeving hij hoort).
+- **Slot 2: seeden alleen op een lege database** (`waaromNietSeeden`):
+  relaties, artikelen of voorraad = echte gegevens. Geldt in elke map, ook voor
+  de echte app. Het script wist alleen zijn eigen gelabelde container.
+- **Slot 3: alles uit de test is als test te herkennen.** Oranje balk met het
+  moment van de kopie (`COMMENT ON DATABASE … 'kopie:<ISO>'`), `[TEST]` in de
+  titel, watermerk TEST — NIET GELDIG op elke pdf (`maakDocument`), en een
+  mail zonder geadresseerde met `[TEST]` in het onderwerp (`maakEml`,
+  `mailtoZonderBijlage`); het venster "Heb je hem verstuurd?" noemt dan ook
+  geen klantadres (`AanInOutlook`). De test werkt met echte klanten; zonder dit
+  stond het adres van de klant al klaar in Outlook. Odoo doet hetzelfde bij een
+  kopie ("neutralize": mail uit, banner).
+- **Verbeterpunten gaan niet stil verloren.** `kopie` en `weggooien` weigeren
+  zolang er verbeterpunten van na de kopie staan, tot ze geëxporteerd zijn
+  (`--ja`). Zo komt de feedback van de managers bij Addy.
+
+**Afgewezen.** De testdatabase op de NAS: Postgres draait daar niet, SSH staat
+uit, en de test-app staat toch op de werk-pc. Een vlag `TEST=1` in de browser of
+alleen in `.env`: één verkeerd geplakte regel en de managers werken in de echte
+gegevens. Een anonieme kopie (klantnamen vervangen): Addy wilde de echte
+gegevens, en de test blijft op dezelfde pc als de echte app.
+
+**Niet afgeschermd** (in de LEESMIJ): de AI-sleutel is echt (kost geld), een
+taak naar de Outlook-agenda komt in de echte agenda (met `[TEST]`), en zonder
+login kan iedereen op het netwerk `:3100` openen, net als de echte app.
+

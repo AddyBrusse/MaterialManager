@@ -1,6 +1,7 @@
-import jsPDF from 'jspdf'
+import jsPDF, { GState } from 'jspdf'
 import type { Company } from '@stockmanager/shared'
 import type { DocumentAssets, Familie, Gewicht } from './assets'
+import { isTestOmgeving } from '../../utils/omgeving'
 
 /**
  * Eén opmaak voor alle documenten: het template `design_handoff_offerte`
@@ -315,9 +316,33 @@ function voetBlokRegels(co: Company): string[] {
   return [een, twee].map((r) => r.filter(Boolean).join('  ·  ')).filter(Boolean)
 }
 
+// ── Testomgeving ───────────────────────────────────────────────────────────
+
+/** Schuin over elke pagina van een document uit de testomgeving (2026-11-03). */
+export const TEST_WATERMERK = 'TEST — NIET GELDIG'
+
+function testWatermerk(pen: Pen) {
+  const doc = pen.doc
+  pen.font('display', 'bold', 92, KLEUR.rood)
+  const b = doc.getTextWidth(TEST_WATERMERK)
+  const hoek = 52
+  const r = (hoek * Math.PI) / 180
+  // jsPDF draait de tekst tegen de klok in om zijn beginpunt; y loopt omlaag.
+  // Het beginpunt ligt dus links onder het midden, de halve breedte terug.
+  const x0 = (PAGINA_B / 2) * PX - (b / 2) * Math.cos(r)
+  const y0 = (PAGINA_H / 2) * PX + (b / 2) * Math.sin(r)
+  doc.saveGraphicsState()
+  doc.setGState(new GState({ opacity: 0.14 }))
+  doc.text(TEST_WATERMERK, x0, y0, { angle: hoek })
+  doc.restoreGraphicsState()
+}
+
 // ── Het document ───────────────────────────────────────────────────────────
 
-export function maakDocument(spec: DocumentSpec, co: Company, assets: DocumentAssets): jsPDF {
+export function maakDocument(
+  spec: DocumentSpec, co: Company, assets: DocumentAssets,
+  opties: { test: boolean } = { test: isTestOmgeving() },
+): jsPDF {
   const pen = new Pen(assets)
   const grens = PAGINA_H - ONDER
   const k = verdeel(spec.kolommen)
@@ -405,6 +430,8 @@ export function maakDocument(spec: DocumentSpec, co: Company, assets: DocumentAs
     pen.font('mono', 'normal', 9, KLEUR.note, 0.36)
     if (co.naam) pen.tekst(co.naam, ZIJ, bl)
     pen.tekst(n > 1 ? `${spec.voetregel}  ·  ${i}/${n}` : spec.voetregel, RECHTS, bl, 'rechts')
+    // Als laatste, dus boven de inhoud: een testofferte mag nooit voor echt doorgaan.
+    if (opties.test) testWatermerk(pen)
   }
   return pen.doc
 }

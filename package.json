@@ -16,6 +16,9 @@
     "db:status": "npm run db:status -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
     "db:leeg": "npm run db:leeg -w apps/api --",
+    "test-omgeving:db": "node tools/test-omgeving/test-db.mjs",
+    "test-omgeving:bijwerken": "npm run build && npm run test-omgeving:deploy -w apps/api",
+    "test-omgeving:start": "npm run test-omgeving:start -w apps/api",
     "test": "npm run test -w apps/api && npm run test -w apps/web",
     "knip": "knip"
   },

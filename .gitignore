@@ -2,6 +2,9 @@ node_modules/
 dist/
 .env.development
 .env.production
+# De testomgeving voor de managers (tools/test-omgeving/LEESMIJ.md)
+.env.test
+uploads-test/
 *.env
 uploads/
 docker/certs/

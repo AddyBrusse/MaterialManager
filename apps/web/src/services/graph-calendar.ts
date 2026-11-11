@@ -1,5 +1,6 @@
 import { acquireToken } from './graph-mail'
 import type { Todo } from '@stockmanager/shared'
+import { isTestOmgeving } from '../utils/omgeving'
 
 interface CalendarEventResult {
   id: string
@@ -14,7 +15,8 @@ export async function createCalendarEvent(todo: Todo): Promise<CalendarEventResu
   const end = datePart ? `${datePart}T09:30:00` : undefined
 
   const event = {
-    subject: todo.title,
+    // De testomgeving schrijft in de echte agenda: zichtbaar maken dat het een test is.
+    subject: (isTestOmgeving() ? '[TEST] ' : '') + todo.title,
     body: {
       contentType: 'Text',
       content: `Todo vanuit ShopCommand (aangemaakt door ${todo.createdByName ?? ''})`,

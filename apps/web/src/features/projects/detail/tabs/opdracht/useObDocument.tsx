@@ -7,6 +7,7 @@ import { toonPdfInVenster } from '../../../../../services/document-venster'
 import { downloadEml, mailtoZonderBijlage } from '../../../../../services/eml'
 import { BevestigModal } from '../../components/BevestigModal'
 import { obBestandsnaam, obMail, obPdf } from '../../lib/ob-document'
+import { AanInOutlook, TestMailMelding } from '../../../../../components/common/TestMail'
 
 /**
  * Openen, downloaden en klaarzetten van de opdrachtbevestiging.
@@ -82,9 +83,10 @@ export function useObDocument(p: Project | undefined, onVerstuurd: (naar: string
     >
       <p>
         De mail staat in je downloads als <strong>Opdrachtbevestiging-{obId}.eml</strong>. Open hem:
-        Outlook toont hem als nieuwe mail{klaar.naar ? <> aan <strong>{klaar.naar}</strong></> : ''}, met de
+        Outlook toont hem als nieuwe mail<AanInOutlook naar={klaar.naar} />, met de
         pdf erin. Druk daar op Verzenden.
       </p>
+      <TestMailMelding />
       {!klaar.naar && (
         <p>Er is geen e-mailadres bekend bij deze klant; vul het in Outlook zelf in.</p>
       )}

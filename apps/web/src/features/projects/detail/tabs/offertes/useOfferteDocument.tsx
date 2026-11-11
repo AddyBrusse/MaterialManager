@@ -7,6 +7,7 @@ import { toonPdfInVenster } from '../../../../../services/document-venster'
 import { downloadEml, mailtoZonderBijlage } from '../../../../../services/eml'
 import { BevestigModal } from '../../components/BevestigModal'
 import { offerteBestandsnaam, offerteMail, offerteNummer, offertePdf } from '../../lib/offerte-document'
+import { AanInOutlook, TestMailMelding } from '../../../../../components/common/TestMail'
 
 /**
  * Openen en versturen van een offerteversie — zoals de opdrachtbevestiging:
@@ -100,9 +101,10 @@ export function useOfferteDocument(p: Project | undefined, onVerstuurd: (offerte
     >
       <p>
         De mail staat in je downloads als <strong>{offerteBestandsnaam(klaar.o).replace(/\.pdf$/, '.eml')}</strong>.
-        Open hem: Outlook toont hem als nieuwe mail{klaar.naar ? <> aan <strong>{klaar.naar}</strong></> : ''}, met
+        Open hem: Outlook toont hem als nieuwe mail<AanInOutlook naar={klaar.naar} />, met
         de pdf erin. Druk daar op Verzenden.
       </p>
+      <TestMailMelding />
       {!klaar.naar && <p>Er is geen e-mailadres bekend bij deze klant; vul het in Outlook zelf in.</p>}
       <p>Pas als je hier op <strong>Ja, verstuurd</strong> drukt, staat de offerte als verzonden.</p>
       <p style={{ fontSize: 11 }}>

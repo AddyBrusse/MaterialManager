@@ -1,5 +1,6 @@
 /* AI-assistent (2026-10-09): paneel rechts, altijd te openen. */
-.as-paneel { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); z-index: 290; background: var(--bg-2); border-left: 1px solid var(--border); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; }
+/* top: onder de oranje balk van de testomgeving, die moet zichtbaar blijven (TestBalk.tsx). */
+.as-paneel { position: fixed; top: var(--test-balk-h, 0px); right: 0; bottom: 0; width: min(440px, 100vw); z-index: 290; background: var(--bg-2); border-left: 1px solid var(--border); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; }
 .as-kop { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
 .as-kop b { font-size: 14px; }
 .as-kop .sub { color: var(--text-3); font-size: 11.5px; }

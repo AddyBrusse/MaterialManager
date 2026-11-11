@@ -12,6 +12,7 @@ import { Weigering, eis } from '../../../utils/fout-melding'
 import { inkooporderBestandsnaam, inkooporderMail } from '../lib/inkooporder-document'
 import { eur } from '../bestellingen/bestel-tekst'
 import { ddmm } from './tekst'
+import { TestMailMelding } from '../../common/TestMail'
 
 /** Wat je met een klaargezette (nog niet bevestigde) inkooporder doet. */
 export interface ConceptActies {
@@ -100,6 +101,7 @@ export function useBestellen(ov: InkoopOverzicht | undefined) {
             <Text size="sm">
               {klaar.length === 1 ? 'De mail staat' : `${klaar.length} mails staan`} in je downloads ({klaar.map((o) => `${o.id} aan ${o.leverancierNaam}`).join(', ')}), elk met de inkooporder-pdf erin. Open ze en druk in Outlook op Verzenden.
             </Text>
+            <TestMailMelding />
             <Text size="sm">Bij <b>Ja, {klaar.length === 1 ? 'verstuurd' : klaar.length === 2 ? 'allebei verstuurd' : 'allemaal verstuurd'}</b> staan de regels bij <b>Besteld</b>, met de verwachte leverdatum. Bij <b>Nog niet</b> blijven ze klaarstaan in de inkoopbuffer.</Text>
             <Group justify="flex-end" gap="xs">
               <Button size="xs" variant="default" onClick={() => setKlaar(null)}>Nog niet</Button>
