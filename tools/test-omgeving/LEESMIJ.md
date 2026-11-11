@@ -78,13 +78,35 @@ netsh advfirewall firewall add rule name="ShopCommand test 3100" dir=in action=a
 Elk adres heeft zijn eigen browsergeheugen, dus op `:3100` kies je opnieuw wie je
 bent; de keuze in de echte app blijft staan.
 
-## Elke dag
+## Altijd aan (automatisch starten)
 
-De testdatabase start vanzelf met Docker Desktop. De test-app niet: dubbelklik
-`tools\test-omgeving\start-test.cmd`, of `npm run test-omgeving:start` in
-`C:\ShopCommand-test`. Het venster moet open blijven; sluiten = test-app uit.
-Wil je hem bij het aanmelden laten starten, zet dan een snelkoppeling naar
-`start-test.cmd` in `shell:startup`.
+Zo staat de test klaar voor de andere pc's zonder dat iemand iets hoeft te
+starten. Eén keer instellen op de werk-pc:
+
+1. **Docker Desktop bij het aanmelden starten:** Docker Desktop → Settings →
+   General → "Start Docker Desktop when you sign in to your computer" aan. De
+   testdatabase start daarna vanzelf mee (de container staat op "unless-stopped").
+2. **De test-app bij het aanmelden starten:** zet een snelkoppeling naar
+   `start-test.cmd` in de map Opstarten, geminimaliseerd. In cmd:
+   ```
+   powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Startup')+'\ShopCommand test.lnk'); $s.TargetPath='C:\ShopCommand-test\tools\test-omgeving\start-test.cmd'; $s.WorkingDirectory='C:\ShopCommand-test'; $s.WindowStyle=7; $s.Save()"
+   ```
+   Controleren: `explorer shell:startup` toont "ShopCommand test". Weghalen =
+   die snelkoppeling verwijderen.
+3. **Geen slaapstand:** `powercfg /change standby-timeout-ac 0` (of Instellingen →
+   Systeem → Energie → Slaapstand: Nooit). Een pc in slaapstand is voor de
+   andere pc's onbereikbaar.
+
+`start-test.cmd` wacht zelf tot Docker en de testdatabase klaar zijn: lukt het
+starten niet, dan probeert hij het elke 30 seconden opnieuw. Stopt de test-app
+later, dan start hij hem ook opnieuw.
+
+**Na een herstart (Windows Update) moet iemand aanmelden.** Docker Desktop
+draait alleen in een aangemelde sessie. Vergrendelen (Win+L) mag wel: dan blijft
+alles draaien. Afmelden niet.
+
+Met de hand starten kan altijd: dubbelklik `tools\test-omgeving\start-test.cmd`.
+Het venster moet open blijven; sluiten = test-app uit.
 
 ## Verse echte gegevens erin
 
@@ -93,10 +115,10 @@ nieuwe kopie wist ze, dus eerst exporteren: in de test-app **ToDo →
 Verbeterpunten → Exporteer voor Claude**. Het script weigert zolang er
 verbeterpunten van na de kopie staan, tenzij je `--ja` meegeeft.
 
-1. Test-app stoppen (Ctrl+C in zijn venster)
+1. Test-app stoppen: het venster van `start-test.cmd` sluiten
 2. `npm run test-omgeving:db -- kopie`
 3. `npm run test-omgeving:bijwerken`
-4. `npm run test-omgeving:start`
+4. `start-test.cmd` weer dubbelklikken
 
 Stoppen is nodig: de kopie verbreekt de verbinding van een draaiende test-app (het
 eerste verzoek daarna geeft een foutmelding), en op Windows blokkeert een
@@ -109,10 +131,10 @@ cd /d C:\ShopCommand-test
 git pull --ff-only
 npm install
 npm run test-omgeving:bijwerken
-npm run test-omgeving:start
 ```
 
-Test-app eerst stoppen. In deze map schrijft niemand anders, dus `git pull
+Test-app eerst stoppen (venster van `start-test.cmd` sluiten), daarna
+`start-test.cmd` weer dubbelklikken. In deze map schrijft niemand anders, dus `git pull
 --ff-only` kan geen conflict geven.
 
 ## Status en opruimen
