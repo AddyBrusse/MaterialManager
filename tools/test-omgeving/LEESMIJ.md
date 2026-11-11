@@ -87,10 +87,14 @@ starten. Eén keer instellen op de werk-pc:
    General → "Start Docker Desktop when you sign in to your computer" aan. De
    testdatabase start daarna vanzelf mee (de container staat op "unless-stopped").
 2. **De test-app bij het aanmelden starten:** zet een snelkoppeling naar
-   `start-test.cmd` in de map Opstarten, geminimaliseerd. In cmd:
+   `start-test.cmd` in de map Opstarten, geminimaliseerd. In **PowerShell**
+   (prompt begint met `PS`):
    ```
-   powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Startup')+'\ShopCommand test.lnk'); $s.TargetPath='C:\ShopCommand-test\tools\test-omgeving\start-test.cmd'; $s.WorkingDirectory='C:\ShopCommand-test'; $s.WindowStyle=7; $s.Save()"
+   $s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Startup')+'\ShopCommand test.lnk'); $s.TargetPath='C:\ShopCommand-test\tools\test-omgeving\start-test.cmd'; $s.WorkingDirectory='C:\ShopCommand-test'; $s.WindowStyle=7; $s.Save()
    ```
+   In **cmd** dezelfde regel tussen `powershell -NoProfile -Command "` en `"`.
+   Niet die cmd-vorm in PowerShell plakken: PowerShell vult `$s` dan al in en
+   geeft "An expression was expected after '('".
    Controleren: `explorer shell:startup` toont "ShopCommand test". Weghalen =
    die snelkoppeling verwijderen.
 3. **Geen slaapstand:** `powercfg /change standby-timeout-ac 0` (of Instellingen →
