@@ -26,6 +26,7 @@ import { ArticlePrijshistorieTab } from '../../components/articles/ArticlePrijsh
 import { ArtikelNacalculatieTab } from '../../components/nacalculatie/ArtikelNacalculatieTab'
 import { ArtikelStand, zegWaaromDicht } from '../../components/articles/ArtikelStand'
 import { ArtikelTabs, type ArtikelTab } from '../../components/articles/ArtikelTabs'
+import { ArtikelVerkoopTab } from '../../components/articles/verkoop/ArtikelVerkoopTab'
 import { Ic, Icon, TypeGlyph, type GlyphKind } from '../../components/articles/calc-icons'
 
 /**
@@ -62,7 +63,8 @@ export function ArtikelDetailPage() {
   const [searchParams] = useSearchParams()
   const returnTo = searchParams.get('returnTo') ?? null
   const isAdmin = useUserStore(s => s.user?.role === 'admin')
-  const [tab, setTab] = useState<ArtikelTab>('calculatie')
+  // `?tab=verkoop` opent meteen Prijs & voorraad (de link "tel de voorraad" op de pagina Facturen).
+  const [tab, setTab] = useState<ArtikelTab>(searchParams.get('tab') === 'verkoop' ? 'verkoop' : 'calculatie')
   const [locModalOpen, setLocModalOpen] = useState(false)
 
   const { data: gradesData }   = useQuery({ queryKey: ['grades'],   queryFn: gradesApi.list })
@@ -232,6 +234,9 @@ export function ArtikelDetailPage() {
               setMachine={attachmentUpload.setMachine}
             />
           </fieldset>
+        )}
+        {tab === 'verkoop' && (
+          <ArtikelVerkoopTab artikelId={article.id} klantNaam={relatie?.naam ?? null} alleenLezen={alleenLezen} />
         )}
         {tab === 'nacalculatie' && (
           <fieldset className="ad-slot" disabled={alleenLezen} onPointerDown={waaromDicht}>

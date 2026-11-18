@@ -128,3 +128,28 @@ describe('samenvatting', () => {
     })
   })
 })
+
+describe('berekenBijwerkingen met een prijsafspraak (2026-11-18)', () => {
+  const afspraak = (prijs: number) => () => ({ prijs })
+
+  it('de afspraak gaat voor de calculatie', () => {
+    const [b] = berekenBijwerkingen([regel()], [metCalculatie('ART-1')], bronnen, afspraak(70))
+    expect(b).toMatchObject({ reden: 'nieuw', nieuweVerkoopprijs: 70, uitAfspraak: true })
+  })
+
+  it('ook zonder recept: de afspraak is genoeg', () => {
+    const [b] = berekenBijwerkingen([regel()], [artikel({})], bronnen, afspraak(12.5))
+    expect(b).toMatchObject({ reden: 'nieuw', nieuweVerkoopprijs: 12.5, uitAfspraak: true, nieuweBewerkingen: [] })
+  })
+
+  it('zonder afspraak blijft het de calculatie', () => {
+    const [b] = berekenBijwerkingen([regel()], [metCalculatie('ART-1')], bronnen, () => null)
+    expect(b).toMatchObject({ nieuweVerkoopprijs: 75, uitAfspraak: false })
+  })
+
+  it('de afspraak krijgt het aantal van de regel (staffel)', () => {
+    const gezien: number[] = []
+    berekenBijwerkingen([regel({ qty: 25 })], [metCalculatie('ART-1')], bronnen, (_a, qty) => { gezien.push(qty); return null })
+    expect(gezien).toEqual([25])
+  })
+})

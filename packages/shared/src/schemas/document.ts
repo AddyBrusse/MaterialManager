@@ -18,7 +18,8 @@ export const DOCUMENT_SOORT_LABEL: Record<DocumentSoort, string> = {
 export const DocumentRegelSchema = z.object({
   id: z.string(),                       // OFF-2026-001, PL-2026-004, …
   soort: z.enum(DOCUMENT_SOORTEN),
-  projectId: z.string(),
+  /** Leeg bij een losse factuur (2026-11-18): die hoort bij de klant. */
+  projectId: z.string().nullable(),
   projectNaam: z.string(),
   relatieId: z.string().nullable(),
   klantRef: z.string().nullable(),

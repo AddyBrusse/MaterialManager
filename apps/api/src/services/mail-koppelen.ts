@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import {
-  bewerkingenVan, mailAfzender, offerteReferentieUitMail, prijsVoor, projectVeldenUitMail,
+  afspraakVoorKlant, bewerkingenVan, mailAfzender, offerteReferentieUitMail, prijsVoor, projectVeldenUitMail, vandaagIso,
   receptTaakTitel, volgendeVersie, waaromNietWijzigen,
   type CandidateLine, type MailAttachment, type MailImport, type MailIntent, type MailKoppeling,
   type MailOvername, type Offerte, type OfferteRegel, type Project,
@@ -116,7 +116,11 @@ async function neemRegelsOver(
     kandidaten.push({ ...line, artikelId: artikel.id })
 
     const calc = calcArtikel(artikel)
-    const { verkoopprijs } = prijsVoor(calc, bronnen, qty)
+    // Een prijsafspraak met deze klant gaat voor de calculatie (2026-11-18).
+    const afspraken = (await tx.prijsafspraak.findMany({ where: { artikelId: artikel.id } }))
+      .map((a) => ({ ...a, updatedAt: a.updatedAt.toISOString() }))
+    const afspraak = afspraakVoorKlant(artikel, klant?.id ?? null, afspraken, qty, vandaagIso())
+    const verkoopprijs = afspraak ? afspraak.prijs : prijsVoor(calc, bronnen, qty).verkoopprijs
     if (verkoopprijs === 0) overname.zonderPrijs++
     regels.push({
       id: `regel_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,

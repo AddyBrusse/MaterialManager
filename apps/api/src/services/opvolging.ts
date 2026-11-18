@@ -3,11 +3,12 @@
 // Afgeleid bij het lezen, nooit opgeslagen.
 import type { Prisma } from '@prisma/client'
 import {
-  klokOpvolging, kostprijsVoor, projectOpvolging, receptOpvolging, todoOpvolging, vandaagIso,
+  klokOpvolging, kostprijsVoor, losseFactuurOpvolging, projectOpvolging, receptOpvolging, todoOpvolging, vandaagIso,
   type Melding,
 } from '@stockmanager/shared'
 import { PROJECT_INCLUDE, serialize } from './project-store'
 import { bronnenLaden, calcArtikel } from './prijs-snapshot'
+import { losseOpenFacturen } from './losse-facturen'
 
 type Db = Prisma.TransactionClient
 
@@ -17,7 +18,7 @@ const ORDER_OPEN = ['voorbereiding', 'gepland', 'in_productie']
 export async function opvolgingMeldingen(db: Db, nu = new Date()): Promise<Melding[]> {
   const vandaag = vandaagIso(nu)
   const begin = new Date(`${vandaag}T00:00:00`)
-  const [rows, klokken, todos] = await Promise.all([
+  const [rows, klokken, todos, losse] = await Promise.all([
     // Alles wat nog loopt, plus afgeronde projecten met een onbetaalde factuur.
     db.project.findMany({
       where: {
@@ -34,6 +35,7 @@ export async function opvolgingMeldingen(db: Db, nu = new Date()): Promise<Meldi
       where: { done: false, dueDate: { lt: begin }, OR: [{ soort: null }, { soort: { not: 'verbeterpunt' } }] },
       include: { claimedBy: { select: { name: true } } },
     }),
+    losseOpenFacturen(db),
   ])
   const projecten = rows.map(serialize)
   const relaties = await db.relatie.findMany({
@@ -44,6 +46,8 @@ export async function opvolgingMeldingen(db: Db, nu = new Date()): Promise<Meldi
 
   const uit: Melding[] = []
   for (const p of projecten) uit.push(...projectOpvolging(p, p.relatieId ? klant.get(p.relatieId) ?? null : null, nu))
+
+  for (const f of losse) uit.push(...losseFactuurOpvolging(f, nu))
 
   for (const k of klokken) {
     const m = klokOpvolging({ ...k, lopendSinds: k.lopendSinds?.toISOString() ?? null }, nu)

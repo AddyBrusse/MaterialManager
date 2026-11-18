@@ -1,15 +1,17 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Select, Tooltip } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconAlertTriangle, IconCheck, IconHelpCircle, IconPlus } from '@tabler/icons-react'
 import { mailImportsApi } from '../../api/mail-imports'
 import { articlesApi, type Article } from '../../api/articles'
 import { formatBedrag } from '../../api/projects'
+import { prijsafsprakenApi } from '../../api/prijsafspraken'
 import { resolvePreviewSourceFromFiles } from '../../utils/artikelPreview'
 import type { PrijsBronnen } from '../../utils/artikel-prijs'
 import { PreviewThumb } from './ArtikelPreviewThumb'
 import { vergelijkPrijs, type PrijsVergelijking } from './mail-prijzen'
-import type { CandidateLine, MailImport, MatchStatus } from '@stockmanager/shared'
+import { afspraakVoorKlant, vandaagIso, type CandidateLine, type MailImport, type MatchStatus } from '@stockmanager/shared'
 
 /**
  * De regels uit de mail — features/60-mail-import.md §3.7.
@@ -28,6 +30,8 @@ interface Props {
   mailImport: MailImport
   articleOptions: { value: string; label: string }[]
   bronnen: PrijsBronnen
+  /** De gekozen klant: zijn prijsafspraken zijn wat we vragen (2026-11-18). */
+  relatieId: string | null
   onChanged: (updated: MailImport) => void
 }
 
@@ -83,7 +87,7 @@ function Regel({
           // Een klant die met een oude prijslijst werkt moet je zien vóór je
           // bevestigt, niet bij het factureren.
           <Tooltip
-            label={`Onze prijs bij ${line.qty ?? 1} stuks: ${formatBedrag(prijs.onze)} — ${
+            label={`${prijs.bron === 'afspraak' ? 'Afgesproken prijs' : 'Onze prijs'} bij ${line.qty ?? 1} stuks: ${formatBedrag(prijs.onze)} — ${
               prijs.klantLager ? 'de klant rekent te weinig' : 'de klant rekent meer dan wij vragen'
             } (${prijs.procent > 0 ? '+' : ''}${prijs.procent}%)`}
             withArrow
@@ -122,7 +126,9 @@ function Regel({
   )
 }
 
-export function MailRegelsTable({ mailImport, articleOptions, bronnen, onChanged }: Props) {
+export function MailRegelsTable({ mailImport, articleOptions, bronnen, relatieId, onChanged }: Props) {
+  const { data: afspraken = [] } = useQuery({ queryKey: ['prijsafspraken', 'alle'], queryFn: () => prijsafsprakenApi.list() })
+  const vandaag = vandaagIso()
   const [busyId, setBusyId] = useState<string | null>(null)
   const lines = mailImport.kandidaten
   const alleArtikelen = articlesApi.list()
@@ -161,7 +167,11 @@ export function MailRegelsTable({ mailImport, articleOptions, bronnen, onChanged
     )
   }
 
-  const vergelijkingen = lines.map((l) => vergelijkPrijs(l, artikelVan(l), bronnen))
+  const vergelijkingen = lines.map((l) => {
+    const a = artikelVan(l)
+    const afspraak = a ? afspraakVoorKlant(a, relatieId, afspraken.filter((x) => x.artikelId === a.id), l.qty ?? 1, vandaag) : null
+    return vergelijkPrijs(l, a, bronnen, afspraak)
+  })
   const afwijkend = vergelijkingen.filter(Boolean).length
   const open = lines.filter((l) => !l.artikelId).length
 

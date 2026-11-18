@@ -87,13 +87,14 @@ router.get(
         bedrag: null,
         aantalRegels: l.regels.length,
       })),
+      // Een losse factuur (2026-11-18) hoort bij de klant, niet bij een project.
       ...facturen.map(f => ({
         id: f.id,
         soort: 'factuur' as const,
         projectId: f.projectId,
-        projectNaam: f.project.naam,
-        relatieId: f.project.relatieId,
-        klantRef: f.project.klantRef,
+        projectNaam: f.project?.naam ?? (f.soort === 'credit' ? 'Losse creditfactuur' : 'Losse factuur'),
+        relatieId: f.project?.relatieId ?? f.relatieId,
+        klantRef: f.project?.klantRef ?? f.klantRef,
         status: f.verzondenOp ? 'verzonden' : 'concept',
         datum: f.createdAt.toISOString(),
         verzondenOp: f.verzondenOp,

@@ -1,5 +1,5 @@
-import { IconChevronDown, IconChevronRight, IconCornerDownRight, IconFileTypePdf, IconTrash } from '@tabler/icons-react'
-import { isVervallen, type Factuur } from '@stockmanager/shared'
+import { IconArrowBackUp, IconChevronDown, IconChevronRight, IconCornerDownRight, IconFileTypePdf, IconTrash } from '@tabler/icons-react'
+import { factuurNummerTekst, heeftFactuurnummer, isVervallen, type Factuur } from '@stockmanager/shared'
 import { CelTekst } from '../../components/CelTekst'
 import { datum, eur } from '../../lib/format'
 
@@ -12,13 +12,18 @@ interface Props {
   onPdf: () => void
   onVerstuur: () => void
   onVerwijder: () => void
+  onNummerIn: () => void
   onCrediteer: () => void
   onBetaald: (betaald: boolean) => void
 }
 
 /** Wat de status in een woord en een zin zegt. */
-function status(f: Factuur): { pill: string; kleur: string; uitleg: string } {
-  if (!f.verzondenOp) return { pill: 'Concept', kleur: '', uitleg: 'nog aan te passen' }
+export function factuurStatus(
+  f: Pick<Factuur, 'id' | 'soort' | 'verzondenOp' | 'betaaldOp' | 'vervaldatum' | 'crediteertFactuurId'>,
+): { pill: string; kleur: string; uitleg: string } {
+  if (!f.verzondenOp && heeftFactuurnummer(f.id)) return { pill: 'Genummerd', kleur: 'warn', uitleg: 'nog niet verstuurd' }
+  if (!f.verzondenOp) return { pill: 'Concept', kleur: '', uitleg: 'nummer komt bij versturen' }
+  if (f.soort === 'credit' && !f.crediteertFactuurId) return { pill: 'Verstuurd', kleur: 'ok', uitleg: 'losse credit' }
   if (f.soort === 'credit') return { pill: 'Verstuurd', kleur: 'ok', uitleg: `verrekend met ${f.crediteertFactuurId}` }
   if (f.betaaldOp) return { pill: 'Betaald', kleur: 'ok', uitleg: `op ${datum(f.betaaldOp)}` }
   if (isVervallen(f)) return { pill: 'Vervallen', kleur: 'dgr', uitleg: `had ${datum(f.vervaldatum)} betaald moeten zijn` }
@@ -32,17 +37,18 @@ function status(f: Factuur): { pill: string; kleur: string; uitleg: string } {
  */
 export function FactuurRij(props: Props) {
   const { f, open, geblokkeerd } = props
-  const s = status(f)
+  const s = factuurStatus(f)
   const credit = f.soort === 'credit'
   const concept = !f.verzondenOp
+  const genummerd = heeftFactuurnummer(f.id)
   return (
     <tr className={credit ? 'pdv2-credit-rij' : undefined}>
       <td>
         <button type="button" className="pdv2-uitklap" aria-expanded={open} onClick={props.onToggle}
-          aria-label={`Regels van ${f.id} ${open ? 'verbergen' : 'tonen'}`}>
+          aria-label={`Regels van ${factuurNummerTekst(f.id)} ${open ? 'verbergen' : 'tonen'}`}>
           {credit && <IconCornerDownRight size={12} />}
           {open ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}
-          <span className="mono" style={{ whiteSpace: 'nowrap' }}>{f.id}</span>
+          <span className="mono" style={{ whiteSpace: 'nowrap' }}>{factuurNummerTekst(f.id)}</span>
         </button>
       </td>
       <td>
@@ -68,9 +74,16 @@ export function FactuurRij(props: Props) {
           {concept && (
             <>
               <button type="button" className="pdv2-btn s primair" disabled={geblokkeerd} onClick={props.onVerstuur}>Versturen</button>
-              <button type="button" className="pdv2-btn s" disabled={geblokkeerd} onClick={props.onVerwijder}>
-                <IconTrash size={12} /> Verwijderen
-              </button>
+              {genummerd ? (
+                <button type="button" className="pdv2-btn s" disabled={geblokkeerd} onClick={props.onNummerIn}
+                  title="Terug naar concept; kan alleen bij het laatst uitgegeven nummer">
+                  <IconArrowBackUp size={12} /> Nummer intrekken
+                </button>
+              ) : (
+                <button type="button" className="pdv2-btn s" disabled={geblokkeerd} onClick={props.onVerwijder}>
+                  <IconTrash size={12} /> Verwijderen
+                </button>
+              )}
             </>
           )}
           {!concept && !credit && !f.betaaldOp && (

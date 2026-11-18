@@ -195,7 +195,7 @@ export function ProjectDetailPage() {
   const acties = useProjectActies(project, (t) => kiesTab(t as TabId))
   // Op de pagina, niet in de tab: "Opdracht versturen" kan ook vanuit de footer.
   const obDoc = useObDocument(project, acties.verzendOB)
-  const factuurDoc = useFactuurDocument(project, acties.verzendFactuur)
+  const factuurDoc = useFactuurDocument(project, acties.verzendFactuur, acties.ververs)
   const pakbonDoc = usePakbonDocument(project, acties.verzendPaklijst)
   const offerteDoc = useOfferteDocument(project, acties.verzendOfferte)
 
@@ -428,6 +428,7 @@ export function ProjectDetailPage() {
               onPdf={factuurDoc.openen}
               onVerstuur={factuurDoc.klaarzetten}
               onVerwijder={acties.verwijderFactuur}
+              onNummerIn={acties.trekNummerIn}
               onCrediteer={acties.crediteer}
               onBetaald={acties.markeerBetaald}
             />

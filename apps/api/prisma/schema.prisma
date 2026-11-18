@@ -375,8 +375,57 @@ model Article {
   reserveringen  ZaagReservering[]
   prijsSnapshots ArtikelPrijsSnapshot[]
   exoten         RawMaterial[] @relation("ExootArtikel")
+  prijsafspraken Prijsafspraak[]
+  mutaties       ArtikelMutatie[]
 
   @@map("articles")
+}
+
+/// Prijsafspraak met de klant van het artikel (2026-11-18). Vult de prijs op
+/// een offerte, een directe opdracht en een losse factuur; de mail-import
+/// vergelijkt de prijs van de klant ermee. Altijd te overschrijven.
+/// Staffel: de afspraak met het hoogste `vanafAantal` dat het aantal haalt.
+model Prijsafspraak {
+  id          String   @id @default(uuid())
+  artikelId   String   @map("artikel_id")
+  /// Per stuk, excl. btw.
+  prijs       Float
+  vanafAantal Int      @default(1) @map("vanaf_aantal")
+  /// yyyy-mm-dd; leeg = altijd al / voor onbepaalde tijd.
+  geldigVan   String?  @map("geldig_van")
+  geldigTot   String?  @map("geldig_tot")
+  /// Waar de afspraak vandaan komt: contract, mail, prijslijst 2026.
+  kenmerk     String?
+  door        String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  artikel Article @relation(fields: [artikelId], references: [id], onDelete: Cascade)
+
+  @@index([artikelId])
+  @@map("prijsafspraken")
+}
+
+/// Elke wijziging van de vrije artikelvoorraad (2026-11-18), met de stand
+/// erna. `articles.current_stock` is de stand; dit is waarom hij zo staat.
+model ArtikelMutatie {
+  id        String   @id @default(uuid())
+  artikelId String   @map("artikel_id")
+  /// Stuks: positief erbij, negatief eraf.
+  aantal    Float
+  /// 'factuur' (losse factuur verstuurd) | 'credit' (retour) | 'hand'
+  soort     String
+  factuurId String?  @map("factuur_id")
+  reden     String?
+  /// De stand na deze mutatie.
+  stand     Float
+  door      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  artikel Article @relation(fields: [artikelId], references: [id], onDelete: Cascade)
+
+  @@index([artikelId, createdAt])
+  @@map("artikel_mutaties")
 }
 
 /// Prijshistorie van een artikel: één rij per meetmoment.
@@ -959,12 +1008,31 @@ model PaklijstRegel {
 // ── Factuur ───────────────────────────────────────────────────────────────────
 
 model Factuur {
-  id            String   @id // FACT-YYYY-NNN of CRED-YYYY-NNN
+  /// FACT-YYYY-NNN of CRED-YYYY-NNN zodra hij een nummer heeft. Een concept
+  /// heeft nog geen nummer (FACT-concept-…): het nummer komt pas bij versturen,
+  /// zodat een weggegooid concept geen gat in de reeks slaat (2026-11-18).
+  id            String   @id
   /// Een credit is geen negatieve factuur maar een eigen document: de factuur
   /// die hij crediteert is verstuurd en blijft staan, de credit telt ernaast.
   soort         String   @default("factuur")
-  projectId     String   @map("project_id")
-  offerteId     String   @map("offerte_id")
+  /// Leeg bij een losse factuur (2026-11-18): die hoort bij de klant, niet bij
+  /// een project. Een projectfactuur heeft altijd allebei.
+  projectId     String?  @map("project_id")
+  offerteId     String?  @map("offerte_id")
+  /// Losse factuur: de klant. Geen foreign key, net als bij een project; het
+  /// verwijderen van een relatie met facturen weigert de route zelf.
+  relatieId     String?  @map("relatie_id")
+  contactId     String?  @map("contact_id")
+  /// Losse factuur: het ordernummer of de referentie van de klant.
+  klantRef      String?  @map("klant_ref")
+  /// Losse factuur: wanneer de goederen de deur uit gingen (yyyy-mm-dd). Bij
+  /// een projectfactuur komt dit uit de pakbonnen en wordt het niet opgeslagen.
+  leverdatum    String?
+  /// Losse credit zonder factuur: waarom. Verplicht, want zonder factuur is
+  /// dit de enige verklaring in de administratie.
+  reden         String?
+  /// Losse credit: gaan de stuks terug op voorraad bij versturen?
+  retour        Boolean  @default(false)
   btwPct        Float    @map("btw_pct")
   subtotaal     Float
   btwBedrag     Float    @map("btw_bedrag")
@@ -980,22 +1048,26 @@ model Factuur {
 
   crediteertFactuurId String? @map("crediteert_factuur_id")
 
-  project    Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project    Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   regels     FactuurRegel[]
   crediteert Factuur?       @relation("FactuurCredit", fields: [crediteertFactuurId], references: [id], onDelete: SetNull)
   credits    Factuur[]      @relation("FactuurCredit")
 
   @@index([projectId])
+  @@index([relatieId])
   @@index([verzondenOp])
   @@index([soort])
   @@map("facturen")
 }
 
 model FactuurRegel {
-  id             String @id
-  factuurId      String @map("factuur_id")
-  sortOrder      Int    @map("sort_order")
-  offerteRegelId String @map("offerte_regel_id")
+  id             String  @id
+  factuurId      String  @map("factuur_id")
+  sortOrder      Int     @map("sort_order")
+  /// Projectfactuur: de orderregel. Leeg op een losse factuur.
+  offerteRegelId String? @map("offerte_regel_id")
+  /// Losse factuur: het artikel, of leeg bij een vrije regel (verzendkosten).
+  artikelId      String? @map("artikel_id")
   naam           String
   qty            Float
   eenheid        String

@@ -292,6 +292,7 @@ export function OffertesTab({
         <PrijzenBijwerkenModal
           opened
           offerte={prijzenOfferte}
+          relatieId={project.relatieId}
           onClose={() => setPrijzen(null)}
           onBijwerken={(gekozen) => {
             setPrijzen(null)

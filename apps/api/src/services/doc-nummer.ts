@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import {
-  gatInFactuurnummers, waaromNietNummerZetten,
+  factuurReeks, gatInFactuurnummers, waaromNietNummerZetten,
   type DocPrefix, type DocReeksStand, type DocReeksWijziging, type NummerWijzig,
 } from '@stockmanager/shared'
 import { prisma } from '../db/client'
@@ -85,6 +85,23 @@ export async function nextDocId(db: Db, prefix: DocPrefix, nu = new Date()): Pro
     500, 'INTERNAL',
     `Geen vrij ${prefix}-nummer gevonden; controleer de teller ${sleutel} in doc_sequences`,
   )
+}
+
+/**
+ * Een factuur- of creditnummer teruggeven aan de reeks (2026-11-18): alleen als
+ * het het laatst uitgegeven nummer is, want alleen dan ontstaat er geen gat.
+ * Geeft null bij succes, anders het laatst uitgegeven nummer (voor de melding).
+ */
+export async function geefNummerTerug(db: Db, id: string): Promise<{ laatste: string | null } | null> {
+  const r = factuurReeks(id)
+  if (!r) return { laatste: null }
+  const sleutel = reeksSleutel(r.prefix, r.jaar)
+  const gewijzigd = await db.$executeRaw`
+    UPDATE doc_sequences SET last_n = last_n - 1 WHERE prefix = ${sleutel} AND last_n = ${r.n}
+  `
+  if (gewijzigd === 1) return null
+  const [rij] = await db.$queryRaw<{ last_n: number }[]>`SELECT last_n FROM doc_sequences WHERE prefix = ${sleutel}`
+  return { laatste: rij ? docNummer(r.prefix, r.jaar, rij.last_n) : null }
 }
 
 /**

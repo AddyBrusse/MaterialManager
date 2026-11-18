@@ -130,7 +130,7 @@ export function ArticleInfoCard({
       <div className="ad-eyebrow"><Ic d={Icon.pkg} />Voorraad</div>
       <div className="ad-stat3">
         <div className="ad-stat">
-          <span className="ad-stat-label">Op voorraad</span>
+          <span className="ad-stat-label" title="Vrije voorraad. Tellen op de tab Prijs & voorraad.">Vrij op voorraad</span>
           <div className="ad-statbox disabled">
             <input type="number" value={meta.currentStock} disabled readOnly />
             <span className="ad-stat-unit">st</span>

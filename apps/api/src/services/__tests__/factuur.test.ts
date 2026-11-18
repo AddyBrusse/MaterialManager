@@ -97,7 +97,7 @@ describe('credit', () => {
 
   it('crediteert alleen een verstuurde factuur', () => {
     const p = project([], [factuur('F1', [['r-A', 10, 10]])])
-    expect(waaromNietCredit(p, 'F1', [])).toContain('nog een concept')
+    expect(waaromNietCredit(p, 'F1', [])).toContain('nog niet verstuurd')
   })
 })
 

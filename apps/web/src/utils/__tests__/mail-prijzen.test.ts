@@ -74,3 +74,18 @@ describe('telAfwijkingen', () => {
     expect(telAfwijkingen(v)).toEqual({ totaal: 2, inOnsNadeel: 1 })
   })
 })
+
+describe('vergelijkPrijs met een prijsafspraak (2026-11-18)', () => {
+  it('vergelijkt met de afspraak, niet met de calculatie', () => {
+    const v = vergelijkPrijs(line(85), artikelMetPrijs(100), bronnen, { prijs: 90 })!
+    expect(v).toMatchObject({ onze: 90, bron: 'afspraak', klantLager: true })
+  })
+
+  it('klopt de klant met de afspraak, dan is er niets te melden', () => {
+    expect(vergelijkPrijs(line(90), artikelMetPrijs(100), bronnen, { prijs: 90 })).toBeNull()
+  })
+
+  it('zonder afspraak: de calculatie', () => {
+    expect(vergelijkPrijs(line(85), artikelMetPrijs(100), bronnen)?.bron).toBe('calculatie')
+  })
+})

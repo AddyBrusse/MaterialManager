@@ -1,5 +1,5 @@
 import type jsPDF from 'jspdf'
-import type { Factuur, Project, User } from '@stockmanager/shared'
+import { heeftFactuurnummer, leveringVanFactuur, leverdatumTekst, type Factuur, type Project, type User } from '@stockmanager/shared'
 import { companyApi } from '../../../../api/company'
 import { documentAssets } from '../../../../services/document/assets'
 import { factuurDocument } from '../../../../services/document/documenten'
@@ -15,10 +15,11 @@ import { datum, eur } from './format'
 
 export function factuurPdf(p: Project, f: Factuur): jsPDF {
   const { relatie } = klantVan(p)
+  const levering = leveringVanFactuur(p, f.id)
   return factuurDocument(
     {
       soort: f.soort,
-      nummer: f.id,
+      nummer: heeftFactuurnummer(f.id) ? f.id : null,
       datum: f.verzondenOp ?? f.createdAt,
       vervaldatum: f.vervaldatum,
       crediteert: f.crediteertFactuurId,
@@ -28,6 +29,8 @@ export function factuurPdf(p: Project, f: Factuur): jsPDF {
       },
       referentie: p.opdrachtbevestiging?.opdrachtRef || p.klantRef || null,
       project: p.naam,
+      leverdatum: leverdatumTekst(levering.data),
+      pakbonnen: levering.pakbonnen,
       regels: f.regels.map((r) => {
         const artikel = artikelVanRegel(p, r.offerteRegelId)
         return {
@@ -51,8 +54,8 @@ export function factuurPdf(p: Project, f: Factuur): jsPDF {
   )
 }
 
-export function factuurBestandsnaam(f: Factuur): string {
-  return `${f.soort === 'credit' ? 'Creditfactuur' : 'Factuur'}-${f.id}.pdf`
+export function factuurBestandsnaam(f: Pick<Factuur, 'id' | 'soort'>): string {
+  return `${f.soort === 'credit' ? 'Creditfactuur' : 'Factuur'}-${heeftFactuurnummer(f.id) ? f.id : 'concept'}.pdf`
 }
 
 const esc = (t: string) =>

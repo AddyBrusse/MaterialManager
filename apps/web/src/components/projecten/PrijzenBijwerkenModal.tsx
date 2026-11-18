@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Modal } from '@mantine/core'
+import { afspraakVoorKlant, vandaagIso } from '@stockmanager/shared'
+import { prijsafsprakenApi } from '../../api/prijsafspraken'
 import { IconAlertTriangle } from '@tabler/icons-react'
 import { formatBedrag } from '../../api/projects'
 import { articlesApi } from '../../api/articles'
@@ -26,6 +29,8 @@ import type { Offerte } from '@stockmanager/shared'
 interface Props {
   opened: boolean
   offerte: Offerte
+  /** De klant van het project: zijn prijsafspraken gaan voor de calculatie (2026-11-18). */
+  relatieId: string | null
   onClose: () => void
   onBijwerken: (gekozen: Bijwerking[]) => void
 }
@@ -38,15 +43,21 @@ const REDEN_TEKST: Record<Bijwerking['reden'], string> = {
   'geen-artikel': 'geen gekoppeld artikel',
 }
 
-export function PrijzenBijwerkenModal({ opened, offerte, onClose, onBijwerken }: Props) {
+export function PrijzenBijwerkenModal({ opened, offerte, relatieId, onClose, onBijwerken }: Props) {
+  const { data: afspraken, isLoading } = useQuery({
+    queryKey: ['prijsafspraken', 'alle'],
+    queryFn: () => prijsafsprakenApi.list(),
+    enabled: opened,
+  })
   const bijwerkingen = useMemo(() => {
-    if (!opened) return []
+    if (!opened || isLoading) return []
+    const vandaag = vandaagIso()
     return berekenBijwerkingen(offerte.regels, articlesApi.list(), {
       grades: gradesApi.listSync(),
       profiles: profilesApi.listSync(),
       machines: machinesApi.listSync(),
-    })
-  }, [opened, offerte.regels])
+    }, (artikel, qty) => afspraakVoorKlant(artikel, relatieId, (afspraken ?? []).filter((x) => x.artikelId === artikel.id), qty, vandaag))
+  }, [opened, isLoading, offerte.regels, afspraken, relatieId])
 
   const teDoen = bijwerkingen.filter(isBijTeWerken)
   const rest = bijwerkingen.filter((b) => !isBijTeWerken(b))
@@ -66,10 +77,10 @@ export function PrijzenBijwerkenModal({ opened, offerte, onClose, onBijwerken }:
   }
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Prijzen bijwerken uit de calculaties" size="lg">
+    <Modal opened={opened} onClose={onClose} title="Prijzen bijwerken uit calculatie en prijsafspraak" size="lg">
       {teDoen.length === 0 ? (
         <div style={{ color: 'var(--text-2)', fontSize: 13, padding: '4px 0 12px' }}>
-          Er is niets bij te werken — de prijzen komen overeen met de calculaties.
+          Er is niets bij te werken — de prijzen komen overeen met de calculaties en prijsafspraken.
         </div>
       ) : (
         <>
@@ -126,8 +137,9 @@ export function PrijzenBijwerkenModal({ opened, offerte, onClose, onBijwerken }:
                   <td style={{ textAlign: 'right', color: 'var(--text-2)' }}>
                     {formatBedrag(b.oudeVerkoopprijs)}
                   </td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                  <td style={{ textAlign: 'right', fontWeight: 600, height: 'auto' }}>
                     {formatBedrag(b.nieuweVerkoopprijs)}
+                    {b.uitAfspraak && <div style={{ color: 'var(--text-3)', fontSize: 11, fontWeight: 400 }}>prijsafspraak</div>}
                   </td>
                 </tr>
               ))}

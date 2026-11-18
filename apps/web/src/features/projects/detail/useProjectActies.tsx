@@ -84,6 +84,7 @@ interface ProjectActies {
   maakFactuur: () => void
   /** Na "Ja, verstuurd": vastleggen, met het adres waar hij heen ging. */
   verzendFactuur: (factuurId: string, naar: string | null) => void
+  trekNummerIn: (factuurId: string) => void
   crediteer: (factuurId: string) => void
   wijzigFactuur: (factuurId: string, patch: { regels?: FactuurRegelKeuze[]; naarEmail?: string | null }) => boolean
   verwijderFactuur: (factuurId: string) => void
@@ -168,7 +169,7 @@ export function useProjectActies(
    * scherm tot de server antwoordt, dus bij een fout is er niets terug te zetten.
    */
   const doeEnWacht = useCallback(
-    (actie: string, gelukt: string, fn: () => Promise<unknown> | void): void => {
+    (actie: string, gelukt: string, fn: () => Promise<unknown> | void, gevolgBijFout = 'Er is niets aangemaakt. Probeer het opnieuw.'): void => {
       if (!project) return
       Promise.resolve()
         .then(fn)
@@ -183,7 +184,7 @@ export function useProjectActies(
             fout,
             gevolg: fout instanceof ApiFout && fout.code === 'TIMEOUT'
               ? 'Onbekend of het gelukt is: de server antwoordde niet op tijd. Ververs de pagina voor je het opnieuw doet.'
-              : 'Er is niets aangemaakt. Probeer het opnieuw.',
+              : gevolgBijFout,
           })
         })
     },
@@ -217,6 +218,7 @@ export function useProjectActies(
     verzendPaklijst: () => {},
     maakFactuur: () => {},
     verzendFactuur: () => {},
+    trekNummerIn: () => {},
     crediteer: () => {},
     wijzigFactuur: () => false,
     verwijderFactuur: () => {},
@@ -622,6 +624,9 @@ export function useProjectActies(
     verzendFactuur: (factuurId, naar) =>
       doe(`${factuurId} versturen`, `${factuurId} staat als verstuurd${naar ? ` aan ${naar}` : ''}`, () =>
         projectsApi.verzendFactuur(id, factuurId, naar)),
+    trekNummerIn: (factuurId) =>
+      doeEnWacht(`Nummer ${factuurId} intrekken`, `${factuurId} is weer een concept; de volgende factuur krijgt dit nummer`, () =>
+        projectsApi.trekFactuurnummerIn(id, factuurId), `${factuurId} houdt zijn nummer; er is niets gewijzigd.`),
     crediteer: (factuurId) =>
       doe(`Creditfactuur op ${factuurId} maken`, `Creditfactuur op ${factuurId} aangemaakt`, () => projectsApi.createCredit(id, factuurId)),
     wijzigFactuur: (factuurId, patch) =>

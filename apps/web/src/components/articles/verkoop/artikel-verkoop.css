@@ -1,0 +1,11 @@
+/* Tab "Prijs & voorraad" op de artikelpagina (2026-11-18). Bouwt op .ph-* van de prijshistorie. */
+.av-sectie { display: flex; flex-direction: column; gap: 8px; }
+.av-kop { display: flex; align-items: baseline; gap: 10px; }
+.av-kop h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--text); }
+.av-kop .av-uitleg { font-size: 11px; color: var(--text-3); flex: 1; }
+.av-tabel tbody tr { cursor: default; }
+.av-tabel td.av-acties { text-align: right; white-space: nowrap; }
+.av-geldt { font-size: 10.5px; padding: 1px 6px; border-radius: 8px; background: var(--success-soft, #e7f6ec); color: var(--success); }
+.av-verlopen { color: var(--text-4); }
+.av-plus { color: var(--success); }
+.av-min { color: var(--danger, #c0392b); }

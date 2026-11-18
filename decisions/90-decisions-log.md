@@ -2928,3 +2928,69 @@ vingers glipt. Voorstel met vijf vragen; Addy nam alle aanbevelingen over.
   modellen met een bekende prijs). De instructies met de tabellen staan in de
   cache van Anthropic. Model blijft Opus 5.5; na een week naar het echte
   verbruik kijken.
+
+## 2026-11-18 — Direct factureren: losse factuur, prijsafspraak, artikelvoorraad, nummer bij versturen
+
+**Aanleiding (Addy):** klanten als Post bestellen wekelijks artikelen tegen een
+afgesproken prijs, zonder offerte. Tot nu kon een factuur alleen bij een
+project, na offerte, opdracht en pakbon. Elf vragen gesteld; antwoorden van
+Addy staan hieronder als keuze.
+
+**Besluiten:**
+
+- **Een factuurnummer pas bij Versturen** (keuze Addy), voor elke factuur en
+  credit, ook op een project. Een concept heet `FACT-concept-xxxxxxxx`; het
+  nummer komt bij de stap "nummer" vlak voor de `.eml` (`nextDocId`). Zo valt
+  er geen gat meer door een concept dat weggaat. Weggooien kan alleen zonder
+  nummer. **Afwijking van het plan:** het plan zei dat "Nee, niet verstuurd"
+  het nummer teruggeeft. Dat doet het niet vanzelf, want als de mail toch
+  wegging bestaat het nummer twee keer. In plaats daarvan is er de knop
+  **Nummer intrekken**, alleen voor het laatst uitgegeven nummer en zonder
+  credit eraan (`geefNummerTerug` zet de teller één terug). Bestaande
+  concepten die al een nummer hadden, houden dat: ze staan als "Genummerd".
+- **Het concept-id maakt de browser en de server neemt het over** (alleen als
+  het een concept-id is dat nog niet bestaat). Gevonden in de browsertest: met
+  een tijdelijk id (`FACT-nieuw-…`) wees Versturen, direct na Nieuwe factuur,
+  naar een factuur die de server al onder een ander id had opgeslagen ("bestaat
+  niet (meer)").
+- **Leverdatum op de factuur**: bij een projectfactuur de laatste pakbon die
+  erop staat (`leveringVanFactuur`), bij een losse factuur het veld zelf, leeg =
+  de factuurdatum.
+- **Prijsafspraak per artikel** (`prijsafspraken`), met staffel ("vanaf
+  aantal", de hoogste die het aantal haalt wint) en geldig van/tot. Een artikel
+  hoort bij één klant, dus een afspraak per artikel is een afspraak met die
+  klant; een artikel zonder klant: voor iedereen. Twee afspraken voor hetzelfde
+  aantal mogen niet overlappen (`waaromNietPrijsafspraak`). De afspraak vult de
+  prijs in de artikelkiezer van offerte en opdracht, in "Prijzen bijwerken", en
+  de mailimport vergelijkt ermee en neemt hem over bij koppelen. Niet
+  overgezet uit het oude pakket (keuze Addy).
+- **Losse factuur en losse credit**, bij de klant zonder project, op de nieuwe
+  pagina **Facturen** (`/facturen`, ook alle projectfacturen, die openen op hun
+  project). Regels zijn artikelen van de klant of vrije regels (verzendkosten).
+  Prijsvoorstel per regel: afspraak, anders wat de klant de laatste keer
+  betaalde, anders de calculatie, anders € 0 met "vul hem in" (de volgorde na
+  de afspraak is een keuze van Claude, niet van Addy). Een credit hoort bij een
+  verstuurde losse factuur (niet meer dan er openstaat) of staat los met een
+  verplichte reden. Een pakbon-pdf voor in de doos op het factuurnummer.
+- **Artikelvoorraad** (keuze Addy: bij gereedmelden en bij factureren):
+  `articles.current_stock` is de **vrije** voorraad, met een logboek
+  `artikel_mutaties` (`services/artikel-voorraad.ts`). Hij verandert alleen
+  door een verstuurde losse factuur (af), een verstuurde retour-credit (erbij),
+  tellen met een reden, en de beginstand bij aanmaken. **Klaar voor orders**
+  (gereedgemeld, nog niet op een verstuurde pakbon) wordt afgeleid en nooit
+  opgeslagen; een projectfactuur raakt de artikelvoorraad niet. Te weinig vrij
+  is een waarschuwing met "Toch versturen", geen weigering: het getal werd tot
+  nu nergens bijgehouden. **PATCH op een artikel negeert `currentStock`**: het
+  artikelformulier en het automatisch opslaan stuurden de oude stand mee en
+  zouden een afboeking overschrijven. Tellen gebeurt op de artikelpagina, tab
+  Prijs & voorraad.
+- **Een klant met losse facturen is niet te verwijderen.** Opvolging meldt een
+  losse concept-factuur die blijft liggen en een vervallen losse factuur. De
+  terminal kan niets van dit alles (toelaatlijst).
+- Bijvangst: de Documentenpagina opende opdrachtbevestiging, paklijst en
+  factuur op een tab die niet bestaat (dus Algemeen); nu op Opdracht,
+  Pakbonnen en Facturen.
+
+**Getest:** 33 nieuwe unittests (API 631, web 329), 70 API-controles en 80
+browserstappen op een testdatabase, waaronder de pdf uit de `.eml` (nummer,
+leverdatum, referentie). Scripts in de projectmap `direct-factureren/`.

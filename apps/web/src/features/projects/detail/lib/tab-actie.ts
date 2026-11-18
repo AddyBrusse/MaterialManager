@@ -15,7 +15,7 @@
  */
 
 import type { Project, ProjectVoortgang } from '@stockmanager/shared'
-import { laatsteFactuur, laatstePaklijst, obInhoud, obWijzigingen, waarschuwingenBijVrijgeven } from '@stockmanager/shared'
+import { heeftFactuurnummer, laatsteFactuur, laatstePaklijst, obInhoud, obWijzigingen, waarschuwingenBijVrijgeven } from '@stockmanager/shared'
 import type { ActieVM, TabId } from '../types'
 import { faseLabel, geaccepteerdeOfferte, stapTelling, teAccepteren } from './status'
 
@@ -214,9 +214,12 @@ function pakbonnenActie(p: Project, v: ProjectVoortgang): TabActie {
 function facturenActie(p: Project, v: ProjectVoortgang): TabActie {
   const concept = p.facturen.find((f) => !f.verzondenOp)
   if (concept) {
+    const naam = heeftFactuurnummer(concept.id)
+      ? `${concept.soort === 'credit' ? 'Credit' : 'Factuur'} ${concept.id}`
+      : concept.soort === 'credit' ? 'Conceptcredit' : 'Conceptfactuur'
     return concept.regels.length > 0
-      ? kan(`${concept.soort === 'credit' ? 'Credit' : 'Factuur'} ${concept.id} versturen`, { soort: 'factuur-versturen', factuurId: concept.id })
-      : uit(`${concept.id} versturen`, `${concept.id} heeft nog geen regels. Voeg eerst toe wat er gefactureerd wordt.`)
+      ? kan(`${naam} versturen`, { soort: 'factuur-versturen', factuurId: concept.id })
+      : uit(`${naam} versturen`, `${naam} heeft nog geen regels. Voeg eerst toe wat er gefactureerd wordt.`)
   }
   if (v.teFactureren > 0) return kan(`Nieuwe factuur (${v.teFactureren} te factureren)`, { soort: 'factuur-maken' })
   if (v.besteld > 0 && v.gefactureerd >= v.besteld) {

@@ -12,6 +12,7 @@ import {
   statusNaLevering, waaromNietPakbon, voorstelPakbon, pakbonRegels, waaromNietPakbonWijzigen,
   BTW_PCT, factuurBedragen, factuurRegels, factuurMailadres, voorstelFactuur, voorstelCredit, waaromNietFactuur,
   waaromNietCredit, waaromNietFactuurWijzigen, waaromNietFactuurVersturen, waaromNietBetaald, vervaldatumVanaf,
+  waaromNietFactuurVerwijderen, waaromNietNummerIntrekken, conceptFactuurId,
   waaromNietPakbonVersturen,
 } from '@stockmanager/shared'
 import { apiFetch, ApiFout } from './client'
@@ -888,7 +889,9 @@ export const projectsApi = {
     const relatie = p.relatieId ? relatiesApi.listSync().find(r => r.id === p.relatieId) ?? null : null
     const regels = factuurRegels(p, keuze)
     const f: Factuur = {
-      id: tijdelijkId('FACT'), soort: 'factuur', crediteertFactuurId: null, projectId,
+      // Een concept-id, geen tijdelijk: de server neemt het over, zodat het niet
+      // wisselt terwijl je al op Versturen drukt (2026-11-18).
+      id: conceptFactuurId('factuur'), soort: 'factuur', crediteertFactuurId: null, projectId,
       offerteId: p.opdrachtbevestiging?.offerteId ?? '', regels, btwPct: BTW_PCT, ...factuurBedragen(regels),
       notities: '', vervaldatum: null, verzondenOp: null, betaaldOp: null, createdAt: now(),
       naarEmail: factuurMailadres(relatie, relatie?.contacten.find(c => c.id === p.contactId)),
@@ -897,7 +900,7 @@ export const projectsApi = {
       const next = { ...p, facturen: [...p.facturen, f], updatedAt: now() }
       return { ...next, status: statusNaLevering(next) }
     })
-    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur`, { method: 'POST', body: '{}' }), 'Factuur aanmaken')
+    syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur`, { method: 'POST', body: JSON.stringify({ id: f.id }) }), 'Factuur aanmaken')
     return updated
   },
 
@@ -914,13 +917,13 @@ export const projectsApi = {
       return { ...r, qty: g.qty, totaal: Math.round(g.qty * g.verkoopprijs * 100) / 100 }
     })
     const c: Factuur = {
-      id: tijdelijkId('CRED'), soort: 'credit', crediteertFactuurId: factuurId, projectId,
+      id: conceptFactuurId('credit'), soort: 'credit', crediteertFactuurId: factuurId, projectId,
       offerteId: bron.offerteId, regels, btwPct: bron.btwPct, ...factuurBedragen(regels, bron.btwPct),
       notities: '', vervaldatum: null, verzondenOp: null, betaaldOp: null, naarEmail: bron.naarEmail, createdAt: now(),
     }
     const updated = updateCache(projectId, p => ({ ...p, facturen: [...p.facturen, c], updatedAt: now() }))
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/credit`, {
-      method: 'POST', body: JSON.stringify({ factuurId }),
+      method: 'POST', body: JSON.stringify({ factuurId, id: c.id }),
     }), 'Creditfactuur aanmaken')
     return updated
   },
@@ -966,7 +969,7 @@ export const projectsApi = {
   verwijderFactuur(projectId: string, factuurId: string): Project {
     const p = cache.find(p => p.id === projectId)
     if (!p) throw new Error('Project niet gevonden')
-    const nee = waaromNietFactuurWijzigen(p, factuurId)
+    const nee = waaromNietFactuurVerwijderen(p, factuurId)
     if (nee) throw new Weigering(nee)
     const updated = updateCache(projectId, p => {
       const next = { ...p, facturen: p.facturen.filter(f => f.id !== factuurId), updatedAt: now() }
@@ -974,6 +977,48 @@ export const projectsApi = {
     })
     syncProject(projectId, apiFetch<Project>(`/projects/${projectId}/factuur/${factuurId}`, { method: 'DELETE' }), 'Factuur verwijderen')
     return updated
+  },
+
+  /**
+   * Het factuurnummer halen (2026-11-18): de eerste stap van Versturen, want de
+   * pdf in de mail moet het nummer dragen. Niet optimistisch: het nummer geeft
+   * alleen de server. Geeft de factuur zoals hij nu heet.
+   */
+  async nummerFactuur(projectId: string, factuurId: string, naarEmail: string | null): Promise<Factuur> {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const nee = waaromNietFactuurVersturen(p, factuurId, naarEmail)
+    if (nee) throw new Weigering(nee)
+    // Eerst wat er nog onderweg is (een regel, het mailadres): het nummer hoort
+    // bij de factuur zoals hij op de server staat.
+    if (!(await wachtOpOpslag(projectId))) {
+      throw new Weigering('Een eerdere wijziging aan dit project is niet opgeslagen. Kijk of de factuur klopt en druk dan opnieuw op Versturen.')
+    }
+    if (!cache.find(x => x.id === projectId)?.facturen.some(f => f.id === factuurId)) {
+      throw new Weigering('De factuur is net opgeslagen. Druk nog eens op Versturen.')
+    }
+    const { data } = await apiFetch<{ project: Project; factuurId: string }>(
+      `/projects/${projectId}/factuur/${factuurId}/nummer`, { method: 'POST', body: JSON.stringify({ naarEmail }) },
+    )
+    wijzigTeller[projectId] = (wijzigTeller[projectId] ?? 0) + 1
+    cache = cache.map(x => (x.id === projectId ? data.project : x))
+    saveLocal(cache)
+    return data.project.facturen.find(f => f.id === data.factuurId)!
+  },
+
+  /** Het nummer terug naar de reeks: alleen het laatst uitgegeven nummer, en alleen als hij niet verstuurd is. */
+  async trekFactuurnummerIn(projectId: string, factuurId: string): Promise<Project> {
+    const p = cache.find(p => p.id === projectId)
+    if (!p) throw new Error('Project niet gevonden')
+    const nee = waaromNietNummerIntrekken(p.facturen.find(f => f.id === factuurId))
+    if (nee) throw new Weigering(nee)
+    const { data } = await apiFetch<{ project: Project; factuurId: string }>(
+      `/projects/${projectId}/factuur/${factuurId}/nummer-terug`, { method: 'POST', body: '{}' },
+    )
+    wijzigTeller[projectId] = (wijzigTeller[projectId] ?? 0) + 1
+    cache = cache.map(x => (x.id === projectId ? data.project : x))
+    saveLocal(cache)
+    return data.project
   },
 
   /** Vastleggen dat hij verstuurd is, naar dit adres. De mail zelf ging via Outlook. */

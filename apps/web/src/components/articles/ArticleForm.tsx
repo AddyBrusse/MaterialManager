@@ -161,7 +161,9 @@ export function ArticleForm({ mode, item, opened, onClose, allRows = [] }: Props
 
               <Divider label="Voorraad" labelPosition="left" />
               <Group grow>
-                <NumberInput label="Huidig" size="sm" min={0} {...form.getInputProps('currentStock')} />
+                {/* Sinds 2026-11-18 alleen bij aanmaken: daarna tel je op de artikelpagina (Prijs & voorraad), met reden in het logboek. */}
+                <NumberInput label={mode === 'add' ? 'Beginstand' : 'Vrij (tellen op de artikelpagina)'} size="sm" min={0}
+                  disabled={mode === 'edit'} {...form.getInputProps('currentStock')} />
                 <NumberInput label="Min." size="sm" min={0} placeholder="—" {...form.getInputProps('minStock')} />
                 <NumberInput label="Max." size="sm" min={0} placeholder="—" {...form.getInputProps('maxStock')} />
               </Group>

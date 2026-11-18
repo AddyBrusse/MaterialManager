@@ -20,8 +20,10 @@ const TOLERANTIE_EURO = 0.01
 export interface PrijsVergelijking {
   /** Wat de klant in zijn document zette, per stuk. */
   klant: number
-  /** Wat onze calculatie zegt bij dit aantal. */
+  /** Wat wij vragen bij dit aantal: de prijsafspraak, anders de calculatie. */
   onze: number
+  /** Waar `onze` vandaan komt (2026-11-18). */
+  bron: 'afspraak' | 'calculatie'
   verschil: number
   /** Positief = de klant rekent te weinig; dat is de kant die geld kost. */
   klantLager: boolean
@@ -31,10 +33,12 @@ export interface PrijsVergelijking {
 export function vergelijkPrijs(
   line: CandidateLine,
   article: Article | null,
-  bronnen: PrijsBronnen
+  bronnen: PrijsBronnen,
+  /** De prijsafspraak met deze klant bij dit aantal: die geldt, niet de calculatie. */
+  afspraak: { prijs: number } | null = null,
 ): PrijsVergelijking | null {
   if (line.klantPrijs === null || !article) return null
-  const { verkoopprijs } = prijsVoor(article, bronnen, line.qty ?? 1)
+  const verkoopprijs = afspraak ? afspraak.prijs : prijsVoor(article, bronnen, line.qty ?? 1).verkoopprijs
   // Zonder calculatie is onze prijs 0 — dan valt er niets te vergelijken, en
   // een melding "de klant rekent te veel" zou onzin zijn.
   if (verkoopprijs <= 0) return null
@@ -45,6 +49,7 @@ export function vergelijkPrijs(
   return {
     klant: line.klantPrijs,
     onze: verkoopprijs,
+    bron: afspraak ? 'afspraak' : 'calculatie',
     verschil,
     klantLager: verschil < 0,
     procent: Math.round((verschil / verkoopprijs) * 1000) / 10,
