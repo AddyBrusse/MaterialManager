@@ -3,7 +3,7 @@ import { matchPath } from 'react-router-dom'
 import {
   IconLayersLinked, IconInbox, IconSettings, IconList, IconCut, IconBookmark,
   IconUsers, IconClipboardList, IconChartBar, IconListCheck,
-  IconChecklist, IconListNumbers, IconTimeline, IconTable, IconFileText, IconClock, IconTruckDelivery, type Icon as TablerIcon,
+  IconChecklist, IconListNumbers, IconTimeline, IconTable, IconFileText, IconFileInvoice, IconClock, IconTruckDelivery, type Icon as TablerIcon,
 } from '@tabler/icons-react'
 import { VoorraadPage } from '../../routes/desktop/VoorraadPage'
 import { ArtikelenPage } from '../../routes/desktop/ArtikelenPage'
@@ -24,6 +24,7 @@ import { PrognosePage } from '../../routes/desktop/PrognosePage'
 import { TodosPage } from '../../routes/desktop/TodosPage'
 import { TijdregistratiePage } from '../../routes/desktop/TijdregistratiePage'
 import { DocumentenPage } from '../../routes/desktop/DocumentenPage'
+import { FacturenPage } from '../../routes/desktop/FacturenPage'
 
 // Single source of truth for every tabbable / poppable page in the app. Feeds:
 // - the global tab bar (label + icon per open route)
@@ -56,6 +57,7 @@ const PAGES: PageEntry[] = [
   { path: '/projecten',      label: 'Projecten',     Icon: IconClipboardList, Component: ProjectenPage,     poppable: true },
   { path: '/projecten/:id',  label: 'Project',       Icon: IconClipboardList, Component: ProjectDetailPage, poppable: true, labelFor: p => `Project ${p.id ?? ''}`.trim() },
   { path: '/documenten',     label: 'Documenten',    Icon: IconFileText,      Component: DocumentenPage,    poppable: true },
+  { path: '/facturen',       label: 'Facturen',      Icon: IconFileInvoice,   Component: FacturenPage,      poppable: true },
   { path: '/zaagcalculator', label: 'Zaagcalculator', Icon: IconCut,          Component: ZaagCalculatorPage, poppable: true },
   { path: '/zaagflow',       label: 'ZaagFlow',      Icon: IconListCheck,     Component: ZaagflowPage,      poppable: true },
   // Materiaalbeheer

@@ -187,10 +187,11 @@ export function serialize(row: ProjectRow): Project {
       id: f.id,
       soort: f.soort as Factuur['soort'],
       crediteertFactuurId: f.crediteertFactuurId,
-      projectId: f.projectId,
-      offerteId: f.offerteId,
+      // Een projectfactuur heeft ze altijd; leeg kan alleen bij een losse factuur (2026-11-18).
+      projectId: f.projectId ?? row.id,
+      offerteId: f.offerteId ?? '',
       regels: f.regels.map(r => ({
-        offerteRegelId: r.offerteRegelId,
+        offerteRegelId: r.offerteRegelId ?? '',
         naam: r.naam,
         qty: r.qty,
         eenheid: r.eenheid,
@@ -241,7 +242,7 @@ function d(iso: string): Date { return new Date(iso) }
 // een ander project werd teruggezet naar concept. Liever een luide fout dan
 // stille schade — vandaar deze controle vóór elk schrijven.
 async function eisEigendom(
-  zoek: (id: string) => Promise<{ projectId: string } | null>,
+  zoek: (id: string) => Promise<{ projectId: string | null } | null>,
   ids: string[],
   projectId: string,
   wat: string,

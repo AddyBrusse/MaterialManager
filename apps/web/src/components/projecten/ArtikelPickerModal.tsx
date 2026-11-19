@@ -1,7 +1,7 @@
-import type { NieuweRegel } from '@stockmanager/shared'
+import { afspraakVoorKlant, vandaagIso, type NieuweRegel } from '@stockmanager/shared'
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Modal, NumberInput } from '@mantine/core'
 import { notifications } from '@mantine/notifications'
 import { IconPlus, IconCheck } from '@tabler/icons-react'
@@ -12,6 +12,7 @@ import { machinesApi } from '../../api/machines'
 import { relatiesApi } from '../../api/relaties'
 import { kostprijsVoor, materiaalVan, bewerkingenVan } from '../../utils/artikel-prijs'
 import { projectsApi, formatBedrag } from '../../api/projects'
+import { prijsafsprakenApi } from '../../api/prijsafspraken'
 import type { Article } from '../../api/articles'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -27,6 +28,8 @@ interface StagedItem {
   qty: number
   marge: number
   verkoopprijs: number
+  /** De prijs komt uit een prijsafspraak (2026-11-18); met de hand aangepast = niet meer. */
+  afspraak: boolean
 }
 
 interface Props {
@@ -77,6 +80,18 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
     setFilterRel(relatieId)
   }, [opened, relatieId])
 
+  // Prijsafspraken (2026-11-18): voor de klant van dit project gaat de afspraak
+  // voor de calculatie. Een staffel volgt het aantal; met de hand aanpassen kan altijd.
+  const { data: afspraken = [] } = useQuery({
+    queryKey: ['prijsafspraken', 'alle'],
+    queryFn: () => prijsafsprakenApi.list(),
+    enabled: opened,
+  })
+  const vandaag = vandaagIso()
+  const afspraakVoor = (article: Article, qty: number) =>
+    afspraakVoorKlant(article, relatieId, afspraken.filter(a => a.artikelId === article.id), qty, vandaag)
+  const margeBij = (kostprijs: number, prijs: number) => (kostprijs > 0 ? Math.round(((prijs / kostprijs) - 1) * 100) : 0)
+
   // ── Compute cost from estimate ──────────────────────────────────────────────
   // Gedeeld met de mail-import (utils/artikel-prijs), zodat beide schermen
   // dezelfde prijs uitrekenen — hij gaat naar een klant.
@@ -100,8 +115,9 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
       return
     }
     const kostprijs = getKostprijs(article)
-    const marge = Math.round(article.estimate?.marginPct ?? 20)
-    const verkoopprijs = Math.round(kostprijs * (1 + marge / 100) * 100) / 100
+    const afspraak = afspraakVoor(article, 1)
+    const marge = afspraak ? margeBij(kostprijs, afspraak.prijs) : Math.round(article.estimate?.marginPct ?? 20)
+    const verkoopprijs = afspraak ? afspraak.prijs : Math.round(kostprijs * (1 + marge / 100) * 100) / 100
     setStaged(prev => [...prev, {
       artikelId: article.id,
       naam: article.naam,
@@ -113,6 +129,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
       qty: 1,
       marge,
       verkoopprijs,
+      afspraak: !!afspraak,
     }])
   }
 
@@ -128,19 +145,22 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
         // not just carried over from the qty=1 value it was staged at.
         const article = articles.find(a => a.id === artikelId)
         const kostprijs = article ? getKostprijs(article, qty) : s.kostprijs
+        // Een afspraak volgt zijn staffel; is er bij dit aantal geen, dan de marge.
+        const afspraak = s.afspraak && article ? afspraakVoor(article, qty) : null
+        if (afspraak) return { ...s, qty, kostprijs, verkoopprijs: afspraak.prijs, marge: margeBij(kostprijs, afspraak.prijs) }
         const verkoopprijs = Math.round(kostprijs * (1 + s.marge / 100) * 100) / 100
-        return { ...s, qty, kostprijs, verkoopprijs }
+        return { ...s, qty, kostprijs, verkoopprijs, afspraak: false }
       }
       if (field === 'marge') {
         const marge = Math.round(value)
         const verkoopprijs = Math.round(s.kostprijs * (1 + marge / 100) * 100) / 100
-        return { ...s, marge, verkoopprijs }
+        return { ...s, marge, verkoopprijs, afspraak: false }
       }
       // verkoopprijs → back-compute marge (round to nearest integer)
       const marge = s.kostprijs > 0
         ? Math.round(((value / s.kostprijs) - 1) * 100)
         : 0
-      return { ...s, verkoopprijs: value, marge }
+      return { ...s, verkoopprijs: value, marge, afspraak: false }
     }))
   }
 
@@ -290,7 +310,8 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
                   const isStaged     = staged.some(s => s.artikelId === article.id)
                   const machineCh    = bewerkingenVan(article, machines)
                   const kostprijs    = getKostprijs(article)
-                  const verkoopprijs = article.estimate
+                  const afspraak     = afspraakVoor(article, 1)
+                  const verkoopprijs = afspraak ? afspraak.prijs : article.estimate
                     ? Math.round(kostprijs * (1 + (article.estimate.marginPct ?? 20) / 100) * 100) / 100
                     : 0
                   return (
@@ -316,6 +337,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
                         <div className="cell-num cell-strong">
                           {verkoopprijs > 0 ? formatBedrag(verkoopprijs) : '—'}
                         </div>
+                        {afspraak && <div className="cell-muted" style={{ fontSize: 10.5, textAlign: 'right' }}>afspraak</div>}
                         {kostprijs > 0 && (
                           <div className="cell-muted cell-mono" style={{ fontSize: 11, textAlign: 'right', marginTop: 2 }}>
                             kp {formatBedrag(kostprijs)}
@@ -414,6 +436,7 @@ export function ArtikelPickerModal({ opened, projectId, offerteId, relatieId, on
                     </td>
                     <td className="cell-num cell-strong">
                       {formatBedrag(Math.round(item.qty * item.verkoopprijs * 100) / 100)}
+                      {item.afspraak && <div className="cell-muted" style={{ fontSize: 10.5, fontWeight: 400 }}>prijsafspraak</div>}
                     </td>
                     <td style={{ padding: '4px', textAlign: 'center' }}>
                       <button

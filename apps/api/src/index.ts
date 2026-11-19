@@ -45,6 +45,8 @@ import mailImportsRouter from './routes/mail-imports'
 import tijdregistratieRouter from './routes/tijdregistratie'
 import nacalculatieRouter from './routes/nacalculatie'
 import planningRouter from './routes/planning'
+import facturenRouter from './routes/facturen'
+import prijsafsprakenRouter from './routes/prijsafspraken'
 
 const app = express()
 
@@ -109,6 +111,8 @@ app.use('/api/mail-imports', mailImportsRouter)
 app.use('/api/tijdregistratie', tijdregistratieRouter)
 app.use('/api/nacalculatie', nacalculatieRouter)
 app.use('/api/planning', planningRouter)
+app.use('/api/facturen', facturenRouter)
+app.use('/api/prijsafspraken', prijsafsprakenRouter)
 
 // Serve uploaded files
 app.use('/uploads', express.static(config.uploadsDir))

@@ -96,6 +96,7 @@ export function GeenOpdracht({ project: p, geblokkeerd, ...a }: GeenOpdrachtActi
           <PrijzenBijwerkenModal
             opened
             offerte={direct}
+            relatieId={p.relatieId}
             onClose={() => setPrijzen(false)}
             onBijwerken={(gekozen) => {
               setPrijzen(false)

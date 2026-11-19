@@ -17,7 +17,13 @@ export default defineConfig({
     // ook als de app met `npm run dev` draait in plaats van gebouwd.
     // Past bij de opzet van deze app: LAN-only, geen wachtwoorden (01-architecture.md).
     host: true,
-    port: Number(process.env.PORT) || 5173,
+    // 5174, niet de Vite-standaard 5173: op de werk-pc draait een ander
+    // programma op 5173 (2026-11-02). `strictPort` laat Vite stoppen met een
+    // duidelijke melding als 5174 bezet is, in plaats van stil naar 5175 uit te
+    // wijken — de werkvloer-pc, bladwijzers en de Redirect URI van Microsoft 365
+    // (`/auth-popup.html`) rekenen op één vaste poort.
+    port: Number(process.env.PORT) || 5174,
+    strictPort: true,
     proxy: {
       '/api': 'http://localhost:3000',
       '/uploads': 'http://localhost:3000',

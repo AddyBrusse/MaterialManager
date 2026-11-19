@@ -1,6 +1,7 @@
 // Articles = make-to-stock manufactured products (recipe + routing), MES-bound.
 
 import { apiFetch, apiUpload } from './client'
+import type { ArtikelVoorraad, VoorraadTelling } from '@stockmanager/shared'
 import type { LaadFout } from '../utils/fout-melding'
 
 const LS_KEY = 'sm_articles'
@@ -238,6 +239,18 @@ export const articlesApi = {
   opslaan: async (id: string, patch: Partial<ArticleInput>): Promise<Article> => {
     const { data } = await apiFetch<Article>(`/articles/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
     zetInCache(data)
+    return data
+  },
+
+  /** Vrije voorraad, wat er voor orders klaarligt, en het logboek (2026-11-18). */
+  voorraad: async (id: string): Promise<ArtikelVoorraad> =>
+    (await apiFetch<ArtikelVoorraad>(`/articles/${id}/voorraad`)).data,
+
+  /** Tellen: de vrije voorraad wordt wat er geteld is, met reden in het logboek. */
+  tel: async (id: string, telling: VoorraadTelling): Promise<ArtikelVoorraad> => {
+    const { data } = await apiFetch<ArtikelVoorraad>(`/articles/${id}/voorraad`, { method: 'POST', body: JSON.stringify(telling) })
+    const a = cache.find(x => x.id === id)
+    if (a) zetInCache({ ...a, currentStock: data.vrij })
     return data
   },
 

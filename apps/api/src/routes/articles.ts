@@ -6,6 +6,8 @@ import { AppError } from '../middleware/error'
 import { snapshotBijCalculatie } from '../services/prijs-snapshot'
 import { nieuwArtikelId } from '../services/artikel-nummer'
 import { sluitReceptTaken } from '../services/recept-taken'
+import { muteer, tel, voorraadVan } from '../services/artikel-voorraad'
+import { VoorraadTellingSchema } from '@stockmanager/shared'
 
 const router = Router()
 
@@ -30,7 +32,10 @@ const CreateArticleSchema = z.object({
   maxStock: z.number().nullable().optional(),
 })
 
-const UpdateArticleSchema = CreateArticleSchema.omit({ id: true }).partial()
+// De voorraad gaat niet mee met opslaan (2026-11-18): een losse factuur boekt
+// hem af terwijl het artikel misschien open staat, en de volgende autosave zou
+// de oude stand dan terugzetten. Wijzigen gaat via tellen (`POST /:id/voorraad`).
+const UpdateArticleSchema = CreateArticleSchema.omit({ id: true, currentStock: true }).partial()
 
 function toNumber(v: unknown): number { return typeof v === 'string' ? parseFloat(v) : (v as number) }
 
@@ -70,27 +75,34 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = CreateArticleSchema.parse(req.body)
     const id = body.id ?? await nieuwArtikelId(prisma)
-    const article = await prisma.article.create({
-      data: {
-        id,
-        naam: body.naam,
-        klant: body.klant ?? null,
-        relatieId: body.relatieId ?? null,
-        contactId: body.contactId ?? null,
-        tekening: body.tekening ?? null,
-        rev: body.rev ?? null,
-        drawingPath: body.drawingPath ?? null,
-        photoPath: body.photoPath ?? null,
-        recipe: body.recipe as object ?? null,
-        operations: (body.operations as object[]) ?? [],
-        notes: (body.notes as object) ?? { workholding: '', general: '' },
-        attachments: (body.attachments as object[]) ?? [],
-        estimate: body.estimate as object ?? null,
-        locatie: body.locatie ?? null,
-        currentStock: body.currentStock ?? 0,
-        minStock: body.minStock ?? null,
-        maxStock: body.maxStock ?? null,
-      },
+    const article = await prisma.$transaction(async (tx) => {
+      const nieuw = await tx.article.create({
+        data: {
+          id,
+          naam: body.naam,
+          klant: body.klant ?? null,
+          relatieId: body.relatieId ?? null,
+          contactId: body.contactId ?? null,
+          tekening: body.tekening ?? null,
+          rev: body.rev ?? null,
+          drawingPath: body.drawingPath ?? null,
+          photoPath: body.photoPath ?? null,
+          recipe: body.recipe as object ?? null,
+          operations: (body.operations as object[]) ?? [],
+          notes: (body.notes as object) ?? { workholding: '', general: '' },
+          attachments: (body.attachments as object[]) ?? [],
+          estimate: body.estimate as object ?? null,
+          locatie: body.locatie ?? null,
+          currentStock: 0,
+          minStock: body.minStock ?? null,
+          maxStock: body.maxStock ?? null,
+        },
+      })
+      // Een beginstand is ook een mutatie: zo begint het logboek bij het begin.
+      if (body.currentStock) {
+        await muteer(tx, { artikelId: nieuw.id, aantal: body.currentStock, soort: 'hand', reden: 'Beginstand bij aanmaken', door: req.user.name })
+      }
+      return tx.article.findUniqueOrThrow({ where: { id: nieuw.id } })
     })
     // Een artikel dat meteen mét calculatie wordt aangemaakt heeft ook een
     // beginpunt in de prijshistorie nodig; anders begint de lijn pas bij de
@@ -158,6 +170,23 @@ router.get(
         createdAt: r.createdAt.toISOString(),
       })),
     })
+  }),
+)
+
+/** Vrije voorraad, wat er voor orders klaarligt, en het logboek. */
+router.get(
+  '/:id/voorraad',
+  asyncHandler(async (req, res) => {
+    res.json({ data: await voorraadVan(prisma, req.params.id) })
+  }),
+)
+
+/** Tellen: de stand wordt wat er geteld is, met reden in het logboek. */
+router.post(
+  '/:id/voorraad',
+  asyncHandler(async (req, res) => {
+    const { stand, reden } = VoorraadTellingSchema.parse(req.body)
+    res.json({ data: await tel(req.params.id, stand, reden, req.user.name) })
   }),
 )
 

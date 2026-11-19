@@ -33,7 +33,12 @@ export interface Bijwerking {
   nieuweVerkoopprijs: number
   nieuweBewerkingen: string[]
   reden: BijwerkReden
+  /** De nieuwe prijs komt uit een prijsafspraak met de klant (2026-11-18), niet uit de calculatie. */
+  uitAfspraak: boolean
 }
+
+/** De prijsafspraak voor dit artikel bij dit aantal, als die er is (`afspraakVoorKlant`). */
+type AfspraakZoeker = (artikel: Article, qty: number) => { prijs: number } | null
 
 /** Alleen deze redenen leveren werk op; de rest is er om te tónen waarom niet. */
 export function isBijTeWerken(b: Bijwerking): boolean {
@@ -59,6 +64,7 @@ export function berekenBijwerkingen(
   regels: OfferteRegel[],
   artikelen: Article[],
   bronnen: PrijsBronnen,
+  afspraak: AfspraakZoeker = () => null,
 ): Bijwerking[] {
   return regels.map((regel) => {
     const basis = {
@@ -68,6 +74,7 @@ export function berekenBijwerkingen(
       oudeVerkoopprijs: regel.verkoopprijs,
       nieuweVerkoopprijs: regel.verkoopprijs,
       nieuweBewerkingen: regel.bewerkingen,
+      uitAfspraak: false,
     }
 
     if (!regel.artikelId) return { ...basis, reden: 'geen-artikel' as const }
@@ -76,15 +83,18 @@ export function berekenBijwerkingen(
     // Geen artikel meer te vinden telt als "niets uit te rekenen" en niet als een
     // fout: het artikel kan verwijderd zijn terwijl de offerte bleef staan.
     if (!artikel) return { ...basis, reden: 'geen-artikel' as const }
-    if (!artikel.estimate) return { ...basis, reden: 'geen-calculatie' as const }
+    // Een prijsafspraak met de klant gaat voor de calculatie, ook zonder recept.
+    const a = afspraak(artikel, regel.qty || 1)
+    if (!a && !artikel.estimate) return { ...basis, reden: 'geen-calculatie' as const }
 
     // Bij het aantal van de régel rekenen: instel- en uitbesteedkosten gelden per
     // batch, dus de prijs per stuk hangt van het aantal af.
-    const { verkoopprijs } = prijsVoor(artikel, bronnen, regel.qty || 1)
+    const verkoopprijs = a ? a.prijs : prijsVoor(artikel, bronnen, regel.qty || 1).verkoopprijs
     const nieuw = {
       ...basis,
       nieuweVerkoopprijs: verkoopprijs,
-      nieuweBewerkingen: bewerkingenVan(artikel, bronnen.machines),
+      nieuweBewerkingen: artikel.estimate ? bewerkingenVan(artikel, bronnen.machines) : regel.bewerkingen,
+      uitAfspraak: !!a,
     }
 
     // In centen vergelijken: twee bedragen die op de cent gelijk zijn horen niet

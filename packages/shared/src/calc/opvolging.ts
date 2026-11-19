@@ -17,10 +17,18 @@ import { effectieveSeconden } from '../schemas/tijdregistratie'
 import type { Melding } from './meldingen'
 import { berekenVoortgang } from './projectvoortgang'
 import { isVervallen } from './factuur'
+import { factuurNaam } from './factuur-nummer'
+import type { VerkoopFactuur } from '../schemas/verkoopfactuur'
 import { kortDatum, plusWerkdagen, vandaagIso } from './inkoop-planning'
 import { isOverLevertijd, uitstaandeOffertes, verlooptBinnenWeek } from './project-signalen'
 
 /** De drempels, in werkdagen tenzij anders vermeld. */
+/** "Conceptfactuur" of het nummer, aan het begin van een zin. */
+const hoofdletterNaam = (f: { id: string; soort: 'factuur' | 'credit' }) => {
+  const n = factuurNaam(f).replace(/^de /, '')
+  return n.charAt(0).toUpperCase() + n.slice(1)
+}
+
 export const OPVOLGING = {
   conceptOfferte: 2,
   zonderOfferte: 1,
@@ -133,7 +141,7 @@ export function projectOpvolging(p: Project, klant: string | null, nu: Date): Me
   for (const f of p.facturen) {
     if (f.verzondenOp || !voorbij(f.createdAt, OPVOLGING.factureren, vandaag)) continue
     melding(`conceptfactuur:${f.id}`, 'oranje', `Concept-${f.soort === 'credit' ? 'credit' : 'factuur'} niet verstuurd`,
-      `${f.id} (${euro(f.totaalInclBtw)}) voor ${wie} staat sinds ${kortDatum(dagVan(f.createdAt))} in concept.`)
+      `${hoofdletterNaam(f)} (${euro(f.totaalInclBtw)}) voor ${wie} staat sinds ${kortDatum(dagVan(f.createdAt))} klaar en is nog niet verstuurd.`)
   }
 
   // 9. Een verstuurde offerte zonder antwoord verloopt binnen een week (of is al verlopen).
@@ -156,6 +164,34 @@ export interface KlokVoorOpvolging {
   gemetenSeconden: number
   bijgesteldeSeconden: number | null
   lopendSinds: string | null
+}
+
+/**
+ * Een losse factuur (2026-11-18) glipt op dezelfde manier als een
+ * projectfactuur: verstuurd en over de vervaldatum, of blijven liggen als
+ * concept. Hij hangt aan geen project, dus de link gaat naar Facturen.
+ */
+export function losseFactuurOpvolging(f: VerkoopFactuur, nu: Date): Melding[] {
+  if (f.projectId) return []
+  const vandaag = vandaagIso(nu)
+  const wie = f.klantNaam ?? 'klant onbekend'
+  const uit: Melding[] = []
+  const link = '/facturen'
+  if (isVervallen(f, nu)) {
+    uit.push({
+      id: `opv:vervallen:${f.id}`, groep: 'opvolging', ernst: 'rood', titel: 'Factuur over de vervaldatum', link,
+      tekst: `${f.id} (${euro(f.totaalInclBtw)}) aan ${wie}: vervallen op ${kortDatum(f.vervaldatum!)}, nog niet betaald. Bel na, of zet hem op betaald.`,
+    })
+  }
+  if (!f.verzondenOp && voorbij(f.createdAt, OPVOLGING.factureren, vandaag)) {
+    const credit = f.soort === 'credit'
+    uit.push({
+      id: `opv:conceptfactuur:${f.id}`, groep: 'opvolging', ernst: 'oranje', link,
+      titel: `Concept-${credit ? 'credit' : 'factuur'} niet verstuurd`,
+      tekst: `${hoofdletterNaam(f)} (${euro(f.totaalInclBtw)}) voor ${wie} staat sinds ${kortDatum(dagVan(f.createdAt))} klaar en is nog niet verstuurd.`,
+    })
+  }
+  return uit
 }
 
 /** 10. Een klok die al lang loopt is bijna altijd vergeten, en dan groeit de nacalculatie door. */

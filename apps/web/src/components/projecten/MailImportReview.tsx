@@ -382,6 +382,7 @@ export function MailImportReview({
         mailImport={current}
         articleOptions={articleOptions}
         bronnen={bronnen}
+        relatieId={relatieId}
         onChanged={setCurrent}
       />
 

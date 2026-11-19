@@ -47,12 +47,14 @@ const TABELLEN_DEF: { naam: string; model: string; uitleg: string; link?: Tabel[
     uitleg: 'Klokregels per stap: soort instellen of draaien, bemand ja/nee, status lopend/gepauzeerd/afgerond, userNaam = wie. Werkelijke tijd = bijgesteldeSeconden als die gevuld is, anders gemetenSeconden (plus de lopende tijd sinds lopendSinds).' },
   { naam: 'pakbonnen', model: 'Paklijst', link: naarProject, uitleg: 'Pakbonnen (PL-…). verzondenOp leeg = nog niet verstuurd.' },
   { naam: 'pakbonRegels', model: 'PaklijstRegel', uitleg: 'Regels van een pakbon: welke order, hoeveel stuks.' },
-  { naam: 'facturen', model: 'Factuur', link: naarProject,
-    uitleg: 'Facturen en credits (FACT-/CRED-…), soort factuur of credit. verzondenOp leeg = concept. betaaldOp gevuld = betaald. Bedragen in euro; subtotaal excl. btw.' },
-  { naam: 'factuurRegels', model: 'FactuurRegel', uitleg: 'Regels van een factuur.' },
+  { naam: 'facturen', model: 'Factuur', link: (r) => (r.projectId ? `/projecten/${r.projectId}` : '/facturen'),
+    uitleg: 'Facturen en credits, soort factuur of credit. id FACT-/CRED-jaar-nr = genummerd; FACT-concept-… = concept zonder nummer (het nummer komt bij versturen). verzondenOp leeg = niet verstuurd. betaaldOp gevuld = betaald. Bedragen in euro; subtotaal excl. btw. projectId leeg = losse factuur bij de klant (relatieId), zonder project; leverdatum, reden (losse credit) en retour (stuks terug op voorraad) horen daarbij.' },
+  { naam: 'factuurRegels', model: 'FactuurRegel', uitleg: 'Regels van een factuur. offerteRegelId bij een projectfactuur, artikelId bij een losse factuur (leeg = vrije regel zoals verzendkosten).' },
+  { naam: 'prijsafspraken', model: 'Prijsafspraak', uitleg: 'Afgesproken verkoopprijs per stuk van een artikel met zijn klant (artikelen.relatieId; geen klant = voor iedereen). vanafAantal = staffel: de hoogste die het aantal haalt geldt. geldigVan/geldigTot leeg = onbeperkt.' },
+  { naam: 'artikelVoorraadMutaties', model: 'ArtikelMutatie', uitleg: 'Logboek van de vrije voorraad van artikelen (artikelen.currentStock, in stuks): soort factuur (verstuurd met een losse factuur, negatief), credit (retour), hand (geteld). stand = de voorraad erna.' },
   { naam: 'relaties', model: 'Relatie', link: (r) => `/relaties/${r.id}`, uitleg: 'Klanten en leveranciers (type). contacten = contactpersonen.' },
   { naam: 'artikelen', model: 'Article', link: (r) => `/artikelen/${encodeURIComponent(String(r.id))}`,
-    uitleg: 'Artikelen (wat we maken) met tekening en revisie. De calculatie zelf (estimate) is niet leesbaar; "estimate leeg" = nog geen calculatie. Een artikel zonder recept staat als melding "Artikel zonder recept".' },
+    uitleg: 'Artikelen (wat we maken) met tekening en revisie. currentStock = vrije voorraad in stuks (zie artikelVoorraadMutaties). De calculatie zelf (estimate) is niet leesbaar; "estimate leeg" = nog geen calculatie. Een artikel zonder recept staat als melding "Artikel zonder recept".' },
   { naam: 'prijshistorie', model: 'ArtikelPrijsSnapshot', uitleg: 'Kostprijs en verkoopprijs van een artikel door de tijd: bron order (geaccepteerde offerte) of calculatie (recept gewijzigd).' },
   { naam: 'artikelAliassen', model: 'ArticleAlias', uitleg: 'Artikelnummer van een klant gekoppeld aan ons artikel.' },
   { naam: 'todos', model: 'Todo', link: () => '/todos',
@@ -108,7 +110,8 @@ const ALLEEN_FILTER: Record<string, string[]> = {
 /** Datums die als tekst opgeslagen zijn: een kale dag, of een tijdstip in ISO. */
 const DAG: Record<string, string[]> = {
   Project: ['levertijdDatum'], Offerte: ['geldigTot'], Opdrachtbevestiging: ['levertijdDatum'],
-  ProductieStap: ['geplandDatum'], Factuur: ['vervaldatum'], InkooporderRegel: ['verwachtDatum'],
+  ProductieStap: ['geplandDatum'], Factuur: ['vervaldatum', 'leverdatum'], InkooporderRegel: ['verwachtDatum'],
+  Prijsafspraak: ['geldigVan', 'geldigTot'],
 }
 const TIJDSTIP_TEKST: Record<string, string[]> = {
   Offerte: ['verzondenOp', 'geaccepteerdOp'], Opdrachtbevestiging: ['verzondenOp'], ProductieStap: ['gereedOp'],

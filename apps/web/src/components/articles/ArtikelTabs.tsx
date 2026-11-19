@@ -1,8 +1,9 @@
-export type ArtikelTab = 'calculatie' | 'bestanden' | 'nacalculatie' | 'prijshistorie' | 'historie'
+export type ArtikelTab = 'calculatie' | 'bestanden' | 'verkoop' | 'nacalculatie' | 'prijshistorie' | 'historie'
 
 const TABS: { id: ArtikelTab; label: string }[] = [
   { id: 'calculatie', label: 'Calculatie' },
   { id: 'bestanden', label: 'Bestanden' },
+  { id: 'verkoop', label: 'Prijs & voorraad' },
   { id: 'nacalculatie', label: 'Nacalculatie' },
   { id: 'prijshistorie', label: 'Prijshistorie' },
   { id: 'historie', label: 'Historie' },

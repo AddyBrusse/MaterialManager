@@ -9,7 +9,7 @@
  */
 
 import type { Project, Relatie, Todo } from '@stockmanager/shared'
-import { aantalDeelleveringen, berekenVoortgang, gefactureerdInclBtw, isVervallen, openstaandBedrag, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
+import { aantalDeelleveringen, berekenVoortgang, factuurNummerTekst, gefactureerdInclBtw, isVervallen, openstaandBedrag, laatsteFactuur, laatstePaklijst } from '@stockmanager/shared'
 import type { ProjectNacalculatie } from '../../../../api/nacalculatie'
 import type { ZaagReservation } from '../../../../api/reservations'
 import { houdtVast } from '../../../../api/reservations'
@@ -136,7 +136,7 @@ export function bouwFacetten(
       // concept-credit klaarstaat die de klant nog nooit zag.
       waarde: eur(verstuurdGefactureerd(p) ?? gefactureerdInclBtw(p)),
       sub: [
-        aantal > 1 ? `${aantal} facturen` : laatsteFactuur(p)?.id,
+        aantal > 1 ? `${aantal} facturen` : laatsteFactuur(p) && factuurNummerTekst(laatsteFactuur(p)!.id),
         credits > 0 ? `${credits} credit${credits > 1 ? 's' : ''}` : null,
         eerste ? `vervalt ${datumKort(eerste.vervaldatum)}` : null,
       ]

@@ -135,14 +135,20 @@ export function opdrachtDocument(d: OpdrachtDoc, co: Company, assets: DocumentAs
 
 interface FactuurDoc {
   soort: 'factuur' | 'credit'
-  nummer: string
+  /** Leeg = concept (2026-11-18): het nummer komt pas bij versturen. */
+  nummer: string | null
   datum: string | null
   vervaldatum: string | null
   crediteert: string | null
   /** Het factuuradres, niet de contactpersoon (besloten 2026-10-05). */
   klant: DocPartij
   referentie: string | null
-  project: string
+  /** Leeg bij een losse factuur: die hoort bij de klant, niet bij een project. */
+  project: string | null
+  /** Wanneer het geleverd is, als tekst ("10-11-2026" of "10-11-2026 t/m 12-11-2026"). */
+  leverdatum: string | null
+  /** De pakbonnen waar het mee ging. */
+  pakbonnen: string[]
   regels: PrijsRegel[]
   btwPct: number
   subtotaal: number
@@ -154,25 +160,31 @@ interface FactuurDoc {
 export function factuurDocument(d: FactuurDoc, co: Company, assets: DocumentAssets): jsPDF {
   const credit = d.soort === 'credit'
   const teken = credit ? -1 : 1
+  const nummer = d.nummer ?? 'Concept'
   const betaling = credit
-    ? `Dit bedrag wordt verrekend met factuur ${d.crediteert ?? ''}.`.replace(' .', '.')
+    ? `Dit bedrag wordt verrekend${d.crediteert ? ` met factuur ${d.crediteert}` : ''}.`
     : `Graag ${bedrag(d.totaal)} ${d.vervaldatum ? `vóór ${datum(d.vervaldatum)} ` : ''}overmaken${
         co.iban ? ` op ${co.iban}` : ''
-      }${co.naam ? ` t.n.v. ${co.naam}` : ''}, onder vermelding van ${d.nummer}.`
+      }${co.naam ? ` t.n.v. ${co.naam}` : ''}, onder vermelding van ${d.nummer ?? 'het factuurnummer'}.`
   return maakDocument(
     {
       titel: credit ? 'CREDITFACTUUR' : 'FACTUUR',
       meta: credit
-        ? [['Creditnr.', d.nummer], ['Datum', datum(d.datum)], ...kenmerk('Crediteert', d.crediteert)]
-        : [['Factuurnr.', d.nummer], ['Factuurdatum', datum(d.datum)], ['Vervaldatum', datum(d.vervaldatum)]],
+        ? [['Creditnr.', nummer], ['Datum', datum(d.datum)], ...kenmerk('Crediteert', d.crediteert)]
+        : [['Factuurnr.', nummer], ['Factuurdatum', datum(d.datum)], ['Vervaldatum', datum(d.vervaldatum)]],
       partij: { label: 'Factuuradres', ...d.klant },
-      kenmerken: [...kenmerk('Uw referentie', d.referentie), ['Project', d.project]],
+      kenmerken: [
+        ...kenmerk('Uw referentie', d.referentie),
+        ...kenmerk('Leverdatum', d.leverdatum),
+        ...kenmerk(d.pakbonnen.length > 1 ? 'Pakbonnen' : 'Pakbon', d.pakbonnen.join(', ')),
+        ...kenmerk('Project', d.project),
+      ],
       kolommen: PRIJS_KOLOMMEN,
       regels: prijsRegels(d.regels, teken),
       leeg: 'Nog geen regels.',
       totalen: totalenVan(teken * d.subtotaal, d.btwPct, teken * d.btw, teken * d.totaal),
       secties: [{ kop: credit ? 'Verrekening' : 'Betaling', tekst: betaling }, ...sectie('Opmerking', d.notities)],
-      voetregel: `${credit ? 'Creditfactuur' : 'Factuur'} ${d.nummer}`,
+      voetregel: `${credit ? 'Creditfactuur' : 'Factuur'} ${d.nummer ?? '(concept)'}`,
     },
     co,
     assets,
@@ -197,13 +209,15 @@ export interface PakbonRegel {
 
 export interface PakbonDoc {
   nummer: string
+  /** Standaard "Pakbonnr."; bij een losse factuur gaat de pakbon op het factuurnummer. */
+  nummerLabel?: string
   datum: string | null
   klantNaam: string
   /** Afleveradres van de klant, anders het vestigingsadres. */
   aflever: DocPartij
   referentie: string | null
   order: string | null
-  project: string
+  project: string | null
   regels: PakbonRegel[]
   notities: string
 }
@@ -213,9 +227,9 @@ export function pakbonDocument(d: PakbonDoc, co: Company, assets: DocumentAssets
   return maakDocument(
     {
       titel: 'PAKBON',
-      meta: [['Pakbonnr.', d.nummer], ['Datum', datum(d.datum)], ...kenmerk('Ordernr.', d.order)],
+      meta: [[d.nummerLabel ?? 'Pakbonnr.', d.nummer], ['Datum', datum(d.datum)], ...kenmerk('Ordernr.', d.order)],
       partij: { label: 'Afleveradres', ...d.aflever },
-      kenmerken: [...kenmerk('Uw referentie', d.referentie), ['Project', d.project]],
+      kenmerken: [...kenmerk('Uw referentie', d.referentie), ...kenmerk('Project', d.project)],
       kolommen: [
         { kop: '#', breedte: 38, stijl: 'pos' },
         { kop: 'Omschrijving', stijl: 'omschrijving' },
@@ -246,8 +260,8 @@ export function picklistDocument(d: PakbonDoc, co: Company, assets: DocumentAsse
   return maakDocument(
     {
       titel: 'PICKLIST',
-      meta: [['Pakbonnr.', d.nummer], ['Datum', datum(d.datum)], ...kenmerk('Ordernr.', d.order)],
-      partij: { label: 'Voor', naam: d.klantNaam, regels: [d.project] },
+      meta: [[d.nummerLabel ?? 'Pakbonnr.', d.nummer], ['Datum', datum(d.datum)], ...kenmerk('Ordernr.', d.order)],
+      partij: { label: 'Voor', naam: d.klantNaam, regels: d.project ? [d.project] : [] },
       kenmerken: [['Regels', String(d.regels.length)], ['Stuks', getal(d.regels.reduce((s, r) => s + r.qty, 0))]],
       kolommen: [
         { kop: '#', breedte: 38, stijl: 'pos' },

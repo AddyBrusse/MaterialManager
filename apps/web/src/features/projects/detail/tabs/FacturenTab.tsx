@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import type { Factuur, FactuurRegelKeuze, Project, ProjectVoortgang } from '@stockmanager/shared'
+import { factuurNaam, type Factuur, type FactuurRegelKeuze, type Project, type ProjectVoortgang } from '@stockmanager/shared'
 import { Card } from '../components/Card'
 import { BevestigModal } from '../components/BevestigModal'
 import { eur } from '../lib/format'
@@ -16,6 +16,7 @@ interface Props {
   onPdf: (f: Factuur) => void
   onVerstuur: (f: Factuur) => void
   onVerwijder: (factuurId: string) => void
+  onNummerIn: (factuurId: string) => void
   onCrediteer: (factuurId: string) => void
   onBetaald: (factuurId: string, betaald: boolean) => void
 }
@@ -41,6 +42,7 @@ export function FacturenTab(props: Props) {
   const lijst = volgorde(p.facturen)
   const [open, setOpen] = useState<string | null>(lijst.find((f) => !f.verzondenOp)?.id ?? null)
   const [weg, setWeg] = useState<Factuur | null>(null)
+  const [intrekken, setIntrekken] = useState<Factuur | null>(null)
 
   // Een nieuwe factuur of credit klapt open: wie hem maakt, wil hem nakijken.
   const vorige = useRef(p.facturen.map((f) => f.id))
@@ -91,6 +93,7 @@ export function FacturenTab(props: Props) {
                     onPdf={() => props.onPdf(f)}
                     onVerstuur={() => props.onVerstuur(f)}
                     onVerwijder={() => setWeg(f)}
+                    onNummerIn={() => setIntrekken(f)}
                     onCrediteer={() => props.onCrediteer(f.id)}
                     onBetaald={(b) => props.onBetaald(f.id, b)}
                   />
@@ -110,12 +113,24 @@ export function FacturenTab(props: Props) {
       </Card>
 
       {weg && (
-        <BevestigModal titel={`${weg.id} verwijderen?`} knop="Verwijderen" gevaar onSluit={() => setWeg(null)}
+        <BevestigModal titel={`${weg.soort === 'credit' ? 'Conceptcredit' : 'Conceptfactuur'} verwijderen?`} knop="Verwijderen" gevaar onSluit={() => setWeg(null)}
           onBevestig={() => { setWeg(null); props.onVerwijder(weg.id) }}>
           <p>
             Het concept van {eur(weg.totaalInclBtw)} incl. btw vervalt. Het is nog nergens heen gegaan; wat erop stond,
-            staat daarna weer open om te factureren.
+            staat daarna weer open om te factureren. Hij had nog geen nummer, dus er valt geen gat in de reeks.
           </p>
+        </BevestigModal>
+      )}
+
+      {intrekken && (
+        <BevestigModal titel={`Nummer ${intrekken.id} intrekken?`} knop="Nummer intrekken" gevaar onSluit={() => setIntrekken(null)}
+          onBevestig={() => { setIntrekken(null); props.onNummerIn(intrekken.id) }}>
+          <p>
+            Doe dit alleen als {factuurNaam(intrekken)} <strong>echt niet verstuurd</strong> is. Hij wordt weer een
+            concept, en de volgende factuur krijgt nummer {intrekken.id}. Heeft de klant hem toch, dan bestaat dat
+            nummer straks twee keer.
+          </p>
+          <p>Dit kan alleen bij het laatst uitgegeven nummer; anders zou er een gat in de reeks vallen.</p>
         </BevestigModal>
       )}
     </>

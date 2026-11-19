@@ -1,4 +1,4 @@
-import type { Factuur, Paklijst, Project, ProjectVoortgang } from '@stockmanager/shared'
+import { factuurNummerTekst, heeftFactuurnummer, type Factuur, type Paklijst, type Project, type ProjectVoortgang } from '@stockmanager/shared'
 import { Card } from '../components/Card'
 import { datum, eur, relatieveDagen, dagenTot } from '../lib/format'
 import { geaccepteerdeOfferte, geldendeOfferte } from '../lib/status'
@@ -132,9 +132,9 @@ function factuurRij(f: Factuur): StapRij {
   const n = dagenTot(f.vervaldatum)
   return {
     open: { soort: 'factuur', id: f.id },
-    document: credit ? `${f.id} (credit)` : f.id,
-    nummer: f.id,
-    status: f.verzondenOp ? 'Verzonden' : 'Concept',
+    document: credit ? `${factuurNummerTekst(f.id)} (credit)` : factuurNummerTekst(f.id),
+    nummer: factuurNummerTekst(f.id),
+    status: f.verzondenOp ? 'Verzonden' : heeftFactuurnummer(f.id) ? 'Genummerd' : 'Concept',
     statusKleur: f.verzondenOp ? (credit ? 'warn' : 'ok') : '',
     datumTekst: datum(f.verzondenOp),
     bedrag: credit ? `−${eur(f.totaalInclBtw)}` : eur(f.totaalInclBtw),

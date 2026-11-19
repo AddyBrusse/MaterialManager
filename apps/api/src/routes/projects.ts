@@ -17,6 +17,8 @@ import {
   BTW_PCT, factuurBedragen, factuurRegels, factuurMailadres, voorstelFactuur, voorstelCredit,
   waaromNietFactuur, waaromNietCredit, waaromNietFactuurWijzigen, waaromNietFactuurVersturen,
   waaromNietBetaald, vervaldatumVanaf, waaromNietProjectVerwijderen,
+  waaromNietFactuurVerwijderen, waaromNietNummerIntrekken, conceptFactuurId, heeftFactuurnummer, factuurPrefix,
+  isConceptFactuurId,
 } from '@stockmanager/shared'
 import { asyncHandler } from '../lib/async-handler'
 import { AppError } from '../middleware/error'
@@ -28,7 +30,7 @@ import { materiaalStand, zonderMateriaal } from '../services/materiaal-stand'
 import { exootRegelsBijOpdracht } from '../services/bestellingen'
 import { rondAfVoorStap } from '../services/tijdregistratie'
 import { boekAfBijGereed } from '../services/zaagbon'
-import { nextDocId } from '../services/doc-nummer'
+import { geefNummerTerug, nextDocId } from '../services/doc-nummer'
 import type { Prisma } from '@prisma/client'
 
 const router = Router()
@@ -1097,16 +1099,28 @@ function nieuweFactuur(
 
 const metStatus = (p: Project): Project => ({ ...p, status: statusNaLevering(p), updatedAt: now() })
 
+/**
+ * Het concept-id dat de browser al op het scherm zette (2026-11-18), zodat het
+ * niet wisselt als het antwoord binnenkomt: anders wijst een knop die je net
+ * daarvoor indrukte naar een factuur die niet meer bestaat. Een concept-id is
+ * geen nummer; het nummer geeft alleen de server, bij versturen.
+ */
+async function conceptIdVoor(tx: Prisma.TransactionClient, soort: 'factuur' | 'credit', gewenst: string | undefined): Promise<string> {
+  if (gewenst && isConceptFactuurId(gewenst) && gewenst.startsWith(`${factuurPrefix(soort)}-`)
+    && !(await tx.factuur.findUnique({ where: { id: gewenst }, select: { id: true } }))) return gewenst
+  return conceptFactuurId(soort)
+}
+
 router.post(
   '/:id/factuur',
   asyncHandler(async (req, res) => {
-    const body = z.object({ regels: z.array(FactuurRegelInvoer).optional() }).parse(req.body ?? {})
+    const body = z.object({ regels: z.array(FactuurRegelInvoer).optional(), id: z.string().max(40).optional() }).parse(req.body ?? {})
     const updated = await withProject(req.params.id, async (p, tx) => {
       const keuze = body.regels ?? voorstelFactuur(p)
       const nee = waaromNietFactuur(p, keuze)
       if (nee) throw new AppError(409, 'VOORWAARDE', nee)
       const { naar } = await standaardMailadres(tx, p)
-      const f = nieuweFactuur(p, await nextDocId(tx, 'FACT'), 'factuur', factuurRegels(p, keuze), naar, null)
+      const f = nieuweFactuur(p, await conceptIdVoor(tx, 'factuur', body.id), 'factuur', factuurRegels(p, keuze), naar, null)
       return metStatus({ ...p, facturen: [...p.facturen, f] })
     })
     res.status(201).json({ data: updated })
@@ -1116,7 +1130,7 @@ router.post(
 router.post(
   '/:id/credit',
   asyncHandler(async (req, res) => {
-    const body = z.object({ factuurId: z.string(), regels: z.array(FactuurRegelInvoer).optional() }).parse(req.body)
+    const body = z.object({ factuurId: z.string(), regels: z.array(FactuurRegelInvoer).optional(), id: z.string().max(40).optional() }).parse(req.body)
     const updated = await withProject(req.params.id, async (p, tx) => {
       const keuze = body.regels ?? voorstelCredit(p, body.factuurId)
       const nee = waaromNietCredit(p, body.factuurId, keuze)
@@ -1127,7 +1141,7 @@ router.post(
         return { ...r, qty: g.qty, verkoopprijs: g.verkoopprijs, totaal: Math.round(g.qty * g.verkoopprijs * 100) / 100 }
       })
       // Naar hetzelfde adres als de factuur die hij crediteert.
-      const c = nieuweFactuur(p, await nextDocId(tx, 'CRED'), 'credit', regels, bron.naarEmail, bron)
+      const c = nieuweFactuur(p, await conceptIdVoor(tx, 'credit', body.id), 'credit', regels, bron.naarEmail, bron)
       return metStatus({ ...p, facturen: [...p.facturen, c] })
     })
     res.status(201).json({ data: updated })
@@ -1177,16 +1191,91 @@ router.patch(
   }),
 )
 
-/** Een concept weggooien. Het nummer is dan weg; een concept is nog nergens heen gegaan. */
+/**
+ * Een concept weggooien. Sinds 2026-11-18 heeft een concept nog geen nummer,
+ * dus er valt geen gat in de reeks; een factuur mét nummer gaat niet weg.
+ */
 router.delete(
   '/:id/factuur/:factuurId',
   asyncHandler(async (req, res) => {
     const updated = await withProject(req.params.id, (p) => {
-      const nee = waaromNietFactuurWijzigen(p, req.params.factuurId)
+      const nee = waaromNietFactuurVerwijderen(p, req.params.factuurId)
       if (nee) throw new AppError(409, 'VOORWAARDE', nee)
       return metStatus({ ...p, facturen: p.facturen.filter(f => f.id !== req.params.factuurId) })
     })
     res.json({ data: updated })
+  }),
+)
+
+/** Een factuur een ander id geven: nummer erbij of eraf. Een credit die ernaar wijst, wijst mee. */
+function hernoem(p: Project, oud: string, nieuw: string): Project {
+  return {
+    ...p,
+    facturen: p.facturen.map(x => ({
+      ...x,
+      id: x.id === oud ? nieuw : x.id,
+      crediteertFactuurId: x.crediteertFactuurId === oud ? nieuw : x.crediteertFactuurId,
+    })),
+  }
+}
+
+/** Het volgende nummer uit de reeks, als hij er nog geen heeft. */
+async function metNummer(tx: Prisma.TransactionClient, p: Project, factuurId: string): Promise<{ p: Project; id: string }> {
+  const f = p.facturen.find(x => x.id === factuurId)!
+  if (heeftFactuurnummer(f.id)) return { p, id: f.id }
+  const id = await nextDocId(tx, factuurPrefix(f.soort))
+  return { p: hernoem(p, f.id, id), id }
+}
+
+/**
+ * Het nummer geven (2026-11-18): de eerste stap van Versturen, vlak voordat
+ * de pdf gemaakt wordt — die moet het nummer dragen. Dezelfde voorwaarden als
+ * versturen, zodat er geen nummer uitgaat voor een factuur die toch niet weg kan.
+ */
+router.post(
+  '/:id/factuur/:factuurId/nummer',
+  asyncHandler(async (req, res) => {
+    const body = z.object({ naarEmail: z.string().max(200).nullable().optional() }).parse(req.body ?? {})
+    let nummer = req.params.factuurId
+    const updated = await withProject(req.params.id, async (p, tx) => {
+      const f = p.facturen.find(x => x.id === req.params.factuurId)
+      const naar = body.naarEmail !== undefined ? body.naarEmail : (f?.naarEmail ?? null)
+      const nee = waaromNietFactuurVersturen(p, req.params.factuurId, naar)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      const uit = await metNummer(tx, p, f!.id)
+      nummer = uit.id
+      return { ...uit.p, updatedAt: now() }
+    })
+    res.json({ data: { project: updated, factuurId: nummer } })
+  }),
+)
+
+/**
+ * Het nummer intrekken: terug naar concept. Alleen het laatst uitgegeven
+ * nummer, want alleen dan ontstaat er geen gat; anders blijft hij genummerd en
+ * gaat hij als hij weg moet via een credit.
+ */
+router.post(
+  '/:id/factuur/:factuurId/nummer-terug',
+  asyncHandler(async (req, res) => {
+    let concept = req.params.factuurId
+    const updated = await withProject(req.params.id, async (p, tx) => {
+      const f = p.facturen.find(x => x.id === req.params.factuurId)
+      const nee = waaromNietNummerIntrekken(f)
+      if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      if (p.facturen.some(x => x.crediteertFactuurId === f!.id)) {
+        throw new AppError(409, 'VOORWAARDE', `Er hangt een creditfactuur aan ${f!.id}; het nummer blijft staan.`)
+      }
+      const nietLaatste = await geefNummerTerug(tx, f!.id)
+      if (nietLaatste) {
+        throw new AppError(409, 'VOORWAARDE',
+          `${f!.id} is niet het laatst uitgegeven nummer${nietLaatste.laatste ? ` (dat is ${nietLaatste.laatste})` : ''}. `
+          + 'Intrekken zou een gat in de reeks geven. Verstuur hem, en crediteer hem zo nodig.')
+      }
+      concept = conceptFactuurId(f!.soort)
+      return { ...hernoem(p, f!.id, concept), updatedAt: now() }
+    })
+    res.json({ data: { project: updated, factuurId: concept } })
   }),
 )
 
@@ -1199,11 +1288,14 @@ router.post(
   '/:id/factuur/:factuurId/verzend',
   asyncHandler(async (req, res) => {
     const body = z.object({ naarEmail: z.string().max(200).nullable().optional() }).parse(req.body ?? {})
-    const updated = await withProject(req.params.id, async (p, tx) => {
-      const f = p.facturen.find(x => x.id === req.params.factuurId)
-      const naar = body.naarEmail !== undefined ? body.naarEmail : (f?.naarEmail ?? null)
-      const nee = waaromNietFactuurVersturen(p, req.params.factuurId, naar)
+    const updated = await withProject(req.params.id, async (huidig, tx) => {
+      const f0 = huidig.facturen.find(x => x.id === req.params.factuurId)
+      const naar = body.naarEmail !== undefined ? body.naarEmail : (f0?.naarEmail ?? null)
+      const nee = waaromNietFactuurVersturen(huidig, req.params.factuurId, naar)
       if (nee) throw new AppError(409, 'VOORWAARDE', nee)
+      // Zonder nummer (wie de stap "nummer" overslaat): nu alsnog, vóór het vastleggen.
+      const { p, id } = await metNummer(tx, huidig, f0!.id)
+      const f = p.facturen.find(x => x.id === id)
       const { termijn } = await standaardMailadres(tx, p)
       const nu = new Date()
       const facturen = p.facturen.map(x => x.id === f!.id

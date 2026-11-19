@@ -1,6 +1,9 @@
 import type { Factuur, FactuurRegel, Project } from '../schemas/project'
 import type { Relatie, RelatieContact } from '../schemas/relatie'
 import { basisRegels, berekenVoortgang } from './projectvoortgang'
+import { factuurNaam, heeftFactuurnummer } from './factuur-nummer'
+
+const hoofdletter = (t: string) => t.charAt(0).toUpperCase() + t.slice(1)
 
 /**
  * Facturen en credits op de Facturen-tab (besloten 2026-10-03).
@@ -137,7 +140,7 @@ export function waaromNietCredit(
   const bron = p.facturen.find(f => f.id === factuurId)
   if (!bron) return 'De factuur die je wilt crediteren bestaat niet (meer). Ververs de pagina.'
   if (bron.soort === 'credit') return 'Een creditfactuur kun je niet crediteren. Maak zo nodig een nieuwe factuur.'
-  if (!bron.verzondenOp) return `${bron.id} is nog een concept. Pas die gewoon aan in plaats van te crediteren.`
+  if (!bron.verzondenOp) return `${bron.id} is nog niet verstuurd. Pas hem gewoon aan in plaats van te crediteren.`
   const open = creditOpen(p, factuurId, opties.creditId)
   if (keuze.length === 0) {
     if (opties.leegMag) return null
@@ -153,9 +156,17 @@ export function waaromNietCredit(
   )
 }
 
-export function waaromNietFactuurWijzigen(p: Project, factuurId: string): string | null {
-  const f = p.facturen.find(x => x.id === factuurId)
-  if (!f) return 'Deze factuur bestaat niet (meer). Ververs de pagina.'
+// ── Per factuur, voor project- én losse facturen (2026-11-18) ──────────────
+// Wat hieronder over één factuur gaat, kijkt alleen naar die factuur. De
+// projectversies zoeken hem op en vragen het dan hier; de losse facturen
+// (`losse-factuur.ts`) vragen het rechtstreeks.
+
+type FactuurStand = Pick<Factuur, 'id' | 'soort' | 'verzondenOp'> & { regels: readonly unknown[] }
+const BESTAAT_NIET = 'Deze factuur bestaat niet (meer). Ververs de pagina.'
+
+/** Een verstuurde factuur staat vast. */
+export function waaromNietFactuurAanpassen(f: FactuurStand | undefined): string | null {
+  if (!f) return BESTAAT_NIET
   if (f.verzondenOp) {
     return f.soort === 'credit'
       ? `${f.id} is al verstuurd en staat vast.`
@@ -164,23 +175,62 @@ export function waaromNietFactuurWijzigen(p: Project, factuurId: string): string
   return null
 }
 
-export function waaromNietFactuurVersturen(p: Project, factuurId: string, naar: string | null): string | null {
-  const nee = waaromNietFactuurWijzigen(p, factuurId)
-  if (nee) return nee
-  const f = p.facturen.find(x => x.id === factuurId)!
-  if (f.regels.length === 0) return `${f.id} heeft nog geen regels. Voeg eerst toe wat er gefactureerd wordt.`
-  if (!naar?.trim()) {
-    return `Er is geen mailadres voor ${f.id}. Vul het in op de factuur, of zet "E-mail factuur" bij de klant (Relaties).`
+/**
+ * Weggooien kan alleen zolang hij geen nummer heeft (2026-11-18). Een
+ * factuurnummer mag niet verdwijnen: dat is een gat in de reeks. Intrekken
+ * (terug naar concept) kan wel als het het laatst uitgegeven nummer is.
+ */
+export function waaromNietFactuurWeg(f: FactuurStand | undefined): string | null {
+  const vast = waaromNietFactuurAanpassen(f)
+  if (vast) return vast
+  if (heeftFactuurnummer(f!.id)) {
+    return `${f!.id} heeft al een nummer, en een factuurnummer mag niet verdwijnen. Trek het nummer eerst in `
+      + '(dat kan alleen bij het laatst uitgegeven nummer), of verstuur hem en crediteer hem zo nodig.'
   }
   return null
 }
 
-export function waaromNietBetaald(p: Project, factuurId: string): string | null {
-  const f = p.facturen.find(x => x.id === factuurId)
-  if (!f) return 'Deze factuur bestaat niet (meer). Ververs de pagina.'
-  if (f.soort === 'credit') return 'Een creditfactuur wordt verrekend, niet betaald.'
-  if (!f.verzondenOp) return `${f.id} is nog niet verstuurd.`
+export function waaromNietNummerIntrekken(f: FactuurStand | undefined): string | null {
+  const vast = waaromNietFactuurAanpassen(f)
+  if (vast) return vast
+  if (!heeftFactuurnummer(f!.id)) return 'Deze factuur heeft nog geen nummer; er valt niets in te trekken.'
   return null
+}
+
+export function waaromNietVersturenVan(f: FactuurStand | undefined, naar: string | null): string | null {
+  const nee = waaromNietFactuurAanpassen(f)
+  if (nee) return nee
+  const wie = factuurNaam(f!)
+  if (f!.regels.length === 0) return `${hoofdletter(wie)} heeft nog geen regels. Voeg eerst toe wat er gefactureerd wordt.`
+  if (!naar?.trim()) {
+    return `Er is geen mailadres voor ${wie}. Vul het in op de factuur, of zet "E-mail factuur" bij de klant (Relaties).`
+  }
+  return null
+}
+
+export function waaromNietBetaaldVan(f: FactuurStand | undefined): string | null {
+  if (!f) return BESTAAT_NIET
+  if (f.soort === 'credit') return 'Een creditfactuur wordt verrekend, niet betaald.'
+  if (!f.verzondenOp) return `${hoofdletter(factuurNaam(f))} is nog niet verstuurd.`
+  return null
+}
+
+// ── Projectfacturen ─────────────────────────────────────────────────────────
+
+export function waaromNietFactuurWijzigen(p: Project, factuurId: string): string | null {
+  return waaromNietFactuurAanpassen(p.facturen.find(x => x.id === factuurId))
+}
+
+export function waaromNietFactuurVerwijderen(p: Project, factuurId: string): string | null {
+  return waaromNietFactuurWeg(p.facturen.find(x => x.id === factuurId))
+}
+
+export function waaromNietFactuurVersturen(p: Project, factuurId: string, naar: string | null): string | null {
+  return waaromNietVersturenVan(p.facturen.find(x => x.id === factuurId), naar)
+}
+
+export function waaromNietBetaald(p: Project, factuurId: string): string | null {
+  return waaromNietBetaaldVan(p.facturen.find(x => x.id === factuurId))
 }
 
 /**
@@ -203,7 +253,9 @@ export function vervaldatumVanaf(verstuurdOp: Date, termijnDagen: number | null 
 }
 
 /** Verstuurd, niet betaald, en de vervaldatum is voorbij. */
-export function isVervallen(f: Factuur, nu: Date = new Date()): boolean {
+export function isVervallen(
+  f: Pick<Factuur, 'soort' | 'verzondenOp' | 'betaaldOp' | 'vervaldatum'>, nu: Date = new Date(),
+): boolean {
   if (f.soort !== 'factuur' || !f.verzondenOp || f.betaaldOp || !f.vervaldatum) return false
   return f.vervaldatum < nu.toISOString().slice(0, 10)
 }

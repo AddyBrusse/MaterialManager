@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { IconFileText, IconPlus, IconSearch } from '@tabler/icons-react'
-import { DOCUMENT_SOORTEN, type DocumentSoort } from '@stockmanager/shared'
+import { DOCUMENT_SOORTEN, factuurNummerTekst, type DocumentSoort } from '@stockmanager/shared'
 import { documentenApi } from '../../api/documenten'
 import { relatiesApi } from '../../api/relaties'
 import { formatBedrag, formatDate } from '../../api/projects'
@@ -12,11 +12,13 @@ import { statusBadge, SOORT_KORT, zoektekst } from '../../components/documenten/
 // op nummer terug te vinden zonder te weten bij welk project het hoort. Een rij
 // opent het project op de tab van dat document (punt 1 + 2 uit
 // features/61-orderproces-backlog.md).
+// De namen moeten bestaan in TAB_IDS van ProjectDetailPage; een onbekende valt
+// stil terug op Algemeen (2026-11-18 rechtgezet: stond op de documentsoort).
 const TAB_VAN_SOORT: Record<DocumentSoort, string> = {
   offerte: 'offertes',
-  opdrachtbevestiging: 'opdrachtbevestiging',
-  paklijst: 'paklijst',
-  factuur: 'factuur',
+  opdrachtbevestiging: 'opdracht',
+  paklijst: 'pakbonnen',
+  factuur: 'facturen',
 }
 
 export function DocumentenPage() {
@@ -116,10 +118,11 @@ export function DocumentenPage() {
                 return (
                   <tr
                     key={`${d.soort}-${d.id}`}
-                    onClick={() => navigate(`/projecten/${d.projectId}?tab=${TAB_VAN_SOORT[d.soort]}`)}
+                    // Een losse factuur (2026-11-18) heeft geen project: die staat op de pagina Facturen.
+                    onClick={() => navigate(d.projectId ? `/projecten/${d.projectId}?tab=${TAB_VAN_SOORT[d.soort]}` : '/facturen')}
                     style={{ cursor: 'pointer' }}
                   >
-                    <td className="cell-mono">{d.id}</td>
+                    <td className="cell-mono">{d.soort === 'factuur' ? factuurNummerTekst(d.id) : d.id}</td>
                     <td>{SOORT_KORT[d.soort]}</td>
                     <td>{klantNaam(d.relatieId) || <span className="cell-muted">—</span>}</td>
                     <td>{d.projectNaam || <span className="cell-muted">Naamloos</span>}</td>
